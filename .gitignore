@@ -2,5 +2,8 @@
 \#*\#
  *.dump
 core
-ebin/*
-doc/*
+ebin/*.beam
+doc/*.html
+doc/stylesheet.css
+doc/erlang.png
+doc/edoc-info
