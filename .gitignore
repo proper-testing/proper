@@ -1,0 +1,6 @@
+*~
+\#*\#
+ *.dump
+core
+ebin/*
+doc/*
