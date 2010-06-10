@@ -152,19 +152,19 @@
 		    | {'$whenfail', side_effects_fun(), delayed_test()}
 		    %| {'$trapexit', delayed_test()}
 		    %| {'$timeout', time_period(), delayed_test()}
-		    | {'$apply', [term()], fun((...) -> _)}.
+		    | {'$apply', [term()], function()}.
 -type forall_clause() :: {'$forall', raw_type(),
 			  fun((instance()) -> inner_test())}.
 -type forall2_clause() :: {'$forall2', raw_type(),
 			   fun((instance()) -> inner_test())}.
 -type delayed_test() :: fun(() -> test()).
 
--record(opts, {'quiet'       = false :: boolean(),
-	       'numtests'    = 100   :: non_neg_integer(),
-	       'max_shrinks' = 300   :: non_neg_integer(),
-	       'expect_fail' = false :: boolean(),
-	       'try_shrunk'  = false :: boolean(),
-	       'shrunk'              :: testcase()}).
+-record(opts, {quiet       = false :: boolean(),
+	       numtests    = 100   :: non_neg_integer(),
+	       max_shrinks = 300   :: non_neg_integer(),
+	       expect_fail = false :: boolean(),
+	       try_shrunk  = false :: boolean(),
+	       shrunk              :: testcase()}).
 
 -type opt() :: 'quiet'
 	     | {'numtests', non_neg_integer()}
