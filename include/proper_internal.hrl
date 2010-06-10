@@ -114,30 +114,30 @@
     | {'shrinkers', [shrinker()]}
     | {'internal_type', raw_type()}
     | {'internal_types',
-       tuple(type()) | maybe_improper_list(type(),type())}
-      % The items returned by 'remove' must be of this type.
+       tuple(type()) | maybe_improper_list(type(),term())}
+      %% The items returned by 'remove' must be of this type.
     | {'get_length', fun((imm_instance()) -> length())}
-      % If this is a container type, this should return the number of elements
-      % it contains.
+      %% If this is a container type, this should return the number of elements
+      %% it contains.
     | {'split', fun((imm_instance()) -> [imm_instance()])
 	      | fun((length(),imm_instance()) ->
 		    {imm_instance(),imm_instance()})}
-      % If present, the appropriate form depends on whether get_length is
-      % defined: if get_length is undefined, this must be in the one-argument
-      % form (e.g. a tree should be split into its subtrees), else it must be
-      % in the two-argument form (e.g. a list should be split in two at the
-      % index provided).
+      %% If present, the appropriate form depends on whether get_length is
+      %% defined: if get_length is undefined, this must be in the one-argument
+      %% form (e.g. a tree should be split into its subtrees), else it must be
+      %% in the two-argument form (e.g. a list should be split in two at the
+      %% index provided).
     | {'join', fun((imm_instance(),imm_instance()) -> imm_instance())}
     | {'get_indices', fun((imm_instance()) -> [index()])}
-      % If this is a container type, this should return a list of indices we
-      % can use to remove or insert elements from the given instance.
+      %% If this is a container type, this should return a list of indices we
+      %% can use to remove or insert elements from the given instance.
     | {'remove', fun((index(),imm_instance()) -> imm_instance())}
     | {'retrieve', fun((index(),imm_instance()) -> value())}
     | {'update', fun((index(),value(),imm_instance()) -> imm_instance())}
     | {'constraints', [{instance_test(), boolean()}]}
-      % A list of constraints on instances of this type: each constraint is a
-      % tuple of a fun that must return 'true' for each valid instance and a
-      % boolean field that specifies whether the condition is strict.
+      %% A list of constraints on instances of this type: each constraint is a
+      %% tuple of a fun that must return 'true' for each valid instance and a
+      %% boolean field that specifies whether the condition is strict.
     | {'parts_type', type()}
     | {'combine', combine_fun()}
     | {'alt_gens', alt_gens()}.
@@ -151,8 +151,8 @@
 		    | {'$implies', boolean(), delayed_test()}
 		    | collect_clause()
 		    | {'$whenfail', side_effects_fun(), delayed_test()}
-		    %| {'$trapexit', delayed_test()}
-		    %| {'$timeout', time_period(), delayed_test()}
+		    %%| {'$trapexit', delayed_test()}
+		    %%| {'$timeout', time_period(), delayed_test()}
 		    | {'$apply', [term()], function()}.
 -type numtests_clause() :: {'$numtests', non_neg_integer(), test()}.
 -type fails_clause() :: {'$fails', test()}.

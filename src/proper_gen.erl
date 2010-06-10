@@ -39,8 +39,7 @@ generate(Type = {'$type',_Props}) ->
 generate(RawType) ->
     generate(proper_types:cook_outer(RawType)).
 
--spec generate(type(), non_neg_integer(), imm_instance() | X) ->
-	  imm_instance() | X.
+-spec generate(type(), non_neg_integer(), term()) -> term().
 generate(_Type, 0, Fallback) ->
     Fallback;
 generate(Type, TriesLeft, Fallback) ->
@@ -87,7 +86,7 @@ sample(Size, RawType) ->
     proper:global_state_init(Opts),
     proper:set_size(Size),
     ImmInstance = generate(RawType),
-    %io:format("~p~n~n", [ImmInstance]),
+    %% io:format("~p~n~n", [ImmInstance]),
     proper:global_state_erase(Opts),
     clean_instance(ImmInstance).
 
@@ -113,7 +112,7 @@ clean_instance({'$used',_ImmParts,ImmInstance}) ->
 clean_instance(ImmInstance) ->
     if
 	is_list(ImmInstance) ->
-	    % CAUTION: this must handle improper lists
+	    %% CAUTION: this must handle improper lists
 	    safemap(fun ?MODULE:clean_instance/1, ImmInstance);
 	is_tuple(ImmInstance) ->
 	    tuplemap(fun ?MODULE:clean_instance/1, ImmInstance);
@@ -121,13 +120,13 @@ clean_instance(ImmInstance) ->
 	    ImmInstance
     end.
 
--spec safemap(fun((X) -> Y), maybe_improper_list(X,X)) ->
-	  maybe_improper_list(Y,Y).
+-spec safemap(fun((X) -> Y), maybe_improper_list(X,term())) ->
+	  maybe_improper_list(Y,term()).
 safemap(Fun, List) ->
     safemap_tr(Fun, List, []).
 
--spec safemap_tr(fun((X) -> Y), maybe_improper_list(X,X) | X, [Y]) ->
-	  maybe_improper_list(Y,Y).
+-spec safemap_tr(fun((X) -> Y), maybe_improper_list(X,term()), [Y]) ->
+          maybe_improper_list(Y,term()).
 safemap_tr(_Fun, [], AccList) ->
     lists:reverse(AccList);
 safemap_tr(Fun, [Head | Tail], AccList) ->
@@ -162,7 +161,7 @@ float_gen(Size, Low, inf) ->
 float_gen(_Size, Low, High) ->
     proper_arith:rand_float(Low, High).
 
--spec atom_gen() -> atom().
+-spec atom_gen() -> type().
 %% we make sure we never clash by checking that the first character is not '$'
 atom_gen() ->
     ?LET(Str,

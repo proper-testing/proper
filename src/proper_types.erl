@@ -45,9 +45,9 @@ cook_outer(Type = {'$type',_Props}) ->
 cook_outer(RawType) ->
     if
 	is_tuple(RawType) -> tuple(erlang:tuple_to_list(RawType));
-	% CAUTION: this must handle improper lists
+	%% CAUTION: this must handle improper lists
 	is_list(RawType)  -> fixed_list(RawType);
-	% default case (covers integers, floats, atoms, binaries, ...):
+	%% default case (covers integers, floats, atoms, binaries, ...):
 	true              -> exactly(RawType)
     end.
 
@@ -61,8 +61,8 @@ is_raw_type(X) ->
 	true        -> false
     end.
 
--spec is_raw_type_list(maybe_improper_list() | term()) -> boolean().
-% CAUTION: this must handle improper lists
+-spec is_raw_type_list(term()) -> boolean().
+%% CAUTION: this must handle improper lists
 is_raw_type_list([]) ->
     false;
 is_raw_type_list([X | Rest]) ->
@@ -375,9 +375,9 @@ exactly(E) ->
 	{is_instance, fun(X) -> X =:= E end}
     ]).
 
--spec fixed_list(maybe_improper_list(raw_type(),raw_type())) -> type().
+-spec fixed_list(maybe_improper_list()) -> type().
 fixed_list(MaybeImproperRawFields) ->
-    % CAUTION: must handle improper lists
+    %% CAUTION: must handle improper lists
     {Fields, Internal, Indices, Retrieve, Update} =
 	case cut_improper_tail(MaybeImproperRawFields) of
 	    % TODO: have cut_improper_tail return the length and use it in test?
@@ -408,11 +408,9 @@ fixed_list(MaybeImproperRawFields) ->
 	{update, Update}
     ]).
 
--spec cut_improper_tail(maybe_improper_list(X,Y)) -> [X] | {[X],Y}.
 cut_improper_tail(List) ->
     cut_improper_tail_tr(List, []).
 
--spec cut_improper_tail_tr(maybe_improper_list(X,Y) | Y, [X]) -> [X] | {[X],Y}.
 cut_improper_tail_tr([], AccList) ->
     lists:reverse(AccList);
 cut_improper_tail_tr([Head | Tail], AccList) ->
@@ -441,11 +439,10 @@ fixed_list_test(X, ProperFields) ->
     end.
 
 -spec head_length(maybe_improper_list()) -> length().
-% CAUTION: must handle improper lists
+%% CAUTION: must handle improper lists
 head_length(List) ->
     head_length_tr(List, 0).
 
--spec head_length_tr(maybe_improper_list() | term(), length()) -> length().
 head_length_tr([], Len) ->
     Len;
 head_length_tr([_Head | Tail], Len) ->
@@ -453,17 +450,12 @@ head_length_tr([_Head | Tail], Len) ->
 head_length_tr(_ImproperTail, Len) ->
     Len.
 
--spec improper_list_retrieve(position(), maybe_improper_list(X,Y), length()) ->
-	  X | [X] | Y.
 improper_list_retrieve(Index, List, HeadLen) ->
     case Index =< HeadLen of
 	true  -> lists:nth(Index, List);
 	false -> lists:nthtail(HeadLen, List)
     end.
 
--spec improper_list_update(position(), X | Y, maybe_improper_list(X,Y),
-			   length()) ->
-	  maybe_improper_list(X,Y).
 improper_list_update(Index, Value, List, HeadLen) ->
     case Index =< HeadLen of
 	true  -> list_update(Index, Value, List);
