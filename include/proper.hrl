@@ -16,8 +16,8 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %% User header file
-% This shoulde be included in each file containing user type declarations and/or
-% properties to be tested.
+%% This shoulde be included in each file containing user type declarations and/or
+%% properties to be tested.
 
 
 %% Generator macros
@@ -53,8 +53,8 @@
 -define(WHENFAIL(Action,Test), {'$whenfail',?DELAY(Action),?DELAY(Test)}).
 -define(NUMTESTS(N,Test), {'$numtests',N,Test}).
 -define(FAILS(Test), {'$fails',Test}).
-% TODO: -define(TRAPEXIT(Test), {'$trapexit',?DELAY(Test)}).
-% TODO: -define(TIMEOUT(Limit,Test), {'$timeout',Limit,?DELAY(Test)}).
+%% TODO: -define(TRAPEXIT(Test), {'$trapexit',?DELAY(Test)}).
+%% TODO: -define(TIMEOUT(Limit,Test), {'$timeout',Limit,?DELAY(Test)}).
 
 
 %% Default types
@@ -66,13 +66,14 @@
 %% Type aliases
 
 -import(proper_types, [integer/0, non_neg_integer/0, pos_integer/0,
-		       neg_integer/0, float/0, non_neg_float/0, number/0,
-		       boolean/0, byte/0, char/0, string/0, wunion/1]).
+		       neg_integer/0, range/2, float/0, non_neg_float/0,
+		       number/0, boolean/0, byte/0, char/0, string/0,
+		       wunion/1]).
 
 
 %% QuickCheck compatibility
 
--import(proper_types, [int/0, int/2, bool/0, choose/2, elements/1, oneof/1,
-		       frequency/1]).
--import(proper_types, [resize/2, relimit/2]).
+-import(proper_types, [int/0, int/2, bool/0, choose/2, elements/1,
+		       oneof/1, frequency/1]).
+-import(proper_types, [resize/2, relimit/2, non_empty/1]).
 -import(proper, [numtests/2, collect/2, fails/1]).

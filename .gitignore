@@ -2,6 +2,7 @@
 \#*\#
  *.dump
 core
+*.tar.gz
 ebin/*.beam
 doc/*.html
 doc/stylesheet.css

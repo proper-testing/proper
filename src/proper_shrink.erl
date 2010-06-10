@@ -34,15 +34,20 @@
 
 %% Main shrinking functions
 
+-spec shrink(testcase(), inner_test(), fail_reason(), #opts{}) ->
+	  {non_neg_integer(),testcase()}.
 shrink(ImmFailedTestCase, Test, Reason, Opts) ->
     shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
 		       0, Opts#opts.max_shrinks, Opts).
 
-% TODO: is it too much if we try to reach an equilibrium by repeaing all the
-%	shrinkers?
-% TODO: is it possible to get stuck in an infinite loop (unions are the most
-%	dangerous)? should we check if the returned values have been
-%	encountered before?
+-spec shrink_to_fixpoint(testcase(), inner_test(), fail_reason(),
+			 non_neg_integer(), non_neg_integer(), #opts{}) ->
+	  {non_neg_integer(),testcase()}.
+%% TODO: is it too much if we try to reach an equilibrium by repeaing all the
+%%	 shrinkers?
+%% TODO: is it possible to get stuck in an infinite loop (unions are the most
+%%	 dangerous)? should we check if the returned values have been
+%%	 encountered before?
 shrink_to_fixpoint(ImmFailedTestCase, _Test, _Reason,
 		   TotalShrinks, 0, _Opts) ->
     {TotalShrinks, ImmFailedTestCase};
@@ -57,7 +62,15 @@ shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
 				TotalShrinks + N, ShrinksLeft - N, Opts)
     end.
 
-% TODO: 'tries_left' instead of 'shrinks_left'?
+-spec shrink_tr(testcase(), testcase(), forall_clause() | forall2_clause(),
+		fail_reason(), non_neg_integer(), non_neg_integer(), state(),
+		#opts{}) ->
+	  {non_neg_integer(),testcase()}.
+%% TODO: 'tries_left' instead of 'shrinks_left'?
+shrink_tr(Shrunk, TestTail, error, _Reason,
+	  Shrinks, _ShrinksLeft, _State, _Opts) ->
+    io:format("~nInternal Error: skip_to_next returned error~n", []),
+    {Shrinks, lists:reverse(Shrunk) ++ TestTail};
 shrink_tr(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Opts) ->
     {Shrinks, lists:reverse(Shrunk) ++ TestTail};
 shrink_tr(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Opts) ->
@@ -93,14 +106,16 @@ shrink_tr(Shrunk, TestTail = [ImmInstance | Rest],
 		      Shrinks, ShrinksLeft, NewState, Opts);
 	{Pos, ShrunkImmInstance} ->
 	    proper:print(".", [], Opts),
-	    %proper:print("~w~n", [ShrunkImmInstance], Opts),
 	    shrink_tr(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
 		      Shrinks + 1, ShrinksLeft - 1, {shrunk,Pos,NewState}, Opts)
     end.
 
+-spec find_first(fun((X) -> boolean()), [X]) -> {position(),X} | 'none'.
 find_first(Pred, List) ->
     find_first_tr(Pred, List, 1).
 
+-spec find_first_tr(fun((X) -> boolean()), [X], position()) ->
+	  {position(),X} | 'none'.
 find_first_tr(_Pred, [], _Pos) ->
     none;
 find_first_tr(Pred, [X | Rest], Pos) ->
@@ -109,6 +124,7 @@ find_first_tr(Pred, [X | Rest], Pos) ->
 	false -> find_first_tr(Pred, Rest, Pos + 1)
     end.
 
+-spec shrink_one(imm_instance(), type(), state()) -> {[imm_instance()],state()}.
 shrink_one(ImmInstance, Type, init) ->
     Shrinkers = get_shrinkers(Type),
     shrink_one(ImmInstance, Type, {shrinker,Shrinkers,init});
@@ -123,6 +139,7 @@ shrink_one(ImmInstance, Type, {shrinker,Shrinkers,State}) ->
 shrink_one(ImmInstance, Type, {shrunk,N,{shrinker,Shrinkers,State}}) ->
     shrink_one(ImmInstance, Type, {shrinker,Shrinkers,{shrunk,N,State}}).
 
+-spec get_shrinkers(type()) -> [shrinker()].
 get_shrinkers(Type) ->
     CustomShrinkers =
 	case proper_types:find_prop(shrinkers, Type) of
@@ -148,21 +165,27 @@ get_shrinkers(Type) ->
 
 %% Non-opaque type shrinkers
 
-% we stop at the smaller alternative shrinker
-% TODO: 'is_raw_type' check?
+-spec alternate_shrinker(imm_instance(), type(), state()) ->
+	  {[imm_instance()],state()}.
+%% we stop at the smaller alternative shrinker
+%% TODO: 'is_raw_type' check?
 alternate_shrinker(Instance, Type, init) ->
     Choices = proper_types:unwrap(Type),
     union_first_choice_shrinker(Instance, Choices, init);
 alternate_shrinker(_Instance, _Type, _State) ->
     {[], done}.
 
+-spec unwrap_shrinker(imm_instance(), type(), state()) ->
+	  {[imm_instance()],state()}.
 unwrap_shrinker(Instance, Type, init) ->
     Choices = proper_types:unwrap(Type),
     union_recursive_shrinker(Instance, Choices, init);
 unwrap_shrinker(Instance, _Type, State) ->
     union_recursive_shrinker(Instance, dummy, State).
 
-% TODO: move some of the generation code in the proper_gen module
+-spec parts_shrinker(imm_instance(), type(), state()) ->
+	  {[imm_instance()],state()}.
+%% TODO: move some of the generation code in the proper_gen module
 parts_shrinker(Instance = {'$used',_ImmParts,_ImmInstance}, Type, init) ->
     PartsType = proper_types:get_prop(parts_type, Type),
     parts_shrinker(Instance, Type, {parts,PartsType,dummy,init});
@@ -191,9 +214,12 @@ parts_shrinker(Instance, Type,
     parts_shrinker(Instance, Type,
 		   {parts,PartsType,dummy,{shrunk,ActualN,PartsState}}).
 
+-spec filter(fun((X) -> boolean()), [X]) -> {[X],[position()]}.
 filter(Pred, List) ->
     filter_tr(Pred, List, [], 1, []).
 
+-spec filter_tr(fun((X) -> boolean()), [X], [X], position(), [position()]) ->
+	  {[X],[position()]}.
 filter_tr(_Pred, [], Result, _Pos, Lookup) ->
     {lists:reverse(Result), lists:reverse(Lookup)};
 filter_tr(Pred, [X | Rest], Result, Pos, Lookup) ->
@@ -204,6 +230,8 @@ filter_tr(Pred, [X | Rest], Result, Pos, Lookup) ->
 	    filter_tr(Pred, Rest, Result, Pos + 1, Lookup)
     end.
 
+-spec try_combine(imm_instance(), imm_instance(), type(), combine_fun()) ->
+	  imm_instance().
 try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
     case proper_arith:surely(proper_types:is_instance(ImmParts, PartsType)) of
 	true ->
@@ -230,6 +258,8 @@ try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
 	    {'$used',dummy,'$error'}
     end.
 
+-spec recursive_shrinker(imm_instance(), type(), state()) ->
+	  {[imm_instance()],state()}.
 recursive_shrinker(Instance = {'$used',ImmParts,_ImmInstance}, Type, init) ->
     Combine = proper_types:get_prop(combine, Type),
     Parts = proper_gen:clean_instance(ImmParts),
@@ -258,6 +288,7 @@ recursive_shrinker(Instance, Type, {shrunk,N,{inner,InnerType,InnerState}}) ->
 
 %% Opaque type shrinkers
 
+-spec split_shrinker(instance(), type(), state()) -> {[instance()],state()}.
 split_shrinker(Instance, Type, init) ->
     case {proper_types:find_prop(split, Type),
 	  proper_types:find_prop(get_length, Type),
@@ -274,9 +305,9 @@ split_shrinker(Instance, Type, no_pos) ->
     {Split(Instance), done};
 split_shrinker(Instance, Type, {shrunk,done}) ->
     split_shrinker(Instance, Type, no_pos);
-% implementation of the ddmin algorithm, but stopping before the granularity
-% reaches 1, since we run a 'remove' shrinker after this
-% TODO: on sucess, start over with the whole testcase or keep removing slices?
+%% implementation of the ddmin algorithm, but stopping before the granularity
+%% reaches 1, since we run a 'remove' shrinker after this
+%% TODO: on success, start over with the whole testcase or keep removing slices?
 split_shrinker(Instance, Type, {slices,N,Len}) ->
     case Len < 2 * N of
 	true ->
@@ -295,6 +326,8 @@ split_shrinker(Instance, Type, {shrunk,Pos,{slices,DoubleN,_Len}}) ->
 	    split_shrinker(Instance, Type, {slices,N-1,GetLength(Instance)})
     end.
 
+-spec slice(instance(), type(), pos_integer(), length()) ->
+	  {[instance()],[instance()]}.
 slice(Instance, Type, Slices, Len) ->
     BigSlices = Len rem Slices,
     SmallSlices = Slices - BigSlices,
@@ -311,6 +344,8 @@ slice(Instance, Type, Slices, Len) ->
 	fun({From,SliceLen}) -> take_slice(Instance, Type, From, SliceLen) end,
 	WhereToSlice)).
 
+-spec take_slice(instance(), type(), pos_integer(), length()) ->
+	  {[instance()],[instance()]}.
 take_slice(Instance, Type, From, SliceLen) ->
     Split = proper_types:get_prop(split, Type),
     Join = proper_types:get_prop(join, Type),
@@ -318,7 +353,8 @@ take_slice(Instance, Type, From, SliceLen) ->
     {Slice,Back} = Split(SliceLen, ImmBack),
     {Slice, Join(Front, Back)}.
 
-% TODO: try removing more than one elemnent: 2,4,... or 2,3,... - when to stop?
+-spec remove_shrinker(instance(), type(), state()) -> {[instance()],state()}.
+%% TODO: try removing more than one elemnent: 2,4,... or 2,3,... - when to stop?
 remove_shrinker(Instance, Type, init) ->
     case {proper_types:find_prop(get_indices, Type),
 	  proper_types:find_prop(remove, Type)} of
@@ -347,10 +383,11 @@ remove_shrinker(Instance, Type, {shrunk,1,{indices,Checked,_ToCheck}}) ->
     Indices = ordsets:from_list(GetIndices(Instance)),
     NewToCheck = ordsets:subtract(Indices, Checked),
     remove_shrinker(Instance, Type, {indices,Checked,NewToCheck}).
- 
-% TODO: is it safe to assume that all functions and the indices will not change
-%	after any update?
-% TODO: shrink many elements concurrently?
+
+-spec elements_shrinker(instance(), type(), state()) -> {[instance()],state()}.
+%% TODO: is it safe to assume that all functions and the indices will not change
+%%	 after any update?
+%% TODO: shrink many elements concurrently?
 elements_shrinker(Instance, Type, init) ->
     case {proper_types:find_prop(get_indices, Type),
 	  proper_types:find_prop(retrieve, Type),
@@ -399,6 +436,8 @@ elements_shrinker(Instance, Type,
 
 %% Custom shrinkers
 
+-spec integer_shrinker(integer(), extint(), extint(), state()) ->
+	  {[integer()],state()}.
 integer_shrinker(X, Low, High, init) ->
     Operators = [fun(Y) -> Y div 10 end,
 		 fun(Y) -> Y - sign(Y) end,
@@ -407,6 +446,8 @@ integer_shrinker(X, Low, High, init) ->
 integer_shrinker(X, Low, High, State) ->
     number_shrinker(X, 0, Low, High, State).
 
+-spec float_shrinker(float(), extnum(), extnum(), state()) ->
+	  {[float()],state()}.
 float_shrinker(X, Low, High, init) ->
     Operators = [fun(Y) -> Y / 10.0 end,
 		 fun(Y) -> Y - sign(Y) end,
@@ -415,7 +456,8 @@ float_shrinker(X, Low, High, init) ->
 float_shrinker(X, Low, High, State) ->
     number_shrinker(X, 0.0, Low, High, State).
 
-% TODO: produce a few (random) values per operator
+-spec number_shrinker(X, X, X | 'inf', X | 'inf', state()) -> {[X],state()}.
+%% TODO: produce a few (random) values per operator
 number_shrinker(_X, _Target, _Low, _High, {operators,[]}) ->
     {[], done};
 number_shrinker(X, Target, Low, High, {operators,[Op | Rest]}) ->
@@ -425,8 +467,9 @@ number_shrinker(X, Target, Low, High, {just_used,_Op,Rest}) ->
 number_shrinker(X, Target, Low, High, {shrunk,_Pos,{just_used,Op,Rest}}) ->
     number_shrinker(X, Target, Low, High, {operators,[Op | Rest]}).
 
-% Op should be a function that approaces Target,
-% X should be between Low and High
+-spec op_to_target(X, X, X | 'inf', X | 'inf', fun((X) -> X)) -> [X].
+%% Op should be a function that approaces Target,
+%% X should be between Low and High
 op_to_target(_Target, _Target, _Low, _High, _Op) ->
     [];
 op_to_target(X, Target, Low, High, Op) ->
@@ -454,12 +497,15 @@ op_to_target(X, Target, Low, High, Op) ->
 	    end
     end.
 
+-spec sign(number()) -> boolean().
 sign(X) ->
     if
 	X >= 0 -> +1;
 	X < 0  -> -1
     end.
 
+-spec union_first_choice_shrinker(instance(), [type()], state()) ->
+	  {[instance()],state()}.
 % TODO: just try first choice?
 % TODO: do this incrementally?
 union_first_choice_shrinker(Instance, Choices, init) ->
@@ -480,6 +526,8 @@ union_first_choice_shrinker(Instance, Choices, init) ->
 union_first_choice_shrinker(_Instance, _Choices, {shrunk,_Pos,done}) ->
     {[], done}.
 
+-spec union_recursive_shrinker(instance(), [type()], state()) ->
+	  {[instance()],state()}.
 union_recursive_shrinker(Instance, Choices, init) ->
     case first_plausible_choice(Instance, Choices) of
 	none ->
@@ -497,9 +545,13 @@ union_recursive_shrinker(Instance, Choices,
     union_recursive_shrinker(Instance, Choices,
 			     {inner,N,Type,{shrunk,Pos,InnerState}}).
 
+-spec first_plausible_choice(imm_instance(), [type()]) ->
+	  {position(),type()} | 'none'.
 first_plausible_choice(Instance, Choices) ->
     first_plausible_choice_tr(Instance, Choices, 1).
 
+-spec first_plausible_choice_tr(imm_instance(), [type()], position()) ->
+	  {position(),type()} | 'none'.
 first_plausible_choice_tr(_Instance, [], _Pos) ->
     none;
 first_plausible_choice_tr(Instance, [Type | Rest], Pos) ->

@@ -30,7 +30,7 @@
 %% Functions to test
 
 no_duplicates(L) ->
-    lists:usort(L) == lists:sort(L).
+    length(lists:usort(L)) == length(L).
 
 is_sorted([]) -> true;
 is_sorted([_]) -> true;
@@ -69,16 +69,19 @@ quicksort([H|T]) ->
 
 %% Datatypes
 
-uvector(0,_Gen) ->
+uvector(0, _ElemType) ->
    [];
-uvector(N,Gen) ->
-   ?LET(Values,uvector(N-1,Gen),
-        ?LET(Value,?SUCHTHAT(V,Gen, not lists:member(V,Values)),
-             [Value|Values])).
+uvector(N, ElemType) ->
+    ?LET(Rest,
+	 uvector(N-1, ElemType),
+	 ?LET(Elem,
+	      ?SUCHTHAT(E, ElemType, not lists:member(E,Rest)),
+	      [Elem | Rest])).
 
 subset(Generators) ->
-   ?LET(Keep,[ {bool(),G} || G<-Generators],
-	[ G || {true,G}<-Keep]).
+    ?LET(Keep,
+	 [{boolean(),G} || G <- Generators],
+	 [G || {true,G} <- Keep]).
 
 plain_ascii_char() ->
     choose(0, 127).
@@ -87,30 +90,28 @@ data() ->
     ?LET(AsciiString,
 	 list(plain_ascii_char()),
 	 oneof([
-	    AsciiString,
-	    erlang:list_to_binary(AsciiString)
+	     AsciiString,
+	     erlang:list_to_binary(AsciiString)
 	 ])).
 
 datalen(Data) when is_list(Data) -> length(Data);
-datalen(Data) when is_binary(Data) -> binary.
+datalen(Data) when is_binary(Data) -> size(Data).
 
 shuffle([]) ->
     [];
 shuffle(L) ->
-    ?LET(X,elements(L),[X | shuffle(lists:delete(X,L))]).
+    ?LET(X, elements(L), [X | shuffle(lists:delete(X,L))]).
 
 nelist(ElemType) ->
     [ElemType | list(ElemType)].
 
-non_empty(ListG) ->
-    ?SUCHTHAT(List, ListG, List /= []).
+ulist(ElemType) ->
+    ?LET(L, list(ElemType), L--(L--lists:usort(L))).
 
-ulist(G) ->
-    ?LET(L,list(G),L--(L--lists:usort(L))).
-
-unique(Generator) ->
-   ?LET(Values,list(Generator),
-	lists:usort(Values)).
+unique(ElemTypes) ->
+    ?LET(Values,
+	 list(ElemTypes),
+	 lists:usort(Values)).
 
 ulist2(ElemType) ->
     ?SUCHTHAT(L, list(ElemType), no_duplicates(L)).
@@ -126,7 +127,7 @@ my_binary() ->
 
 my_binary(NrBytes) ->
     ?LET(Bytes,
-	 vector(NrBytes,choose(0,255)),
+	 vector(NrBytes, choose(0,255)),
 	 erlang:list_to_binary(Bytes)).
 
 lol(E) -> list(list(E)).
@@ -148,69 +149,80 @@ tree_member(_X, {node,_X,_L,_R}) -> true;
 tree_member(X, {node,_Y,L,R}) -> tree_member(X, L) orelse tree_member(X, R);
 tree_member(_X, {empty}) -> false.
 
+produces_term(X) ->
+    try
+	_ = binary_to_term(X),
+	true
+    catch
+	error:_ -> false
+    end.
+
 
 %% Various Tests
 
 test(1) ->
-    ?FORALL(Xs, list(int()),
+    ?FORALL(Xs, list(integer()),
 	    collect(length(Xs),
 		    collect(Xs =:= [],
 			    lists:reverse(lists:reverse(Xs)) == Xs)));
 test(2) ->
-    ?FORALL(Xs, list(int()), lists:reverse(Xs) == Xs);
+    ?FORALL(Xs, list(integer()),
+	    ?WHENFAIL(io:format("it failed!", []),
+		      lists:reverse(Xs) == Xs));
 test(3) ->
-    ?FORALL(L, list(int()), correctly_sorted(L, quicksort(L)));
+    ?FORALL(L, list(integer()), correctly_sorted(L, quicksort(L)));
 test(4) ->
-    ?FORALL(L, list(int()), correctly_sorted(L, lists:sort(L)));
+    ?FORALL(L, list(integer()), correctly_sorted(L, lists:sort(L)));
 test(5) ->
-    ?FORALL(L, list(int()), correctly_sorted(L, lists:usort(L)));
+    ?FORALL(L, list(integer()), correctly_sorted(L, lists:usort(L)));
 test(6) ->
-    ?FORALL(I, int(),
-	?FORALL(L, list(int()),
-	    not lists:member(I, lists:delete(I,L))));
+    ?FORALL(L, ulist(integer()), correctly_sorted(L, lists:usort(L)));
 test(7) ->
-    ?FORALL({I,L},
-	    {int(),list(int())},
-	    ?IMPLIES(no_duplicates(L),
-		     not lists:member(I,lists:delete(I,L))));
+    ?FORALL(I, integer(),
+	?FORALL(L, list(integer()),
+	    not lists:member(I, lists:delete(I,L))));
 test(8) ->
     ?FORALL({I,L},
-	    {int(),list(int())},
+	    {integer(),list(integer())},
+	    ?IMPLIES(no_duplicates(L),
+		     not lists:member(I,lists:delete(I,L))));
+test(9) ->
+    ?FORALL({I,L},
+	    {integer(),list(integer())},
 	    collect(lists:member(I,L),
 		    not lists:member(I,lists:delete(I,L))));
-test(9) ->
+test(10) ->
     ?FORALL(_L,
 	    shuffle(lists:seq(1,10)),
 	    false);
-test(10) ->
-    ?FORALL(X, int(), ?FORALL(Y, int(), X < Y));
 test(11) ->
-    ?FORALL(X, int(), ?IMPLIES(X > 1, X * X > X));
+    ?FORALL(X, integer(), ?FORALL(Y, integer(), X < Y));
 test(12) ->
-    ?FORALL(L, list(int()),
+    ?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X));
+test(13) ->
+    ?FORALL(L, list(integer()),
 	?IMPLIES(L /= [],
 	    ?FORALL(I, elements(L),
 		not lists:member(I, lists:delete(I, L))
 	    )
 	)
     );
-test(13) ->
-    ?FORALL(L, ulist(int()), correctly_sorted(L, lists:usort(L)));
 test(14) ->
     ?FORALL(Data, data(),
-	    collect(
-		datalen(Data),
-		begin
-		    Base64 = base64:decode(base64:encode(Data)),
-		    if
-			is_list(Data)   -> Base64 == erlang:list_to_binary(Data);
-			is_binary(Data) -> Base64 == Data
-		    end
-		end));
+	    collect(datalen(Data),
+		    begin
+			Base64 = base64:decode(base64:encode(Data)),
+			if
+			    is_list(Data) ->
+				Base64 == erlang:list_to_binary(Data);
+			    is_binary(Data) ->
+				Base64 == Data
+			end
+		    end));
 test(15) ->
     ?FORALL(T,
 	    ?LET(L,
-		 non_empty(list(int())),
+		 non_empty(list(integer())),
 		 ?LET(Y,
 		      elements(L),
 		      {Y,L})),
@@ -220,10 +232,16 @@ test(16) ->
 test(17) ->
     ?FORALL(X, my_binary(), erlang:adler32(X) =/= 42);
 test(18) ->
-    ?FORALL(L, kvlist(atom(),int()), not lists:keymember(42,2,L));
+    ?FORALL(L, kvlist(atom(),integer()), not lists:keymember(42,2,L));
 test(19) ->
-    ?FORALL(T, tree(int()), not tree_member(42, T));
+    ?FORALL(T, tree(integer()), not tree_member(42, T));
 test(20) ->
-    ?FORALL(X, ?LET(L, non_empty(list(int())), list(oneof(L))), length(X) < 10);
+    ?FORALL(X,
+	    ?LET(L, non_empty(list(integer())), list(oneof(L))),
+	    length(X) < 10);
+test(21) ->
+    ?FORALL(X,
+	    ?SUCHTHAT(Y, my_binary(), produces_term(Y)),
+	    term_to_binary(binary_to_term(X)) =:= X);
 test(_) ->
-    ?FORALL(_, int(), true).
+    ?FORALL(_, integer(), true).

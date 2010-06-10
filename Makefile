@@ -19,7 +19,7 @@ ERL=erl -noinput -eval
 ERLC=erlc
 ERLC_FLAGS=-W2 -Ddebug -DTEST +debug_info +warn_missing_spec +warn_untyped_record
 EDOC_OPTIONS=[{overview, "$(SRC_DIR)/overview.edoc"}, {dialyzer_specs, all}, {report_missing_type, true}, {report_type_mismatch, true}, {pretty_print,erl_pp}, {preprocess, true}]
-DIALYZER_OPTIONS=-Wunmatched_returns
+DIALYZER_OPTIONS=-Wunmatched_returns -Wunderspecs
 RM=rm -f
 TAR=tar -czf
 

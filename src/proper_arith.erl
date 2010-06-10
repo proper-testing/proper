@@ -1,17 +1,17 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
 %%%
 %%% This file is part of PropEr.
-%%% 
+%%%
 %%% PropEr is free software: you can redistribute it and/or modify
 %%% it under the terms of the GNU General Public License as published by
 %%% the Free Software Foundation, either version 3 of the License, or
 %%% (at your option) any later version.
-%%% 
+%%%
 %%% PropEr is distributed in the hope that it will be useful,
 %%% but WITHOUT ANY WARRANTY; without even the implied warranty of
 %%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 %%% GNU General Public License for more details.
-%%% 
+%%%
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -33,9 +33,9 @@
 
 
 -spec le(extnum(), extnum()) -> boolean().
-le(minus_inf, _B) -> true;
-le(_A, plus_inf)  -> true;
-le(A, B)          -> A =< B.
+le(inf, _B) -> true;
+le(_A, inf) -> true;
+le(A, B)    -> A =< B.
 
 -spec and3(ternary(), ternary()) -> ternary().
 and3(true, true) -> true;
@@ -82,17 +82,15 @@ all3_tr([unknown | Rest], _FoundUnknown) ->
     all3_tr(Rest, true).
 
 -spec maybe(ternary()) -> boolean().
-maybe(true)    -> true;
-maybe(false)   -> false;
-maybe(unknown) -> true.
+maybe(unknown) -> true;
+maybe(B)       -> B.
 
 -spec surely(ternary()) -> boolean().
-surely(true)    -> true;
-surely(false)   -> false;
-surely(unknown) -> false.
+surely(unknown) -> false;
+surely(B)       -> B.
 
 %% @doc Seeds the random number generator. This function should be run before
-%% calling any other function from this module.
+%% calling any random function from this module.
 -spec rand_start(#opts{}) -> 'ok'.
 rand_start(_Opts) ->
     _ = random:seed(now()),
@@ -123,9 +121,10 @@ rand_non_neg_int(Const) ->
     trunc(rand_non_neg_float(Const)).
 
 -spec rand_int(integer(), integer()) -> integer().
-% TODO: global option to use crypto module's rand_uniform(Lo,Hi) (caution:
-%	produced values will be Lo le N lt Hi)
-rand_int(Low, High) when Low =< High ->
+%% TODO: global option to use crypto module's rand_uniform(Lo,Hi) (caution:
+%%	 produced values will be Lo le N lt Hi)
+rand_int(Low, High) when is_integer(Low) andalso is_integer(High)
+		    andalso Low =< High ->
     Low + random:uniform(High - Low + 1) - 1.
 
 -spec rand_float() -> float().
@@ -145,20 +144,22 @@ rand_non_neg_float() ->
     rand_non_neg_float(?DEFAULT_RNG_CONST).
 
 -spec rand_non_neg_float(non_neg_integer()) -> float().
-rand_non_neg_float(Const) when Const >= 0 ->
+rand_non_neg_float(Const) when is_integer(Const) andalso Const >= 0 ->
     case random:uniform() of
 	1.0 -> rand_non_neg_float(Const);
 	X   -> Const * zero_one_to_zero_inf(X)
     end.
 
 -spec rand_float(float(), float()) -> float().
-rand_float(Low, High) when Low =< High ->
+%% TODO: is_float instead of is_number?
+rand_float(Low, High) when is_number(Low) andalso is_number(High)
+		      andalso Low =< High ->
     Low + random:uniform() * (High - Low).
 
 -spec zero_one_to_zero_inf(float()) -> float().
-% This function must return only non-negative values and map 0.0 to 0.0, but
-% may be undefined at 1.0.
-% TODO: read global options and decide here which bijection to use
+%% This function must return only non-negative values and map 0.0 to 0.0, but
+%% may be undefined at 1.0.
+%% TODO: read global options and decide here which bijection to use
 zero_one_to_zero_inf(X) ->
     10 * X / math:sqrt(1 - X*X).
 
@@ -186,7 +187,7 @@ freq_choose(Choices) when Choices =/= []  ->
     SumFreq = lists:foldl(AddFreq, 0, Choices),
     freq_select(rand_int(1, SumFreq), Choices, 1).
 
--spec freq_select(pos_integer(), [{frequency(),X}], position())
+-spec freq_select(frequency(), [{frequency(),X}], position())
 	  -> {position(),X}.
 freq_select(N, [{Freq,Choice} | Rest], Pos) ->
     case N =< Freq of

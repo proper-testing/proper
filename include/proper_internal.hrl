@@ -16,15 +16,16 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %% Internal header file
-% This header is included in all PropEr module source files.
+%% This header is included in all PropEr source files.
 
 
 %% Constants
 
+%% TODO: make all these into parameters, store them in process registry
 -define(DEFAULT_RNG_CONST, 10).
 -define(MAX_TRIES_TO_SATISFY_CONSTRAINTS, 50).
 -define(MAX_RANDOM_TRIES_WHEN_SHRINKING, 5).
--define(MAX_LIST_LEN, 200). % TODO: make this into a parameter
+-define(MAX_LIST_LEN, 200).
 
 
 %% Generator macros
@@ -53,41 +54,64 @@
 -define(CONSTRUCTED(PropList), proper_types:new_type(PropList,constructed)).
 -define(SEMI_OPAQUE(PropList), proper_types:new_type(PropList,semi_opaque)).
 -define(OPAQUE(PropList), proper_types:new_type(PropList,opaque)).
--define(SUBTYPE(Type,PropList), proper_types:subtype(Type,PropList)).
+-define(SUBTYPE(Type,PropList), proper_types:subtype(PropList,Type)).
 
 
 %% Dialyzer Types
 
--type extnum() :: 'plus_inf' | 'minus_inf' | number().
+-type extint() :: integer() | 'inf'.
+-type extnum() :: number() | 'inf'.
 -type ternary() :: 'true' | 'false' | 'unknown'.
+-type time_period() :: non_neg_integer().
 -type size() :: non_neg_integer().
 -type length() :: non_neg_integer().
 -type position() :: pos_integer().
 -type frequency() :: pos_integer().
+-type index() :: term().
+-type value() :: term().
+-type category() :: term().
+
+-type cat_dict() :: [{category(),frequency()}].
+-type side_effects_fun() :: fun(() -> 'ok').
+-type instance_test() :: fun((instance()) -> boolean()).
+-type sized_generator() :: fun((size()) -> imm_instance()).
+-type nosize_generator() :: fun(() -> imm_instance()).
+-type generator() :: sized_generator() | nosize_generator().
+-type combine_fun() :: fun((instance()) -> imm_instance()).
+-type alt_gens() :: fun(() -> [imm_instance()]).
+-type testcase() :: [imm_instance()].
+-type clean_testcase() :: [instance()].
+%% TODO: rename to 'shrinker_state()'?
+-type state() :: 'init' | 'done' | {'shrunk',position(),_} | term().
+-type shrinker() :: fun((imm_instance(), type(), state()) ->
+			    {[imm_instance()],state()}).
+-type type_kind() :: 'basic' | 'wrapper' | 'constructed'
+		   | 'semi_opaque' | 'opaque'.
 
 -type type() :: {'$type', [type_prop()]}.
-% TODO: update raw_type() when adding more standard types
+%% TODO: update raw_type() when adding more standard types
 -type raw_type() :: type() | integer() | float() | atom() | tuple()
 		  | maybe_improper_list(_,_) | <<_:_ * 1>>.
 -type instance() :: term().
-% TODO: update imm_instance() when adding more types: be careful when reading
-%	anything that returns it
--type imm_instance() :: raw_type()
+%% TODO: update imm_instance() when adding more types: be careful when reading
+%%	 anything that returns it
+-type imm_instance() :: raw_type() % TODO: is this correct?
 		      | instance()
 		      | {'$used', _, _}.
--type index() :: term().
--type value() :: term().
--type parts() :: term().
--type state() :: 'init' | 'done' | {'shrunk',position(),_} | term().
 
+-type type_prop_name() :: 'kind' | 'generator' | 'size_limit' | 'size_transform'
+			| 'is_instance' | 'shrinkers' | 'internal_type'
+			| 'internal_types' | 'get_length' | 'split' | 'join'
+			| 'get_indices' | 'remove' | 'retrieve' | 'update'
+			| 'constraints' | 'parts_type' | 'combine' | 'alt_gens'.
+-type type_prop_value() :: term().
 -type type_prop() ::
-      {'kind', 'basic' | 'wrapper' | 'constructed' | 'semi_opaque' | 'opaque'}
-    | {'generator', fun((size()) -> imm_instance()) | fun(() -> imm_instance())}
+      {'kind', type_kind()}
+    | {'generator', generator()}
     | {'size_limit', size()}
     | {'size_transform', fun((size()) -> size())}
-    | {'is_instance', fun((term()) -> ternary())}
-    | {'shrinkers',
-       [fun((imm_instance(),type(),state()) -> {[imm_instance()],state()})]}
+    | {'is_instance', fun((imm_instance()) -> ternary())}
+    | {'shrinkers', [shrinker()]}
     | {'internal_type', raw_type()}
     | {'internal_types',
        tuple(type()) | maybe_improper_list(type(),type())}
@@ -110,21 +134,67 @@
     | {'remove', fun((index(),imm_instance()) -> imm_instance())}
     | {'retrieve', fun((index(),imm_instance()) -> value())}
     | {'update', fun((index(),value(),imm_instance()) -> imm_instance())}
-    | {'constraints', [{fun((instance()) -> boolean()), boolean()}]}
+    | {'constraints', [{instance_test(), boolean()}]}
       % A list of constraints on instances of this type: each constraint is a
       % tuple of a fun that must return 'true' for each valid instance and a
       % boolean field that specifies whether the condition is strict.
     | {'parts_type', type()}
-    | {'combine', fun((parts()) -> imm_instance())}
-    | {'alt_gens', fun(() -> [imm_instance()])}.
+    | {'combine', combine_fun()}
+    | {'alt_gens', alt_gens()}.
 
--record(opts, {quiet       = false :: boolean(),
-	       numtests    = 100   :: pos_integer(),
-	       max_shrinks = 300   :: non_neg_integer(),
-	       expect_fail = false :: boolean(),
-	       try_shrunk  = false :: boolean(),
-	       shrunk              :: [imm_instance()]}).
+-type test() :: inner_test()
+    	      | {'$numtests', non_neg_integer(), _}
+	      | {'$fails', _}.
+-type inner_test() :: boolean()
+		    | forall_clause()
+		    | {'$implies', boolean(), delayed_test()}
+		    | {'$collect', category(), _}
+		    | {'$whenfail', side_effects_fun(), delayed_test()}
+		    %| {'$trapexit', delayed_test()}
+		    %| {'$timeout', time_period(), delayed_test()}
+		    | {'$apply', [term()], fun((...) -> _)}.
+-type forall_clause() :: {'$forall', raw_type(),
+			  fun((instance()) -> inner_test())}.
+-type forall2_clause() :: {'$forall2', raw_type(),
+			   fun((instance()) -> inner_test())}.
+-type delayed_test() :: fun(() -> test()).
 
--record(ctx, {bound        = [] :: [term()],
-	      fail_actions = [] :: [fun(() -> _)],
-	      categories   = [] :: [term()]}).
+-record(opts, {'quiet'       = false :: boolean(),
+	       'numtests'    = 100   :: non_neg_integer(),
+	       'max_shrinks' = 300   :: non_neg_integer(),
+	       'expect_fail' = false :: boolean(),
+	       'try_shrunk'  = false :: boolean(),
+	       'shrunk'              :: testcase()}).
+
+-type opt() :: 'quiet'
+	     | {'numtests', non_neg_integer()}
+	     | non_neg_integer()
+	     | {'max_shrinks', non_neg_integer()}
+	     | 'expect_fail'.
+
+-record(ctx, {bound        = [] :: testcase(),
+	      fail_actions = [] :: [side_effects_fun()],
+	      categories   = [] :: [category()]}).
+
+-type single_run_result() :: {'passed', 'didnt_crash'}
+			   | {'passed', {'categories',[category()]}}
+			   | {'failed', fail_reason(), testcase(),
+			      [side_effects_fun()]}
+			   | {'error', 'wrong_type'}
+			   | {'error', 'cant_generate'}
+			   | {'error', 'rejected'}.
+
+-type fail_reason() :: 'false_property' | {'throw',term()}.
+
+-type result() :: {'passed', pos_integer(), [cat_dict()]}
+		| {'failed', pos_integer(), fail_reason(), testcase()}
+		| {'error', 'cant_generate'}
+		| {'error', 'cant_satisfy'}
+		| {'error', {'unexpected',single_run_result()}}.
+
+-type final_result() :: {'passed', pos_integer(), [cat_dict()]}
+		      | {'failed', pos_integer(), fail_reason(),
+			 clean_testcase(), non_neg_integer(), clean_testcase()}
+		      | {'error', 'cant_generate'}
+		      | {'error', 'cant_satisfy'}
+		      | {'error', {'unexpected',single_run_result()}}.

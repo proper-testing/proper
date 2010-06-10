@@ -1,1 +1,13 @@
-Coming soon
+Quick guide on usage:
+
+* Compile PropEr (run 'make', or 'make all' if you also want to build the
+  documentation)
+* Add PropEr's base directory to your ERL_LIBS environment variable - I do this
+  by adding the following line to my ~/.bashrc file:
+  'export ERL_LIBS=~/path/to/proper'
+* Add the following include line to all source files containing properties you
+  wish to test:
+  '-include_lib("proper/include/proper.hrl").'
+* Compile your source files.
+* For each property, run:
+  'proper:check(your_module:some_property()).'
