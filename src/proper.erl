@@ -103,7 +103,7 @@ parse_opt(Opt, Opts) ->
 check(Test) ->
     check(Test, #opts{}).
 
--spec check(test(), #opts{}) -> final_result() | 'ok'.
+-spec check(test(), #opts{} | [opt()] | opt()) -> final_result() | 'ok'.
 check({'$numtests',N,Test}, Opts = #opts{}) ->
     check(Test, Opts#opts{numtests = N});
 %% We only allow a 'fails' to be an external wrapper, since the property

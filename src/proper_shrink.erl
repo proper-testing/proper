@@ -497,10 +497,10 @@ op_to_target(X, Target, Low, High, Op) ->
 	    end
     end.
 
--spec sign(number()) -> +1 | -1.
+-spec sign(number()) -> -1 | 1.
 sign(X) ->
     if
-	X >= 0 -> +1;
+	X >= 0 -> 1;
 	X < 0  -> -1
     end.
 
