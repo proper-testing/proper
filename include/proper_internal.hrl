@@ -162,12 +162,12 @@
 			   fun((instance()) -> inner_test())}.
 -type collect_clause() :: {'$collect', category(), inner_test()}.
 
--record(opts, {'quiet'       = false :: boolean(),
-	       'numtests'    = 100   :: non_neg_integer(),
-	       'max_shrinks' = 300   :: non_neg_integer(),
-	       'expect_fail' = false :: boolean(),
-	       'try_shrunk'  = false :: boolean(),
-	       'shrunk'              :: testcase()}).
+-record(opts, {quiet       = false :: boolean(),
+	       numtests    = 100   :: non_neg_integer(),
+	       max_shrinks = 300   :: non_neg_integer(),
+	       expect_fail = false :: boolean(),
+	       try_shrunk  = false :: boolean(),
+	       shrunk              :: testcase()}).
 
 -type opt() :: 'quiet'
 	     | {'numtests', non_neg_integer()}
