@@ -408,9 +408,7 @@ fixed_list(MaybeImproperRawFields) ->
 	{update, Update}
     ]).
 
--spec cut_improper_tail([X]) -> [X]
-		       % TODO: this should be improper_list(X,Y)
-		     ; (maybe_improper_list(X,Y)) -> {[X],Y}.
+-spec cut_improper_tail(maybe_improper_list(X,Y)) -> [X] | {[X],Y}.
 cut_improper_tail(List) ->
     cut_improper_tail_tr(List, []).
 
@@ -455,10 +453,8 @@ head_length_tr([_Head | Tail], Len) ->
 head_length_tr(_ImproperTail, Len) ->
     Len.
 
--spec improper_list_retrieve(position(), [X], length()) -> X | [X]
-			    % TODO: this should be improper_list(X,Y)
-			  ; (position(), maybe_improper_list(X,Y), length()) ->
-	  X | Y.
+-spec improper_list_retrieve(position(), maybe_improper_list(X,Y), length()) ->
+	  X | [X] | Y.
 improper_list_retrieve(Index, List, HeadLen) ->
     case Index =< HeadLen of
 	true  -> lists:nth(Index, List);

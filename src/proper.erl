@@ -32,13 +32,13 @@
 
 %% Common functions
 
--spec numtests(non_neg_integer(), test()) -> test().
+-spec numtests(non_neg_integer(), test()) -> numtests_clause().
 numtests(N, Test) -> {'$numtests',N,Test}.
 
--spec collect(category(), inner_test()) -> inner_test().
+-spec collect(category(), inner_test()) -> collect_clause().
 collect(Category, Prop) -> {'$collect',Category,Prop}.
 
--spec fails(test()) -> test().
+-spec fails(test()) -> fails_clause().
 fails(Test) -> {'$fails',Test}.
 
 -spec set_size(size()) -> 'ok'.
@@ -139,7 +139,7 @@ check(Test, OptsList) ->
 -spec global_state_init(#opts{}) -> 'ok'.
 global_state_init(Opts) ->
     proper_arith:rand_start(Opts),
-    set_size(-1),
+    set_size(0),
     ok.
 
 -spec global_state_erase(#opts{}) -> 'ok'.
@@ -156,11 +156,11 @@ perform_tr(0, 0, _Test, _CatDicts, _Opts) ->
 perform_tr(Performed, 0, _Test, CatDicts, _Opts) ->
     {passed, Performed, CatDicts};
 perform_tr(Performed, Left, Test, CatDicts, Opts) ->
-    grow_size(),
     case run(Test, Opts) of
 	{passed, {categories,Categories}} ->
 	    print(".", [], Opts),
 	    NewCatDicts = update_catdicts(Categories, CatDicts),
+	    grow_size(),
 	    perform_tr(Performed + 1, Left - 1, Test, NewCatDicts, Opts);
 	{failed, Reason, Bound, FailActions} ->
 	    print("!~n", [], Opts),

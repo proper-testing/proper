@@ -142,22 +142,25 @@
     | {'combine', combine_fun()}
     | {'alt_gens', alt_gens()}.
 
+-type delayed_test() :: fun(() -> test()).
 -type test() :: inner_test()
-    	      | {'$numtests', non_neg_integer(), _}
-	      | {'$fails', _}.
+    	      | numtests_clause()
+	      | fails_clause().
 -type inner_test() :: boolean()
 		    | forall_clause()
 		    | {'$implies', boolean(), delayed_test()}
-		    | {'$collect', category(), _}
+		    | collect_clause()
 		    | {'$whenfail', side_effects_fun(), delayed_test()}
 		    %| {'$trapexit', delayed_test()}
 		    %| {'$timeout', time_period(), delayed_test()}
-		    | {'$apply', [term()], fun((...) -> _)}.
+		    | {'$apply', [term()], function()}.
+-type numtests_clause() :: {'$numtests', non_neg_integer(), test()}.
+-type fails_clause() :: {'$fails', test()}.
 -type forall_clause() :: {'$forall', raw_type(),
 			  fun((instance()) -> inner_test())}.
 -type forall2_clause() :: {'$forall2', raw_type(),
 			   fun((instance()) -> inner_test())}.
--type delayed_test() :: fun(() -> test()).
+-type collect_clause() :: {'$collect', category(), inner_test()}.
 
 -record(opts, {'quiet'       = false :: boolean(),
 	       'numtests'    = 100   :: non_neg_integer(),

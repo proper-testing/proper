@@ -181,7 +181,7 @@ unwrap_shrinker(Instance, Type, init) ->
     Choices = proper_types:unwrap(Type),
     union_recursive_shrinker(Instance, Choices, init);
 unwrap_shrinker(Instance, _Type, State) ->
-    union_recursive_shrinker(Instance, dummy, State).
+    union_recursive_shrinker(Instance, [], State).
 
 -spec parts_shrinker(imm_instance(), type(), state()) ->
 	  {[imm_instance()],state()}.
@@ -497,7 +497,7 @@ op_to_target(X, Target, Low, High, Op) ->
 	    end
     end.
 
--spec sign(number()) -> boolean().
+-spec sign(number()) -> +1 | -1.
 sign(X) ->
     if
 	X >= 0 -> +1;
