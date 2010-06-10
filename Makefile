@@ -5,15 +5,16 @@ SRC_DIR=src
 HDR_DIR=include
 BIN_DIR=ebin
 DOC_DIR=doc
+EXAMPLES_DIR=examples
 TMP_PATTERN=*~ \\\#*\\\# *.dump core
 
 SRC_FILES=$(addprefix $(SRC_DIR)/, $(addsuffix .erl, $(MODULES)))
 HDR_FILES=$(addprefix $(HDR_DIR)/, $(addsuffix .hrl, $(HEADERS)))
 BIN_FILES=$(addprefix $(BIN_DIR)/, $(addsuffix .beam, $(MODULES)))
 DOC_FILES=$(DOC_DIR)/*
-TXT_FILES=COPYING Makefile README
+TXT_FILES=COPYING Makefile README $(EXAMPLES_DIR)/*
 RELEASE_FILE=proper.tar.gz
-TMP_FILES=$(TMP_PATTERN) $(addprefix $(SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(HDR_DIR)/, $(TMP_PATTERN))
+TMP_FILES=$(TMP_PATTERN) $(addprefix $(SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(HDR_DIR)/, $(TMP_PATTERN)) $(addprefix $(EXAMPLES_DIR)/, $(TMP_PATTERN))
 
 ERL=erl -noinput -eval
 ERLC=erlc
