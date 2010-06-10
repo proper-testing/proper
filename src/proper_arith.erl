@@ -176,12 +176,12 @@ jumble_tr(List, Len, Acc) ->
     {List1, [H|List2]} = lists:split(Pos, List),
     jumble_tr(List1 ++ List2, Len - 1, [H|Acc]).
 
--spec rand_choose([X]) -> {position(),X}.
+-spec rand_choose([X,...]) -> {position(),X}.
 rand_choose(Choices) when Choices =/= [] ->
     Pos = rand_int(1, length(Choices)),
     {Pos, lists:nth(Pos, Choices)}.
 
--spec freq_choose([{frequency(),X}]) -> {frequency(),X}.
+-spec freq_choose([{frequency(),X},...]) -> {frequency(),X}.
 freq_choose(Choices) when Choices =/= []  ->
     AddFreq = fun({Freq,_},Acc) -> Freq + Acc end,
     SumFreq = lists:foldl(AddFreq, 0, Choices),
