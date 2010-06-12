@@ -352,12 +352,12 @@ list_test(X, ElemType) ->
 list_get_indices(List) ->
     lists:seq(1, length(List)).
 
--spec list_remove(position(), [X]) -> [X].
+-spec list_remove(position(), [T]) -> [T].
 list_remove(Index, List) ->
     {H,[_Elem | T]} = lists:split(Index - 1, List),
     H ++ T.
 
--spec list_update(position(), X, [X]) -> [X].
+-spec list_update(position(), T, [T]) -> [T].
 list_update(Index, NewElem, List) ->
     {H,[_OldElem | T]} = lists:split(Index - 1, List),
     H ++ [NewElem] ++ T.

@@ -177,12 +177,12 @@ rand_float(Low, High) when is_number(Low) andalso is_number(High)
 zero_one_to_zero_inf(X) ->
     10 * X / math:sqrt(1 - X*X).
 
--spec jumble([X]) -> [X].
+-spec jumble([T]) -> [T].
 %% @doc Produces a random permutation of a list.
 jumble(List) ->
     jumble_tr(List, length(List), []).
 
--spec jumble_tr([X], non_neg_integer(), [X]) -> [X].
+-spec jumble_tr([T], non_neg_integer(), [T]) -> [T].
 jumble_tr([], 0, Acc) ->
     Acc;
 jumble_tr(List, Len, Acc) ->
@@ -190,18 +190,18 @@ jumble_tr(List, Len, Acc) ->
     {List1, [H|List2]} = lists:split(Pos, List),
     jumble_tr(List1 ++ List2, Len - 1, [H|Acc]).
 
--spec rand_choose([X,...]) -> {position(),X}.
+-spec rand_choose([T,...]) -> {position(),T}.
 rand_choose(Choices) when Choices =/= [] ->
     Pos = rand_int(1, length(Choices)),
     {Pos, lists:nth(Pos, Choices)}.
 
--spec freq_choose([{frequency(),X},...]) -> {position(),X}.
+-spec freq_choose([{frequency(),T},...]) -> {position(),T}.
 freq_choose(Choices) when Choices =/= []  ->
     AddFreq = fun({Freq,_},Acc) -> Freq + Acc end,
     SumFreq = lists:foldl(AddFreq, 0, Choices),
     freq_select(rand_int(1, SumFreq), Choices, 1).
 
--spec freq_select(frequency(), [{frequency(),X}], position()) -> {position(),X}.
+-spec freq_select(frequency(), [{frequency(),T}], position()) -> {position(),T}.
 freq_select(N, [{Freq,Choice} | Rest], Pos) ->
     case N =< Freq of
 	true ->

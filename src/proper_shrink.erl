@@ -122,12 +122,12 @@ shrink_tr(Shrunk, TestTail = [ImmInstance | Rest],
 		      Shrinks + 1, ShrinksLeft - 1, {shrunk,Pos,NewState}, Opts)
     end.
 
--spec find_first(fun((X) -> boolean()), [X]) -> {position(),X} | 'none'.
+-spec find_first(fun((T) -> boolean()), [T]) -> {position(),T} | 'none'.
 find_first(Pred, List) ->
     find_first_tr(Pred, List, 1).
 
--spec find_first_tr(fun((X) -> boolean()), [X], position()) ->
-	  {position(),X} | 'none'.
+-spec find_first_tr(fun((T) -> boolean()), [T], position()) ->
+	  {position(),T} | 'none'.
 find_first_tr(_Pred, [], _Pos) ->
     none;
 find_first_tr(Pred, [X | Rest], Pos) ->
@@ -227,12 +227,12 @@ parts_shrinker(Instance, Type,
     parts_shrinker(Instance, Type,
 		   {parts,PartsType,dummy,{shrunk,ActualN,PartsState}}).
 
--spec filter(fun((X) -> boolean()), [X]) -> {[X],[position()]}.
+-spec filter(fun((T) -> boolean()), [T]) -> {[T],[position()]}.
 filter(Pred, List) ->
     filter_tr(Pred, List, [], 1, []).
 
--spec filter_tr(fun((X) -> boolean()), [X], [X], position(), [position()]) ->
-	  {[X],[position()]}.
+-spec filter_tr(fun((T) -> boolean()), [T], [T], position(), [position()]) ->
+	  {[T],[position()]}.
 filter_tr(_Pred, [], Result, _Pos, Lookup) ->
     {lists:reverse(Result), lists:reverse(Lookup)};
 filter_tr(Pred, [X | Rest], Result, Pos, Lookup) ->
@@ -473,7 +473,7 @@ float_shrinker(X, Low, High, init) ->
 float_shrinker(X, Low, High, State) ->
     number_shrinker(X, 0.0, Low, High, State).
 
--spec number_shrinker(X, X, X | 'inf', X | 'inf', state()) -> {[X],state()}.
+-spec number_shrinker(T, T, T | 'inf', T | 'inf', state()) -> {[T],state()}.
 %% TODO: produce a few (random) values per operator
 number_shrinker(_X, _Target, _Low, _High, {operators,[]}) ->
     {[], done};
@@ -484,7 +484,7 @@ number_shrinker(X, Target, Low, High, {just_used,_Op,Rest}) ->
 number_shrinker(X, Target, Low, High, {shrunk,_Pos,{just_used,Op,Rest}}) ->
     number_shrinker(X, Target, Low, High, {operators,[Op | Rest]}).
 
--spec op_to_target(X, X, X | 'inf', X | 'inf', fun((X) -> X)) -> [X].
+-spec op_to_target(T, T, T | 'inf', T | 'inf', fun((T) -> T)) -> [T].
 %% Op should be a function that approaces Target,
 %% X should be between Low and High
 op_to_target(_Target, _Target, _Low, _High, _Op) ->

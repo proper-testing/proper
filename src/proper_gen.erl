@@ -139,12 +139,12 @@ clean_instance(ImmInstance) ->
 	    ImmInstance
     end.
 
--spec safemap(fun((X) -> Y), maybe_improper_list(X,term())) ->
+-spec safemap(fun((T) -> Y), maybe_improper_list(T,term())) ->
 	  maybe_improper_list(Y,term()).
 safemap(Fun, List) ->
     safemap_tr(Fun, List, []).
 
--spec safemap_tr(fun((X) -> Y), maybe_improper_list(X,term()), [Y]) ->
+-spec safemap_tr(fun((T) -> Y), maybe_improper_list(T,term()), [Y]) ->
           maybe_improper_list(Y,term()).
 safemap_tr(_Fun, [], AccList) ->
     lists:reverse(AccList);
@@ -215,7 +215,7 @@ weighted_union_gen(FreqChoices) ->
 tuple_gen(Fields) ->
     erlang:list_to_tuple(fixed_list_gen(Fields)).
 
--spec exactly_gen(X) -> X.
+-spec exactly_gen(T) -> T.
 exactly_gen(X) ->
     X.
 
