@@ -1,10 +1,10 @@
 *~
 \#*\#
- *.dump
-core
+*.dump
 *.tar.gz
-ebin/*.beam
+*.beam
 doc/*.html
-doc/stylesheet.css
-doc/erlang.png
+doc/*.css
+doc/*.png
 doc/edoc-info
+.directory

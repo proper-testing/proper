@@ -15,12 +15,6 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% @hidden
-%% @author Manolis Papadakis <manopapad@gmail.com>
-%% @copyright 2010 Manolis Papadakis
-%% @version {@version}
-%% @doc Unit tests (kind of)
-
 -module(proper_tests).
 -compile([export_all]).
 
