@@ -34,7 +34,69 @@
 -export([int/0, int/2, bool/0, choose/2, elements/1, oneof/1, frequency/1]).
 -export([resize/2, relimit/2, non_empty/1]).
 
+-export_type([type/0, raw_type/0]).
+
 -include("proper_internal.hrl").
+
+
+%% Dialyzer types
+
+-type type_kind() :: 'basic' | 'wrapper' | 'constructed'
+		   | 'semi_opaque' | 'opaque'.
+-type instance_test() :: fun((proper_gen:imm_instance()) ->
+			     proper_arith:ternary()).
+-type index() :: term().
+-type value() :: term().
+-type constraint_fun() :: fun((proper_gen:instance()) -> boolean()).
+
+-type type() :: {'$type', [type_prop()]}.
+%% TODO: update raw_type() when adding more standard types
+-type raw_type() :: type() | integer() | float() | atom() | tuple()
+		  | maybe_improper_list(_,_) | <<_:_ * 1>>.
+-type type_prop_name() :: 'kind' | 'generator' | 'size_limit' | 'size_transform'
+			| 'is_instance' | 'shrinkers' | 'internal_type'
+			| 'internal_types' | 'get_length' | 'split' | 'join'
+			| 'get_indices' | 'remove' | 'retrieve' | 'update'
+			| 'constraints' | 'parts_type' | 'combine' | 'alt_gens'.
+-type type_prop_value() :: term().
+-type type_prop() ::
+      {'kind', type_kind()}
+    | {'generator', proper_gen:generator()}
+    | {'size_limit', size()}
+    | {'size_transform', fun((size()) -> size())}
+    | {'is_instance', instance_test()}
+    | {'shrinkers', [proper_shrink:shrinker()]}
+    | {'internal_type', raw_type()}
+    | {'internal_types', tuple(type()) | maybe_improper_list(type(),term())}
+      %% The items returned by 'remove' must be of this type.
+    | {'get_length', fun((proper_gen:imm_instance()) -> length())}
+      %% If this is a container type, this should return the number of elements
+      %% it contains.
+    | {'split', fun((proper_gen:imm_instance()) -> [proper_gen:imm_instance()])
+	      | fun((length(),proper_gen:imm_instance()) ->
+		    {proper_gen:imm_instance(),proper_gen:imm_instance()})}
+      %% If present, the appropriate form depends on whether get_length is
+      %% defined: if get_length is undefined, this must be in the one-argument
+      %% form (e.g. a tree should be split into its subtrees), else it must be
+      %% in the two-argument form (e.g. a list should be split in two at the
+      %% index provided).
+    | {'join', fun((proper_gen:imm_instance(),proper_gen:imm_instance()) ->
+		   proper_gen:imm_instance())}
+    | {'get_indices', fun((proper_gen:imm_instance()) -> [index()])}
+      %% If this is a container type, this should return a list of indices we
+      %% can use to remove or insert elements from the given instance.
+    | {'remove', fun((index(),proper_gen:imm_instance()) ->
+		     proper_gen:imm_instance())}
+    | {'retrieve', fun((index(),proper_gen:imm_instance()) -> value())}
+    | {'update', fun((index(),value(),proper_gen:imm_instance()) ->
+		     proper_gen:imm_instance())}
+    | {'constraints', [{constraint_fun(), boolean()}]}
+      %% A list of constraints on instances of this type: each constraint is a
+      %% tuple of a fun that must return 'true' for each valid instance and a
+      %% boolean field that specifies whether the condition is strict.
+    | {'parts_type', type()}
+    | {'combine', proper_gen:combine_fun()}
+    | {'alt_gens', proper_gen:alt_gens()}.
 
 
 %% Type manipulation functions
@@ -105,7 +167,7 @@ new_type(PropList, Kind) ->
 subtype(PropList, Type) ->
     add_props(PropList, Type).
 
--spec is_instance(imm_instance(), type()) -> ternary().
+-spec is_instance(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
 is_instance(ImmInstance, Type) ->
     CleanInstance = proper_gen:clean_instance(ImmInstance),
     proper_arith:and3(
@@ -122,7 +184,7 @@ is_instance(ImmInstance, Type) ->
 	end
     ).
 
--spec wrapper_test(imm_instance(), type()) -> ternary().
+-spec wrapper_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
 wrapper_test(ImmInstance, Type) ->
     proper_arith:any3([is_instance(ImmInstance, T) || T <- unwrap(Type)]).
 
@@ -132,7 +194,8 @@ unwrap(Type) ->
     [cook_outer(InnerType) || InnerType <- proper_gen:alt_gens(Type)
 					   ++ [proper_gen:normal_gen(Type)]].
 
--spec constructed_test(imm_instance(), type()) -> ternary().
+-spec constructed_test(proper_gen:imm_instance(), type()) ->
+	  proper_arith:ternary().
 constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
     PartsType = get_prop(parts_type, Type),
     Combine = get_prop(combine, Type),
@@ -157,7 +220,7 @@ weakly({B1,_B2}) -> B1.
 -spec strongly({boolean(),boolean()}) -> boolean().
 strongly({_B1,B2}) -> B2.
 
--spec satisfies(instance(), {instance_test(),boolean()})
+-spec satisfies(proper_gen:instance(), {constraint_fun(),boolean()})
 	  -> {boolean(),boolean()}.
 satisfies(Instance, {Test,false}) ->
     {true,Test(Instance)};
@@ -165,7 +228,7 @@ satisfies(Instance, {Test,true}) ->
     Result = Test(Instance),
     {Result,Result}.
 
--spec satisfies_all(instance(), type()) -> {boolean(),boolean()}.
+-spec satisfies_all(proper_gen:instance(), type()) -> {boolean(),boolean()}.
 satisfies_all(Instance, Type) ->
     case find_prop(constraints, Type) of
 	{ok, Constraints} ->
@@ -179,13 +242,13 @@ satisfies_all(Instance, Type) ->
 
 %% Type definition functions
 
--spec sized(sized_generator()) -> type().
+-spec sized(proper_gen:sized_generator()) -> type().
 sized(Gen) ->
     ?WRAPPER([
 	{generator, Gen}
     ]).
 
--spec bind(raw_type(), combine_fun()) -> type().
+-spec bind(raw_type(), proper_gen:combine_fun()) -> type().
 bind(RawPartsType, Combine) ->
     PartsType = cook_outer(RawPartsType),
     ?CONSTRUCTED([
@@ -193,14 +256,15 @@ bind(RawPartsType, Combine) ->
 	{combine, Combine}
     ]).
 
--spec shrinkwith(nosize_generator(), alt_gens()) -> type().
+-spec shrinkwith(proper_gen:nosize_generator(), proper_gen:alt_gens()) ->
+	  type().
 shrinkwith(Gen, DelaydAltGens) ->
     ?WRAPPER([
 	{generator, Gen},
 	{alt_gens, DelaydAltGens}
     ]).
 
--spec add_constraint(raw_type(), instance_test(), boolean()) -> type().
+-spec add_constraint(raw_type(), constraint_fun(), boolean()) -> type().
 add_constraint(RawType, Condition, IsStrict) ->
     Type = cook_outer(RawType),
     append_to_prop(constraints, {Condition,IsStrict}, Type).
@@ -219,7 +283,7 @@ add_constraint(RawType, Condition, IsStrict) ->
 %% TODO: any (union of all types? what are those?)
 %% TODO: (records, none, improper_list(content_type, termination_type),
 %%	 maybe_improper_list)
--spec integer(extint(), extint()) -> type().
+-spec integer(proper_arith:extint(), proper_arith:extint()) -> type().
 integer(Low, High) ->
     ?BASIC([
 	{generator, fun(Size) -> proper_gen:integer_gen(Size, Low, High) end},
@@ -229,13 +293,14 @@ integer(Low, High) ->
 	 [fun(X,_T,S) -> proper_shrink:integer_shrinker(X, Low, High, S) end]}
     ]).
 
--spec integer_test(imm_instance(), extint(), extint()) -> boolean().
+-spec integer_test(proper_gen:imm_instance(), proper_arith:extint(),
+		   proper_arith:extint()) -> boolean().
 integer_test(X, Low, High) ->
     is_integer(X)
     andalso proper_arith:le(Low, X)
     andalso proper_arith:le(X, High).
 
--spec float(extnum(), extnum()) -> type().
+-spec float(proper_arith:extnum(), proper_arith:extnum()) -> type().
 float(Low, High) ->
     ?BASIC([
 	{generator, fun(Size) -> proper_gen:float_gen(Size, Low, High) end},
@@ -245,7 +310,8 @@ float(Low, High) ->
 	 [fun(X,_T,S) -> proper_shrink:float_shrinker(X, Low, High, S) end]}
     ]).
 
--spec float_test(imm_instance(), extnum(), extnum()) -> boolean().
+-spec float_test(proper_gen:imm_instance(), proper_arith:extnum(),
+		 proper_arith:extnum()) -> boolean().
 float_test(X, Low, High) ->
     is_float(X)
     andalso proper_arith:le(Low, X)
@@ -275,7 +341,7 @@ list(RawElemType) ->
 	{update, fun(I,V,X) -> list_update(I, V, X) end}
     ]).
 
--spec list_test(imm_instance(), type()) -> ternary().
+-spec list_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
 list_test(X, ElemType) ->
     case is_list(X) of
 	true  -> proper_arith:all3([is_instance(E, ElemType) || E <- X]);
@@ -309,7 +375,8 @@ vector(Len, RawElemType) ->
 	{update, fun(I,V,X) -> list_update(I, V, X) end}
     ]).
 
--spec vector_test(imm_instance(), length(), type()) -> ternary().
+-spec vector_test(proper_gen:imm_instance(), length(), type()) ->
+	  proper_arith:ternary().
 vector_test(X, Len, ElemType) ->
     case is_list(X) andalso length(X) =:= Len of
 	true  -> proper_arith:all3([is_instance(E, ElemType) || E <- X]);
@@ -331,7 +398,7 @@ union(RawChoices) ->
 	  end]}
     ]).
 
--spec union_test(imm_instance(), [type()]) -> ternary().
+-spec union_test(proper_gen:imm_instance(), [type()]) -> proper_arith:ternary().
 union_test(X, Choices) ->
     proper_arith:any3([is_instance(X, C) || C <- Choices]).
 
@@ -357,7 +424,8 @@ tuple(RawFields) ->
 	{update, fun(I,V,X) -> tuple_update(I, V, X) end}
     ]).
 
--spec tuple_test(imm_instance(), [type()]) -> ternary().
+-spec tuple_test(proper_gen:imm_instance(), [type()]) ->
+	  proper_arith:ternary().
 tuple_test(X, Fields) ->
     case is_tuple(X) of
 	true  -> fixed_list_test(erlang:tuple_to_list(X), Fields);
@@ -418,8 +486,8 @@ cut_improper_tail_tr([Head | Tail], AccList) ->
 cut_improper_tail_tr(ImproperTail, AccList) ->
     {lists:reverse(AccList),ImproperTail}.
 
--spec fixed_list_test(imm_instance(), [type()] | {[type()],type()})
-	  -> ternary().
+-spec fixed_list_test(proper_gen:imm_instance(), [type()] | {[type()],type()})
+	  -> proper_arith:ternary().
 fixed_list_test(X, {ProperHead,ImproperTail}) ->
     case is_list(X) andalso head_length(X) >= length(ProperHead) of
 	true ->
@@ -480,7 +548,7 @@ pos_integer() -> integer(1, inf).
 -spec neg_integer() -> type().
 neg_integer() -> integer(inf, -1).
 
--spec range(extint(), extint()) -> type().
+-spec range(proper_arith:extint(), proper_arith:extint()) -> type().
 range(Low, High) -> integer(Low, High).
 
 -spec float() -> type().
@@ -513,13 +581,13 @@ wunion(FreqChoices) -> weighted_union(FreqChoices).
 -spec int() -> type().
 int() -> integer().
 
--spec int(extint(), extint()) -> type().
+-spec int(proper_arith:extint(), proper_arith:extint()) -> type().
 int(Low, High) -> integer(Low, High).
 
 -spec bool() -> type().
 bool() -> boolean().
 
--spec choose(extint(), extint()) -> type().
+-spec choose(proper_arith:extint(), proper_arith:extint()) -> type().
 choose(Low, High) -> integer(Low, High).
 
 -spec elements([raw_type()]) -> type().

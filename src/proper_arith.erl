@@ -29,8 +29,19 @@
 	 rand_non_neg_float/0, rand_non_neg_float/1]).
 -export([jumble/1, rand_choose/1, freq_choose/1]).
 
+-export_type([extint/0, extnum/0, ternary/0]).
+
 -include("proper_internal.hrl").
 
+
+%% Dialyzer types
+
+-type extint() :: integer() | 'inf'.
+-type extnum() :: number() | 'inf'.
+-type ternary() :: 'true' | 'false' | 'unknown'.
+
+
+%% Arithmetic functions
 
 -spec le(extnum(), extnum()) -> boolean().
 le(inf, _B) -> true;
@@ -88,6 +99,9 @@ maybe(B)       -> B.
 -spec surely(ternary()) -> boolean().
 surely(unknown) -> false;
 surely(B)       -> B.
+
+
+%% Random functions
 
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
@@ -181,14 +195,13 @@ rand_choose(Choices) when Choices =/= [] ->
     Pos = rand_int(1, length(Choices)),
     {Pos, lists:nth(Pos, Choices)}.
 
--spec freq_choose([{frequency(),X},...]) -> {frequency(),X}.
+-spec freq_choose([{frequency(),X},...]) -> {position(),X}.
 freq_choose(Choices) when Choices =/= []  ->
     AddFreq = fun({Freq,_},Acc) -> Freq + Acc end,
     SumFreq = lists:foldl(AddFreq, 0, Choices),
     freq_select(rand_int(1, SumFreq), Choices, 1).
 
--spec freq_select(frequency(), [{frequency(),X}], position())
-	  -> {position(),X}.
+-spec freq_select(frequency(), [{frequency(),X}], position()) -> {position(),X}.
 freq_select(N, [{Freq,Choice} | Rest], Pos) ->
     case N =< Freq of
 	true ->

@@ -27,18 +27,83 @@
 -export([check/1, check/2, still_fails/3, skip_to_next/1]).
 -export([print/3]).
 
+-export_type([testcase/0, test/0, forall_clause/0, fail_reason/0]).
+
 -include("proper_internal.hrl").
+
+
+%% Dialyzer types
+
+-type testcase() :: [proper_gen:imm_instance()].
+-type clean_testcase() :: [proper_gen:instance()].
+-type category() :: term().
+-type cat_dict() :: [{category(),frequency()}].
+-type side_effects_fun() :: fun(() -> 'ok').
+%%-type time_period() :: non_neg_integer().
+
+-type outer_test() :: test()
+		    | numtests_clause()
+		    | fails_clause().
+-type test() :: boolean()
+	      | forall_clause()
+	      | implies_clause()
+	      | collect_clause()
+	      | whenfail_clause()
+	      %%| trapexit_clause()
+	      %%| timeout_clause()
+	      | apply_clause().
+-type delayed_test() :: fun(() -> test()).
+
+-type numtests_clause() :: {'$numtests', pos_integer(), outer_test()}.
+-type fails_clause() :: {'$fails', outer_test()}.
+-type forall_clause() :: {'$forall', proper_types:raw_type(),
+			  fun((proper_gen:instance()) -> test())}.
+-type implies_clause() :: {'$implies', boolean(), delayed_test()}.
+-type collect_clause() :: {'$collect', category(), test()}.
+-type whenfail_clause() :: {'$whenfail', side_effects_fun(), delayed_test()}.
+%%-type trapexit_clause() :: {'$trapexit', delayed_test()}.
+%%-type timeout_clause() :: {'$timeout', time_period(), delayed_test()}.
+-type apply_clause() :: {'$apply', [term()], function()}.
+
+-type opt() :: 'quiet'
+	     | {'numtests', pos_integer()}
+	     | pos_integer()
+	     | {'max_shrinks', non_neg_integer()}
+	     | 'expect_fail'.
+
+-record(ctx, {bound        = [] :: testcase(),
+	      fail_actions = [] :: [side_effects_fun()],
+	      categories   = [] :: [category()]}).
+-type single_run_result() :: {'passed', 'didnt_crash'}
+			   | {'passed', {'categories',[category()]}}
+			   | {'failed', fail_reason(), testcase(),
+			      [side_effects_fun()]}
+			   | {'error', 'wrong_type'}
+			   | {'error', 'cant_generate'}
+			   | {'error', 'rejected'}.
+-type exception_type() :: 'throw' | 'error' | 'exit'.
+-type exception_reason() :: term().
+-type fail_reason() :: 'false_property' | {exception_type(),exception_reason()}.
+-type imm_result() :: common_result()
+		    | {'failed', pos_integer(), fail_reason(), testcase()}.
+-type final_result() :: common_result()
+		      | {'failed', pos_integer(), fail_reason(),
+			 clean_testcase(), non_neg_integer(), clean_testcase()}.
+-type common_result() :: {'passed', pos_integer(), [cat_dict()]}
+		       | {'error', 'cant_generate'}
+		       | {'error', 'cant_satisfy'}
+		       | {'error', {'unexpected',single_run_result()}}.
 
 
 %% Common functions
 
--spec numtests(non_neg_integer(), test()) -> numtests_clause().
+-spec numtests(pos_integer(), outer_test()) -> numtests_clause().
 numtests(N, Test) -> {'$numtests',N,Test}.
 
--spec collect(category(), inner_test()) -> collect_clause().
+-spec collect(category(), test()) -> collect_clause().
 collect(Category, Prop) -> {'$collect',Category,Prop}.
 
--spec fails(test()) -> fails_clause().
+-spec fails(outer_test()) -> fails_clause().
 fails(Test) -> {'$fails',Test}.
 
 -spec set_size(size()) -> 'ok'.
@@ -61,7 +126,7 @@ grow_size() ->
     set_size(Size + 1),
     ok.
 
--spec get_size(type()) -> size().
+-spec get_size(proper_types:type()) -> size().
 get_size(Type) ->
     Size1 = get_size(),
     Size2 = case proper_types:find_prop(size_transform, Type) of
@@ -89,21 +154,21 @@ parse_opts_tr(Opt, Opts) ->
 -spec parse_opt(opt(), #opts{}) -> #opts{}.
 parse_opt(Opt, Opts) ->
     case Opt of
-	quiet                         -> Opts#opts{quiet = true};
-	{numtests,N}                  -> Opts#opts{numtests = N};
-	N when is_integer(N), N >= 0  -> Opts#opts{numtests = N};
-	expect_fail                   -> Opts#opts{expect_fail = true};
-	{max_shrinks,N}               -> Opts#opts{max_shrinks = N}
+	quiet                        -> Opts#opts{quiet = true};
+	{numtests,N}                 -> Opts#opts{numtests = N};
+	N when is_integer(N), N > 0  -> Opts#opts{numtests = N};
+	expect_fail                  -> Opts#opts{expect_fail = true};
+	{max_shrinks,N}              -> Opts#opts{max_shrinks = N}
     end.
 
 
 %% Main usage functions
 
--spec check(test()) -> final_result() | 'ok'.
+-spec check(outer_test()) -> final_result() | 'ok'.
 check(Test) ->
     check(Test, #opts{}).
 
--spec check(test(), #opts{} | [opt()] | opt()) -> final_result() | 'ok'.
+-spec check(outer_test(), #opts{} | [opt()] | opt()) -> final_result() | 'ok'.
 check({'$numtests',N,Test}, Opts = #opts{}) ->
     check(Test, Opts#opts{numtests = N});
 %% We only allow a 'fails' to be an external wrapper, since the property
@@ -148,9 +213,8 @@ global_state_erase(_Opts) ->
     proper_arith:rand_stop(),
     ok.
 
--spec perform_tr(non_neg_integer(), non_neg_integer(), inner_test(),
-		 [cat_dict()] | 'none', #opts{}) ->
-	  result().
+-spec perform_tr(non_neg_integer(), non_neg_integer(), test(),
+		 [cat_dict()] | 'none', #opts{}) -> imm_result().
 perform_tr(0, 0, _Test, _CatDicts, _Opts) ->
     {error, cant_satisfy};
 perform_tr(Performed, 0, _Test, CatDicts, _Opts) ->
@@ -193,11 +257,11 @@ add_to_category(Category, CatDict) ->
 	error       -> orddict:store(Category, 1, CatDict)
     end.
 
--spec run(inner_test(), #opts{}) -> single_run_result().
+-spec run(test(), #opts{}) -> single_run_result().
 run(Test, Opts) ->
     run(Test, #ctx{}, Opts).
 
--spec run(inner_test(), #ctx{}, #opts{}) -> single_run_result().
+-spec run(test(), #ctx{}, #opts{}) -> single_run_result().
 run(true, Context, _Opts) ->
     {passed, {categories,lists:reverse(Context#ctx.categories)}};
 run(false, Context, _Opts) ->
@@ -252,7 +316,7 @@ run({'$apply',Args,Prop}, Context, Opts) ->
 	    {failed, {throw,Reason}, Bound, FailActions}
     end.
 
--spec still_fails(testcase(), inner_test(), fail_reason()) -> boolean().
+-spec still_fails(testcase(), test(), fail_reason()) -> boolean().
 still_fails(TestCase, Test, OldReason) ->
     Opts = #opts{quiet = true, try_shrunk = true, shrunk = TestCase},
     case run(Test, Opts) of
@@ -262,7 +326,7 @@ still_fails(TestCase, Test, OldReason) ->
 	_                                      -> false
     end.
 
--spec skip_to_next(inner_test()) -> forall_clause() | 'false' | 'error'.
+-spec skip_to_next(test()) -> forall_clause() | 'false' | 'error'.
 %% We should never encounter false ?IMPLIES, true final results or unprecedented
 %% tests.
 skip_to_next(true) ->
@@ -296,7 +360,7 @@ print(Str, Args, Opts) ->
 	false -> io:format(Str, Args)
     end.
 
--spec report_results(result(), #opts{}) -> 'ok'.
+-spec report_results(imm_result(), #opts{}) -> 'ok'.
 report_results({error,{unexpected,Unexpected}}, _Opts) ->
     io:format("~nInternal error: the last run returned an unexpected result:~n"
 	      "~w~nPlease notify the maintainers about this error~n",

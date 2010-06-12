@@ -28,18 +28,37 @@
 	 union_gen/1, weighted_union_gen/1, tuple_gen/1, exactly_gen/1,
 	 fixed_list_gen/1]).
 
+-export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
+	      generator/0, combine_fun/0, alt_gens/0]).
+
 -include("proper_internal.hrl").
+
+
+%% Dialyzer types
+
+-type instance() :: term().
+%% TODO: update imm_instance() when adding more types: be careful when reading
+%%	 anything that returns it
+-type imm_instance() :: proper_types:raw_type() % TODO: is this correct?
+		      | instance()
+		      | {'$used', _, _}.
+
+-type sized_generator() :: fun((size()) -> imm_instance()).
+-type nosize_generator() :: fun(() -> imm_instance()).
+-type generator() :: sized_generator() | nosize_generator().
+-type combine_fun() :: fun((instance()) -> imm_instance()).
+-type alt_gens() :: fun(() -> [imm_instance()]).
 
 
 %% Instance generation functions
 
--spec generate(raw_type()) -> imm_instance() | '$cant_generate'.
+-spec generate(proper_types:raw_type()) -> imm_instance() | '$cant_generate'.
 generate(Type = {'$type',_Props}) ->
     generate(Type, ?MAX_TRIES_TO_SATISFY_CONSTRAINTS, '$cant_generate');
 generate(RawType) ->
     generate(proper_types:cook_outer(RawType)).
 
--spec generate(type(), non_neg_integer(), term()) -> term().
+-spec generate(proper_types:type(), non_neg_integer(), term()) -> term().
 generate(_Type, 0, Fallback) ->
     Fallback;
 generate(Type, TriesLeft, Fallback) ->
@@ -80,7 +99,7 @@ generate(Type, TriesLeft, Fallback) ->
 			 generate(Type, TriesLeft - 1, Fallback)
     end.
 
--spec sample(size(), raw_type()) -> instance().
+-spec sample(size(), proper_types:raw_type()) -> instance().
 sample(Size, RawType) ->
     Opts = #opts{},
     proper:global_state_init(Opts),
@@ -90,7 +109,7 @@ sample(Size, RawType) ->
     proper:global_state_erase(Opts),
     clean_instance(ImmInstance).
 
--spec normal_gen(type()) -> imm_instance().
+-spec normal_gen(proper_types:type()) -> imm_instance().
 normal_gen(Type) ->
     Gen = proper_types:get_prop(generator, Type),
     if
@@ -99,7 +118,7 @@ normal_gen(Type) ->
 			       Gen(Size)
     end.
 
--spec alt_gens(type()) -> [imm_instance()].
+-spec alt_gens(proper_types:type()) -> [imm_instance()].
 alt_gens(Type) ->
     case proper_types:find_prop(alt_gens, Type) of
 	{ok, AltGens} -> ?FORCE(AltGens);
@@ -141,7 +160,8 @@ tuplemap(Fun, Tuple) ->
 
 %% Basic type generators
 
--spec integer_gen(size(), extint(), extint()) -> integer().
+-spec integer_gen(size(), proper_arith:extint(), proper_arith:extint()) ->
+	  integer().
 integer_gen(Size, inf, inf) ->
     proper_arith:rand_int(Size);
 integer_gen(Size, inf, High) ->
@@ -151,7 +171,8 @@ integer_gen(Size, Low, inf) ->
 integer_gen(_Size, Low, High) ->
     proper_arith:rand_int(Low, High).
 
--spec float_gen(size(), extnum(), extnum()) -> float().
+-spec float_gen(size(), proper_arith:extnum(), proper_arith:extnum()) ->
+	  float().
 float_gen(Size, inf, inf) ->
     proper_arith:rand_float(Size);
 float_gen(Size, inf, High) ->
@@ -161,7 +182,7 @@ float_gen(Size, Low, inf) ->
 float_gen(_Size, Low, High) ->
     proper_arith:rand_float(Low, High).
 
--spec atom_gen() -> type().
+-spec atom_gen() -> proper_types:type().
 %% we make sure we never clash by checking that the first character is not '$'
 atom_gen() ->
     ?LET(Str,
@@ -171,26 +192,26 @@ atom_gen() ->
 		   X =:= [] orelse hd(X) =/= $$),
 	 erlang:list_to_atom(Str)).
 
--spec list_gen(size(), type()) -> [imm_instance()].
+-spec list_gen(size(), proper_types:type()) -> [imm_instance()].
 list_gen(Size, ElemType) ->
     Len = proper_arith:rand_int(0, Size),
     vector_gen(Len, ElemType).
 
--spec vector_gen(length(), type()) -> [imm_instance()].
+-spec vector_gen(length(), proper_types:type()) -> [imm_instance()].
 vector_gen(Len, ElemType) ->
     fixed_list_gen(lists:duplicate(Len, ElemType)).
 
--spec union_gen([type()]) -> imm_instance().
+-spec union_gen([proper_types:type()]) -> imm_instance().
 union_gen(Choices) ->
     {_Choice,Type} = proper_arith:rand_choose(Choices),
     generate(Type).
 
--spec weighted_union_gen([{frequency(),type()}]) -> imm_instance().
+-spec weighted_union_gen([{frequency(),proper_types:type()}]) -> imm_instance().
 weighted_union_gen(FreqChoices) ->
     {_Choice,Type} = proper_arith:freq_choose(FreqChoices),
     generate(Type).
 
--spec tuple_gen([type()]) -> tuple(imm_instance()).
+-spec tuple_gen([proper_types:type()]) -> tuple(imm_instance()).
 tuple_gen(Fields) ->
     erlang:list_to_tuple(fixed_list_gen(Fields)).
 
@@ -198,8 +219,8 @@ tuple_gen(Fields) ->
 exactly_gen(X) ->
     X.
 
--spec fixed_list_gen([type()]) -> imm_instance()
-		  ; ({[type()],type()}) ->
+-spec fixed_list_gen([proper_types:type()]) -> imm_instance()
+		  ; ({[proper_types:type()],proper_types:type()}) ->
 	  maybe_improper_list(imm_instance(), imm_instance()).
 fixed_list_gen({ProperHead,ImproperTail}) ->
     lists:map(fun ?MODULE:generate/1, ProperHead) ++ generate(ImproperTail);

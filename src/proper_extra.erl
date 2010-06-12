@@ -23,6 +23,8 @@
 -module(proper_extra).
 -export([]).
 
+-export_type([]).
+
 -include("proper_internal.hrl").
 
 
