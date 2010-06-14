@@ -24,9 +24,9 @@
 -module(proper_gen).
 -export([generate/1, generate/3, sample/2, normal_gen/1, alt_gens/1,
 	 clean_instance/1]).
--export([integer_gen/3, float_gen/3, atom_gen/0, list_gen/2, vector_gen/2,
-	 union_gen/1, weighted_union_gen/1, tuple_gen/1, exactly_gen/1,
-	 fixed_list_gen/1]).
+-export([integer_gen/3, float_gen/3, atom_gen/0, binary_gen/0, bitstring_gen/0,
+	 list_gen/2, vector_gen/2, union_gen/1, weighted_union_gen/1,
+	 tuple_gen/1, exactly_gen/1, fixed_list_gen/1]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, combine_fun/0, alt_gens/0]).
@@ -183,7 +183,8 @@ float_gen(_Size, Low, High) ->
     proper_arith:rand_float(Low, High).
 
 -spec atom_gen() -> proper_types:type().
-%% we make sure we never clash by checking that the first character is not '$'
+%% We make sure we never clash with internal atoms by checking that the first
+%% character is not '$'.
 atom_gen() ->
     ?LET(Str,
 	 ?SUCHTHAT(X,
@@ -191,6 +192,19 @@ atom_gen() ->
 					proper_types:list(proper_types:byte())),
 		   X =:= [] orelse hd(X) =/= $$),
 	 erlang:list_to_atom(Str)).
+
+-spec binary_gen() -> proper_types:type().
+binary_gen() ->
+    ?LET(Bytes,
+	 proper_types:relimit(?MAX_BINARY_LEN,
+			     proper_types:list(proper_types:byte())),
+	 erlang:list_to_binary(Bytes)).
+
+-spec bitstring_gen() -> proper_types:type().
+bitstring_gen() ->
+    ?LET({BytesHead, NumBits, TailByte},
+	 {binary_gen(), proper_types:range(0,7), proper_types:range(0,127)},
+	 <<BytesHead/binary, TailByte:NumBits>>).
 
 -spec list_gen(size(), proper_types:type()) -> [imm_instance()].
 list_gen(Size, ElemType) ->

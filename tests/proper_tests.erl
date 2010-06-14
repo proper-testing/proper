@@ -224,7 +224,7 @@ test(15) ->
 test(16) ->
     ?FORALL(A, atom(), length(erlang:atom_to_list(A)) < 4);
 test(17) ->
-    ?FORALL(X, my_binary(), erlang:adler32(X) =/= 42);
+    ?FORALL(X, binary(), erlang:adler32(X) =/= 42);
 test(18) ->
     ?FORALL(L, kvlist(atom(),integer()), not lists:keymember(42,2,L));
 test(19) ->
@@ -235,7 +235,14 @@ test(20) ->
 	    length(X) < 10);
 test(21) ->
     ?FORALL(X,
-	    ?SUCHTHAT(Y, my_binary(), produces_term(Y)),
+	    ?SUCHTHAT(Y, binary(), produces_term(Y)),
 	    term_to_binary(binary_to_term(X)) =:= X);
+test(22) ->
+    ?FORALL(X,
+	    integer(),
+	    case X of
+		42 -> erlang:throw(you_got_it);
+		_  -> true
+	    end);
 test(_) ->
     ?FORALL(_, integer(), true).

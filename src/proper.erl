@@ -228,7 +228,7 @@ perform_tr(Performed, Left, Test, CatDicts, Opts) ->
 	    perform_tr(Performed + 1, Left - 1, Test, NewCatDicts, Opts);
 	{failed, Reason, Bound, FailActions} ->
 	    print("!~n", [], Opts),
-	    % TODO: should this be suppressed when on quiet mode?
+	    % TODO: is it okay to suppres this when on quiet mode?
 	    case Opts#opts.quiet of
 		true  -> ok;
 		false -> lists:foreach(fun(A) -> ?FORCE(A) end, FailActions)

@@ -26,8 +26,8 @@
 	 subtype/2, is_instance/2, unwrap/1, weakly/1, strongly/1,
 	 satisfies_all/2]).
 -export([sized/1, bind/2, shrinkwith/2, add_constraint/3]).
--export([integer/2, float/2, atom/0, list/1, vector/2, union/1,
-	 weighted_union/1, tuple/1, exactly/1, fixed_list/1]).
+-export([integer/2, float/2, atom/0, binary/0, bitstring/0, list/1, vector/2,
+	 union/1, weighted_union/1, tuple/1, exactly/1, fixed_list/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 string/0, wunion/1]).
@@ -172,16 +172,17 @@ is_instance(ImmInstance, Type) ->
     CleanInstance = proper_gen:clean_instance(ImmInstance),
     proper_arith:and3(
 	weakly(satisfies_all(CleanInstance, Type)),
-	case find_prop(is_instance, Type) of
-	    {ok, IsInstance} ->
-		IsInstance(ImmInstance);
-	    error ->
-		case get_prop(kind, Type) of
-		    wrapper     -> wrapper_test(ImmInstance, Type);
-		    constructed -> constructed_test(ImmInstance, Type);
-		    _           -> unknown
-		end
-	end
+	proper_arith:or3(
+	    case find_prop(is_instance, Type) of
+		{ok, IsInstance} -> IsInstance(ImmInstance);
+		error            -> unknown
+	    end,
+	    case get_prop(kind, Type) of
+		wrapper     -> wrapper_test(ImmInstance, Type);
+		constructed -> constructed_test(ImmInstance, Type);
+		_           -> unknown
+	    end
+	)
     ).
 
 -spec wrapper_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
@@ -272,15 +273,15 @@ add_constraint(RawType, Condition, IsStrict) ->
 
 %% Basic types
 
-%% TODO: binary (general binary(), specified length, base size,
-%%	 unit size?), bitstring
+%% TODO: bin types: specified length, base size, unit size?
 %% TODO: fun (generally some fun, unspecified number of arguments, but specified
 %%	 return type, specific number and types of arguments and specific return
 %%	 type) ("function" keyword?)
 %% TODO: pid, port, ref (it's dangerous to provide random process data to
 %%	 functions - they must want it for a reason (least we can do is have a
 %%	 live function with that pid))
-%% TODO: any (union of all types? what are those?)
+%% TODO: any (union of all types? what are those?
+%%	 number, atom, reference, fun, port, pid, tuple, list, bit string
 %% TODO: (records, none, improper_list(content_type, termination_type),
 %%	 maybe_improper_list)
 -spec integer(proper_arith:extint(), proper_arith:extint()) -> type().
@@ -320,7 +321,29 @@ float_test(X, Low, High) ->
 -spec atom() -> type().
 atom() ->
     ?WRAPPER([
-	{generator, fun proper_gen:atom_gen/0}
+	{generator, fun proper_gen:atom_gen/0},
+	{is_instance, fun(X) -> atom_test(X) end}
+    ]).
+
+-spec atom_test(proper_gen:imm_instance()) -> boolean().
+atom_test(X) ->
+    is_atom(X)
+    %% We return false for atoms starting with '$', since these are
+    %% atoms used internally and never produced by the atom generator.
+    andalso (X =:= '' orelse hd(erlang:atom_to_list(X)) =/= $$).
+
+-spec binary() -> type().
+binary() ->
+    ?WRAPPER([
+	{generator, fun proper_gen:binary_gen/0},
+	{is_instance, fun erlang:is_binary/1}
+    ]).
+
+-spec bitstring() -> type().
+bitstring() ->
+    ?WRAPPER([
+	{generator, fun proper_gen:bitstring_gen/0},
+	{is_instance, fun erlang:is_bitstring/1}
     ]).
 
 -spec list(raw_type()) -> type().

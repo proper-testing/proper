@@ -165,8 +165,7 @@ rand_non_neg_float(Const) when is_integer(Const) andalso Const >= 0 ->
     end.
 
 -spec rand_float(float(), float()) -> float().
-%% TODO: is_float instead of is_number?
-rand_float(Low, High) when is_number(Low) andalso is_number(High)
+rand_float(Low, High) when is_float(Low) andalso is_float(High)
 		      andalso Low =< High ->
     Low + random:uniform() * (High - Low).
 

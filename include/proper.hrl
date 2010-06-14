@@ -19,30 +19,7 @@
 %% This shoulde be included in each file containing user type declarations and/or
 %% properties to be tested.
 
-
-%% Generator macros
-
--define(FORCE(X), (X)()).
--define(DELAY(X), fun() -> X end).
--define(SIZED(SizeArg,Gen), proper_types:sized(fun(SizeArg) -> Gen end)).
--define(LET(X,RawType,Gen), proper_types:bind(RawType,fun(X) -> Gen end)).
--define(SHRINK(Gen,AltGens),
-	proper_types:shrinkwith(?DELAY(Gen),?DELAY(AltGens))).
--define(LETSHRINK(Xs,RawType,Gen),
-	proper_types:bind(RawType,
-			  fun(Xs) ->
-			      proper_types:shrinkwith(?DELAY(Gen),?DELAY(Xs))
-			  end)).
--define(SUCHTHAT(X,RawType,Condition),
-	proper_types:add_constraint(RawType,fun(X) -> Condition end,true)).
--define(SUCHTHATMAYBE(X,RawType,Condition),
-	proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
-
-
-%% Type declaration macros
-
--define(SEMI_OPAQUE(PropList), proper_types:new_type(PropList,semi_opaque)).
--define(OPAQUE(PropList), proper_types:new_type(PropList,opaque)).
+-include("proper_common.hrl").
 
 
 %% Usage macros
@@ -59,8 +36,9 @@
 
 %% Default types
 
--import(proper_types, [integer/2, float/2, atom/0, list/1, vector/2, union/1,
-		       weighted_union/1, tuple/1, exactly/1, fixed_list/1]).
+-import(proper_types, [integer/2, float/2, atom/0, binary/0, bitstring/0,
+		       list/1, vector/2, union/1, weighted_union/1, tuple/1,
+		       exactly/1, fixed_list/1]).
 
 
 %% Type aliases

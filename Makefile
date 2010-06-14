@@ -9,7 +9,7 @@ EXM_DIR=examples
 TMP_PATTERN=*~ \\\#*\\\# *.dump
 
 APP_MODULES=proper proper_types proper_gen proper_shrink proper_arith proper_extra
-HEADERS=proper proper_internal
+HEADERS=proper proper_internal proper_common
 TST_MODULES=proper_tests
 EXM_MODULES=mm
 TXT_FILES=COPYING Makefile README $(DOC_DIR)/overview.edoc
