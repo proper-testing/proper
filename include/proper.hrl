@@ -32,7 +32,7 @@
 -define(WHENFAIL(Action,Test), {'$whenfail',?DELAY(Action),?DELAY(Test)}).
 -define(NUMTESTS(N,Test), {'$numtests',N,Test}).
 -define(FAILS(Test), {'$fails',Test}).
-%% TODO: -define(TRAPEXIT(Test), {'$trapexit',?DELAY(Test)}).
+-define(TRAPEXIT(Test), {'$trapexit',?DELAY(Test)}).
 %% TODO: -define(TIMEOUT(Limit,Test), {'$timeout',Limit,?DELAY(Test)}).
 
 

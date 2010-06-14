@@ -242,11 +242,18 @@ test(21) ->
 	    ?SUCHTHAT(Y, binary(), produces_term(Y)),
 	    term_to_binary(binary_to_term(X)) =:= X);
 test(22) ->
-    ?FORALL(X,
-	    integer(),
-	    case X of
-		42 -> erlang:throw(you_got_it);
-		_  -> true
+    ?FORALL(L,
+	    list(integer()),
+	    case lists:member(42, L) of
+		true  -> erlang:throw(you_got_it);
+		false -> true
 	    end);
+test(23) ->
+    ?FORALL(L,
+	    list(integer()),
+	    ?TRAPEXIT(case lists:member(42, L) of
+			  true  -> erlang:exit(you_got_it);
+			  false -> true
+		      end));
 test(_) ->
     ?FORALL(_, integer(), true).

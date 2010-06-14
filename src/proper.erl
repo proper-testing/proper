@@ -51,7 +51,7 @@
 	      | implies_clause()
 	      | collect_clause()
 	      | whenfail_clause()
-	      %%| trapexit_clause()
+	      | trapexit_clause()
 	      %%| timeout_clause()
 	      | apply_clause().
 -type delayed_test() :: fun(() -> test()).
@@ -63,7 +63,7 @@
 -type implies_clause() :: {'$implies', boolean(), delayed_test()}.
 -type collect_clause() :: {'$collect', category(), test()}.
 -type whenfail_clause() :: {'$whenfail', side_effects_fun(), delayed_test()}.
-%%-type trapexit_clause() :: {'$trapexit', delayed_test()}.
+-type trapexit_clause() :: {'$trapexit', delayed_test()}.
 %%-type timeout_clause() :: {'$timeout', time_period(), delayed_test()}.
 -type apply_clause() :: {'$apply', [term()], function()}.
 
@@ -73,9 +73,13 @@
 	     | {'max_shrinks', non_neg_integer()}
 	     | 'expect_fail'.
 
--record(ctx, {bound        = [] :: testcase(),
-	      fail_actions = [] :: [side_effects_fun()],
-	      categories   = [] :: [category()]}).
+%% TODO: other ways for the user to define the extra exceptions to catch?
+%% TODO: should they contain specific reasons (or '$any' for all reasons)?
+%% TODO: allow errors to be caught?
+-record(ctx, {catch_exits  = false :: boolean(),
+	      bound        = []    :: testcase(),
+	      fail_actions = []    :: [side_effects_fun()],
+	      categories   = []    :: [category()]}).
 -type single_run_result() :: {'passed', 'didnt_crash'}
 			   | {'passed', {'categories',[category()]}}
 			   | {'failed', fail_reason(), testcase(),
@@ -83,9 +87,9 @@
 			   | {'error', 'wrong_type'}
 			   | {'error', 'cant_generate'}
 			   | {'error', 'rejected'}.
--type exception_type() :: 'throw' | 'error' | 'exit'.
--type exception_reason() :: term().
--type fail_reason() :: 'false_property' | {exception_type(),exception_reason()}.
+-type exc_kind() :: 'throw' | 'error' | 'exit'.
+-type exc_reason() :: term().
+-type fail_reason() :: 'false_property' | {exc_kind(),exc_reason()}.
 -type imm_result() :: common_result()
 		    | {'failed', pos_integer(), fail_reason(), testcase()}.
 -type final_result() :: common_result()
@@ -311,15 +315,20 @@ run({'$whenfail',Action,Prop}, Context = #ctx{fail_actions = FailActions},
 	Opts) ->
     NewContext = Context#ctx{fail_actions = [Action | FailActions]},
     run({'$apply',[],Prop}, NewContext, Opts);
+run({'$trapexit',Prop}, Context, Opts) ->
+    NewContext = Context#ctx{catch_exits = true},
+    run({'$apply',[],Prop}, NewContext, Opts);
 run({'$apply',Args,Prop}, Context, Opts) ->
-    % TODO: is it correct for this to cover errors and exits too?
     try
-	run(erlang:apply(Prop, Args), Context, Opts)
+	% TODO: should we care what the code returns when trapping exits? if we
+	%       are doing that, we are probably testing code that will run as a
+	%       separate process against crashes
+	run(erlang:apply(Prop,Args), Context, Opts)
     catch
-	throw:Reason ->
-	    {failed, false_property, Bound, FailActions} =
-		run(false, Context, Opts),
-	    {failed, {throw,Reason}, Bound, FailActions}
+	throw:ExcReason ->
+	    erlang:setelement(2, run(false,Context,Opts), {throw,ExcReason});
+	exit:ExcReason when Context#ctx.catch_exits ->
+	    erlang:setelement(2, run(false,Context,Opts), {exit,ExcReason})
     end.
 
 -spec still_fails(testcase(), test(), fail_reason()) -> boolean().
@@ -349,16 +358,20 @@ skip_to_next({'$collect',_Category,Prop}) ->
     skip_to_next(Prop);
 skip_to_next({'$whenfail',_Action,Prop}) ->
     skip_to_next({'$apply',[],Prop});
+skip_to_next({'$trapexit',Prop}) ->
+    skip_to_next({'$apply',[],Prop});
 skip_to_next({'$apply',Args,Prop}) ->
     try
 	skip_to_next(erlang:apply(Prop, Args))
     catch
-	throw:_Reason -> false
+	% TODO: should be OK to catch everything here, since we have
+	%       already tested at this point that the test still fails
+	_ExcKind:_ExcReason -> false
     end.
 
 
 %%------------------------------------------------------------------------------
-% Output functions
+%% Output functions
 %%------------------------------------------------------------------------------
 
 -spec print(string(), [term()], #opts{}) -> 'ok'.
