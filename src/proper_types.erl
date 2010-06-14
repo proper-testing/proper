@@ -15,11 +15,11 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% @author Manolis Papadakis <manopapad@gmail.com>
-%% @copyright 2010 Manolis Papadakis
-%% @version {@version}
-%% @doc Type manipulation functions and predefined types are contained in this
-%%	module.
+%%% @author Manolis Papadakis <manopapad@gmail.com>
+%%% @copyright 2010 Manolis Papadakis
+%%% @version {@version}
+%%% @doc Type manipulation functions and predefined types are contained in this
+%%%	module.
 
 -module(proper_types).
 -export([cook_outer/1, is_raw_type/1, get_prop/2, find_prop/2, new_type/2,
@@ -39,7 +39,9 @@
 -include("proper_internal.hrl").
 
 
+%%------------------------------------------------------------------------------
 %% Dialyzer types
+%%------------------------------------------------------------------------------
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed'
 		   | 'semi_opaque' | 'opaque'.
@@ -99,7 +101,9 @@
     | {'alt_gens', proper_gen:alt_gens()}.
 
 
+%%------------------------------------------------------------------------------
 %% Type manipulation functions
+%%------------------------------------------------------------------------------
 
 -spec cook_outer(raw_type()) -> type().
 cook_outer(Type = {'$type',_Props}) ->
@@ -241,7 +245,9 @@ satisfies_all(Instance, Type) ->
     end.
 
 
+%%------------------------------------------------------------------------------
 %% Type definition functions
+%%------------------------------------------------------------------------------
 
 -spec sized(proper_gen:sized_generator()) -> type().
 sized(Gen) ->
@@ -271,7 +277,9 @@ add_constraint(RawType, Condition, IsStrict) ->
     append_to_prop(constraints, {Condition,IsStrict}, Type).
 
 
+%%------------------------------------------------------------------------------
 %% Basic types
+%%------------------------------------------------------------------------------
 
 %% TODO: bin types: specified length, base size, unit size?
 %% TODO: fun (generally some fun, unspecified number of arguments, but specified
@@ -554,7 +562,9 @@ improper_list_update(Index, Value, List, HeadLen) ->
     end.
 
 
+%%------------------------------------------------------------------------------
 %% Type aliases
+%%------------------------------------------------------------------------------
 
 %% TODO: term, maybe_improper_list(), maybe_improper_list(T), nonempty string,
 %%	 iolist, module, mfa, node, timeout, list() => list(any()),
@@ -599,7 +609,9 @@ string() -> list(char()).
 wunion(FreqChoices) -> weighted_union(FreqChoices).
 
 
+%%------------------------------------------------------------------------------
 %% QuickCheck compatibility types
+%%------------------------------------------------------------------------------
 
 -spec int() -> type().
 int() -> integer().
@@ -623,7 +635,9 @@ oneof(Choices) -> union(Choices).
 frequency(FreqChoices) -> weighted_union(FreqChoices).
 
 
+%%------------------------------------------------------------------------------
 %% Additional type specification functions
+%%------------------------------------------------------------------------------
 
 -spec resize(size(), raw_type()) -> type().
 resize(Size, RawType) ->

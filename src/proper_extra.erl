@@ -15,10 +15,10 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% @author Manolis Papadakis <manopapad@gmail.com>
-%% @copyright 2010 Manolis Papadakis
-%% @version {@version}
-%% @doc Some additional types from the standard library are declared here.
+%%% @author Manolis Papadakis <manopapad@gmail.com>
+%%% @copyright 2010 Manolis Papadakis
+%%% @version {@version}
+%%% @doc Some additional types from the standard library are declared here.
 
 -module(proper_extra).
 -export([]).

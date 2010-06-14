@@ -15,11 +15,11 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% @author Manolis Papadakis <manopapad@gmail.com>
-%% @copyright 2010 Manolis Papadakis
-%% @version {@version}
-%% @doc The generator subsystem and generators for basic types are contained in
-%%	this module.
+%%% @author Manolis Papadakis <manopapad@gmail.com>
+%%% @copyright 2010 Manolis Papadakis
+%%% @version {@version}
+%%% @doc The generator subsystem and generators for basic types are contained in
+%%%	this module.
 
 -module(proper_gen).
 -export([generate/1, generate/3, sample/2, normal_gen/1, alt_gens/1,
@@ -34,7 +34,9 @@
 -include("proper_internal.hrl").
 
 
+%%------------------------------------------------------------------------------
 %% Dialyzer types
+%%------------------------------------------------------------------------------
 
 -type instance() :: term().
 %% TODO: update imm_instance() when adding more types: be careful when reading
@@ -50,7 +52,9 @@
 -type alt_gens() :: fun(() -> [imm_instance()]).
 
 
+%%------------------------------------------------------------------------------
 %% Instance generation functions
+%%------------------------------------------------------------------------------
 
 -spec generate(proper_types:raw_type()) -> imm_instance() | '$cant_generate'.
 generate(Type = {'$type',_Props}) ->
@@ -158,7 +162,9 @@ tuplemap(Fun, Tuple) ->
     erlang:list_to_tuple(lists:map(Fun, erlang:tuple_to_list(Tuple))).
 
 
+%%------------------------------------------------------------------------------
 %% Basic type generators
+%%------------------------------------------------------------------------------
 
 -spec integer_gen(size(), proper_arith:extint(), proper_arith:extint()) ->
 	  integer().

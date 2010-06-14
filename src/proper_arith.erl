@@ -15,10 +15,10 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% @author Manolis Papadakis <manopapad@gmail.com>
-%% @copyright 2010 Manolis Papadakis
-%% @version {@version}
-%% @doc This module contains helper arithmetic and random functions.
+%%% @author Manolis Papadakis <manopapad@gmail.com>
+%%% @copyright 2010 Manolis Papadakis
+%%% @version {@version}
+%%% @doc This module contains helper arithmetic and random functions.
 
 -module(proper_arith).
 -export([le/2, and3/2, or3/2, any3/1, all3/1, maybe/1, surely/1]).
@@ -34,14 +34,18 @@
 -include("proper_internal.hrl").
 
 
+%%------------------------------------------------------------------------------
 %% Dialyzer types
+%%------------------------------------------------------------------------------
 
 -type extint() :: integer() | 'inf'.
 -type extnum() :: number() | 'inf'.
 -type ternary() :: 'true' | 'false' | 'unknown'.
 
 
+%%------------------------------------------------------------------------------
 %% Arithmetic functions
+%%------------------------------------------------------------------------------
 
 -spec le(extnum(), extnum()) -> boolean().
 le(inf, _B) -> true;
@@ -101,7 +105,9 @@ surely(unknown) -> false;
 surely(B)       -> B.
 
 
+%%------------------------------------------------------------------------------
 %% Random functions
+%%------------------------------------------------------------------------------
 
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.

@@ -15,10 +15,12 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% Common parts of user and internal header files
+%%% Common parts of user and internal header files
 
 
+%%------------------------------------------------------------------------------
 %% Generator macros
+%%------------------------------------------------------------------------------
 
 -define(FORCE(X), (X)()).
 -define(DELAY(X), fun() -> X end).
@@ -37,7 +39,9 @@
 	proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
 
 
+%%------------------------------------------------------------------------------
 %% Type declaration macros
+%%------------------------------------------------------------------------------
 
 -define(BASIC(PropList), proper_types:new_type(PropList,basic)).
 -define(WRAPPER(PropList), proper_types:new_type(PropList,wrapper)).

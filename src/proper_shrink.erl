@@ -15,11 +15,11 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% @author Manolis Papadakis <manopapad@gmail.com>
-%% @copyright 2010 Manolis Papadakis
-%% @version {@version}
-%% @doc The shrinking subsystem and all predefined shrinkers are contained in
-%%	this module.
+%%% @author Manolis Papadakis <manopapad@gmail.com>
+%%% @copyright 2010 Manolis Papadakis
+%%% @version {@version}
+%%% @doc The shrinking subsystem and all predefined shrinkers are contained in
+%%%	this module.
 
 -module(proper_shrink).
 -export([shrink/4]).
@@ -34,7 +34,9 @@
 -include("proper_internal.hrl").
 
 
+%%------------------------------------------------------------------------------
 %% Dialyzer types
+%%------------------------------------------------------------------------------
 
 -type forall2_clause() :: {'$forall2', proper_types:type(),
 			   fun((proper_gen:instance()) -> proper:test())}.
@@ -44,7 +46,9 @@
 			state()) -> {[proper_gen:imm_instance()],state()}).
 
 
+%%------------------------------------------------------------------------------
 %% Main shrinking functions
+%%------------------------------------------------------------------------------
 
 -spec shrink(proper:testcase(), proper:test(), proper:fail_reason(),
 	     #opts{}) -> {non_neg_integer(),proper:testcase()}.
@@ -176,7 +180,9 @@ get_shrinkers(Type) ->
     CustomShrinkers ++ StandardShrinkers.
 
 
+%%------------------------------------------------------------------------------
 %% Non-opaque type shrinkers
+%%------------------------------------------------------------------------------
 
 -spec alternate_shrinker(proper_gen:imm_instance(), proper_types:type(),
 			 state()) -> {[proper_gen:imm_instance()],state()}.
@@ -300,7 +306,9 @@ recursive_shrinker(Instance, Type, {shrunk,N,{inner,InnerType,InnerState}}) ->
     recursive_shrinker(Instance, Type, {inner,InnerType,{shrunk,N,InnerState}}).
 
 
+%%------------------------------------------------------------------------------
 %% Opaque type shrinkers
+%%------------------------------------------------------------------------------
 
 -spec split_shrinker(proper_gen:instance(), proper_types:type(), state()) ->
 	  {[proper_gen:instance()],state()}.
@@ -451,7 +459,9 @@ elements_shrinker(Instance, Type,
 		      {inner,Indices,GetElemType,{shrunk,N,InnerState}}).
 
 
+%%------------------------------------------------------------------------------
 %% Custom shrinkers
+%%------------------------------------------------------------------------------
 
 -spec integer_shrinker(integer(), proper_arith:extint(), proper_arith:extint(),
 		       state()) -> {[integer()],state()}.

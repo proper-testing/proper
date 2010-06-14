@@ -15,13 +15,15 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% Internal header file
-%% This header is included in all PropEr source files.
+%%% Internal header file
+%%% This header is included in all PropEr source files.
 
 -include("proper_common.hrl").
 
 
+%%------------------------------------------------------------------------------
 %% Constants
+%%------------------------------------------------------------------------------
 
 %% TODO: make all these into parameters, store them in process registry
 -define(DEFAULT_RNG_CONST, 10).
@@ -31,7 +33,9 @@
 -define(MAX_BINARY_LEN, 300).
 
 
+%%------------------------------------------------------------------------------
 %% Common Dialyzer type aliases
+%%------------------------------------------------------------------------------
 
 -type size() :: non_neg_integer().
 -type length() :: non_neg_integer().
@@ -39,7 +43,9 @@
 -type frequency() :: pos_integer().
 
 
+%%------------------------------------------------------------------------------
 %% Options record
+%%------------------------------------------------------------------------------
 
 -record(opts, {quiet       = false :: boolean(),
 	       numtests    = 100   :: pos_integer(),

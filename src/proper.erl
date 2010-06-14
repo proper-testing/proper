@@ -15,10 +15,10 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% @author Manolis Papadakis <manopapad@gmail.com>
-%% @copyright 2010 Manolis Papadakis
-%% @version {@version}
-%% @doc This is the main PropEr module.
+%%% @author Manolis Papadakis <manopapad@gmail.com>
+%%% @copyright 2010 Manolis Papadakis
+%%% @version {@version}
+%%% @doc This is the main PropEr module.
 
 -module(proper).
 -export([numtests/2, collect/2, fails/1]).
@@ -32,7 +32,9 @@
 -include("proper_internal.hrl").
 
 
+%%------------------------------------------------------------------------------
 %% Dialyzer types
+%%------------------------------------------------------------------------------
 
 -type testcase() :: [proper_gen:imm_instance()].
 -type clean_testcase() :: [proper_gen:instance()].
@@ -95,7 +97,9 @@
 		       | {'error', {'unexpected',single_run_result()}}.
 
 
+%%------------------------------------------------------------------------------
 %% Common functions
+%%------------------------------------------------------------------------------
 
 -spec numtests(pos_integer(), outer_test()) -> numtests_clause().
 numtests(N, Test) -> {'$numtests',N,Test}.
@@ -162,7 +166,9 @@ parse_opt(Opt, Opts) ->
     end.
 
 
+%%------------------------------------------------------------------------------
 %% Main usage functions
+%%------------------------------------------------------------------------------
 
 -spec check(outer_test()) -> final_result() | 'ok'.
 check(Test) ->
@@ -351,7 +357,9 @@ skip_to_next({'$apply',Args,Prop}) ->
     end.
 
 
+%%------------------------------------------------------------------------------
 % Output functions
+%%------------------------------------------------------------------------------
 
 -spec print(string(), [term()], #opts{}) -> 'ok'.
 print(Str, Args, Opts) ->
