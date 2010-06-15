@@ -68,11 +68,12 @@
 -type apply_clause() :: {'$apply', [term()], function()}.
 
 -type opt() :: 'quiet'
+	     | 'crypto'
 	     | {'numtests', pos_integer()}
 	     | pos_integer()
 	     | {'max_shrinks', non_neg_integer()}
+	     | {'constraint_tries', pos_integer()}
 	     | 'expect_fail'.
-
 %% TODO: other ways for the user to define the extra exceptions to catch?
 %% TODO: should they contain specific reasons (or '$any' for all reasons)?
 %% TODO: allow errors to be caught?
@@ -163,10 +164,12 @@ parse_opts_tr(Opt, Opts) ->
 parse_opt(Opt, Opts) ->
     case Opt of
 	quiet                        -> Opts#opts{quiet = true};
+	crypto                       -> Opts#opts{crypto = true};
 	{numtests,N}                 -> Opts#opts{numtests = N};
 	N when is_integer(N), N > 0  -> Opts#opts{numtests = N};
-	expect_fail                  -> Opts#opts{expect_fail = true};
-	{max_shrinks,N}              -> Opts#opts{max_shrinks = N}
+	{max_shrinks,N}              -> Opts#opts{max_shrinks = N};
+	{constraint_tries,N}         -> Opts#opts{constraint_tries = N};
+	expect_fail                  -> Opts#opts{expect_fail = true}
     end.
 
 
@@ -212,14 +215,16 @@ check(Test, OptsList) ->
 
 -spec global_state_init(#opts{}) -> 'ok'.
 global_state_init(Opts) ->
+    put('$constraint_tries', Opts#opts.constraint_tries),
     proper_arith:rand_start(Opts),
     set_size(0),
     ok.
 
 -spec global_state_erase(#opts{}) -> 'ok'.
-global_state_erase(_Opts) ->
+global_state_erase(Opts) ->
     erase_size(),
-    proper_arith:rand_stop(),
+    proper_arith:rand_stop(Opts),
+    erase('$constraint_tries'),
     ok.
 
 -spec perform_tr(non_neg_integer(), non_neg_integer(), test(),
@@ -409,8 +414,7 @@ report_results({failed,Performed,_Reason,ImmFailedTestCase}, Opts) ->
     ok;
 report_results({error,cant_generate}, _Opts) ->
     io:format("~nError: couldn't produce an instance that satisfies all strict"
-	      " constraints after ~b tries~n",
-	      [?MAX_TRIES_TO_SATISFY_CONSTRAINTS]),
+	      " constraints after ~b tries~n", [get('$constraint_tries')]),
     ok;
 report_results({error,cant_satisfy}, _Opts) ->
     io:format("~nError: no valid test could be generated.~n", []),

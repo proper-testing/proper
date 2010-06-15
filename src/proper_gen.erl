@@ -58,7 +58,7 @@
 
 -spec generate(proper_types:raw_type()) -> imm_instance() | '$cant_generate'.
 generate(Type = {'$type',_Props}) ->
-    generate(Type, ?MAX_TRIES_TO_SATISFY_CONSTRAINTS, '$cant_generate');
+    generate(Type, get('$constraint_tries'), '$cant_generate');
 generate(RawType) ->
     generate(proper_types:cook_outer(RawType)).
 
@@ -203,7 +203,7 @@ atom_gen() ->
 binary_gen() ->
     ?LET(Bytes,
 	 proper_types:relimit(?MAX_BINARY_LEN,
-			     proper_types:list(proper_types:byte())),
+			      proper_types:list(proper_types:byte())),
 	 erlang:list_to_binary(Bytes)).
 
 -spec bitstring_gen() -> proper_types:type().
