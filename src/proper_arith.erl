@@ -155,11 +155,13 @@ rand_non_neg_int(Const) ->
     trunc(rand_non_neg_float(Const)).
 
 -spec rand_int(integer(), integer()) -> integer().
-%% TODO: global option to use crypto module's rand_uniform(Lo,Hi) (caution:
-%%	 produced values will be Lo le N lt Hi)
-rand_int(Low, High) when is_integer(Low) andalso is_integer(High)
-		    andalso Low =< High ->
-    Low + random:uniform(High - Low + 1) - 1.
+rand_int(Low, High) when is_integer(Low), is_integer(High), Low =< High ->
+    case get('$crypto') of
+	true ->
+	    crypto:rand_uniform(Low, High + 1);
+	_ ->
+	    Low + random:uniform(High - Low + 1) - 1
+    end.
 
 -spec rand_float() -> float().
 rand_float() ->
@@ -178,15 +180,14 @@ rand_non_neg_float() ->
     rand_non_neg_float(?DEFAULT_RNG_CONST).
 
 -spec rand_non_neg_float(non_neg_integer()) -> float().
-rand_non_neg_float(Const) when is_integer(Const) andalso Const >= 0 ->
+rand_non_neg_float(Const) when is_integer(Const), Const >= 0 ->
     case random:uniform() of
 	1.0 -> rand_non_neg_float(Const);
 	X   -> Const * zero_one_to_zero_inf(X)
     end.
 
 -spec rand_float(float(), float()) -> float().
-rand_float(Low, High) when is_float(Low) andalso is_float(High)
-		      andalso Low =< High ->
+rand_float(Low, High) when is_float(Low), is_float(High), Low =< High ->
     Low + random:uniform() * (High - Low).
 
 -spec zero_one_to_zero_inf(float()) -> float().

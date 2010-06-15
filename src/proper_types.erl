@@ -55,15 +55,18 @@
 %% TODO: update raw_type() when adding more standard types
 -type raw_type() :: type() | integer() | float() | atom() | tuple()
 		  | maybe_improper_list(_,_) | <<_:_ * 1>>.
--type type_prop_name() :: 'kind' | 'generator' | 'size_limit' | 'size_transform'
-			| 'is_instance' | 'shrinkers' | 'internal_type'
-			| 'internal_types' | 'get_length' | 'split' | 'join'
-			| 'get_indices' | 'remove' | 'retrieve' | 'update'
-			| 'constraints' | 'parts_type' | 'combine' | 'alt_gens'.
+-type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
+			| 'size_limit' | 'size_transform' | 'is_instance'
+			| 'shrinkers' | 'internal_type' | 'internal_types'
+			| 'get_length' | 'split' | 'join' | 'get_indices'
+			| 'remove' | 'retrieve' | 'update' | 'constraints'
+			| 'parts_type' | 'combine' | 'alt_gens'.
 -type type_prop_value() :: term().
 -type type_prop() ::
       {'kind', type_kind()}
     | {'generator', proper_gen:generator()}
+    | {'straight_gen', proper_gen:straight_gen()}
+    | {'reverse_gen', proper_gen:reverse_gen()}
     | {'size_limit', size()}
     | {'size_transform', fun((size()) -> size())}
     | {'is_instance', instance_test()}
@@ -329,8 +332,10 @@ float_test(X, Low, High) ->
 -spec atom() -> type().
 atom() ->
     ?WRAPPER([
-	{generator, fun proper_gen:atom_gen/0},
-	{is_instance, fun(X) -> atom_test(X) end}
+	{generator, fun proper_gen:atom_gen/1},
+	{reverse_gen, fun proper_gen:atom_rev/1},
+	{size_limit, ?MAX_ATOM_LEN},
+	{is_instance, fun atom_test/1}
     ]).
 
 -spec atom_test(proper_gen:imm_instance()) -> boolean().
@@ -342,15 +347,26 @@ atom_test(X) ->
 
 -spec binary() -> type().
 binary() ->
+    %% TODO: this is very hard for the compiler to optimize, even though the
+    %%       '$crypto' flag is never changed while running
+    StraightGenTail =
+	case get('$crypto') of
+	    true -> [{straight_gen, fun proper_gen:binary_str_gen/1}];
+	    _    -> []
+	end,
     ?WRAPPER([
-	{generator, fun proper_gen:binary_gen/0},
+	{generator, fun proper_gen:binary_gen/1},
+	{reverse_gen, fun proper_gen:binary_rev/1},
+	{size_limit, ?MAX_BINARY_LEN},
 	{is_instance, fun erlang:is_binary/1}
+	| StraightGenTail
     ]).
 
 -spec bitstring() -> type().
 bitstring() ->
     ?WRAPPER([
 	{generator, fun proper_gen:bitstring_gen/0},
+	{reverse_gen, fun proper_gen:bitstring_rev/1},
 	{is_instance, fun erlang:is_bitstring/1}
     ]).
 
