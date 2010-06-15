@@ -29,6 +29,7 @@
 -define(DEFAULT_RNG_CONST, 10).
 -define(MAX_RANDOM_TRIES_WHEN_SHRINKING, 5).
 -define(MAX_LIST_LEN, 200).
+-define(MAX_ATOM_LEN, 255).
 -define(MAX_BINARY_LEN, 300).
 
 

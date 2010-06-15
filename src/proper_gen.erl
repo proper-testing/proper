@@ -24,12 +24,14 @@
 -module(proper_gen).
 -export([generate/1, generate/3, sample/2, normal_gen/1, alt_gens/1,
 	 clean_instance/1]).
--export([integer_gen/3, float_gen/3, atom_gen/0, binary_gen/0, bitstring_gen/0,
+-export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
+	 binary_str_gen/1, binary_rev/1, bitstring_gen/0, bitstring_rev/1,
 	 list_gen/2, vector_gen/2, union_gen/1, weighted_union_gen/1,
 	 tuple_gen/1, exactly_gen/1, fixed_list_gen/1]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
-	      generator/0, combine_fun/0, alt_gens/0]).
+	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
+	      alt_gens/0]).
 
 -include("proper_internal.hrl").
 
@@ -48,6 +50,10 @@
 -type sized_generator() :: fun((size()) -> imm_instance()).
 -type nosize_generator() :: fun(() -> imm_instance()).
 -type generator() :: sized_generator() | nosize_generator().
+-type sized_straight_gen() :: fun((size()) -> instance()).
+-type nosize_straight_gen() :: fun(() -> instance()).
+-type straight_gen() :: sized_straight_gen() | nosize_straight_gen().
+-type reverse_gen() :: fun((instance()) -> imm_instance()).
 -type combine_fun() :: fun((instance()) -> imm_instance()).
 -type alt_gens() :: fun(() -> [imm_instance()]).
 
@@ -81,7 +87,16 @@ generate(Type, TriesLeft, Fallback) ->
 		    end,
 		{clean_instance(ImmInstance2),{'$used',ImmParts,ImmInstance2}};
 	    Kind ->
-		ImmInstance1 = normal_gen(Type),
+		ImmInstance1 =
+		    case {Kind, proper_types:find_prop(straight_gen,Type)} of
+			{wrapper, {ok,StraightGen}} ->
+			    %% TODO: should we have an option to enable this?
+			    ReverseGen =
+				proper_types:get_prop(reverse_gen, Type),
+			    ReverseGen(call_gen(StraightGen, Type));
+			_ ->
+			    normal_gen(Type)
+		    end,
 		ImmInstance2 =
 		    case proper_types:is_raw_type(ImmInstance1) of
 			true  -> generate(ImmInstance1);
@@ -115,7 +130,11 @@ sample(Size, RawType) ->
 
 -spec normal_gen(proper_types:type()) -> imm_instance().
 normal_gen(Type) ->
-    Gen = proper_types:get_prop(generator, Type),
+    call_gen(proper_types:get_prop(generator,Type), Type).
+
+-spec call_gen(generator() | straight_gen(), proper_types:type()) ->
+	  imm_instance() | instance().
+call_gen(Gen, Type) ->
     if
 	is_function(Gen, 0) -> Gen();
 	is_function(Gen, 1) -> Size = proper:get_size(Type),
@@ -188,29 +207,57 @@ float_gen(Size, Low, inf) ->
 float_gen(_Size, Low, High) ->
     proper_arith:rand_float(Low, High).
 
--spec atom_gen() -> proper_types:type().
+-spec atom_gen(size()) -> proper_types:type().
 %% We make sure we never clash with internal atoms by checking that the first
 %% character is not '$'.
-atom_gen() ->
+atom_gen(Size) ->
     ?LET(Str,
 	 ?SUCHTHAT(X,
-		   proper_types:relimit(255,
-					proper_types:list(proper_types:byte())),
+		   proper_types:resize(Size,
+				       proper_types:list(proper_types:byte())),
 		   X =:= [] orelse hd(X) =/= $$),
 	 erlang:list_to_atom(Str)).
 
--spec binary_gen() -> proper_types:type().
-binary_gen() ->
+-spec atom_rev(atom()) -> imm_instance().
+atom_rev(Atom) ->
+    {'$used', erlang:atom_to_list(Atom), Atom}.
+
+-spec binary_gen(size()) -> proper_types:type().
+binary_gen(Size) ->
     ?LET(Bytes,
-	 proper_types:relimit(?MAX_BINARY_LEN,
-			      proper_types:list(proper_types:byte())),
+	 proper_types:resize(Size,
+			     proper_types:list(proper_types:byte())),
 	 erlang:list_to_binary(Bytes)).
+
+-spec binary_str_gen(size()) -> binary().
+binary_str_gen(Size) ->
+    Len = proper_arith:rand_int(0, Size),
+    crypto:rand_bytes(Len).
+
+-spec binary_rev(binary()) -> imm_instance().
+binary_rev(Binary) ->
+    {'$used', erlang:binary_to_list(Binary), Binary}.
 
 -spec bitstring_gen() -> proper_types:type().
 bitstring_gen() ->
     ?LET({BytesHead, NumBits, TailByte},
-	 {binary_gen(), proper_types:range(0,7), proper_types:range(0,127)},
+	 {proper_types:binary(), proper_types:range(0,7),
+	  proper_types:range(0,127)},
 	 <<BytesHead/binary, TailByte:NumBits>>).
+
+-spec bitstring_rev(bitstring()) -> imm_instance().
+bitstring_rev(BitString) ->
+    List = erlang:bitstring_to_list(BitString),
+    {BytesList, BitsTail} = lists:splitwith(fun erlang:is_integer/1, List),
+    {NumBits, TailByte} = case BitsTail of
+			      []     -> {0, 0};
+			      [Bits] -> N = bit_size(Bits),
+					<<Byte:N>> = Bits,
+					{N, Byte}
+			  end,
+    {'$used',
+     {{'$used',BytesList,list_to_binary(BytesList)}, NumBits, TailByte},
+     BitString}.
 
 -spec list_gen(size(), proper_types:type()) -> [imm_instance()].
 list_gen(Size, ElemType) ->
