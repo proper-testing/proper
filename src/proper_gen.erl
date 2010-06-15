@@ -37,7 +37,7 @@
 
 
 %%------------------------------------------------------------------------------
-%% Dialyzer types
+%% Types
 %%------------------------------------------------------------------------------
 
 -type instance() :: term().
@@ -155,9 +155,9 @@ clean_instance(ImmInstance) ->
     if
 	is_list(ImmInstance) ->
 	    %% CAUTION: this must handle improper lists
-	    safemap(fun ?MODULE:clean_instance/1, ImmInstance);
+	    safemap(fun clean_instance/1, ImmInstance);
 	is_tuple(ImmInstance) ->
-	    tuplemap(fun ?MODULE:clean_instance/1, ImmInstance);
+	    tuplemap(fun clean_instance/1, ImmInstance);
 	true ->
 	    ImmInstance
     end.
@@ -178,7 +178,7 @@ safemap_tr(Fun, ImproperTail, AccList) ->
 
 -spec tuplemap(fun((term()) -> term()), tuple()) -> tuple().
 tuplemap(Fun, Tuple) ->
-    erlang:list_to_tuple(lists:map(Fun, erlang:tuple_to_list(Tuple))).
+    list_to_tuple(lists:map(Fun, tuple_to_list(Tuple))).
 
 
 %%------------------------------------------------------------------------------
@@ -216,18 +216,18 @@ atom_gen(Size) ->
 		   proper_types:resize(Size,
 				       proper_types:list(proper_types:byte())),
 		   X =:= [] orelse hd(X) =/= $$),
-	 erlang:list_to_atom(Str)).
+	 list_to_atom(Str)).
 
 -spec atom_rev(atom()) -> imm_instance().
 atom_rev(Atom) ->
-    {'$used', erlang:atom_to_list(Atom), Atom}.
+    {'$used', atom_to_list(Atom), Atom}.
 
 -spec binary_gen(size()) -> proper_types:type().
 binary_gen(Size) ->
     ?LET(Bytes,
 	 proper_types:resize(Size,
 			     proper_types:list(proper_types:byte())),
-	 erlang:list_to_binary(Bytes)).
+	 list_to_binary(Bytes)).
 
 -spec binary_str_gen(size()) -> binary().
 binary_str_gen(Size) ->
@@ -236,7 +236,7 @@ binary_str_gen(Size) ->
 
 -spec binary_rev(binary()) -> imm_instance().
 binary_rev(Binary) ->
-    {'$used', erlang:binary_to_list(Binary), Binary}.
+    {'$used', binary_to_list(Binary), Binary}.
 
 -spec bitstring_gen() -> proper_types:type().
 bitstring_gen() ->
@@ -247,7 +247,7 @@ bitstring_gen() ->
 
 -spec bitstring_rev(bitstring()) -> imm_instance().
 bitstring_rev(BitString) ->
-    List = erlang:bitstring_to_list(BitString),
+    List = bitstring_to_list(BitString),
     {BytesList, BitsTail} = lists:splitwith(fun erlang:is_integer/1, List),
     {NumBits, TailByte} = case BitsTail of
 			      []     -> {0, 0};
@@ -280,7 +280,7 @@ weighted_union_gen(FreqChoices) ->
 
 -spec tuple_gen([proper_types:type()]) -> tuple(imm_instance()).
 tuple_gen(Fields) ->
-    erlang:list_to_tuple(fixed_list_gen(Fields)).
+    list_to_tuple(fixed_list_gen(Fields)).
 
 -spec exactly_gen(T) -> T.
 exactly_gen(X) ->

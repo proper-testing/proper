@@ -33,7 +33,7 @@
 
 
 %%------------------------------------------------------------------------------
-%% Dialyzer types
+%% Types
 %%------------------------------------------------------------------------------
 
 -type testcase() :: [proper_gen:imm_instance()].
@@ -327,12 +327,12 @@ run({'$apply',Args,Prop}, Context, Opts) ->
 	%% TODO: should we care what the code returns when trapping exits? if we
 	%%       are doing that, we are probably testing code that will run as a
 	%%       separate process against crashes
-	run(erlang:apply(Prop,Args), Context, Opts)
+	run(apply(Prop,Args), Context, Opts)
     catch
 	throw:ExcReason ->
-	    erlang:setelement(2, run(false,Context,Opts), {throw,ExcReason});
+	    setelement(2, run(false,Context,Opts), {throw,ExcReason});
 	exit:ExcReason when Context#ctx.catch_exits ->
-	    erlang:setelement(2, run(false,Context,Opts), {exit,ExcReason})
+	    setelement(2, run(false,Context,Opts), {exit,ExcReason})
     end.
 
 -spec still_fails(testcase(), test(), fail_reason()) -> boolean().
@@ -366,7 +366,7 @@ skip_to_next({'$trapexit',Prop}) ->
     skip_to_next({'$apply',[],Prop});
 skip_to_next({'$apply',Args,Prop}) ->
     try
-	skip_to_next(erlang:apply(Prop, Args))
+	skip_to_next(apply(Prop, Args))
     catch
 	%% TODO: should be OK to catch everything here, since we have
 	%%       already tested at this point that the test still fails

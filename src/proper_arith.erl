@@ -117,21 +117,25 @@ rand_start(Opts) ->
     %% TODO: read option for RNG bijections here
     case Opts#opts.crypto of
 	true ->
-	    crypto:start(),
-	    put('$crypto', true),
-	    ok;
+	    case crypto:start() of
+		ok ->
+		    put('$crypto', true),
+		    ok;
+		{error, _} ->
+		    ok
+	    end;
 	false ->
 	    ok
     end.
 
 -spec rand_stop(#opts{}) -> 'ok'.
-rand_stop(Opts) ->
-    case Opts#opts.crypto of
+rand_stop(_Opts) ->
+    case get('$crypto') of
 	true ->
 	    erase('$crypto'),
-	    crypto:stop(),
+	    _ = crypto:stop(),
 	    ok;
-	false ->
+	_ ->
 	    ok
     end,
     erase(random_seed),

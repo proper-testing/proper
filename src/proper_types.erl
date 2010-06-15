@@ -40,7 +40,7 @@
 
 
 %%------------------------------------------------------------------------------
-%% Dialyzer types
+%% Types
 %%------------------------------------------------------------------------------
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed'
@@ -113,7 +113,7 @@ cook_outer(Type = {'$type',_Props}) ->
     Type;
 cook_outer(RawType) ->
     if
-	is_tuple(RawType) -> tuple(erlang:tuple_to_list(RawType));
+	is_tuple(RawType) -> tuple(tuple_to_list(RawType));
 	%% CAUTION: this must handle improper lists
 	is_list(RawType)  -> fixed_list(RawType);
 	%% default case (covers integers, floats, atoms, binaries, ...):
@@ -125,7 +125,7 @@ is_raw_type({'$type',_TypeProps}) ->
     true;
 is_raw_type(X) ->
     if
-	is_tuple(X) -> is_raw_type_list(erlang:tuple_to_list(X));
+	is_tuple(X) -> is_raw_type_list(tuple_to_list(X));
 	is_list(X)  -> is_raw_type_list(X);
 	true        -> false
     end.
@@ -343,7 +343,7 @@ atom_test(X) ->
     is_atom(X)
     %% We return false for atoms starting with '$', since these are
     %% atoms used internally and never produced by the atom generator.
-    andalso (X =:= '' orelse hd(erlang:atom_to_list(X)) =/= $$).
+    andalso (X =:= '' orelse hd(atom_to_list(X)) =/= $$).
 
 -spec binary() -> type().
 binary() ->
