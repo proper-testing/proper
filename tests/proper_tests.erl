@@ -26,7 +26,7 @@
 %%------------------------------------------------------------------------------
 
 no_duplicates(L) ->
-    length(lists:usort(L)) == length(L).
+    length(lists:usort(L)) =:= length(L).
 
 is_sorted([]) -> true;
 is_sorted([_]) -> true;
@@ -91,7 +91,7 @@ data() ->
 	 ])).
 
 datalen(Data) when is_list(Data) -> length(Data);
-datalen(Data) when is_binary(Data) -> size(Data).
+datalen(Data) when is_binary(Data) -> byte_size(Data).
 
 shuffle([]) ->
     [];

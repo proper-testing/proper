@@ -390,10 +390,8 @@ list(RawElemType) ->
 
 -spec list_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
 list_test(X, ElemType) ->
-    case is_list(X) of
-	true  -> proper_arith:all3([is_instance(E, ElemType) || E <- X]);
-	false -> false
-    end.
+    is_list(X)
+    andalso proper_arith:all3([is_instance(E, ElemType) || E <- X]).
 
 -spec list_get_indices(list()) -> [position()].
 list_get_indices(List) ->
@@ -425,10 +423,9 @@ vector(Len, RawElemType) ->
 -spec vector_test(proper_gen:imm_instance(), length(), type()) ->
 	  proper_arith:ternary().
 vector_test(X, Len, ElemType) ->
-    case is_list(X) andalso length(X) =:= Len of
-	true  -> proper_arith:all3([is_instance(E, ElemType) || E <- X]);
-	false -> false
-    end.
+    is_list(X)
+    andalso length(X) =:= Len
+    andalso proper_arith:all3([is_instance(E, ElemType) || E <- X]).
 
 -spec union([raw_type()]) -> type().
 union(RawChoices) ->
@@ -541,13 +538,10 @@ fixed_list_test(X, {ProperHead,ImproperTail}) ->
 	    false
     end;
 fixed_list_test(X, ProperFields) ->
-    case is_list(X) andalso length(X) =:= length(ProperFields) of
-	true ->
-	    proper_arith:all3(lists:zipwith(fun(E,T) -> is_instance(E, T) end,
-					    X, ProperFields));
-	false ->
-	    false
-    end.
+    is_list(X)
+    andalso length(X) =:= length(ProperFields)
+    andalso proper_arith:all3(lists:zipwith(fun(E,T) -> is_instance(E, T) end,
+					    X, ProperFields)).
 
 -spec head_length(maybe_improper_list()) -> length().
 %% CAUTION: must handle improper lists
