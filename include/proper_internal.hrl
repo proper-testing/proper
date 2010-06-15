@@ -27,7 +27,6 @@
 
 %% TODO: make all these into parameters, store them in process registry
 -define(DEFAULT_RNG_CONST, 10).
--define(MAX_TRIES_TO_SATISFY_CONSTRAINTS, 50).
 -define(MAX_RANDOM_TRIES_WHEN_SHRINKING, 5).
 -define(MAX_LIST_LEN, 200).
 -define(MAX_BINARY_LEN, 300).
@@ -47,9 +46,11 @@
 %% Options record
 %%------------------------------------------------------------------------------
 
--record(opts, {quiet       = false :: boolean(),
-	       numtests    = 100   :: pos_integer(),
-	       max_shrinks = 300   :: non_neg_integer(),
-	       expect_fail = false :: boolean(),
-	       try_shrunk  = false :: boolean(),
-	       shrunk              :: proper:testcase()}).
+-record(opts, {quiet            = false :: boolean(),
+	       crypto           = false :: boolean(),
+	       numtests         = 100   :: pos_integer(),
+	       max_shrinks      = 300   :: non_neg_integer(),
+	       constraint_tries = 50    :: pos_integer(),
+	       expect_fail      = false :: boolean(),
+	       try_shrunk       = false :: boolean(),
+	       shrunk                   :: proper:testcase()}).

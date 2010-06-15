@@ -22,7 +22,7 @@
 
 -module(proper_arith).
 -export([le/2, and3/2, or3/2, any3/1, all3/1, maybe/1, surely/1]).
--export([rand_start/1, rand_stop/0]).
+-export([rand_start/1, rand_stop/1]).
 -export([rand_int/0, rand_int/1, rand_int/2,
 	 rand_non_neg_int/0, rand_non_neg_int/1]).
 -export([rand_float/0, rand_float/1, rand_float/2,
@@ -112,14 +112,28 @@ surely(B)       -> B.
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
 -spec rand_start(#opts{}) -> 'ok'.
-rand_start(_Opts) ->
+rand_start(Opts) ->
     _ = random:seed(now()),
-    % TODO: read options for crypto usage and alternative RNG bijections here,
-    %       start the crypto server here
-    ok.
+    % TODO: read option for RNG bijections here
+    case Opts#opts.crypto of
+	true ->
+	    crypto:start(),
+	    put('$crypto', true),
+	    ok;
+	false ->
+	    ok
+    end.
 
--spec rand_stop() -> 'ok'.
-rand_stop() ->
+-spec rand_stop(#opts{}) -> 'ok'.
+rand_stop(Opts) ->
+    case Opts#opts.crypto of
+	true ->
+	    erase('$crypto'),
+	    crypto:stop(),
+	    ok;
+	false ->
+	    ok
+    end,
     erase(random_seed),
     ok.
 
