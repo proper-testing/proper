@@ -98,7 +98,7 @@
 -type common_result() :: {'passed', pos_integer(), [cat_dict()]}
 		       | {'error', 'cant_generate'}
 		       | {'error', 'cant_satisfy'}
-		       | {'error', {'unexpected',single_run_result()}}.
+		       | {'error', {'unexpected', single_run_result()}}.
 
 
 %%------------------------------------------------------------------------------
@@ -141,7 +141,7 @@ get_size(Type) ->
 		{ok, Transform} -> Transform(Size1);
 		error           -> Size1
 	    end,
-    % TODO: should the size be normalized (streched or pressed)?
+    %% TODO: should the size be normalized (streched or pressed)?
     case proper_types:find_prop(size_limit, Type) of
 	{ok, Limit} -> erlang:min(Size2, Limit);
 	error       -> Size2
@@ -179,16 +179,15 @@ check(Test) ->
     check(Test, #opts{}).
 
 -spec check(outer_test(), #opts{} | [opt()] | opt()) -> final_result() | 'ok'.
-check({'$numtests',N,Test}, Opts = #opts{}) ->
+check({'$numtests',N,Test}, #opts{} = Opts) ->
     check(Test, Opts#opts{numtests = N});
 %% We only allow a 'fails' to be an external wrapper, since the property
 %% wrapped by a 'fails' is not delayed, and thus a failure-inducing exception
 %% will cause the test to fail before the 'fails' is processed.
-check({'$fails',Test}, Opts = #opts{}) ->
+check({'$fails',Test}, #opts{} = Opts) ->
     check(Test, Opts#opts{expect_fail = true});
-check(Test, Opts = #opts{}) ->
+check(Test, #opts{numtests = NumTests, quiet = Quiet} = Opts) ->
     global_state_init(Opts),
-    NumTests = Opts#opts.numtests,
     Result = perform_tr(0, NumTests, Test, none, Opts),
     report_results(Result, Opts),
     FinalResult =
@@ -204,7 +203,7 @@ check(Test, Opts = #opts{}) ->
 		Result
 	end,
     global_state_erase(Opts),
-    case Opts#opts.quiet of
+    case Quiet of
 	true  -> FinalResult;
 	false -> ok
     end;
@@ -238,24 +237,24 @@ perform_tr(Performed, Left, Test, CatDicts, Opts) ->
 	    perform_tr(Performed + 1, Left - 1, Test, NewCatDicts, Opts);
 	{failed, Reason, Bound, FailActions} ->
 	    print("!~n", [], Opts),
-	    % TODO: is it okay to suppres this when on quiet mode?
+	    %% TODO: is it okay to suppres this when on quiet mode?
 	    case Opts#opts.quiet of
 		true  -> ok;
 		false -> lists:foreach(fun(A) -> ?FORCE(A) end, FailActions)
 	    end,
 	    {failed, Performed + 1, Reason, Bound};
-	Error = {error, cant_generate} ->
+	{error, cant_generate} = Error ->
 	    Error;
 	{error, rejected} ->
 	    print("x", [], Opts),
 	    perform_tr(Performed, Left - 1, Test, CatDicts, Opts);
 	Unexpected ->
-	    {error, {unexpected,Unexpected}}
+	    {error, {unexpected, Unexpected}}
     end.
 
 -spec update_catdicts([category()], [cat_dict()] | 'none') -> [cat_dict()].
 update_catdicts(Categories, none) ->
-    lists:map(fun(C) -> orddict:from_list([{C,1}]) end, Categories);
+    [orddict:from_list([{C,1}]) || C <- Categories];
 update_catdicts(Categories, CatDicts) ->
     lists:zipwith(fun(C,D) -> add_to_category(C,D) end,
 		  Categories, CatDicts).
@@ -320,9 +319,9 @@ run({'$trapexit',Prop}, Context, Opts) ->
     run({'$apply',[],Prop}, NewContext, Opts);
 run({'$apply',Args,Prop}, Context, Opts) ->
     try
-	% TODO: should we care what the code returns when trapping exits? if we
-	%       are doing that, we are probably testing code that will run as a
-	%       separate process against crashes
+	%% TODO: should we care what the code returns when trapping exits? if we
+	%%       are doing that, we are probably testing code that will run as a
+	%%       separate process against crashes
 	run(erlang:apply(Prop,Args), Context, Opts)
     catch
 	throw:ExcReason ->
@@ -335,8 +334,8 @@ run({'$apply',Args,Prop}, Context, Opts) ->
 still_fails(TestCase, Test, OldReason) ->
     Opts = #opts{quiet = true, try_shrunk = true, shrunk = TestCase},
     case run(Test, Opts) of
-	% We check that it's the same fault that caused the crash.
-	% TODO: Should we check that the stacktrace is the same?
+	%% We check that it's the same fault that caused the crash.
+	%% TODO: Should we check that the stacktrace is the same?
 	{failed, Reason, _Bound, _FailActions} -> OldReason =:= Reason;
 	_                                      -> false
     end.
@@ -364,8 +363,8 @@ skip_to_next({'$apply',Args,Prop}) ->
     try
 	skip_to_next(erlang:apply(Prop, Args))
     catch
-	% TODO: should be OK to catch everything here, since we have
-	%       already tested at this point that the test still fails
+	%% TODO: should be OK to catch everything here, since we have
+	%%       already tested at this point that the test still fails
 	_ExcKind:_ExcReason -> false
     end.
 
