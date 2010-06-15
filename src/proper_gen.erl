@@ -243,6 +243,6 @@ exactly_gen(X) ->
 		  ; ({[proper_types:type()],proper_types:type()}) ->
 	  maybe_improper_list(imm_instance(), imm_instance()).
 fixed_list_gen({ProperHead,ImproperTail}) ->
-    lists:map(fun ?MODULE:generate/1, ProperHead) ++ generate(ImproperTail);
+    [generate(F) || F <- ProperHead] ++ generate(ImproperTail);
 fixed_list_gen(ProperFields) ->
-    lists:map(fun ?MODULE:generate/1, ProperFields).
+    [generate(F) || F <- ProperFields].

@@ -35,12 +35,12 @@
 
 
 %%------------------------------------------------------------------------------
-%% Dialyzer types
+%% Types
 %%------------------------------------------------------------------------------
 
--type extint() :: integer() | 'inf'.
--type extnum() :: number() | 'inf'.
--type ternary() :: 'true' | 'false' | 'unknown'.
+-type extint()  :: integer() | 'inf'.
+-type extnum()  :: number()  | 'inf'.
+-type ternary() :: boolean() | 'unknown'.
 
 
 %%------------------------------------------------------------------------------
@@ -114,7 +114,7 @@ surely(B)       -> B.
 -spec rand_start(#opts{}) -> 'ok'.
 rand_start(Opts) ->
     _ = random:seed(now()),
-    % TODO: read option for RNG bijections here
+    %% TODO: read option for RNG bijections here
     case Opts#opts.crypto of
 	true ->
 	    crypto:start(),

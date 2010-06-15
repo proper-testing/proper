@@ -22,10 +22,9 @@
 %%%	this module.
 
 -module(proper_shrink).
+
 -export([shrink/4]).
--export([alternate_shrinker/3, unwrap_shrinker/3, parts_shrinker/3,
-	 recursive_shrinker/3]).
--export([split_shrinker/3, remove_shrinker/3, elements_shrinker/3]).
+
 -export([integer_shrinker/4, float_shrinker/4, union_first_choice_shrinker/3,
 	 union_recursive_shrinker/3]).
 
@@ -106,11 +105,11 @@ shrink_tr(Shrunk, TestTail = [ImmInstance | Rest],
 	  Test = {'$forall2',Type,Prop}, Reason,
 	  Shrinks, ShrinksLeft, State, Opts) ->
     {NewImmInstances,NewState} = shrink_one(ImmInstance, Type, State),
-    % we also test if the recently returned instance is a valid instance for its
-    % type, since we don't check constraints while shrinking
-    % TODO: perhaps accept an 'unknown'?
-    % TODO: maybe this covers the LET parts-type test too?
-    % TODO: should we try producing new test tails while shrinking?
+    %% we also test if the recently returned instance is a valid instance
+    %% for its type, since we don't check constraints while shrinking
+    %% TODO: perhaps accept an 'unknown'?
+    %% TODO: maybe this covers the LET parts-type test too?
+    %% TODO: should we try producing new test tails while shrinking?
     IsValid =
 	fun(I) ->
 	    I =/= ImmInstance andalso
@@ -165,17 +164,18 @@ get_shrinkers(Type) ->
 	end,
     StandardShrinkers =
 	case proper_types:get_prop(kind, Type) of
-	    basic       -> [];
-	    wrapper     -> [fun ?MODULE:alternate_shrinker/3,
-			    fun ?MODULE:unwrap_shrinker/3];
-	    constructed -> [fun ?MODULE:parts_shrinker/3,
-			    fun ?MODULE:recursive_shrinker/3];
-	    semi_opaque -> [fun ?MODULE:split_shrinker/3,
-			    fun ?MODULE:remove_shrinker/3,
-			    fun ?MODULE:elements_shrinker/3];
-	    opaque      -> [fun ?MODULE:split_shrinker/3,
-			    fun ?MODULE:remove_shrinker/3,
-			    fun ?MODULE:elements_shrinker/3]
+	    basic ->
+		[];
+	    wrapper ->
+		[fun alternate_shrinker/3, fun unwrap_shrinker/3];
+	    constructed ->
+		[fun parts_shrinker/3, fun recursive_shrinker/3];
+	    semi_opaque ->
+		[fun split_shrinker/3, fun remove_shrinker/3,
+		 fun elements_shrinker/3];
+	    opaque ->
+		[fun split_shrinker/3, fun remove_shrinker/3,
+		 fun elements_shrinker/3]
 	end,
     CustomShrinkers ++ StandardShrinkers.
 
@@ -217,8 +217,7 @@ parts_shrinker({'$used',ImmParts,ImmInstance}, Type,
     {NewImmParts,NewPartsState} = shrink_one(ImmParts, PartsType, PartsState),
     Combine = proper_types:get_prop(combine, Type),
     DirtyNewInstances =
-	lists:map(fun(P) -> try_combine(P, ImmInstance, PartsType, Combine) end,
-		  NewImmParts),
+	[try_combine(P, ImmInstance, PartsType, Combine) || P <- NewImmParts],
     NotError = fun(X) ->
 		   case X of
 		       {'$used',_,'$error'} -> false;
@@ -260,13 +259,13 @@ try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
 	    case proper_types:is_raw_type(ImmInstance) of
 		true ->
 		    InnerType = proper_types:cook_outer(ImmInstance),
-		    % TODO: special case if the immediately internal is a LET?
+		    %% TODO: special case if the immediately internal is a LET?
 		    case proper_arith:surely(proper_types:is_instance(
 			     OldImmInstance, InnerType)) of
 			true ->
 			    {'$used',ImmParts,OldImmInstance};
 			false ->
-			    % TODO: return more than one? then we must flatten
+			    %% TODO: return more than one? then we must flatten
 			    NewImmInstance = proper_gen:generate(InnerType,
 				?MAX_RANDOM_TRIES_WHEN_SHRINKING, '$error'),
 			    {'$used',ImmParts,NewImmInstance}
@@ -299,8 +298,7 @@ recursive_shrinker({'$used',ImmParts,ImmInstance}, _Type,
 		   {inner,InnerType,InnerState}) ->
     {NewImmInstances,NewInnerState} =
 	shrink_one(ImmInstance, InnerType, InnerState),
-    NewInstances =
-	lists:map(fun(I) -> {'$used',ImmParts,I} end, NewImmInstances),
+    NewInstances = [{'$used',ImmParts,I} || I <- NewImmInstances],
     {NewInstances, {inner,InnerType,NewInnerState}};
 recursive_shrinker(Instance, Type, {shrunk,N,{inner,InnerType,InnerState}}) ->
     recursive_shrinker(Instance, Type, {inner,InnerType,{shrunk,N,InnerState}}).
@@ -350,7 +348,7 @@ split_shrinker(Instance, Type, {shrunk,Pos,{slices,DoubleN,_Len}}) ->
     end.
 
 -spec slice(proper_gen:instance(), proper_types:type(), pos_integer(),
-	    length()) -> {[proper_gen:instance()],[proper_gen:instance()]}.
+	    length()) -> {[proper_gen:instance()], [proper_gen:instance()]}.
 slice(Instance, Type, Slices, Len) ->
     BigSlices = Len rem Slices,
     SmallSlices = Slices - BigSlices,
@@ -358,17 +356,15 @@ slice(Instance, Type, Slices, Len) ->
     BigSliceLen = SmallSliceLen + 1,
     BigSliceTotal = BigSlices * BigSliceLen,
     WhereToSlice =
-	lists:map(fun(X) -> {1 + X * BigSliceLen, BigSliceLen} end,
-		  lists:seq(0, BigSlices - 1)) ++
-	lists:map(fun(X) -> {BigSliceTotal + 1 + X * SmallSliceLen,
-			     SmallSliceLen} end,
-		  lists:seq(0, SmallSlices - 1)),
-    lists:unzip(lists:map(
-	fun({From,SliceLen}) -> take_slice(Instance, Type, From, SliceLen) end,
-	WhereToSlice)).
+	[{1 + X * BigSliceLen, BigSliceLen}
+	 || X <- lists:seq(0, BigSlices - 1)] ++
+	[{BigSliceTotal + 1 + X * SmallSliceLen, SmallSliceLen}
+	 || X <- lists:seq(0, SmallSlices - 1)],
+    lists:unzip([take_slice(Instance, Type, From, SliceLen)
+		 || {From,SliceLen} <- WhereToSlice]).
 
 -spec take_slice(proper_gen:instance(), proper_types:type(), pos_integer(),
-		 length()) -> {[proper_gen:instance()],[proper_gen:instance()]}.
+		 length()) -> {proper_gen:instance(), proper_gen:instance()}.
 take_slice(Instance, Type, From, SliceLen) ->
     Split = proper_types:get_prop(split, Type),
     Join = proper_types:get_prop(join, Type),
@@ -377,7 +373,7 @@ take_slice(Instance, Type, From, SliceLen) ->
     {Slice, Join(Front, Back)}.
 
 -spec remove_shrinker(proper_gen:instance(), proper_types:type(), state()) ->
-	  {[proper_gen:instance()],state()}.
+	  {[proper_gen:instance()], state()}.
 %% TODO: try removing more than one elemnent: 2,4,... or 2,3,... - when to stop?
 remove_shrinker(Instance, Type, init) ->
     case {proper_types:find_prop(get_indices, Type),
@@ -395,14 +391,14 @@ remove_shrinker(Instance, Type, {indices,Checked,[Index | Rest]}) ->
     {[Remove(Index, Instance)],
      {indices,ordsets:add_element(Index, Checked),Rest}};
 remove_shrinker(Instance, Type, {shrunk,1,{indices,Checked,_ToCheck}}) ->
-    % TODO: normally, indices wouldn't be expected to change for the remaining
-    %       elements, but this happens for lists, so we'll just avoid
-    %       re-checking any indices we have already tried (even though these
-    %       might correspond to new elements now - at least they don't in the
-    %       case of lists)
-    % TODO: ordsets are used to ensure efficiency, but the ordsets module
-    %       compares elements with == instead of =:=, that could cause us to
-    %       miss some elements in some cases
+    %% TODO: normally, indices wouldn't be expected to change for the remaining
+    %%       elements, but this happens for lists, so we'll just avoid
+    %%       re-checking any indices we have already tried (even though these
+    %%       might correspond to new elements now - at least they don't in the
+    %%       case of lists)
+    %% TODO: ordsets are used to ensure efficiency, but the ordsets module
+    %%       compares elements with == instead of =:=, that could cause us to
+    %%       miss some elements in some cases
     GetIndices = proper_types:get_prop(get_indices, Type),
     Indices = ordsets:from_list(GetIndices(Instance)),
     NewToCheck = ordsets:subtract(Indices, Checked),
@@ -448,10 +444,10 @@ elements_shrinker(Instance, Type,
     {NewImmElems,NewInnerState} = shrink_one(Elem, InnerType, InnerState),
     NewElems =
 	case proper_types:get_prop(kind, Type) of
-	    opaque -> lists:map(fun proper_gen:clean_instance/1, NewImmElems);
+	    opaque -> [proper_gen:clean_instance(E) || E <- NewImmElems];
 	    _      -> NewImmElems
 	end,
-    NewInstances = lists:map(fun(E) -> Update(Index,E,Instance) end, NewElems),
+    NewInstances = [Update(Index, E, Instance) || E <- NewElems],
     {NewInstances, {inner,Indices,GetElemType,NewInnerState}};
 elements_shrinker(Instance, Type,
 		  {shrunk,N,{inner,Indices,GetElemType,InnerState}}) ->
@@ -533,21 +529,19 @@ sign(X) ->
 
 -spec union_first_choice_shrinker(proper_gen:instance(), [proper_types:type()],
 				  state()) -> {[proper_gen:instance()],state()}.
-% TODO: just try first choice?
-% TODO: do this incrementally?
+%% TODO: just try first choice?
+%% TODO: do this incrementally?
 union_first_choice_shrinker(Instance, Choices, init) ->
     case first_plausible_choice(Instance, Choices) of
 	none ->
 	    {[],done};
 	{N,_Type} ->
-	    % TODO: some kind of constraints test here?
-	    {lists:filter(fun(X) -> X =/= '$error' end,
-			  lists:map(fun(T) ->
-					proper_gen:generate(
-					    T, ?MAX_RANDOM_TRIES_WHEN_SHRINKING,
-					    '$error')
-				    end,
-				    lists:sublist(Choices, N - 1))),
+	    %% TODO: some kind of constraints test here?
+	    {[X || X <- [proper_gen:generate(T,
+					     ?MAX_RANDOM_TRIES_WHEN_SHRINKING,
+					     '$error')
+			 || T <- lists:sublist(Choices, N - 1)],
+		   X =/= '$error'],
 	     done}
     end;
 union_first_choice_shrinker(_Instance, _Choices, {shrunk,_Pos,done}) ->

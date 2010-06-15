@@ -167,7 +167,7 @@ new_type(PropList, Kind) ->
     add_prop(kind, Kind, Type).
 
 -spec subtype([type_prop()], type()) -> type().
-% TODO: should the 'is_instance' function etc. be reset for subtypes?
+%% TODO: should the 'is_instance' function etc. be reset for subtypes?
 subtype(PropList, Type) ->
     add_props(PropList, Type).
 
@@ -194,7 +194,7 @@ wrapper_test(ImmInstance, Type) ->
     proper_arith:any3([is_instance(ImmInstance, T) || T <- unwrap(Type)]).
 
 -spec unwrap(type()) -> [type()].
-% TODO: check if it's actually a raw type that's returned?
+%% TODO: check if it's actually a raw type that's returned?
 unwrap(Type) ->
     [cook_outer(InnerType) || InnerType <- proper_gen:alt_gens(Type)
 					   ++ [proper_gen:normal_gen(Type)]].
@@ -206,9 +206,9 @@ constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
     Combine = get_prop(combine, Type),
     case is_instance(ImmParts, PartsType) of
 	true ->
-	    % TODO: check if it's actually a raw type that's returned?
-	    % TODO: move construction code to proper_gen
-	    % TODO: something less strict when an exactly is produced?
+	    %% TODO: check if it's actually a raw type that's returned?
+	    %% TODO: move construction code to proper_gen
+	    %% TODO: something less strict when an exactly is produced?
 	    RawInnerType = Combine(proper_gen:clean_instance(ImmParts)),
 	    InnerType = cook_outer(RawInnerType),
 	    is_instance(ImmInstance, InnerType);
@@ -216,7 +216,7 @@ constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
 	    Other
     end;
 constructed_test(_ImmInstance, _Type) ->
-    % TODO: can we do anything better?
+    %% TODO: can we do anything better?
     unknown.
 
 -spec weakly({boolean(),boolean()}) -> boolean().
@@ -416,7 +416,7 @@ vector_test(X, Len, ElemType) ->
 
 -spec union([raw_type()]) -> type().
 union(RawChoices) ->
-    Choices = lists:map(fun ?MODULE:cook_outer/1, RawChoices),
+    Choices = [cook_outer(C) || C <- RawChoices],
     ?BASIC([
 	{generator, fun() -> proper_gen:union_gen(Choices) end},
 	{is_instance, fun(X) -> union_test(X, Choices) end},
@@ -437,19 +437,19 @@ union_test(X, Choices) ->
 weighted_union(RawFreqChoices) ->
     CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
     FreqChoices = lists:map(CookFreqType, RawFreqChoices),
-    Choices = lists:map(fun({_F,T}) -> T end, FreqChoices),
+    Choices = [T || {_F,T} <- FreqChoices],
     ?SUBTYPE(union(Choices), [
 	{generator, fun() -> proper_gen:weighted_union_gen(FreqChoices) end}
     ]).
 
 -spec tuple([raw_type()]) -> type().
 tuple(RawFields) ->
-    Fields = lists:map(fun ?MODULE:cook_outer/1, RawFields),
+    Fields = [cook_outer(F) || F <- RawFields],
     Indices = lists:seq(1, length(Fields)),
     ?SEMI_OPAQUE([
 	{generator, fun() -> proper_gen:tuple_gen(Fields) end},
 	{is_instance, fun(X) -> tuple_test(X, Fields) end},
-	{internal_types, erlang:list_to_tuple(Fields)},
+	{internal_types, list_to_tuple(Fields)},
 	{get_indices, fun(_X) -> Indices end},
 	{retrieve, fun erlang:element/2},
 	{update, fun(I,V,X) -> tuple_update(I, V, X) end}
@@ -458,14 +458,11 @@ tuple(RawFields) ->
 -spec tuple_test(proper_gen:imm_instance(), [type()]) ->
 	  proper_arith:ternary().
 tuple_test(X, Fields) ->
-    case is_tuple(X) of
-	true  -> fixed_list_test(erlang:tuple_to_list(X), Fields);
-	false -> false
-    end.
+    is_tuple(X) andalso fixed_list_test(tuple_to_list(X), Fields).
 
 -spec tuple_update(position(), term(), tuple()) -> tuple().
 tuple_update(Index, NewElem, Tuple) ->
-    erlang:setelement(Index, Tuple, NewElem).
+    setelement(Index, Tuple, NewElem).
 
 -spec exactly(term()) -> type().
 exactly(E) ->
@@ -482,7 +479,7 @@ fixed_list(MaybeImproperRawFields) ->
 	    % TODO: have cut_improper_tail return the length and use it in test?
 	    {ProperRawHead, ImproperRawTail} ->
 		HeadLen = length(ProperRawHead),
-		CookedHead = lists:map(fun ?MODULE:cook_outer/1, ProperRawHead),
+		CookedHead = [cook_outer(F) || F <- ProperRawHead],
 		CookedTail = cook_outer(ImproperRawTail),
 		{{CookedHead,CookedTail},
 		 CookedHead ++ CookedTail,
@@ -490,8 +487,7 @@ fixed_list(MaybeImproperRawFields) ->
 		 fun(I,L) -> improper_list_retrieve(I, L, HeadLen) end,
 		 fun(I,V,L) -> improper_list_update(I, V, L, HeadLen) end};
 	    ProperRawFields ->
-		LocalFields = lists:map(fun ?MODULE:cook_outer/1,
-					ProperRawFields),
+		LocalFields = [cook_outer(F) || F <- ProperRawFields],
 		{LocalFields,
 		 LocalFields,
 		 lists:seq(1, length(ProperRawFields)),
