@@ -222,6 +222,14 @@ non_empty(<List_type>)
     (just like a ?LET, only the variables and types must always be in a list).
     When shrinking instances of such a type, the types inside <list_of_types>
     are first tried in place of the parent type.
+?LAZY(<generator>)
+    This construct returns a type whose only purpose is to delay the evaluation
+    of <generator> (<generator> can return a type, which will be generated
+    recursively). Using this, you can simulate the lazy generation of instances:
+    stream() -> ?LAZY(frequency([ {1,[]}, {3,[0|stream()]} ])).
+    The above type produces lists of zeroes with an average length of 3. Note
+    that, had we not enclosed the generator with a ?LAZY macro, the evaluation
+    would continue indefinetely.
 
 The following functions and macros are related to the 'size' parameter, which
 controls the maximum size of produced instances. The actual size of a produced

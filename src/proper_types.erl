@@ -25,7 +25,7 @@
 -export([cook_outer/1, is_raw_type/1, get_prop/2, find_prop/2, new_type/2,
 	 subtype/2, is_instance/2, unwrap/1, weakly/1, strongly/1,
 	 satisfies_all/2]).
--export([sized/1, bind/2, shrinkwith/2, add_constraint/3]).
+-export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
 -export([integer/2, float/2, atom/0, binary/0, bitstring/0, list/1, vector/2,
 	 union/1, weighted_union/1, tuple/1, exactly/1, fixed_list/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
@@ -251,6 +251,12 @@ satisfies_all(Instance, Type) ->
 %%------------------------------------------------------------------------------
 %% Type definition functions
 %%------------------------------------------------------------------------------
+
+-spec lazy(proper_gen:nosize_generator()) -> type().
+lazy(Gen) ->
+    ?WRAPPER([
+	{generator, Gen}
+    ]).
 
 -spec sized(proper_gen:sized_generator()) -> type().
 sized(Gen) ->

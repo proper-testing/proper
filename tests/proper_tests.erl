@@ -153,6 +153,12 @@ produces_term(X) ->
 	error:_ -> false
     end.
 
+stream(ExpectedMeanLen) ->
+    ?LAZY(frequency([
+	{1, []},
+	{ExpectedMeanLen, [0 | stream(ExpectedMeanLen)]}
+    ])).
+
 
 %%------------------------------------------------------------------------------
 %% Various Tests
@@ -255,5 +261,10 @@ test(23) ->
 			  true  -> erlang:exit(you_got_it);
 			  false -> true
 		      end));
+test(24) ->
+    ?FORALL(L,
+	    stream(10),
+	    collect(length(L),
+		    true));
 test(_) ->
     ?FORALL(_, integer(), true).
