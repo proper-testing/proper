@@ -26,7 +26,7 @@
 %%------------------------------------------------------------------------------
 
 no_duplicates(L) ->
-    length(lists:usort(L)) == length(L).
+    length(lists:usort(L)) =:= length(L).
 
 is_sorted([]) -> true;
 is_sorted([_]) -> true;
@@ -91,7 +91,7 @@ data() ->
 	 ])).
 
 datalen(Data) when is_list(Data) -> length(Data);
-datalen(Data) when is_binary(Data) -> size(Data).
+datalen(Data) when is_binary(Data) -> byte_size(Data).
 
 shuffle([]) ->
     [];
@@ -152,6 +152,12 @@ produces_term(X) ->
     catch
 	error:_ -> false
     end.
+
+stream(ExpectedMeanLen) ->
+    ?LAZY(frequency([
+	{1, []},
+	{ExpectedMeanLen, [0 | stream(ExpectedMeanLen)]}
+    ])).
 
 
 %%------------------------------------------------------------------------------
@@ -255,5 +261,10 @@ test(23) ->
 			  true  -> erlang:exit(you_got_it);
 			  false -> true
 		      end));
+test(24) ->
+    ?FORALL(L,
+	    stream(10),
+	    collect(length(L),
+		    true));
 test(_) ->
     ?FORALL(_, integer(), true).

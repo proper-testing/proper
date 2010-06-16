@@ -33,7 +33,7 @@
 
 
 %%------------------------------------------------------------------------------
-%% Dialyzer types
+%% Types
 %%------------------------------------------------------------------------------
 
 -type testcase() :: [proper_gen:imm_instance()].
@@ -41,6 +41,7 @@
 -type category() :: term().
 -type cat_dict() :: [{category(),frequency()}].
 -type side_effects_fun() :: fun(() -> 'ok').
+-type fail_actions() :: [side_effects_fun()].
 %%-type time_period() :: non_neg_integer().
 
 -type outer_test() :: test()
@@ -79,27 +80,30 @@
 %% TODO: allow errors to be caught?
 -record(ctx, {catch_exits  = false :: boolean(),
 	      bound        = []    :: testcase(),
-	      fail_actions = []    :: [side_effects_fun()],
+	      fail_actions = []    :: fail_actions(),
 	      categories   = []    :: [category()]}).
 -type single_run_result() :: {'passed', 'didnt_crash'}
 			   | {'passed', {'categories',[category()]}}
 			   | {'failed', fail_reason(), testcase(),
-			      [side_effects_fun()]}
+			      fail_actions()}
 			   | {'error', 'wrong_type'}
 			   | {'error', 'cant_generate'}
 			   | {'error', 'rejected'}.
--type exc_kind() :: 'throw' | 'error' | 'exit'.
+-type exc_kind() :: 'throw' | 'exit'.
 -type exc_reason() :: term().
 -type fail_reason() :: 'false_property' | {exc_kind(),exc_reason()}.
--type imm_result() :: common_result()
-		    | {'failed', pos_integer(), fail_reason(), testcase()}.
--type final_result() :: common_result()
-		      | {'failed', pos_integer(), fail_reason(),
-			 clean_testcase(), non_neg_integer(), clean_testcase()}.
 -type common_result() :: {'passed', pos_integer(), [cat_dict()]}
 		       | {'error', 'cant_generate'}
 		       | {'error', 'cant_satisfy'}
 		       | {'error', {'unexpected', single_run_result()}}.
+-type imm_result() :: common_result()
+		    | {'failed', pos_integer(), fail_reason(), testcase(),
+		       fail_actions()}.
+-type final_result() :: common_result()
+		      | {'failed', pos_integer(), fail_reason(),
+			 clean_testcase()}
+		      | {'failed', pos_integer(), fail_reason(),
+			 clean_testcase(), non_neg_integer(), clean_testcase()}.
 
 
 %%------------------------------------------------------------------------------
@@ -191,20 +195,9 @@ check({'$fails',Test}, #opts{} = Opts) ->
     check(Test, Opts#opts{expect_fail = true});
 check(Test, #opts{numtests = NumTests, quiet = Quiet} = Opts) ->
     global_state_init(Opts),
-    Result = perform_tr(0, NumTests, Test, none, Opts),
-    report_results(Result, Opts),
-    FinalResult =
-	case Result of
-	    {failed, Performed, Reason, ImmFailedTestCase} ->
-		FailedTestCase = proper_gen:clean_instance(ImmFailedTestCase),
-		{Shrinks, ImmMinTestCase} =
-		    proper_shrink:shrink(ImmFailedTestCase, Test, Reason, Opts),
-		MinTestCase = proper_gen:clean_instance(ImmMinTestCase),
-		report_shrinking(Shrinks, MinTestCase, Opts),
-		{failed,Performed,Reason,FailedTestCase,Shrinks,MinTestCase};
-	    _ ->
-		Result
-	end,
+    ImmResult = perform(0, NumTests, Test, none, Opts),
+    report_imm_result(ImmResult, Opts),
+    FinalResult = get_final_result(ImmResult, Test, Opts),
     global_state_erase(Opts),
     case Quiet of
 	true  -> FinalResult;
@@ -212,6 +205,26 @@ check(Test, #opts{numtests = NumTests, quiet = Quiet} = Opts) ->
     end;
 check(Test, OptsList) ->
     check(Test, parse_opts(OptsList)).
+
+-spec get_final_result(imm_result(), test(), #opts{}) -> final_result().
+get_final_result({failed,Performed,Reason,ImmFailedTestCase,_FailActions}, Test,
+		 #opts{expect_fail = ExpectFail} = Opts) ->
+    FailedTestCase = proper_gen:clean_instance(ImmFailedTestCase),
+    case ExpectFail of
+	false ->
+	    {Shrinks, ImmMinTestCase} =
+		proper_shrink:shrink(ImmFailedTestCase, Test, Reason, Opts),
+	    NewOpts = #opts{quiet = true, try_shrunk = true,
+			    shrunk = ImmMinTestCase},
+	    {failed, _Reason, _Bound, MinFailActions} = run(Test, NewOpts),
+	    MinTestCase = proper_gen:clean_instance(ImmMinTestCase),
+	    report_shrinking(Shrinks, MinTestCase, MinFailActions, Opts),
+	    {failed, Performed, Reason, FailedTestCase, Shrinks, MinTestCase};
+	true ->
+	    {failed, Performed, Reason, FailedTestCase}
+    end;
+get_final_result(ImmResult, _Test, _Opts) ->
+    ImmResult.
 
 -spec global_state_init(#opts{}) -> 'ok'.
 global_state_init(Opts) ->
@@ -227,32 +240,28 @@ global_state_erase(Opts) ->
     erase('$constraint_tries'),
     ok.
 
--spec perform_tr(non_neg_integer(), non_neg_integer(), test(),
-		 [cat_dict()] | 'none', #opts{}) -> imm_result().
-perform_tr(0, 0, _Test, _CatDicts, _Opts) ->
+-spec perform(non_neg_integer(), non_neg_integer(), test(),
+	      [cat_dict()] | 'none', #opts{}) -> imm_result().
+perform(0, 0, _Test, _CatDicts, _Opts) ->
     {error, cant_satisfy};
-perform_tr(Performed, 0, _Test, CatDicts, _Opts) ->
+perform(Performed, 0, _Test, CatDicts, _Opts) ->
     {passed, Performed, CatDicts};
-perform_tr(Performed, Left, Test, CatDicts, Opts) ->
+perform(Performed, Left, Test, CatDicts, Opts) ->
     case run(Test, Opts) of
 	{passed, {categories,Categories}} ->
 	    print(".", [], Opts),
 	    NewCatDicts = update_catdicts(Categories, CatDicts),
 	    grow_size(),
-	    perform_tr(Performed + 1, Left - 1, Test, NewCatDicts, Opts);
+	    perform(Performed + 1, Left - 1, Test, NewCatDicts, Opts);
 	{failed, Reason, Bound, FailActions} ->
-	    print("!~n", [], Opts),
-	    %% TODO: is it okay to suppres this when on quiet mode?
-	    case Opts#opts.quiet of
-		true  -> ok;
-		false -> lists:foreach(fun(A) -> ?FORCE(A) end, FailActions)
-	    end,
-	    {failed, Performed + 1, Reason, Bound};
+	    print("!", [], Opts),
+	    {failed, Performed + 1, Reason, Bound, FailActions};
 	{error, cant_generate} = Error ->
 	    Error;
 	{error, rejected} ->
 	    print("x", [], Opts),
-	    perform_tr(Performed, Left - 1, Test, CatDicts, Opts);
+	    grow_size(),
+	    perform(Performed, Left - 1, Test, CatDicts, Opts);
 	Unexpected ->
 	    {error, {unexpected, Unexpected}}
     end.
@@ -327,12 +336,12 @@ run({'$apply',Args,Prop}, Context, Opts) ->
 	%% TODO: should we care what the code returns when trapping exits? if we
 	%%       are doing that, we are probably testing code that will run as a
 	%%       separate process against crashes
-	run(erlang:apply(Prop,Args), Context, Opts)
+	run(apply(Prop,Args), Context, Opts)
     catch
 	throw:ExcReason ->
-	    erlang:setelement(2, run(false,Context,Opts), {throw,ExcReason});
+	    setelement(2, run(false,Context,Opts), {throw,ExcReason});
 	exit:ExcReason when Context#ctx.catch_exits ->
-	    erlang:setelement(2, run(false,Context,Opts), {exit,ExcReason})
+	    setelement(2, run(false,Context,Opts), {exit,ExcReason})
     end.
 
 -spec still_fails(testcase(), test(), fail_reason()) -> boolean().
@@ -366,7 +375,7 @@ skip_to_next({'$trapexit',Prop}) ->
     skip_to_next({'$apply',[],Prop});
 skip_to_next({'$apply',Args,Prop}) ->
     try
-	skip_to_next(erlang:apply(Prop, Args))
+	skip_to_next(apply(Prop, Args))
     catch
 	%% TODO: should be OK to catch everything here, since we have
 	%%       already tested at this point that the test still fails
@@ -385,38 +394,40 @@ print(Str, Args, Opts) ->
 	false -> io:format(Str, Args)
     end.
 
--spec report_results(imm_result(), #opts{}) -> 'ok'.
-report_results({error,{unexpected,Unexpected}}, _Opts) ->
+-spec report_imm_result(imm_result(), #opts{}) -> 'ok'.
+report_imm_result({error,{unexpected,Unexpected}}, _Opts) ->
     io:format("~nInternal error: the last run returned an unexpected result:~n"
 	      "~w~nPlease notify the maintainers about this error~n",
 	      [Unexpected]),
     ok;
-report_results(_Result, #opts{quiet = true}) ->
+report_imm_result(_Result, #opts{quiet = true}) ->
     ok;
-report_results({passed,Performed,CatDicts}, Opts) ->
+report_imm_result({passed,Performed,CatDicts}, Opts) ->
     case Opts#opts.expect_fail of
 	true  -> io:format("~nError: no test failed~n", []);
 	false -> io:format("~nOK, passed ~b tests~n", [Performed])
     end,
     print_categories(Performed, CatDicts),
     ok;
-report_results({failed,Performed,_Reason,ImmFailedTestCase}, Opts) ->
+report_imm_result({failed,Performed,_Reason,ImmFailedTestCase,FailActions},
+		  Opts) ->
     case Opts#opts.expect_fail of
 	true ->
-	    io:format("OK, failed as expected, after ~b tests.~n",
+	    io:format("~nOK, failed as expected, after ~b tests.~n",
 		      [Performed]);
 	false ->
-	    io:format("Failed, after ~b tests.~n", [Performed]),
+	    io:format("~nFailed, after ~b tests.~n", [Performed]),
 	    FailedTestCase = proper_gen:clean_instance(ImmFailedTestCase),
 	    print_instances(FailedTestCase),
+	    execute_actions(FailActions),
 	    io:format("Shrinking", [])
     end,
     ok;
-report_results({error,cant_generate}, _Opts) ->
+report_imm_result({error,cant_generate}, _Opts) ->
     io:format("~nError: couldn't produce an instance that satisfies all strict"
 	      " constraints after ~b tries~n", [get('$constraint_tries')]),
     ok;
-report_results({error,cant_satisfy}, _Opts) ->
+report_imm_result({error,cant_satisfy}, _Opts) ->
     io:format("~nError: no valid test could be generated.~n", []),
     ok.
 
@@ -439,10 +450,17 @@ print_instances(Instances) ->
     lists:foreach(fun(I) -> io:format("~w~n", [I]) end, Instances),
     ok.
 
--spec report_shrinking(non_neg_integer(), clean_testcase(), #opts{}) -> 'ok'.
-report_shrinking(_Shrinks, _MinTestCase, #opts{quiet = true}) ->
+-spec execute_actions(fail_actions()) -> 'ok'.
+execute_actions(FailActions) ->
+    lists:foreach(fun(A) -> ?FORCE(A) end, FailActions),
+    ok.
+
+-spec report_shrinking(non_neg_integer(), clean_testcase(), fail_actions(),
+		       #opts{}) -> 'ok'.
+report_shrinking(_Shrinks, _MinTestCase, _FailActions, #opts{quiet = true}) ->
     ok;
-report_shrinking(Shrinks, MinTestCase, _Opts) ->
+report_shrinking(Shrinks, MinTestCase, FailActions, _Opts) ->
     io:format("(~b times)~n", [Shrinks]),
     print_instances(MinTestCase),
+    execute_actions(FailActions),
     ok.

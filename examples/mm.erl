@@ -18,8 +18,7 @@
 %% PropEr usage example: Static mastermind solver
 
 -module(mm).
--export([mastermind/3, mastermind/4, simple_solver/3, stream_solver/3,
-	 heur_solver/3]).
+-export([mastermind/3, mastermind/4]).
 -export([prop_all_combinations_are_produced/0,
 	 prop_all_selections_are_produced/0,
 	 prop_remove_insert_symmetry/0,
@@ -294,8 +293,7 @@ mastermind(Len, Colors, RawGuesses) ->
 %% The last argument is used to select a particular solver - valid solvers are
 %% 'simple', 'stream' and 'heur', default is 'heur'.
 mastermind(Len, Colors, RawGuesses, SolverName) ->
-    Guesses = lists:map(fun({RawComb,B,W}) -> {parse(RawComb),{B,W}} end,
-			RawGuesses),
+    Guesses = [{parse(RawComb),{B,W}} || {RawComb,B,W} <- RawGuesses],
     case valid_input(Len, Colors, Guesses) of
 	true  -> ok;
 	false -> erlang:error(badarg)
@@ -308,12 +306,12 @@ mastermind(Len, Colors, RawGuesses, SolverName) ->
     export(Result).
 
 parse(RawComb) ->
-    lists:map(fun(X) -> digit_to_integer(X) end, RawComb).
+    [digit_to_integer(X) || X <- RawComb].
 
 export(error) ->
     "-1";
 export(Comb) ->
-    lists:map(fun(X) -> integer_to_digit(X) end, Comb).
+    [integer_to_digit(X) || X <- Comb].
 
 digit_to_integer(X) when X >= $0, X =< $9 -> X - $0;
 digit_to_integer(X) when X >= $a, X =< $z -> X - $a + 10;
@@ -335,9 +333,9 @@ valid_guess(Len, Colors, {Comb,{Blacks,Whites}}) ->
 
 get_solver(SolverName) ->
     case SolverName of
-	simple -> fun ?MODULE:simple_solver/3;
-	stream -> fun ?MODULE:stream_solver/3;
-	heur   -> fun ?MODULE:heur_solver/3
+	simple -> fun simple_solver/3;
+	stream -> fun stream_solver/3;
+	heur   -> fun heur_solver/3
     end.
 
 %% Function: simple_solver/3

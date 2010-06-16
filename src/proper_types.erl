@@ -25,7 +25,7 @@
 -export([cook_outer/1, is_raw_type/1, get_prop/2, find_prop/2, new_type/2,
 	 subtype/2, is_instance/2, unwrap/1, weakly/1, strongly/1,
 	 satisfies_all/2]).
--export([sized/1, bind/2, shrinkwith/2, add_constraint/3]).
+-export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
 -export([integer/2, float/2, atom/0, binary/0, bitstring/0, list/1, vector/2,
 	 union/1, weighted_union/1, tuple/1, exactly/1, fixed_list/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
@@ -40,7 +40,7 @@
 
 
 %%------------------------------------------------------------------------------
-%% Dialyzer types
+%% Types
 %%------------------------------------------------------------------------------
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed'
@@ -113,7 +113,7 @@ cook_outer(Type = {'$type',_Props}) ->
     Type;
 cook_outer(RawType) ->
     if
-	is_tuple(RawType) -> tuple(erlang:tuple_to_list(RawType));
+	is_tuple(RawType) -> tuple(tuple_to_list(RawType));
 	%% CAUTION: this must handle improper lists
 	is_list(RawType)  -> fixed_list(RawType);
 	%% default case (covers integers, floats, atoms, binaries, ...):
@@ -125,7 +125,7 @@ is_raw_type({'$type',_TypeProps}) ->
     true;
 is_raw_type(X) ->
     if
-	is_tuple(X) -> is_raw_type_list(erlang:tuple_to_list(X));
+	is_tuple(X) -> is_raw_type_list(tuple_to_list(X));
 	is_list(X)  -> is_raw_type_list(X);
 	true        -> false
     end.
@@ -252,6 +252,12 @@ satisfies_all(Instance, Type) ->
 %% Type definition functions
 %%------------------------------------------------------------------------------
 
+-spec lazy(proper_gen:nosize_generator()) -> type().
+lazy(Gen) ->
+    ?WRAPPER([
+	{generator, Gen}
+    ]).
+
 -spec sized(proper_gen:sized_generator()) -> type().
 sized(Gen) ->
     ?WRAPPER([
@@ -343,7 +349,7 @@ atom_test(X) ->
     is_atom(X)
     %% We return false for atoms starting with '$', since these are
     %% atoms used internally and never produced by the atom generator.
-    andalso (X =:= '' orelse hd(erlang:atom_to_list(X)) =/= $$).
+    andalso (X =:= '' orelse hd(atom_to_list(X)) =/= $$).
 
 -spec binary() -> type().
 binary() ->
@@ -390,10 +396,8 @@ list(RawElemType) ->
 
 -spec list_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
 list_test(X, ElemType) ->
-    case is_list(X) of
-	true  -> proper_arith:all3([is_instance(E, ElemType) || E <- X]);
-	false -> false
-    end.
+    is_list(X)
+    andalso proper_arith:all3([is_instance(E, ElemType) || E <- X]).
 
 -spec list_get_indices(list()) -> [position()].
 list_get_indices(List) ->
@@ -425,10 +429,9 @@ vector(Len, RawElemType) ->
 -spec vector_test(proper_gen:imm_instance(), length(), type()) ->
 	  proper_arith:ternary().
 vector_test(X, Len, ElemType) ->
-    case is_list(X) andalso length(X) =:= Len of
-	true  -> proper_arith:all3([is_instance(E, ElemType) || E <- X]);
-	false -> false
-    end.
+    is_list(X)
+    andalso length(X) =:= Len
+    andalso proper_arith:all3([is_instance(E, ElemType) || E <- X]).
 
 -spec union([raw_type()]) -> type().
 union(RawChoices) ->
@@ -541,13 +544,10 @@ fixed_list_test(X, {ProperHead,ImproperTail}) ->
 	    false
     end;
 fixed_list_test(X, ProperFields) ->
-    case is_list(X) andalso length(X) =:= length(ProperFields) of
-	true ->
-	    proper_arith:all3(lists:zipwith(fun(E,T) -> is_instance(E, T) end,
-					    X, ProperFields));
-	false ->
-	    false
-    end.
+    is_list(X)
+    andalso length(X) =:= length(ProperFields)
+    andalso proper_arith:all3(lists:zipwith(fun(E,T) -> is_instance(E, T) end,
+					    X, ProperFields)).
 
 -spec head_length(maybe_improper_list()) -> length().
 %% CAUTION: must handle improper lists
