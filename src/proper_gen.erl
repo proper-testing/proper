@@ -155,9 +155,9 @@ clean_instance(ImmInstance) ->
     if
 	is_list(ImmInstance) ->
 	    %% CAUTION: this must handle improper lists
-	    safemap(fun ?MODULE:clean_instance/1, ImmInstance);
+	    safemap(fun clean_instance/1, ImmInstance);
 	is_tuple(ImmInstance) ->
-	    tuplemap(fun ?MODULE:clean_instance/1, ImmInstance);
+	    tuplemap(fun clean_instance/1, ImmInstance);
 	true ->
 	    ImmInstance
     end.
