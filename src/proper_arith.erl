@@ -22,12 +22,10 @@
 
 -module(proper_arith).
 -export([le/2, and3/2, or3/2, any3/1, all3/1, maybe/1, surely/1]).
--export([rand_start/1, rand_stop/1]).
--export([rand_int/0, rand_int/1, rand_int/2,
-	 rand_non_neg_int/0, rand_non_neg_int/1]).
--export([rand_float/0, rand_float/1, rand_float/2,
-	 rand_non_neg_float/0, rand_non_neg_float/1]).
--export([jumble/1, rand_choose/1, freq_choose/1]).
+-export([rand_start/1, rand_stop/1,
+	 rand_int/1, rand_int/2, rand_non_neg_int/1,
+	 rand_float/1, rand_float/2, rand_non_neg_float/1,
+	 jumble/1, rand_choose/1, freq_choose/1]).
 
 -export_type([extint/0, extnum/0, ternary/0]).
 
@@ -141,18 +139,9 @@ rand_stop(_Opts) ->
     erase(random_seed),
     ok.
 
-%% @doc Returns a random integer. Probability is higher for values closer to 0.
--spec rand_int() -> integer().
-rand_int() ->
-    round(rand_float()).
-
 -spec rand_int(non_neg_integer()) -> integer().
 rand_int(Const) ->
     round(rand_float(Const)).
-
--spec rand_non_neg_int() -> non_neg_integer().
-rand_non_neg_int() ->
-    trunc(rand_non_neg_float()).
 
 -spec rand_non_neg_int(non_neg_integer()) -> non_neg_integer().
 rand_non_neg_int(Const) ->
@@ -167,10 +156,6 @@ rand_int(Low, High) when is_integer(Low), is_integer(High), Low =< High ->
 	    Low + random:uniform(High - Low + 1) - 1
     end.
 
--spec rand_float() -> float().
-rand_float() ->
-    rand_float(?DEFAULT_RNG_CONST).
-
 -spec rand_float(non_neg_integer()) -> float().
 rand_float(Const) ->
     X = rand_non_neg_float(Const),
@@ -178,10 +163,6 @@ rand_float(Const) ->
 	1 -> X;
 	2 -> -X
     end.
-
--spec rand_non_neg_float() -> float().
-rand_non_neg_float() ->
-    rand_non_neg_float(?DEFAULT_RNG_CONST).
 
 -spec rand_non_neg_float(non_neg_integer()) -> float().
 rand_non_neg_float(Const) when is_integer(Const), Const >= 0 ->

@@ -91,10 +91,10 @@ shrink_tr(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Opts) ->
 shrink_tr(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Opts) ->
     {Shrinks, lists:reverse(Shrunk)};
 shrink_tr(Shrunk, TestTail, {'$forall',RawType,Prop}, Reason,
-	  Shrinks, ShrinksLeft, State, Opts) ->
+	  Shrinks, ShrinksLeft, init, Opts) ->
     Type = proper_types:cook_outer(RawType),
     shrink_tr(Shrunk, TestTail, {'$forall2',Type,Prop}, Reason,
-	      Shrinks, ShrinksLeft, State, Opts);
+	      Shrinks, ShrinksLeft, init, Opts);
 shrink_tr(Shrunk, [ImmInstance | Rest], {'$forall2',_Type,Prop}, Reason,
 	  Shrinks, ShrinksLeft, done, Opts) ->
     Instance = proper_gen:clean_instance(ImmInstance),

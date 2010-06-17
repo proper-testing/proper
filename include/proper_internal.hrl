@@ -25,8 +25,7 @@
 %% Constants
 %%------------------------------------------------------------------------------
 
-%% TODO: make all these into parameters, store them in process registry
--define(DEFAULT_RNG_CONST, 10).
+%% TODO: make some of these into parameters, store them in process registry
 -define(MAX_RANDOM_TRIES_WHEN_SHRINKING, 5).
 -define(MAX_LIST_LEN, 200).
 -define(MAX_ATOM_LEN, 255).

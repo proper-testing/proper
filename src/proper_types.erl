@@ -297,7 +297,7 @@ add_constraint(RawType, Condition, IsStrict) ->
 %% TODO: pid, port, ref (it's dangerous to provide random process data to
 %%	 functions - they must want it for a reason (least we can do is have a
 %%	 live function with that pid))
-%% TODO: any (union of all types? what are those?
+%% TODO: any (union of all types? what are those?)
 %%	 number, atom, reference, fun, port, pid, tuple, list, bit string
 %% TODO: (records, none, improper_list(content_type, termination_type),
 %%	 maybe_improper_list)
