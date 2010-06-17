@@ -266,5 +266,10 @@ test(24) ->
 	    stream(10),
 	    collect(length(L),
 		    true));
+test(25) ->
+    ?FORALL(Dt,
+	    range(50,200),
+	    ?TIMEOUT(100,
+		     timer:sleep(Dt) == ok));
 test(_) ->
     ?FORALL(_, integer(), true).

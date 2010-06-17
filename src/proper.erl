@@ -24,7 +24,7 @@
 -export([numtests/2, collect/2, fails/1]).
 -export([set_size/1, erase_size/0, grow_size/0, get_size/1, parse_opts/1,
 	 global_state_init/1, global_state_erase/1]).
--export([check/1, check/2, still_fails/3, skip_to_next/1]).
+-export([check/1, check/2, child/4, still_fails/3, skip_to_next/1]).
 -export([print/3]).
 
 -export_type([testcase/0, test/0, forall_clause/0, fail_reason/0]).
@@ -42,7 +42,7 @@
 -type cat_dict() :: [{category(),frequency()}].
 -type side_effects_fun() :: fun(() -> 'ok').
 -type fail_actions() :: [side_effects_fun()].
-%%-type time_period() :: non_neg_integer().
+-type time_period() :: non_neg_integer().
 
 -type outer_test() :: test()
 		    | numtests_clause()
@@ -53,7 +53,7 @@
 	      | collect_clause()
 	      | whenfail_clause()
 	      | trapexit_clause()
-	      %%| timeout_clause()
+	      | timeout_clause()
 	      | apply_clause().
 -type delayed_test() :: fun(() -> test()).
 
@@ -65,7 +65,7 @@
 -type collect_clause() :: {'$collect', category(), test()}.
 -type whenfail_clause() :: {'$whenfail', side_effects_fun(), delayed_test()}.
 -type trapexit_clause() :: {'$trapexit', delayed_test()}.
-%%-type timeout_clause() :: {'$timeout', time_period(), delayed_test()}.
+-type timeout_clause() :: {'$timeout', time_period(), delayed_test()}.
 -type apply_clause() :: {'$apply', [term()], function()}.
 
 -type opt() :: 'quiet'
@@ -91,7 +91,7 @@
 			   | {'error', 'rejected'}.
 -type exc_kind() :: 'throw' | 'exit'.
 -type exc_reason() :: term().
--type fail_reason() :: 'false_property' | {exc_kind(),exc_reason()}.
+-type fail_reason() :: 'false_property' | 'timeout' | {exc_kind(),exc_reason()}.
 -type common_result() :: {'passed', pos_integer(), [cat_dict()]}
 		       | {'error', 'cant_generate'}
 		       | {'error', 'cant_satisfy'}
@@ -331,17 +331,41 @@ run({'$whenfail',Action,Prop}, Context = #ctx{fail_actions = FailActions},
 run({'$trapexit',Prop}, Context, Opts) ->
     NewContext = Context#ctx{catch_exits = true},
     run({'$apply',[],Prop}, NewContext, Opts);
+run({'$timeout',Limit,Prop}, Context, Opts) ->
+    Child = spawn_link(?MODULE, child, [self(), Prop, Context, Opts]),
+    receive
+	{result, Result} -> Result
+    after Limit ->
+	unlink(Child),
+	exit(Child, kill),
+	clear_mailbox(),
+	setelement(2, run(false,Context,Opts), timeout)
+    end;
 run({'$apply',Args,Prop}, Context, Opts) ->
     try
-	%% TODO: should we care what the code returns when trapping exits? if we
-	%%       are doing that, we are probably testing code that will run as a
-	%%       separate process against crashes
+	%% TODO: should we care what the code returns when trapping exits?
+	%%       if we are doing that, we are probably testing code that will
+	%%       run as a separate process against crashes
 	run(apply(Prop,Args), Context, Opts)
     catch
 	throw:ExcReason ->
 	    setelement(2, run(false,Context,Opts), {throw,ExcReason});
 	exit:ExcReason when Context#ctx.catch_exits ->
 	    setelement(2, run(false,Context,Opts), {exit,ExcReason})
+    end.
+
+-spec child(pid(), delayed_test(), #ctx{}, #opts{}) -> 'ok'.
+child(Father, Prop, Context, Opts) ->
+    Result = run({'$apply',[],Prop}, Context, Opts),
+    Father ! {result, Result},
+    ok.
+
+-spec clear_mailbox() -> 'ok'.
+clear_mailbox() ->
+    receive
+	_ -> clear_mailbox()
+    after 0 ->
+	ok
     end.
 
 -spec still_fails(testcase(), test(), fail_reason()) -> boolean().
@@ -373,6 +397,8 @@ skip_to_next({'$whenfail',_Action,Prop}) ->
     skip_to_next({'$apply',[],Prop});
 skip_to_next({'$trapexit',Prop}) ->
     skip_to_next({'$apply',[],Prop});
+skip_to_next({'$timeout',_Limit,_Prop}) ->
+    false; % this is OK, since timeout cannot contain any ?FORALLs
 skip_to_next({'$apply',Args,Prop}) ->
     try
 	skip_to_next(apply(Prop, Args))

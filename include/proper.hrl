@@ -33,7 +33,7 @@
 -define(NUMTESTS(N,Test), {'$numtests',N,Test}).
 -define(FAILS(Test), {'$fails',Test}).
 -define(TRAPEXIT(Test), {'$trapexit',?DELAY(Test)}).
-%% TODO: -define(TIMEOUT(Limit,Test), {'$timeout',Limit,?DELAY(Test)}).
+-define(TIMEOUT(Limit,Test), {'$timeout',Limit,?DELAY(Test)}).
 
 
 %%------------------------------------------------------------------------------

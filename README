@@ -64,6 +64,11 @@ collect(<category>, <test>) or ?COLLECT(<category>, <test>)
     executed at all in quiet mode.
 ?TRAPEXIT(<test>)
     Signifies that the <test> may report failure by exiting abnormally.
+?TIMEOUT(<time_limit>, <test>)
+    Signifies that the <test> should be considered failing if it takes more than
+    <time_limit> milliseconds to complete. The purpose of this wrapper is to
+    test code that may hang if something goes wrong. The <test> field cannot
+    contain any ?FORALLs or ?TIMEOUTs.
 
 Additionaly, the following wrappers may be present in the external part of a
 testcase:
@@ -79,7 +84,7 @@ to produce a minimal testcase that fails the property in the same way. Note
 that failure may also be signified by throwing an exception (but not an error).
 
 For some actual usage examples, see the code in the examples directory. The
-testing modules in the tests directroy may also be of interest.
+testing modules in the tests directory may also be of interest.
 
 
 --------------------------------------------------------------------------------
