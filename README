@@ -16,71 +16,71 @@ Quickstart guide
   documentation).
 * Add PropEr's base directory to your ERL_LIBS environment variable - An easy
   way to do this is to add the following line to your ~/.bashrc file:
-  'export ERL_LIBS=~/path/to/proper'
+     export ERL_LIBS=~/path/to/proper
 * Add the following include line to all source files containing properties you
   wish to test:
-  '-include_lib("proper/include/proper.hrl").'
+     -include_lib("proper/include/proper.hrl").
 * Compile your source files - remember to export all properties you wish to
   test.
 * For each property, run:
-  'proper:check(your_module:some_property()).'
+     proper:check(your_module:some_property()).
   You can also try out the random instance generation subsystem by running:
-  'proper_gen:sample(some_type()).'
+     proper_gen:sample(some_type()).
 
 
 --------------------------------------------------------------------------------
-How to write testcases (properties)
+How to write test cases (properties)
 --------------------------------------------------------------------------------
 
-Testcases can be written by wrapping a boolean expression (or a statement block
+Test cases can be written by wrapping a boolean expression (or a statement block
 that returns a boolean), which is expected to evaluate to 'true', with one or
 more of the following wrappers:
 
-?FORALL(<Xs>, <Xs_type>, <test>)
+?FORALL(<Xs>, <Xs_type>, <Test>)
     The <Xs> field can either be a single variable, a tuple of variables or a
     list of variables. The <Xs_type> field must then be a single type, a tuple
     of types of the same length as the tuple of variables or a list of types of
-    the same legngth as the list of variables, respectively. Tuples and lists
+    the same length as the list of variables, respectively. Tuples and lists
     can be combined in any way, as long as <Xs> and <Xs_type> are compatible.
     All the variables inside <Xs> can (and should) be present as free variables
-    inside the <test> field. When a ?FORALL wrapper is encountered, a random
-    instance of <Xs_type> is produced and each variable in <Xs> is replaced
-    inside <test> by its corresponding instance.
-?IMPLIES(<precondition>, <test>)
-    The <precondition> field must be a boolean expression or a statement block
+    inside the <Test>. When a ?FORALL wrapper is encountered, a random instance
+    of <Xs_type> is produced and each variable in <Xs> is replaced inside
+    <Test> by its corresponding instance.
+?IMPLIES(<Precondition>, <Test>)
+    The <Precondition> field must be a boolean expression or a statement block
     that returns a boolean. If the precondition evaluates to 'false' for the
-    variables produced in the parent wrappers, the testcase is rejected (doesn't
-    count as a failing testcase), the evaluation is stopped short and (in
-    verbose mode) an 'x' is printed on screen.
-collect(<category>, <test>) or ?COLLECT(<category>, <test>)
-    The <category> field can be an expression or statement block that evaluates
-    to any term - the testcase produced will be categorized under this term.
+    variables produced in the parent wrappers, the test case is rejected
+    (doesn't count as a failing test case), the evaluation is stopped short
+    and (in verbose mode) an 'x' is printed on screen.
+collect(<Category>, <Test>) or ?COLLECT(<Category>, <Test>)
+    The <Category> field can be an expression or statement block that evaluates
+    to any term - the test case produced will be categorized under this term.
     All produced categories are printed at the end of testing (in case no test
-    fails) along with the percentage of testcases belonging to each category.
-?WHENFAIL(<action>, <test>)
-    The <action> field should contain an expression or statement block that
+    fails) along with the percentage of test cases belonging to each category.
+?WHENFAIL(<Action>, <Test>)
+    The <Action> field should contain an expression or statement block that
     produces some side-effect (e.g. prints something to the screen). In case
-    this test fails, <action> will be executed. Note that such actions are not
+    this test fails, <Action> will be executed. Note that such actions are not
     executed at all in quiet mode.
-?TRAPEXIT(<test>)
-    Signifies that the <test> may report failure by exiting abnormally.
-?TIMEOUT(<time_limit>, <test>)
-    Signifies that the <test> should be considered failing if it takes more than
-    <time_limit> milliseconds to complete. The purpose of this wrapper is to
-    test code that may hang if something goes wrong. The <test> field cannot
+?TRAPEXIT(<Test>)
+    Signifies that the <Test> may report failure by exiting abnormally.
+?TIMEOUT(<Time_limit>, <Test>)
+    Signifies that the <Test> should be considered failing if it takes more than
+    <Time_limit> milliseconds to complete. The purpose of this wrapper is to
+    test code that may hang if something goes wrong. The <Test> field cannot
     contain any ?FORALLs or ?TIMEOUTs.
 
-Additionaly, the following wrappers may be present in the external part of a
-testcase:
+Additionally, the following wrappers may be present in the external part of a
+test case:
 
-numtests(<positive_number>, <test>) or ?NUMTESTS(<positive_number>, <test>)
+numtests(<Positive_number>, <Test>) or ?NUMTESTS(<Positive_number>, <Test>)
     These are equivalent to the 'numtests' option, but have higher precedence.
-fails(<test>) of ?FAILS(<test)
+fails(<Test>) of ?FAILS(<Test)
     These are equivalent to the 'expect_fail' option.
 
 In verbose mode, each succeeding test prints a '.' on screen. If a test fails,
 a '!' is printed and, unless the test was expected to fail, the program attempts
-to produce a minimal testcase that fails the property in the same way. Note
+to produce a minimal test case that fails the property in the same way. Note
 that failure may also be signified by throwing an exception (but not an error).
 
 For some actual usage examples, see the code in the examples directory. The
@@ -92,32 +92,32 @@ Options
 --------------------------------------------------------------------------------
 
 Options can be provided as a second argument to proper:check. A single option
-can be written standalone, or multiple options can be provided in a list. The
+can be written stand-alone, or multiple options can be provided in a list. The
 available options are:
 
 'quiet'
     Enables quiet mode - nothing is printed on screen, the results of testing
     are returned in a tagged tuple. The return tuple can be one of the
     following:
-    * {'passed', <number_of_tests_passed>, <testcase_statistics>}
-    * {'failed', <after_so_many_tests>, <failure_reason>, <failing_testcase>}
-    * {'failed', <after_so_many_tests>, <failure_reason>,
-       <original_failing_testcase>, <number_of_shrinks>, <simplified_testcase>}
-    * {'error', <type_of_error>}
+    * {'passed', <Number_of_tests_passed>, <Testcase_statistics>}
+    * {'failed', <After_so_many_tests>, <Failure_reason>, <Failing_testcase>}
+    * {'failed', <After_so_many_tests>, <Failure_reason>,
+       <Original_failing_testcase>, <Number_of_shrinks>, <Simplified_testcase>}
+    * {'error', <Type_of_error>}
 'crypto'
     Enables the use of the crypto module for some kinds of random generation
     (namely, the generation of binaries and the generation of ranges of
     integers) - make sure the crypto module is available before enabling this.
     This has the side-effect that an INFO message is printed on screen when
     the program exits, because of the stopping of the crypto server.
-{'numtests', <positive_number>} or simply <positive_number>
-    Specifies the number of tests to run, default is 100.
-{'max_shrinks', <non_negative_number>}
-    Specifies the maximum number of times a failing testcase should be shrunk
-    before returning. Note that the shrinking may stop before this many shrinks
-    are achieved, if the shrinking subsystem deduces that it cannot shrink the
-    failing testcase further. Default is 300.
-{'constraint_tries', <positive_number>}
+{'numtests', <Positive_number>} or simply <Positive_number>
+    Specifies the number of tests to run. Default is 100.
+{'max_shrinks', <Non_negative_number>}
+    Specifies the maximum number of times a failing test case should be shrunk
+    before returning. Note that the shrinking may stop before so many shrinks
+    are achieved if the shrinking subsystem deduces that it cannot shrink the
+    failing test case further. Default is 300.
+{'constraint_tries', <Positive_number>}
     Specifies the maximum number of tries before the generator subsystem gives
     up on producing an instance that satisfies a ?SUCHTHAT constraint. Default
     is 50.
@@ -131,46 +131,53 @@ Basic types
 
 The following basic types are provided:
 
-* integer() : all integers, also written as int()
+* integer() : all integers,
+     also written as int() for compatibility with QuickCheck
 * integer(Low,High) : integers between 'Low' and 'High', bounds included, also
-  written as int(Low,High), choose(Low,High) and range(Low,High), Low and High
-  must be evaluated integers
+  written as int(Low,High), choose(Low,High) and range(Low,High).
+     Low and High must be Erlang expressions that evaluate to integers
 * non_neg_integer() : all non-negative integers
 * pos_integer() : all positive integers
 * neg_integer() : all negative integers
-* float() : all floating-point numbers
-* float(Low,High) : all floats between 'Low' and 'High', bounds included, Low
-  and High must be evaluated floats
-* non_neg_float() : all non-negative floats
+* float() : all floating point numbers
+* float(Low,High) : all floats between 'Low' and 'High', bounds included
+    Low and High must be Erlang expressions that evaluate to floats
 * number() : all numbers (integers and floats)
 * byte() : all integers between 0 and 255
 * char() : all integers between 0 and 16#10ffff
-* atom() : all atoms, except those starting with '$' - you should not use any
-  atoms starting with a '$', as these may clash with atoms used internally by
-  PropEr.
-* boolean() : 'true' or 'false', also written as bool()
+* atom() : all atoms, except those starting with '$'
+    You should not use any atoms starting with a '$', as these may clash
+    with atoms used internally by PropEr
+* boolean() : the atoms 'true' or 'false'
+   also written as bool() for compatibility with QuickCheck
+* list(ElemType) : all lists containing elements of type ElemType
+* string() : all lists of characters
 * binary() : all binaries
 * bitstring() : all bitstrings
-* list(ElemType) : all lists containing elements of type ElemType
-* vector(Len,ElemType) : all lists of length Len containing elements of type
-  ElemType, Len must be an evaluated non-negative integer
-* string() : all lists of characters
-* fixed_list(ListOfTypes) : all lists whose i-th element is an instance of the
-  type at index i of ListOfTypes, can also be written simply as ListOfTypes
+
+All the above have analogues in the built-in types of the Erlang language.
+
+In addition, the following types are provided
+
+* non_neg_float() : all non-negative floats
 * tuple(ListOfTypes) : all tuples whose i-th element is an instance of the type
-  at index i of ListOfTypes, can also be written simply as a tuple of types
+  at index i of ListOfTypes; can also be written simply as a tuple of types
+* vector(Len,ElemType) : all lists of length Len containing elements of type
+  ElemType; Len must be a expression evaluating to a non-negative integer
+* fixed_list(ListOfTypes) : all lists whose i-th element is an instance of the
+  type at index i of ListOfTypes; can also be written simply as ListOfTypes
 * exactly(X) : singleton type consisting only of X, which must be an evaluated
-  term, can also be written simply as X
+  term; can also be written simply as X
 * union(ListOfTypes) : the union of all types in ListOfTypes, the random
   instance generator is equally likely to choose any one of the types in
   ListOfTypes, but the shrinking subsystem will always try to shrink an instance
   of a type union to the first type in ListOfTypes, thus you should write the
-  simplest case first - union(ListOfType) can also be written as
+  simplest case first - union(ListOfTypes) can also be written as
   oneof(ListOfTypes) and elements(ListOfTypes), ListOfTypes can't be empty
 * weighted_union(ListOfTypes) : a specialization of union(ListOfTypes) where
   each type in ListOfTypes is assigned a frequency like so: {frequency,type} -
   types with larger frequencies are more likely to be chosen by the random
-  instance generator - can also be written as wunion(ListOfTypes) and
+  instance generator - can also be written as union(ListOfTypes) and
   frequency(ListOfTypes), frequencies must be evaluated positive integers
 
 All of these types are automatically imported when including the "proper.hrl"
@@ -187,54 +194,54 @@ How to construct types
 The following macros and functions can be applied to types in order to produce
 new ones:
 
-?LET(<Xs>, <Xs_type>, <in>)
+?LET(<Xs>, <Xs_type>, <In>)
     To produce an instance of this type, all appearances of the variables in
-    <Xs> inside <in> are replaced by their corresponding values in a randomly
-    generated instance of <Xs_type>. It's OK for the <in> part to evaluate to a
+    <Xs> inside <In> are replaced by their corresponding values in a randomly
+    generated instance of <Xs_type>. It's OK for the <In> part to evaluate to a
     type - in that case, an instance of the inner type is generated recursively.
-?SUCHTHAT(<X>, <type>, <condition>)
-    This produces a specialization of <type>, which only includes those members
-    of <type> that satisfy the constraint <condition> - that is, those members
-    for which the function 'fun(<X>) -> <condition> end' returns true. If the
-    constraint is very strict - that is, only a small percentage of instances of
-    <type> pass the test - it will take a lot of time for the instance
+?SUCHTHAT(<X>, <Type>, <Condition>)
+    This produces a specialization of <Type>, which only includes those members
+    of <Type> that satisfy the constraint <Condition> - that is, those members
+    for which the function 'fun(<X>) -> <Condition> end' returns true. If the
+    constraint is very strict - that is, only a small percentage of instances
+    of <Type> pass the test - it will take a lot of time for the instance
     generation subsystem to randomly produce a valid instance of the specialized
     type. This will result in slower testing and testing may even be stopped
     short, in case the 'constraint_tries' limit is reached. If this is the case,
     it would be more appropriate to generate valid instances of the specialized
     type using the ?LET macro.
-?SUCHTHATMAYBE(<X>, <type>, <condition>)
-    Equivalent to the ?SUCHTHAT macro, but the constraint is considered
-    non-strict: if the 'constraint_tries' limit is reached, the generator will
-    just return an instance of <type> instead of failing, even if that instance
-    doesn't satisfy the constraint.
+?SUCHTHATMAYBE(<X>, <Type>, <Condition>)
+    Equivalent to the ?SUCHTHAT macro, but the constraint <Condition> is
+    considered non-strict: if the 'constraint_tries' limit is reached, the
+    generator will just return an instance of <Type> instead of failing,
+    even if that instance doesn't satisfy the constraint.
 non_empty(<List_type>)
     This is a predefined constraint that can be applied to random-length list
     types (e.g. list() and string()) to ensure that the produced lists are not
     empty.
-?SHRINK(<generator>, <list_of_alternative_generators>)
+?SHRINK(<Generator>, <List_of_alternative_generators>)
     This creates a type whose instances are generated by evaluating the
-    statement block <generator> (this may evaluate to a type, which is generated
+    statement block <Generator> (this may evaluate to a type, which is generated
     recursively). If an instance of such a type is to be shrunk, the generators
-    in <list_of_alternative_generators> are first run to produce hopefully
+    in <List_of_alternative_generators> are first run to produce hopefully
     simpler instances of the type. Thus, the generators in the second argument
     should be simpler than the default. The simplest ones should be at the front
-    of the list, since those are the generators preffered by the shrinking
+    of the list, since those are the generators preferred by the shrinking
     subsystem.
-?LETSHRINK(<list_of_variables>, <list_of_types>, <generator>)
+?LETSHRINK(<List_of_variables>, <List_of_types>, <Generator>)
     This is created by combining a ?LET and a ?SHRINK macro. Instances are
-    generated by applying a randomly generated list of values inside <generator>
+    generated by applying a randomly generated list of values inside <Generator>
     (just like a ?LET, only the variables and types must always be in a list).
-    When shrinking instances of such a type, the types inside <list_of_types>
+    When shrinking instances of such a type, the types inside <List_of_types>
     are first tried in place of the parent type.
-?LAZY(<generator>)
+?LAZY(<Generator>)
     This construct returns a type whose only purpose is to delay the evaluation
-    of <generator> (<generator> can return a type, which will be generated
+    of <Generator> (<Generator> can return a type, which will be generated
     recursively). Using this, you can simulate the lazy generation of instances:
-    stream() -> ?LAZY(frequency([ {1,[]}, {3,[0|stream()]} ])).
+      stream() -> ?LAZY(frequency([ {1,[]}, {3,[0|stream()]} ])).
     The above type produces lists of zeroes with an average length of 3. Note
     that, had we not enclosed the generator with a ?LAZY macro, the evaluation
-    would continue indefinetely.
+    would continue indefinitely.
 
 The following functions and macros are related to the 'size' parameter, which
 controls the maximum size of produced instances. The actual size of a produced
@@ -247,22 +254,22 @@ actual size of a tree may be the number of its internal nodes. Some types, e.g.
 unions, have no notion of size, thus their generation is not influenced by the
 value of 'size'. The 'size' parameter grows automatically during testing.
 
-?SIZED(<S>, <generator>)
+?SIZED(<S>, <Generator>)
     Creates a new type, whose instances are produced by replacing all
-    appearances of the <S> parameter inside the statement block <generator> with
-    the value of the 'size' parameter. It's OK for the <generator> to return a
+    appearances of the <S> parameter inside the statement block <Generator> with
+    the value of the 'size' parameter. It's OK for the <Generator> to return a
     type - in that case, an instance of the inner type is generated recursively.
-resize(<new_size>, <type>)
-    Overrides the 'size' parameter used when generating instances of <type> with
-    <new_size>. Has no effect on size-less types, such as unions. Also, this
-    will not affect the generation of any internal types contained in <type>,
+resize(<New_size>, <Type>)
+    Overrides the 'size' parameter used when generating instances of <Type> with
+    <New_size>. Has no effect on size-less types, such as unions. Also, this
+    will not affect the generation of any internal types contained in <Type>,
     such as the elements of a list - those will still be generated using the
     test-wide value of 'size'. One use of this function is to modify types to
     grow faster or slower, like so:
-    ?SIZED(Size, resize(Size * 2, list(integer()))
+      ?SIZED(Size, resize(Size * 2, list(integer()))
     The above specifies a list type that grows twice as fast as normal lists.
-relimit(<new_limit>, <type>)
-    Most sized types have a 'size_limit' paramter, which specifies a maximum to
+relimit(<New_limit>, <Type>)
+    Most sized types have a 'size_limit' parameter, which specifies a maximum to
     the value of 'size' used when generating instances of the type. Lists, for
     example, have a size limit of 200. Using this function, you can specify a
     new such limit for a type. Has no effect on size-less types, such as unions.
@@ -285,11 +292,11 @@ message is printed on screen describing the error.
 
 * 'cant_generate': The instance generation subsystem has failed to produce an
   instance that satisfies some ?SUCHTHAT constraint. You should either increase
-  the 'costraint_tries' limit, loosen the failing constraint or make it
+  the 'constraint_tries' limit, loosen the failing constraint, or make it
   non-strict.
-* 'cant_satisfy': All the tests were rejected because no testcae would pass
+* 'cant_satisfy': All the tests were rejected because no test case would pass
   all ?IMPLIES checks. You should loosen the failing ?IMPLIES constraint.
-* {'unexpected', <result>}: A test returned an unexpected result. If you ever
-  get this error, you have found a bug in the program - please send an error
-  report to the maintainers and remember to include both the failing testcase
-  and the output of the program, if possible.
+* {'unexpected', <Result>}: A test returned an unexpected result. If you ever
+  get this error, it means that you have probably found a bug in PropEr
+  - please send an error report to the maintainers and remember to include
+  both the failing test case and the output of the program, if possible.
