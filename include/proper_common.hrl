@@ -19,6 +19,22 @@
 
 
 %%------------------------------------------------------------------------------
+%% Test generation macros
+%%------------------------------------------------------------------------------
+
+-define(FORALL(X,RawType,Prop), {'$forall',RawType,fun(X) -> Prop end}).
+-define(IMPLIES(Pre,Prop), {'$implies',Pre,?DELAY(Prop)}).
+-define(COLLECT(Category,Prop), {'$collect',Category,Prop}).
+-define(WHENFAIL(Action,Prop), {'$whenfail',?DELAY(Action),?DELAY(Prop)}).
+-define(NUMTESTS(N,Test), {'$numtests',N,Test}).
+-define(FAILS(Test), {'$fails',Test}).
+-define(TRAPEXIT(Prop), {'$trapexit',?DELAY(Prop)}).
+-define(TIMEOUT(Limit,Prop), {'$timeout',Limit,?DELAY(Prop)}).
+%% TODO: -define(ALWAYS(Tests,Prop), {'$always',Tests,?DELAY(Prop)}).
+%% TODO: -define(SOMETIMES(Tests,Prop), {'$sometimes',Tests,?DELAY(Prop)}).
+
+
+%%------------------------------------------------------------------------------
 %% Generator macros
 %%------------------------------------------------------------------------------
 

@@ -19,19 +19,21 @@
 %%% @copyright 2010 Manolis Papadakis
 %%% @version {@version}
 %%% @doc Type manipulation functions and predefined types are contained in this
-%%%	module.
+%%%	 module.
 
 -module(proper_types).
 -export([cook_outer/1, is_raw_type/1, get_prop/2, find_prop/2, new_type/2,
 	 subtype/2, is_instance/2, unwrap/1, weakly/1, strongly/1,
 	 satisfies_all/2]).
 -export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
--export([integer/2, float/2, atom/0, binary/0, bitstring/0, list/1, vector/2,
-	 union/1, weighted_union/1, tuple/1, exactly/1, fixed_list/1]).
+-export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
+	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
+	 exactly/1, fixed_list/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 string/0, wunion/1]).
--export([int/0, int/2, bool/0, choose/2, elements/1, oneof/1, frequency/1]).
+-export([int/0, int/2, nat/0, bool/0, choose/2, elements/1, oneof/1,
+	 frequency/1]).
 -export([resize/2, relimit/2, non_empty/1]).
 
 -export_type([type/0, raw_type/0]).
@@ -355,18 +357,34 @@ atom_test(X) ->
 binary() ->
     %% TODO: this is very hard for the compiler to optimize, even though the
     %%       '$crypto' flag is never changed while running
-    StraightGenTail =
-	case get('$crypto') of
-	    true -> [{straight_gen, fun proper_gen:binary_str_gen/1}];
-	    _    -> []
-	end,
-    ?WRAPPER([
+    Type = ?WRAPPER([
 	{generator, fun proper_gen:binary_gen/1},
 	{reverse_gen, fun proper_gen:binary_rev/1},
 	{size_limit, ?MAX_BINARY_LEN},
 	{is_instance, fun erlang:is_binary/1}
-	| StraightGenTail
-    ]).
+    ]),
+    case get('$crypto') of
+	true -> add_prop(straight_gen, fun proper_gen:binary_str_gen/1, Type);
+	_    -> Type
+    end.
+
+-spec binary(length()) -> type().
+binary(Len) ->
+    Type = ?WRAPPER([
+	{generator, fun() -> proper_gen:binary_len_gen(Len) end},
+	{reverse_gen, fun proper_gen:binary_rev/1},
+	{is_instance, fun(X) -> binary_len_test(X, Len) end}
+    ]),
+    case get('$crypto') of
+	true -> add_prop(straight_gen,
+			 fun() -> proper_gen:binary_len_str_gen(Len) end,
+			 Type);
+	_    -> Type
+    end.
+
+-spec binary_len_test(proper_gen:imm_instance(), length()) -> boolean().
+binary_len_test(X, Len) ->
+    is_binary(X) andalso byte_size(X) =:= Len.
 
 -spec bitstring() -> type().
 bitstring() ->
@@ -375,6 +393,18 @@ bitstring() ->
 	{reverse_gen, fun proper_gen:bitstring_rev/1},
 	{is_instance, fun erlang:is_bitstring/1}
     ]).
+
+-spec bitstring(length()) -> type().
+bitstring(Len) ->
+    ?WRAPPER([
+	{generator, fun() -> proper_gen:bitstring_len_gen(Len) end},
+	{reverse_gen, fun proper_gen:bitstring_rev/1},
+	{is_instance, fun(X) -> bitstring_len_test(X, Len) end}
+    ]).
+
+-spec bitstring_len_test(proper_gen:imm_instance(), length()) -> boolean().
+bitstring_len_test(X, Len) ->
+    is_bitstring(X) andalso bit_size(X) =:= Len.
 
 -spec list(raw_type()) -> type().
 % TODO: subtyping would be useful here (list, vector, fixed_list)
@@ -494,7 +524,7 @@ exactly(E) ->
 fixed_list(MaybeImproperRawFields) ->
     %% CAUTION: must handle improper lists
     {Fields, Internal, Indices, Retrieve, Update} =
-	case cut_improper_tail(MaybeImproperRawFields) of
+	case proper_arith:cut_improper_tail(MaybeImproperRawFields) of
 	    % TODO: have cut_improper_tail return the length and use it in test?
 	    {ProperRawHead, ImproperRawTail} ->
 		HeadLen = length(ProperRawHead),
@@ -521,16 +551,6 @@ fixed_list(MaybeImproperRawFields) ->
 	{retrieve, Retrieve},
 	{update, Update}
     ]).
-
-cut_improper_tail(List) ->
-    cut_improper_tail_tr(List, []).
-
-cut_improper_tail_tr([], AccList) ->
-    lists:reverse(AccList);
-cut_improper_tail_tr([Head | Tail], AccList) ->
-    cut_improper_tail_tr(Tail, [Head | AccList]);
-cut_improper_tail_tr(ImproperTail, AccList) ->
-    {lists:reverse(AccList),ImproperTail}.
 
 -spec fixed_list_test(proper_gen:imm_instance(), [type()] | {[type()],type()})
 	  -> proper_arith:ternary().
@@ -606,7 +626,7 @@ non_neg_float() -> float(0.0, inf).
 number() -> union([integer(), float()]).
 
 -spec boolean() -> type().
-boolean() -> union(['true', 'false']).
+boolean() -> union(['false', 'true']).
 
 -spec byte() -> type().
 byte() -> integer(0, 255).
@@ -626,10 +646,13 @@ wunion(FreqChoices) -> weighted_union(FreqChoices).
 %%------------------------------------------------------------------------------
 
 -spec int() -> type().
-int() -> integer().
+int() -> ?SIZED(Size, integer(-Size,Size)).
 
 -spec int(proper_arith:extint(), proper_arith:extint()) -> type().
 int(Low, High) -> integer(Low, High).
+
+-spec nat() -> type().
+nat() -> ?SIZED(Size, integer(0,Size)).
 
 -spec bool() -> type().
 bool() -> boolean().

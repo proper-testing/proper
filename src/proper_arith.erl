@@ -18,10 +18,12 @@
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @copyright 2010 Manolis Papadakis
 %%% @version {@version}
-%%% @doc This module contains helper arithmetic and random functions.
+%%% @doc This module contains helper arithmetic, list handling and random
+%%%	 functions.
 
 -module(proper_arith).
 -export([le/2, and3/2, or3/2, any3/1, all3/1, maybe/1, surely/1]).
+-export([safemap/2, tuplemap/2, cut_improper_tail/1]).
 -export([rand_start/1, rand_stop/1,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
@@ -96,11 +98,47 @@ all3_tr([unknown | Rest], _FoundUnknown) ->
 
 -spec maybe(ternary()) -> boolean().
 maybe(unknown) -> true;
-maybe(B)       -> B.
+maybe(Boolean) -> Boolean.
 
 -spec surely(ternary()) -> boolean().
 surely(unknown) -> false;
-surely(B)       -> B.
+surely(Boolean) -> Boolean.
+
+
+%%------------------------------------------------------------------------------
+%% List handling functions
+%%------------------------------------------------------------------------------
+
+-spec safemap(fun((T) -> S), maybe_improper_list(T,term())) ->
+	  maybe_improper_list(S,term()).
+safemap(Fun, List) ->
+    safemap_tr(Fun, List, []).
+
+-spec safemap_tr(fun((T) -> S), maybe_improper_list(T,term()), [S]) ->
+          maybe_improper_list(S,term()).
+safemap_tr(_Fun, [], AccList) ->
+    lists:reverse(AccList);
+safemap_tr(Fun, [Head | Tail], AccList) ->
+    safemap_tr(Fun, Tail, [Fun(Head) | AccList]);
+safemap_tr(Fun, ImproperTail, AccList) ->
+    lists:reverse(AccList) ++ Fun(ImproperTail).
+
+-spec tuplemap(fun((term()) -> term()), tuple()) -> tuple().
+tuplemap(Fun, Tuple) ->
+    list_to_tuple(lists:map(Fun, tuple_to_list(Tuple))).
+
+-spec cut_improper_tail(maybe_improper_list(T,term())) -> {[T],T} | [T].
+cut_improper_tail(List) ->
+    cut_improper_tail_tr(List, []).
+
+-spec cut_improper_tail_tr(maybe_improper_list(T,term()) | T, [T]) ->
+	  {[T],T} | [T].
+cut_improper_tail_tr([], AccList) ->
+    lists:reverse(AccList);
+cut_improper_tail_tr([Head | Tail], AccList) ->
+    cut_improper_tail_tr(Tail, [Head | AccList]);
+cut_improper_tail_tr(ImproperTail, AccList) ->
+    {lists:reverse(AccList), ImproperTail}.
 
 
 %%------------------------------------------------------------------------------

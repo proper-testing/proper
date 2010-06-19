@@ -23,26 +23,19 @@
 
 
 %%------------------------------------------------------------------------------
-%% Usage macros
+%% Test generation functions
 %%------------------------------------------------------------------------------
 
--define(FORALL(X,RawType,Prop), {'$forall',RawType,fun(X) -> Prop end}).
--define(IMPLIES(Pre,Prop), {'$implies',Pre,?DELAY(Prop)}).
--define(COLLECT(Category,Prop), {'$collect',Category,Prop}).
--define(WHENFAIL(Action,Test), {'$whenfail',?DELAY(Action),?DELAY(Test)}).
--define(NUMTESTS(N,Test), {'$numtests',N,Test}).
--define(FAILS(Test), {'$fails',Test}).
--define(TRAPEXIT(Test), {'$trapexit',?DELAY(Test)}).
--define(TIMEOUT(Limit,Test), {'$timeout',Limit,?DELAY(Test)}).
+-import(proper, [numtests/2, collect/2, fails/1, equals/2]).
 
 
 %%------------------------------------------------------------------------------
 %% Default types
 %%------------------------------------------------------------------------------
 
--import(proper_types, [integer/2, float/2, atom/0, binary/0, bitstring/0,
-		       list/1, vector/2, union/1, weighted_union/1, tuple/1,
-		       exactly/1, fixed_list/1]).
+-import(proper_types, [integer/2, float/2, atom/0, binary/0, binary/1,
+		       bitstring/0, bitstring/1, list/1, vector/2, union/1,
+		       weighted_union/1, tuple/1, exactly/1, fixed_list/1]).
 
 
 %%------------------------------------------------------------------------------
@@ -53,13 +46,20 @@
 		       neg_integer/0, range/2, float/0, non_neg_float/0,
 		       number/0, boolean/0, byte/0, char/0, string/0,
 		       wunion/1]).
-
-
-%%------------------------------------------------------------------------------
-%% QuickCheck compatibility
-%%------------------------------------------------------------------------------
-
--import(proper_types, [int/0, int/2, bool/0, choose/2, elements/1,
+-import(proper_types, [int/0, int/2, nat/0, bool/0, choose/2, elements/1,
 		       oneof/1, frequency/1]).
+
+
+%%------------------------------------------------------------------------------
+%% Type manipulation functions
+%%------------------------------------------------------------------------------
+
 -import(proper_types, [resize/2, relimit/2, non_empty/1]).
--import(proper, [numtests/2, collect/2, fails/1]).
+
+
+%%------------------------------------------------------------------------------
+%% Symbolic generation functions
+%%------------------------------------------------------------------------------
+
+-import(proper_symb, [eval/1, eval/2, defined/1, well_defined/1, pretty_print/1,
+		      pretty_print/2]).

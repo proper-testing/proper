@@ -53,4 +53,4 @@
 	       constraint_tries = 50    :: pos_integer(),
 	       expect_fail      = false :: boolean(),
 	       try_shrunk       = false :: boolean(),
-	       shrunk                   :: proper:testcase()}).
+	       shrunk                   :: proper:imm_testcase()}).

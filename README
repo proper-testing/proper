@@ -75,8 +75,8 @@ testcase:
 
 numtests(<positive_number>, <test>) or ?NUMTESTS(<positive_number>, <test>)
     These are equivalent to the 'numtests' option, but have higher precedence.
-fails(<test>) of ?FAILS(<test)
-    These are equivalent to the 'expect_fail' option.
+fails(<test>) or ?FAILS(<test)
+    These are equivalent to the 'fails' option.
 
 In verbose mode, each succeeding test prints a '.' on screen. If a test fails,
 a '!' is printed and, unless the test was expected to fail, the program attempts
@@ -121,7 +121,7 @@ available options are:
     Specifies the maximum number of tries before the generator subsystem gives
     up on producing an instance that satisfies a ?SUCHTHAT constraint. Default
     is 50.
-'expect_fail'
+'fails'
     Specifies that we expect the test to fail for some input.
 
 

@@ -19,7 +19,7 @@
 %%% @copyright 2010 Manolis Papadakis
 %%% @version {@version}
 %%% @doc The shrinking subsystem and all predefined shrinkers are contained in
-%%%	this module.
+%%%	 this module.
 
 -module(proper_shrink).
 
@@ -49,15 +49,16 @@
 %% Main shrinking functions
 %%------------------------------------------------------------------------------
 
--spec shrink(proper:testcase(), proper:test(), proper:fail_reason(),
-	     #opts{}) -> {non_neg_integer(),proper:testcase()}.
+-spec shrink(proper:imm_testcase(), proper:test(), proper:fail_reason(),
+	     #opts{}) -> {non_neg_integer(),proper:imm_testcase()}.
 shrink(ImmFailedTestCase, Test, Reason, Opts) ->
     shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
 		       0, Opts#opts.max_shrinks, Opts).
 
--spec shrink_to_fixpoint(proper:testcase(), proper:test(), proper:fail_reason(),
-			 non_neg_integer(), non_neg_integer(), #opts{}) ->
-	  {non_neg_integer(),proper:testcase()}.
+-spec shrink_to_fixpoint(proper:imm_testcase(), proper:test(),
+			 proper:fail_reason(), non_neg_integer(),
+			 non_neg_integer(), #opts{}) ->
+	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: is it too much if we try to reach an equilibrium by repeaing all the
 %%	 shrinkers?
 %% TODO: is it possible to get stuck in an infinite loop (unions are the most
@@ -77,10 +78,10 @@ shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
 				TotalShrinks + N, ShrinksLeft - N, Opts)
     end.
 
--spec shrink_tr(proper:testcase(), proper:testcase(),
+-spec shrink_tr(proper:imm_testcase(), proper:imm_testcase(),
 		proper:forall_clause() | forall2_clause(), proper:fail_reason(),
 		non_neg_integer(), non_neg_integer(), state(), #opts{}) ->
-	  {non_neg_integer(),proper:testcase()}.
+	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: 'tries_left' instead of 'shrinks_left'?
 shrink_tr(Shrunk, TestTail, error, _Reason,
 	  Shrinks, _ShrinksLeft, _State, _Opts) ->

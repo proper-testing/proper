@@ -19,15 +19,16 @@
 %%% @copyright 2010 Manolis Papadakis
 %%% @version {@version}
 %%% @doc The generator subsystem and generators for basic types are contained in
-%%%	this module.
+%%%	 this module.
 
 -module(proper_gen).
 -export([generate/1, generate/3, sample/2, normal_gen/1, alt_gens/1,
 	 clean_instance/1]).
 -export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
-	 binary_str_gen/1, binary_rev/1, bitstring_gen/0, bitstring_rev/1,
-	 list_gen/2, vector_gen/2, union_gen/1, weighted_union_gen/1,
-	 tuple_gen/1, exactly_gen/1, fixed_list_gen/1]).
+	 binary_str_gen/1, binary_rev/1, binary_len_gen/1, binary_len_str_gen/1,
+	 bitstring_gen/0, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
+	 vector_gen/2, union_gen/1, weighted_union_gen/1, tuple_gen/1,
+	 exactly_gen/1, fixed_list_gen/1]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
@@ -155,30 +156,12 @@ clean_instance(ImmInstance) ->
     if
 	is_list(ImmInstance) ->
 	    %% CAUTION: this must handle improper lists
-	    safemap(fun clean_instance/1, ImmInstance);
+	    proper_arith:safemap(fun clean_instance/1, ImmInstance);
 	is_tuple(ImmInstance) ->
-	    tuplemap(fun clean_instance/1, ImmInstance);
+	    proper_arith:tuplemap(fun clean_instance/1, ImmInstance);
 	true ->
 	    ImmInstance
     end.
-
--spec safemap(fun((T) -> Y), maybe_improper_list(T,term())) ->
-	  maybe_improper_list(Y,term()).
-safemap(Fun, List) ->
-    safemap_tr(Fun, List, []).
-
--spec safemap_tr(fun((T) -> Y), maybe_improper_list(T,term()), [Y]) ->
-          maybe_improper_list(Y,term()).
-safemap_tr(_Fun, [], AccList) ->
-    lists:reverse(AccList);
-safemap_tr(Fun, [Head | Tail], AccList) ->
-    safemap_tr(Fun, Tail, [Fun(Head) | AccList]);
-safemap_tr(Fun, ImproperTail, AccList) ->
-    lists:reverse(AccList) ++ Fun(ImproperTail).
-
--spec tuplemap(fun((term()) -> term()), tuple()) -> tuple().
-tuplemap(Fun, Tuple) ->
-    list_to_tuple(lists:map(Fun, tuple_to_list(Tuple))).
 
 
 %%------------------------------------------------------------------------------
@@ -232,18 +215,28 @@ binary_gen(Size) ->
 -spec binary_str_gen(size()) -> binary().
 binary_str_gen(Size) ->
     Len = proper_arith:rand_int(0, Size),
-    crypto:rand_bytes(Len).
+    binary_len_str_gen(Len).
 
 -spec binary_rev(binary()) -> imm_instance().
 binary_rev(Binary) ->
     {'$used', binary_to_list(Binary), Binary}.
+
+-spec binary_len_gen(length()) -> proper_types:type().
+binary_len_gen(Len) ->
+    ?LET(Bytes,
+	 proper_types:vector(Len, proper_types:byte()),
+	 list_to_binary(Bytes)).
+
+-spec binary_len_str_gen(length()) -> binary().
+binary_len_str_gen(Len) ->
+    crypto:rand_bytes(Len).
 
 -spec bitstring_gen() -> proper_types:type().
 bitstring_gen() ->
     ?LET({BytesHead, NumBits, TailByte},
 	 {proper_types:binary(), proper_types:range(0,7),
 	  proper_types:range(0,127)},
-	 <<BytesHead/binary, TailByte:NumBits>>).
+	  <<BytesHead/binary, TailByte:NumBits>>).
 
 -spec bitstring_rev(bitstring()) -> imm_instance().
 bitstring_rev(BitString) ->
@@ -258,6 +251,15 @@ bitstring_rev(BitString) ->
     {'$used',
      {{'$used',BytesList,list_to_binary(BytesList)}, NumBits, TailByte},
      BitString}.
+
+-spec bitstring_len_gen(length()) -> proper_types:type().
+bitstring_len_gen(Len) ->
+    BytesLen = Len div 8,
+    BitsLen = Len rem 8,
+    ?LET({BytesHead, NumBits, TailByte},
+	 {proper_types:binary(BytesLen), BitsLen,
+	  proper_types:range(0, 1 bsl BitsLen - 1)},
+	  <<BytesHead/binary, TailByte:NumBits>>).
 
 -spec list_gen(size(), proper_types:type()) -> [imm_instance()].
 list_gen(Size, ElemType) ->

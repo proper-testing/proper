@@ -21,13 +21,13 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([numtests/2, collect/2, fails/1]).
 -export([set_size/1, erase_size/0, grow_size/0, get_size/1, parse_opts/1,
 	 global_state_init/1, global_state_erase/1]).
+-export([numtests/2, collect/2, fails/1, equals/2]).
 -export([check/1, check/2, child/4, still_fails/3, skip_to_next/1]).
 -export([print/3]).
 
--export_type([testcase/0, test/0, forall_clause/0, fail_reason/0]).
+-export_type([imm_testcase/0, test/0, forall_clause/0, fail_reason/0]).
 
 -include("proper_internal.hrl").
 
@@ -36,7 +36,7 @@
 %% Types
 %%------------------------------------------------------------------------------
 
--type testcase() :: [proper_gen:imm_instance()].
+-type imm_testcase() :: [proper_gen:imm_instance()].
 -type clean_testcase() :: [proper_gen:instance()].
 -type category() :: term().
 -type cat_dict() :: [{category(),frequency()}].
@@ -54,6 +54,8 @@
 	      | whenfail_clause()
 	      | trapexit_clause()
 	      | timeout_clause()
+	      %%| always_clause()
+	      %%| sometimes_clause()
 	      | apply_clause().
 -type delayed_test() :: fun(() -> test()).
 
@@ -66,6 +68,8 @@
 -type whenfail_clause() :: {'$whenfail', side_effects_fun(), delayed_test()}.
 -type trapexit_clause() :: {'$trapexit', delayed_test()}.
 -type timeout_clause() :: {'$timeout', time_period(), delayed_test()}.
+%%-type always_clause() :: {'$always', pos_integer(), delayed_test()}.
+%%-type sometimes_clause() :: {'$sometimes', pos_integer(), delayed_test()}.
 -type apply_clause() :: {'$apply', [term()], function()}.
 
 -type opt() :: 'quiet'
@@ -74,17 +78,17 @@
 	     | pos_integer()
 	     | {'max_shrinks', non_neg_integer()}
 	     | {'constraint_tries', pos_integer()}
-	     | 'expect_fail'.
+	     | 'fails'.
 %% TODO: other ways for the user to define the extra exceptions to catch?
 %% TODO: should they contain specific reasons (or '$any' for all reasons)?
 %% TODO: allow errors to be caught?
 -record(ctx, {catch_exits  = false :: boolean(),
-	      bound        = []    :: testcase(),
+	      bound        = []    :: imm_testcase(),
 	      fail_actions = []    :: fail_actions(),
 	      categories   = []    :: [category()]}).
 -type single_run_result() :: {'passed', 'didnt_crash'}
 			   | {'passed', {'categories',[category()]}}
-			   | {'failed', fail_reason(), testcase(),
+			   | {'failed', fail_reason(), imm_testcase(),
 			      fail_actions()}
 			   | {'error', 'wrong_type'}
 			   | {'error', 'cant_generate'}
@@ -97,7 +101,7 @@
 		       | {'error', 'cant_satisfy'}
 		       | {'error', {'unexpected', single_run_result()}}.
 -type imm_result() :: common_result()
-		    | {'failed', pos_integer(), fail_reason(), testcase(),
+		    | {'failed', pos_integer(), fail_reason(), imm_testcase(),
 		       fail_actions()}.
 -type final_result() :: common_result()
 		      | {'failed', pos_integer(), fail_reason(),
@@ -107,17 +111,8 @@
 
 
 %%------------------------------------------------------------------------------
-%% Common functions
+%% Utility functions
 %%------------------------------------------------------------------------------
-
--spec numtests(pos_integer(), outer_test()) -> numtests_clause().
-numtests(N, Test) -> {'$numtests',N,Test}.
-
--spec collect(category(), test()) -> collect_clause().
-collect(Category, Prop) -> {'$collect',Category,Prop}.
-
--spec fails(outer_test()) -> fails_clause().
-fails(Test) -> {'$fails',Test}.
 
 -spec set_size(size()) -> 'ok'.
 set_size(Size) ->
@@ -173,8 +168,26 @@ parse_opt(Opt, Opts) ->
 	N when is_integer(N), N > 0  -> Opts#opts{numtests = N};
 	{max_shrinks,N}              -> Opts#opts{max_shrinks = N};
 	{constraint_tries,N}         -> Opts#opts{constraint_tries = N};
-	expect_fail                  -> Opts#opts{expect_fail = true}
+	fails                        -> Opts#opts{expect_fail = true}
     end.
+
+
+%%------------------------------------------------------------------------------
+%% Test generation functions
+%%------------------------------------------------------------------------------
+
+-spec numtests(pos_integer(), outer_test()) -> numtests_clause().
+numtests(N, Test) -> {'$numtests',N,Test}.
+
+-spec collect(category(), test()) -> collect_clause().
+collect(Category, Prop) -> {'$collect',Category,Prop}.
+
+-spec fails(outer_test()) -> fails_clause().
+fails(Test) -> {'$fails',Test}.
+
+-spec equals(term(), term()) -> whenfail_clause().
+equals(A, B) ->
+    ?WHENFAIL(io:format("~w =/= ~w~n", [A, B]), A =:= B).
 
 
 %%------------------------------------------------------------------------------
@@ -368,7 +381,7 @@ clear_mailbox() ->
 	ok
     end.
 
--spec still_fails(testcase(), test(), fail_reason()) -> boolean().
+-spec still_fails(imm_testcase(), test(), fail_reason()) -> boolean().
 still_fails(TestCase, Test, OldReason) ->
     Opts = #opts{quiet = true, try_shrunk = true, shrunk = TestCase},
     case run(Test, Opts) of
