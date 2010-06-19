@@ -16,7 +16,7 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% User header file
-%%% This shoulde be included in each file containing user type declarations
+%%% This should be included in each file containing user type declarations
 %%% and/or properties to be tested.
 
 -include("proper_common.hrl").
