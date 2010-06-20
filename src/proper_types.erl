@@ -32,9 +32,9 @@
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 string/0, wunion/1]).
--export([int/0, int/2, nat/0, bool/0, choose/2, elements/1, oneof/1,
-	 frequency/1]).
--export([resize/2, relimit/2, non_empty/1]).
+-export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
+	 oneof/1, frequency/1, return/1, orderedlist/1]).
+-export([resize/2, relimit/2, non_empty/1, noshrink/1]).
 
 -export_type([type/0, raw_type/0]).
 
@@ -59,10 +59,10 @@
 		  | maybe_improper_list(_,_) | <<_:_ * 1>>.
 -type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
 			| 'size_limit' | 'size_transform' | 'is_instance'
-			| 'shrinkers' | 'internal_type' | 'internal_types'
-			| 'get_length' | 'split' | 'join' | 'get_indices'
-			| 'remove' | 'retrieve' | 'update' | 'constraints'
-			| 'parts_type' | 'combine' | 'alt_gens'.
+			| 'shrinkers' | 'noshrink' | 'internal_type'
+			| 'internal_types' | 'get_length' | 'split' | 'join'
+			| 'get_indices' | 'remove' | 'retrieve' | 'update'
+			| 'constraints' | 'parts_type' | 'combine' | 'alt_gens'.
 -type type_prop_value() :: term().
 -type type_prop() ::
       {'kind', type_kind()}
@@ -73,6 +73,7 @@
     | {'size_transform', fun((size()) -> size())}
     | {'is_instance', instance_test()}
     | {'shrinkers', [proper_shrink:shrinker()]}
+    | {'noshrink', boolean()}
     | {'internal_type', raw_type()}
     | {'internal_types', tuple(type()) | maybe_improper_list(type(),term())}
       %% The items returned by 'remove' must be of this type.
@@ -177,6 +178,9 @@ subtype(PropList, Type) ->
     add_props(PropList, Type).
 
 -spec is_instance(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
+%% TODO: if the second argument is not a type, let it pass (don't even check for
+%%	 term equality?) - if it's a raw type, don't cook it, instead recurse
+%%	 into it.
 is_instance(ImmInstance, Type) ->
     CleanInstance = proper_gen:clean_instance(ImmInstance),
     proper_arith:and3(
@@ -196,6 +200,7 @@ is_instance(ImmInstance, Type) ->
 
 -spec wrapper_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
 wrapper_test(ImmInstance, Type) ->
+    %% TODO: check if it's actually a raw type that's returned?
     proper_arith:any3([is_instance(ImmInstance, T) || T <- unwrap(Type)]).
 
 -spec unwrap(type()) -> [type()].
@@ -213,7 +218,7 @@ constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
 	true ->
 	    %% TODO: check if it's actually a raw type that's returned?
 	    %% TODO: move construction code to proper_gen
-	    %% TODO: something less strict when an exactly is produced?
+	    %% TODO: non-type => should we check for strict term equality?
 	    RawInnerType = Combine(proper_gen:clean_instance(ImmParts)),
 	    InnerType = cook_outer(RawInnerType),
 	    is_instance(ImmInstance, InnerType);
@@ -648,11 +653,14 @@ wunion(FreqChoices) -> weighted_union(FreqChoices).
 -spec int() -> type().
 int() -> ?SIZED(Size, integer(-Size,Size)).
 
--spec int(proper_arith:extint(), proper_arith:extint()) -> type().
-int(Low, High) -> integer(Low, High).
-
 -spec nat() -> type().
 nat() -> ?SIZED(Size, integer(0,Size)).
+
+-spec largeint() -> type().
+largeint() -> integer().
+
+-spec real() -> type().
+real() -> float().
 
 -spec bool() -> type().
 bool() -> boolean().
@@ -668,6 +676,13 @@ oneof(Choices) -> union(Choices).
 
 -spec frequency([{frequency(),raw_type()}]) -> type().
 frequency(FreqChoices) -> weighted_union(FreqChoices).
+
+-spec return(term()) -> type().
+return(X) -> exactly(X).
+
+-spec orderedlist(raw_type()) -> type().
+orderedlist(RawElemType) ->
+    ?LET(L, list(RawElemType), lists:sort(L)).
 
 
 %%------------------------------------------------------------------------------
@@ -685,3 +700,7 @@ relimit(Limit, RawType) ->
 -spec non_empty(raw_type()) -> type().
 non_empty(RawListType) ->
     ?SUCHTHAT(L, RawListType, L =/= []).
+
+-spec noshrink(type()) -> type().
+noshrink(Type) ->
+    add_prop(noshrink, true, Type).

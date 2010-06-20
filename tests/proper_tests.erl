@@ -63,7 +63,9 @@ quicksort([H|T]) ->
     quicksort(Lower) ++ [H] ++ quicksort(Higher).
 
 
+%%------------------------------------------------------------------------------
 %% Datatypes
+%%------------------------------------------------------------------------------
 
 uvector(0, _ElemType) ->
    [];
@@ -137,7 +139,7 @@ tree(ElemType, Size) ->
     Left = tree(ElemType, Size div 2),
     Right = tree(ElemType, Size div 2 - 1 + Size rem 2),
     frequency([
-	{1, {empty}},
+	{1, tree(ElemType,0)},
 	{5, ?LETSHRINK([L,R], [Left,Right], {node,ElemType,L,R})}
     ]).
 
@@ -159,6 +161,20 @@ stream(ExpectedMeanLen) ->
 	{ExpectedMeanLen, [0 | stream(ExpectedMeanLen)]}
     ])).
 
+symbdict(KeyType, ValueType) ->
+    ?SIZED(Size, symbdict(Size, KeyType, ValueType)).
+
+symbdict(0, _KeyType, _ValueType) ->
+    {call,dict,new,[]};
+symbdict(Size, KeyType, ValueType) ->
+    ?LAZY(
+	frequency([
+	    {1,symbdict(0, KeyType, ValueType)},
+	    {4,?LETSHRINK([Smaller], [symbdict(Size - 1, KeyType, ValueType)],
+			  {call, dict, append,[KeyType,ValueType,Smaller]})}
+	])
+    ).
+
 
 %%------------------------------------------------------------------------------
 %% Various Tests
@@ -171,7 +187,7 @@ test(1) ->
 			    lists:reverse(lists:reverse(Xs)) == Xs)));
 test(2) ->
     ?FORALL(Xs, list(integer()),
-	    ?WHENFAIL(io:format("it failed!", []),
+	    ?WHENFAIL(io:format("it failed!~n", []),
 		      lists:reverse(Xs) == Xs));
 test(3) ->
     ?FORALL(L, list(integer()), correctly_sorted(L, quicksort(L)));
@@ -271,5 +287,15 @@ test(25) ->
 	    range(50,200),
 	    ?TIMEOUT(100,
 		     timer:sleep(Dt) == ok));
+test(26) ->
+    ?FORALL(X,
+	    noshrink(integer()),
+	    X < 2);
+test(27) ->
+    ?FORALL(SD,
+	    symbdict(integer(),integer()),
+	    not dict:is_key(42, eval(SD)));
+test(28) ->
+    ?FORALL({X,Y}, [integer(),integer()], X < Y);
 test(_) ->
     ?FORALL(_, integer(), true).

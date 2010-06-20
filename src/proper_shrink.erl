@@ -158,27 +158,32 @@ shrink_one(ImmInstance, Type, {shrunk,N,{shrinker,Shrinkers,State}}) ->
 
 -spec get_shrinkers(proper_types:type()) -> [shrinker()].
 get_shrinkers(Type) ->
-    CustomShrinkers =
-	case proper_types:find_prop(shrinkers, Type) of
-	    {ok, Shrinkers} -> Shrinkers;
-	    error           -> []
-	end,
-    StandardShrinkers =
-	case proper_types:get_prop(kind, Type) of
-	    basic ->
-		[];
-	    wrapper ->
-		[fun alternate_shrinker/3, fun unwrap_shrinker/3];
-	    constructed ->
-		[fun parts_shrinker/3, fun recursive_shrinker/3];
-	    semi_opaque ->
-		[fun split_shrinker/3, fun remove_shrinker/3,
-		 fun elements_shrinker/3];
-	    opaque ->
-		[fun split_shrinker/3, fun remove_shrinker/3,
-		 fun elements_shrinker/3]
-	end,
-    CustomShrinkers ++ StandardShrinkers.
+    case proper_types:find_prop(noshrink, Type) of
+	{ok, true} ->
+	    [];
+	_ ->
+	    CustomShrinkers =
+		case proper_types:find_prop(shrinkers, Type) of
+		    {ok, Shrinkers} -> Shrinkers;
+		    error           -> []
+		end,
+	    StandardShrinkers =
+		case proper_types:get_prop(kind, Type) of
+		    basic ->
+			[];
+		    wrapper ->
+			[fun alternate_shrinker/3, fun unwrap_shrinker/3];
+		    constructed ->
+			[fun parts_shrinker/3, fun recursive_shrinker/3];
+		    semi_opaque ->
+			[fun split_shrinker/3, fun remove_shrinker/3,
+			fun elements_shrinker/3];
+		    opaque ->
+			[fun split_shrinker/3, fun remove_shrinker/3,
+			fun elements_shrinker/3]
+		end,
+	    CustomShrinkers ++ StandardShrinkers
+    end.
 
 
 %%------------------------------------------------------------------------------

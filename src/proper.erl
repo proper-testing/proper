@@ -194,11 +194,12 @@ equals(A, B) ->
 %% Main usage functions
 %%------------------------------------------------------------------------------
 
--spec check(outer_test()) -> final_result() | 'ok'.
+-spec check(outer_test()) -> final_result() | boolean().
 check(Test) ->
     check(Test, #opts{}).
 
--spec check(outer_test(), #opts{} | [opt()] | opt()) -> final_result() | 'ok'.
+-spec check(outer_test(), #opts{} | [opt()] | opt()) ->
+	  final_result() | boolean().
 check({'$numtests',N,Test}, #opts{} = Opts) ->
     check(Test, Opts#opts{numtests = N});
 %% We only allow a 'fails' to be an external wrapper, since the property
@@ -210,20 +211,29 @@ check(Test, #opts{numtests = NumTests, quiet = Quiet} = Opts) ->
     global_state_init(Opts),
     ImmResult = perform(0, NumTests, Test, none, Opts),
     report_imm_result(ImmResult, Opts),
+    ShortResult = get_short_result(ImmResult, Opts),
     FinalResult = get_final_result(ImmResult, Test, Opts),
     global_state_erase(Opts),
     case Quiet of
 	true  -> FinalResult;
-	false -> ok
+	false -> ShortResult
     end;
 check(Test, OptsList) ->
     check(Test, parse_opts(OptsList)).
+
+-spec get_short_result(imm_result(), #opts{}) -> boolean().
+get_short_result({passed,_,_}, #opts{expect_fail = ExpectFail}) ->
+    not ExpectFail;
+get_short_result({failed,_,_,_,_}, #opts{expect_fail = ExpectFail}) ->
+    ExpectFail;
+get_short_result({error,_}, _Opts) ->
+    false.
 
 -spec get_final_result(imm_result(), test(), #opts{}) -> final_result().
 get_final_result({failed,Performed,Reason,ImmFailedTestCase,_FailActions}, Test,
 		 #opts{expect_fail = ExpectFail} = Opts) ->
     FailedTestCase = proper_gen:clean_instance(ImmFailedTestCase),
-    case ExpectFail of
+    case ExpectFail of %% TODO: no shrink option here
 	false ->
 	    {Shrinks, ImmMinTestCase} =
 		proper_shrink:shrink(ImmFailedTestCase, Test, Reason, Opts),

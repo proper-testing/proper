@@ -46,15 +46,16 @@
 		       neg_integer/0, range/2, float/0, non_neg_float/0,
 		       number/0, boolean/0, byte/0, char/0, string/0,
 		       wunion/1]).
--import(proper_types, [int/0, int/2, nat/0, bool/0, choose/2, elements/1,
-		       oneof/1, frequency/1]).
+-import(proper_types, [int/0, nat/0, largeint/0, real/0, bool/0, choose/2,
+		       elements/1, oneof/1, frequency/1, return/1,
+		       orderedlist/1]).
 
 
 %%------------------------------------------------------------------------------
 %% Type manipulation functions
 %%------------------------------------------------------------------------------
 
--import(proper_types, [resize/2, relimit/2, non_empty/1]).
+-import(proper_types, [resize/2, relimit/2, non_empty/1, noshrink/1]).
 
 
 %%------------------------------------------------------------------------------
