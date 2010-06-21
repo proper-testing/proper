@@ -21,10 +21,11 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
+
 -export([set_size/1, erase_size/0, grow_size/0, get_size/1, parse_opts/1,
 	 global_state_init/1, global_state_erase/1]).
 -export([numtests/2, collect/2, fails/1, equals/2]).
--export([check/1, check/2, child/4, still_fails/3, skip_to_next/1]).
+-export([check/1, check/2, still_fails/3, skip_to_next/1]).
 -export([print/3]).
 
 -export_type([imm_testcase/0, test/0, forall_clause/0, fail_reason/0]).
@@ -355,7 +356,8 @@ run({'$trapexit',Prop}, Context, Opts) ->
     NewContext = Context#ctx{catch_exits = true},
     run({'$apply',[],Prop}, NewContext, Opts);
 run({'$timeout',Limit,Prop}, Context, Opts) ->
-    Child = spawn_link(?MODULE, child, [self(), Prop, Context, Opts]),
+    Self = self(),
+    Child = spawn_link(fun () -> child(Self, Prop, Context, Opts) end),
     receive
 	{result, Result} -> Result
     after Limit ->
