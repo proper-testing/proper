@@ -297,5 +297,9 @@ test(27) ->
 	    not dict:is_key(42, eval(SD)));
 test(28) ->
     ?FORALL({X,Y}, [integer(),integer()], X < Y);
+test(29) ->
+    ?FORALL({F,L},
+	    {function(1,integer(1,100)), list(integer())},
+	    lists:all(fun(X) -> F(X) =/= 42 end, L));
 test(_) ->
     ?FORALL(_, integer(), true).

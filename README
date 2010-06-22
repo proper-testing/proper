@@ -4,6 +4,9 @@ Contact information and license
 
 PropEr is Copyright 2010 Manolis Papadakis (manopapad@gmail.com).
 
+Contributions by:
+* Kostis Sagonas (kostis@cs.ntua.gr)
+
 This program is distributed under the GPL, version 3 or later. Please see the
 COPYING file for details.
 
@@ -28,7 +31,7 @@ Quickstart guide
 * For each property, run:
      proper:check(your_module:some_property()).
   You can also try out the random instance generation subsystem by running:
-     proper_gen:sample(some_type()).
+     proper_gen:pick(some_type()).
 
 
 --------------------------------------------------------------------------------
@@ -129,6 +132,9 @@ available options are:
     integers) - make sure the crypto module is available before enabling this.
     This has the side-effect that an INFO message is printed on screen when
     the program exits, because of the stopping of the crypto server.
+    CAUTION: This option is incompatible with the random function generation
+    subsystem - do not enable it for tests that contain randomly generated
+    functions.
 {'numtests', <Positive_number>} or simply <Positive_number>
     This is equivalent to the 'numtests' property wrapper. Any 'numtests'
     wrappers in the actual property will overwrite this setting.
@@ -194,6 +200,9 @@ The following basic types are provided:
     instances shrink towards the empty list, []
 * string() : all lists of characters,
     instances shrink towards the empty string, ""
+* function(ArgTypes, RetType) : all functions that map instances of ArgTypes
+    (ArgTypes must be provided in a list) to instances of RetType,
+    the syntax function(Arity, RetType) is also acceptable
 
 All the above have analogues in the built-in types of the Erlang language.
 
@@ -243,6 +252,11 @@ In addition, the following types are provided:
     the shrinking subsystem will ignore the frequencies and try to shrink
     towards the first type in ListOfTypes,
     also written as wunion(ListOfTypes) and frequency(ListOfTypes)
+* default(Default, Type) : adds a default value, Default, to Type,
+    the default serves as a primary shrinking target for instances, while it is
+    also chosen by the random instance generation subsystem half the time
+* function[0-4](RetType) : equivalent to function([0-4], RetType), provided for
+    compatibility with QuickCheck
 
 As you can see from the above descriptions, types can be combined in tuples or
 lists to produce other types, while exact values (such as exact numbers, atoms

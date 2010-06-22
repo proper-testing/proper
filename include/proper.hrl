@@ -30,12 +30,13 @@
 
 
 %%------------------------------------------------------------------------------
-%% Default types
+%% Basic types
 %%------------------------------------------------------------------------------
 
 -import(proper_types, [integer/2, float/2, atom/0, binary/0, binary/1,
 		       bitstring/0, bitstring/1, list/1, vector/2, union/1,
-		       weighted_union/1, tuple/1, exactly/1, fixed_list/1]).
+		       weighted_union/1, tuple/1, exactly/1, fixed_list/1,
+		       function/2]).
 
 
 %%------------------------------------------------------------------------------
@@ -47,8 +48,9 @@
 		       number/0, boolean/0, byte/0, char/0, string/0,
 		       wunion/1]).
 -import(proper_types, [int/0, nat/0, largeint/0, real/0, bool/0, choose/2,
-		       elements/1, oneof/1, frequency/1, return/1,
-		       orderedlist/1]).
+		       elements/1, oneof/1, frequency/1, return/1, default/2,
+		       orderedlist/1, function0/1, function1/1, function2/1,
+		       function3/1, function4/1]).
 
 
 %%------------------------------------------------------------------------------

@@ -24,10 +24,10 @@
 -module(proper_arith).
 -export([le/2, and3/2, or3/2, any3/1, all3/1, maybe/1, surely/1]).
 -export([safemap/2, tuplemap/2, cut_improper_tail/1]).
--export([rand_start/1, rand_stop/1,
+-export([rand_start/1, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
-	 jumble/1, rand_choose/1, freq_choose/1]).
+	 rand_bytes/1, jumble/1, rand_choose/1, freq_choose/1]).
 
 -export_type([extint/0, extnum/0, ternary/0]).
 
@@ -164,8 +164,8 @@ rand_start(Opts) ->
 	    ok
     end.
 
--spec rand_stop(#opts{}) -> 'ok'.
-rand_stop(_Opts) ->
+-spec rand_stop() -> 'ok'.
+rand_stop() ->
     case get('$crypto') of
 	true ->
 	    erase('$crypto'),
@@ -219,6 +219,10 @@ rand_float(Low, High) when is_float(Low), is_float(High), Low =< High ->
 %% TODO: read global options and decide here which bijection to use
 zero_one_to_zero_inf(X) ->
     10 * X / math:sqrt(1 - X*X).
+
+-spec rand_bytes(length()) -> binary().
+rand_bytes(Len) ->
+    crypto:rand_bytes(Len).
 
 -spec jumble([T]) -> [T].
 %% @doc Produces a random permutation of a list.

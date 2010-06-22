@@ -22,13 +22,14 @@
 %%%	 this module.
 
 -module(proper_gen).
--export([generate/1, generate/3, sample/2, normal_gen/1, alt_gens/1,
-	 clean_instance/1]).
+-export([generate/1, generate/2, pick/1, pick/2]).
+-export([normal_gen/1, alt_gens/1, clean_instance/1, get_ret_type/2,
+	 function_body/3, gen_state_erase/0]).
 -export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
 	 binary_str_gen/1, binary_rev/1, binary_len_gen/1, binary_len_str_gen/1,
 	 bitstring_gen/0, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
 	 vector_gen/2, union_gen/1, weighted_union_gen/1, tuple_gen/1,
-	 exactly_gen/1, fixed_list_gen/1]).
+	 exactly_gen/1, fixed_list_gen/1, function_gen/2]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
@@ -57,6 +58,7 @@
 -type reverse_gen() :: fun((instance()) -> imm_instance()).
 -type combine_fun() :: fun((instance()) -> imm_instance()).
 -type alt_gens() :: fun(() -> [imm_instance()]).
+-type fun_num() :: pos_integer().
 
 
 %%------------------------------------------------------------------------------
@@ -68,6 +70,11 @@ generate(Type = {'$type',_Props}) ->
     generate(Type, get('$constraint_tries'), '$cant_generate');
 generate(RawType) ->
     generate(proper_types:cook_outer(RawType)).
+
+-spec generate(proper_types:type(), non_neg_integer()) ->
+	  imm_instance() | '$cant_generate'.
+generate(Type, MaxTries) ->
+    generate(Type, MaxTries, '$cant_generate').
 
 -spec generate(proper_types:type(), non_neg_integer(), term()) -> term().
 generate(_Type, 0, Fallback) ->
@@ -119,15 +126,33 @@ generate(Type, TriesLeft, Fallback) ->
 			 generate(Type, TriesLeft - 1, Fallback)
     end.
 
--spec sample(size(), proper_types:raw_type()) -> instance().
-sample(Size, RawType) ->
+-spec pick(proper_types:raw_type()) -> instance().
+pick(RawType) ->
+    pick(RawType, 10).
+
+-spec pick(proper_types:raw_type(), size()) -> instance().
+pick(RawType, Size) ->
     Opts = #opts{},
     proper:global_state_init(Opts),
     proper:set_size(Size),
     ImmInstance = generate(RawType),
     %% io:format("~p~n~n", [ImmInstance]),
-    proper:global_state_erase(Opts),
-    clean_instance(ImmInstance).
+    Instance = clean_instance(ImmInstance),
+    if
+	is_function(Instance) ->
+	    io:format("WARNING: Some garbage has been left in the process "
+		      "registry and the code server to allow for the returned "
+		      "function to run normally.~nPlease run "
+		      "proper:global_state_erase() when done.~n", []);
+	true ->
+	    proper:global_state_erase()
+    end,
+    Instance.
+
+
+%%------------------------------------------------------------------------------
+%% Utility functions
+%%------------------------------------------------------------------------------
 
 -spec normal_gen(proper_types:type()) -> imm_instance().
 normal_gen(Type) ->
@@ -162,6 +187,51 @@ clean_instance(ImmInstance) ->
 	true ->
 	    ImmInstance
     end.
+
+-spec get_next_fun_num() -> fun_num().
+get_next_fun_num() ->
+    FunNum = case get('$next_fun_num') of
+		 undefined -> 1;
+		 N         -> N
+	     end,
+    put('$next_fun_num', FunNum + 1),
+    FunNum.
+
+-spec get_ret_type(function(), arity()) -> proper_types:type().
+get_ret_type(Fun, Arity) ->
+    put('$get_ret_type', true),
+    RetType = apply(Fun, lists:duplicate(Arity,dummy)),
+    erase('$get_ret_type'),
+    RetType.
+
+-spec function_body([term()], proper_types:type() | binary(),
+		    {integer(),integer()}) ->
+	  proper_types:type() | instance().
+function_body(Args, ImmRetType, {Seed1,Seed2}) ->
+    RetType = if
+		  is_binary(ImmRetType) -> binary_to_term(ImmRetType);
+		  true                  -> ImmRetType
+	      end,
+    case get('$get_ret_type') of
+	true ->
+	    RetType;
+	_ ->
+	    SavedSeed = get(random_seed),
+	    put(random_seed, {Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
+	    case clean_instance(generate(RetType)) of
+		'$cant_generate' ->
+		    throw('$cant_generate');
+		Ret ->
+		    put(random_seed, SavedSeed),
+		    Ret
+	    end
+    end.
+
+-spec gen_state_erase() -> 'ok'.
+gen_state_erase() ->
+    erase('$next_fun_num'),
+    erase('$forms'),
+    ok.
 
 
 %%------------------------------------------------------------------------------
@@ -229,7 +299,7 @@ binary_len_gen(Len) ->
 
 -spec binary_len_str_gen(length()) -> binary().
 binary_len_str_gen(Len) ->
-    crypto:rand_bytes(Len).
+    proper_arith:rand_bytes(Len).
 
 -spec bitstring_gen() -> proper_types:type().
 bitstring_gen() ->
@@ -295,3 +365,47 @@ fixed_list_gen({ProperHead,ImproperTail}) ->
     [generate(F) || F <- ProperHead] ++ generate(ImproperTail);
 fixed_list_gen(ProperFields) ->
     [generate(F) || F <- ProperFields].
+
+-spec function_gen(arity(), proper_types:type()) -> function().
+function_gen(Arity, RetType) ->
+    FunSeed = {proper_arith:rand_int(0,?SEED_RANGE - 1),
+	       proper_arith:rand_int(0,?SEED_RANGE - 1)},
+    case Arity of
+	0 ->
+	    fun() -> function_body([], RetType, FunSeed) end;
+	1 ->
+	    fun(A) -> function_body([A], RetType, FunSeed) end;
+	2 ->
+	    fun(A,B) -> function_body([A,B], RetType, FunSeed) end;
+	3 ->
+	    fun(A,B,C) -> function_body([A,B,C], RetType, FunSeed) end;
+	4 ->
+	    fun(A,B,C,D) -> function_body([A,B,C,D], RetType, FunSeed) end;
+	_ ->
+	    OldForms = case get('$forms') of
+			   undefined -> [{attribute,0,module,'$temp_mod'}];
+			   F         -> F
+		       end,
+	    {FunName,FunForm} = new_function(Arity, RetType, FunSeed),
+	    Forms = OldForms ++ [FunForm],
+	    put('$forms', Forms),
+	    %% TODO: verbose and report options?
+	    {ok,'$temp_mod',Code} = compile:forms(Forms, [export_all]),
+	    {module,_Mod} = code:load_binary('$temp_mod', "no_file", Code),
+	    erlang:make_fun('$temp_mod', FunName, Arity)
+    end.
+
+%% TODO: what is the type for abstract format clauses?
+-spec new_function(arity(), proper_types:type(), {integer(),integer()}) ->
+	  {atom(), _}.
+new_function(Arity, RetType, FunSeed) ->
+    FunNum = get_next_fun_num(),
+    FunName = list_to_atom("f" ++ integer_to_list(FunNum)),
+    Args = [{var,0,list_to_atom("X" ++ integer_to_list(N))}
+	    || N <- lists:seq(1, Arity)],
+    ArgsList = lists:foldr(fun(X,Acc) -> {cons,0,X,Acc} end, {nil,0}, Args),
+    Body = [{call, 0, {remote,0,{atom,0,?MODULE},{atom,0,function_body}},
+	     [ArgsList,
+	      erl_parse:abstract(term_to_binary(RetType)),
+	      erl_parse:abstract(FunSeed)]}],
+    {FunName, {function,0,FunName,Arity,[{clause,0,Args,[],Body}]}}.

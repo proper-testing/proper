@@ -226,8 +226,8 @@ parts_shrinker({'$used',ImmParts,ImmInstance}, Type,
 	[try_combine(P, ImmInstance, PartsType, Combine) || P <- NewImmParts],
     NotError = fun(X) ->
 		   case X of
-		       {'$used',_,'$error'} -> false;
-		       _                    -> true
+		       {'$used',_,'$cant_generate'} -> false;
+		       _                            -> true
 		   end
 	       end,
     {NewInstances,NewLookup} = filter(NotError, DirtyNewInstances),
@@ -266,6 +266,7 @@ try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
 		true ->
 		    InnerType = proper_types:cook_outer(ImmInstance),
 		    %% TODO: special case if the immediately internal is a LET?
+		    %% TODO: more specialized is_instance check here
 		    case proper_arith:surely(proper_types:is_instance(
 			     OldImmInstance, InnerType)) of
 			true ->
@@ -273,14 +274,14 @@ try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
 			false ->
 			    %% TODO: return more than one? then we must flatten
 			    NewImmInstance = proper_gen:generate(InnerType,
-				?MAX_RANDOM_TRIES_WHEN_SHRINKING, '$error'),
+				?MAX_RANDOM_TRIES_WHEN_SHRINKING),
 			    {'$used',ImmParts,NewImmInstance}
 		    end;
 		false ->
 		    {'$used',ImmParts,ImmInstance}
 	    end;
 	false ->
-	    {'$used',dummy,'$error'}
+	    {'$used',dummy,'$cant_generate'}
     end.
 
 -spec recursive_shrinker(proper_gen:imm_instance(), proper_types:type(),
@@ -544,10 +545,9 @@ union_first_choice_shrinker(Instance, Choices, init) ->
 	{N,_Type} ->
 	    %% TODO: some kind of constraints test here?
 	    {[X || X <- [proper_gen:generate(T,
-					     ?MAX_RANDOM_TRIES_WHEN_SHRINKING,
-					     '$error')
+					     ?MAX_RANDOM_TRIES_WHEN_SHRINKING)
 			 || T <- lists:sublist(Choices, N - 1)],
-		   X =/= '$error'],
+		   X =/= '$cant_generate'],
 	     done}
     end;
 union_first_choice_shrinker(_Instance, _Choices, {shrunk,_Pos,done}) ->

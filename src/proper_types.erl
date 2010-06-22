@@ -28,12 +28,13 @@
 -export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
-	 exactly/1, fixed_list/1]).
+	 exactly/1, fixed_list/1, function/2]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 string/0, wunion/1]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
-	 oneof/1, frequency/1, return/1, orderedlist/1]).
+	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
+	 function1/1, function2/1, function3/1, function4/1]).
 -export([resize/2, relimit/2, non_empty/1, noshrink/1]).
 
 -export_type([type/0, raw_type/0]).
@@ -298,9 +299,8 @@ add_constraint(RawType, Condition, IsStrict) ->
 %%------------------------------------------------------------------------------
 
 %% TODO: bin types: specified length, base size, unit size?
-%% TODO: fun (generally some fun, unspecified number of arguments, but specified
-%%	 return type, specific number and types of arguments and specific return
-%%	 type) ("function" keyword?)
+%% TODO: functions: generally some fun, unspecified number of arguments, but
+%%	 specified return type ("function" keyword?)
 %% TODO: pid, port, ref (it's dangerous to provide random process data to
 %%	 functions - they must want it for a reason (least we can do is have a
 %%	 live function with that pid))
@@ -598,6 +598,22 @@ improper_list_update(Index, Value, List, HeadLen) ->
 	false -> lists:sublist(List, HeadLen) ++ Value
     end.
 
+-spec function([raw_type()] | arity(), raw_type()) -> type().
+function(Arity, RawRetType) when is_integer(Arity), Arity >= 0 ->
+    RetType = cook_outer(RawRetType),
+    ?BASIC([
+	{generator, fun() -> proper_gen:function_gen(Arity, RetType) end},
+	{is_instance, fun(X) -> function_test(X, Arity, RetType) end}
+    ]);
+function(RawArgTypes, RawRetType) ->
+    function(length(RawArgTypes), RawRetType).
+
+-spec function_test(proper_gen:imm_instance(), arity(), type()) -> boolean().
+function_test(X, Arity, RetType) ->
+    is_function(X, Arity)
+    %% TODO: what if it's not a function we produced?
+    andalso proper_gen:get_ret_type(X, Arity) =:= RetType.
+
 
 %%------------------------------------------------------------------------------
 %% Type aliases
@@ -680,9 +696,33 @@ frequency(FreqChoices) -> weighted_union(FreqChoices).
 -spec return(term()) -> type().
 return(X) -> exactly(X).
 
+-spec default(raw_type(), raw_type()) -> type().
+default(Default, OtherType) ->
+    union([Default, OtherType]).
+
 -spec orderedlist(raw_type()) -> type().
 orderedlist(RawElemType) ->
     ?LET(L, list(RawElemType), lists:sort(L)).
+
+-spec function0(raw_type()) -> type().
+function0(RawRetType) ->
+    function(0, RawRetType).
+
+-spec function1(raw_type()) -> type().
+function1(RawRetType) ->
+    function(1, RawRetType).
+
+-spec function2(raw_type()) -> type().
+function2(RawRetType) ->
+    function(2, RawRetType).
+
+-spec function3(raw_type()) -> type().
+function3(RawRetType) ->
+    function(3, RawRetType).
+
+-spec function4(raw_type()) -> type().
+function4(RawRetType) ->
+    function(4, RawRetType).
 
 
 %%------------------------------------------------------------------------------

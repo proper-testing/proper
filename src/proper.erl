@@ -21,8 +21,8 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([set_size/1, erase_size/0, grow_size/0, get_size/1, parse_opts/1,
-	 global_state_init/1, global_state_erase/1]).
+-export([set_size/1, erase_size/0, grow_size/0, get_size/1, global_state_init/1,
+	 global_state_erase/0]).
 -export([numtests/2, collect/2, fails/1, equals/2]).
 -export([check/1, check/2, child/4, still_fails/3, skip_to_next/1]).
 -export([print/3]).
@@ -171,9 +171,26 @@ parse_opt(Opt, Opts) ->
 	fails                        -> Opts#opts{expect_fail = true}
     end.
 
+-spec global_state_init(#opts{}) -> 'ok'.
+global_state_init(Opts) ->
+    put('$constraint_tries', Opts#opts.constraint_tries),
+    proper_arith:rand_start(Opts),
+    set_size(0),
+    ok.
+
+-spec global_state_erase() -> 'ok'.
+global_state_erase() ->
+    proper_gen:gen_state_erase(),
+    erase_size(),
+    proper_arith:rand_stop(),
+    erase('$constraint_tries'),
+    _ = code:delete('$temp_mod'),
+    _ = code:purge('$temp_mod'),
+    ok.
+
 
 %%------------------------------------------------------------------------------
-%% Test generation functions
+%% Test declaration functions
 %%------------------------------------------------------------------------------
 
 -spec numtests(pos_integer(), outer_test()) -> numtests_clause().
@@ -213,7 +230,7 @@ check(Test, #opts{numtests = NumTests, quiet = Quiet} = Opts) ->
     report_imm_result(ImmResult, Opts),
     ShortResult = get_short_result(ImmResult, Opts),
     FinalResult = get_final_result(ImmResult, Test, Opts),
-    global_state_erase(Opts),
+    global_state_erase(),
     case Quiet of
 	true  -> FinalResult;
 	false -> ShortResult
@@ -249,20 +266,6 @@ get_final_result({failed,Performed,Reason,ImmFailedTestCase,_FailActions}, Test,
 get_final_result(ImmResult, _Test, _Opts) ->
     ImmResult.
 
--spec global_state_init(#opts{}) -> 'ok'.
-global_state_init(Opts) ->
-    put('$constraint_tries', Opts#opts.constraint_tries),
-    proper_arith:rand_start(Opts),
-    set_size(0),
-    ok.
-
--spec global_state_erase(#opts{}) -> 'ok'.
-global_state_erase(Opts) ->
-    erase_size(),
-    proper_arith:rand_stop(Opts),
-    erase('$constraint_tries'),
-    ok.
-
 -spec perform(non_neg_integer(), non_neg_integer(), test(),
 	      [cat_dict()] | 'none', #opts{}) -> imm_result().
 perform(0, 0, _Test, _CatDicts, _Opts) ->
@@ -270,6 +273,7 @@ perform(0, 0, _Test, _CatDicts, _Opts) ->
 perform(Performed, 0, _Test, CatDicts, _Opts) ->
     {passed, Performed, CatDicts};
 perform(Performed, Left, Test, CatDicts, Opts) ->
+    proper_gen:gen_state_erase(),
     case run(Test, Opts) of
 	{passed, {categories,Categories}} ->
 	    print(".", [], Opts),
@@ -371,6 +375,8 @@ run({'$apply',Args,Prop}, Context, Opts) ->
 	%%       run as a separate process against crashes
 	run(apply(Prop,Args), Context, Opts)
     catch
+	throw:'$cant_generate' ->
+	    {error, cant_generate};
 	throw:ExcReason ->
 	    setelement(2, run(false,Context,Opts), {throw,ExcReason});
 	exit:ExcReason when Context#ctx.catch_exits ->
