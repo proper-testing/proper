@@ -2,10 +2,13 @@
 Contact information and license
 --------------------------------------------------------------------------------
 
-PropEr is Copyright 2010 Manolis Papadakis (manopapad@gmail.com).
+PropEr (PROPerty-based testing tool for ERlang) is a open-source implementation
+of QuickCheck for Erlang developed by Manolis Papadakis (manopapad@gmail.com)
+and Kostis Sagonas (kostis@cs.ntua.gr).
 
-Contributions by:
-* Kostis Sagonas (kostis@cs.ntua.gr)
+Most of the source code of PropEr is written mainly by Manolis Papadakis.
+
+Copyright 2010 by Manolis Papadakis and Kostis Sagonas.
 
 This program is distributed under the GPL, version 3 or later. Please see the
 COPYING file for details.
