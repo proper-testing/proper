@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,14 +17,14 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis
+%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc The shrinking subsystem and all predefined shrinkers are contained in
 %%%	 this module.
 
 -module(proper_shrink).
 
--export([shrink/4]).
+-export([shrink/5]).
 
 -export([integer_shrinker/4, float_shrinker/4, union_first_choice_shrinker/3,
 	 union_recursive_shrinker/3]).
@@ -50,14 +51,14 @@
 %%------------------------------------------------------------------------------
 
 -spec shrink(proper:imm_testcase(), proper:test(), proper:fail_reason(),
-	     #opts{}) -> {non_neg_integer(),proper:imm_testcase()}.
-shrink(ImmFailedTestCase, Test, Reason, Opts) ->
-    shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
-		       0, Opts#opts.max_shrinks, Opts).
+	     non_neg_integer(), proper:opts()) ->
+    {non_neg_integer(),proper:imm_testcase()}.
+shrink(ImmFailedTestCase, Test, Reason, Shrinks, Opts) ->
+    shrink_to_fixpoint(ImmFailedTestCase, Test, Reason, 0, Shrinks, Opts).
 
 -spec shrink_to_fixpoint(proper:imm_testcase(), proper:test(),
 			 proper:fail_reason(), non_neg_integer(),
-			 non_neg_integer(), #opts{}) ->
+			 non_neg_integer(), proper:opts()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: is it too much if we try to reach an equilibrium by repeaing all the
 %%	 shrinkers?
@@ -80,7 +81,7 @@ shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
 
 -spec shrink_tr(proper:imm_testcase(), proper:imm_testcase(),
 		proper:forall_clause() | forall2_clause(), proper:fail_reason(),
-		non_neg_integer(), non_neg_integer(), state(), #opts{}) ->
+		non_neg_integer(), non_neg_integer(), state(), proper:opts()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: 'tries_left' instead of 'shrinks_left'?
 shrink_tr(Shrunk, TestTail, error, _Reason,

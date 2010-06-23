@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,12 +17,13 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis
+%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc This module contains helper arithmetic, list handling and random
 %%%	 functions.
 
 -module(proper_arith).
+
 -export([le/2, and3/2, or3/2, any3/1, all3/1, maybe/1, surely/1]).
 -export([safemap/2, tuplemap/2, cut_improper_tail/1]).
 -export([rand_start/1, rand_stop/0,
@@ -147,11 +149,11 @@ cut_improper_tail_tr(ImproperTail, AccList) ->
 
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
--spec rand_start(#opts{}) -> 'ok'.
-rand_start(Opts) ->
+-spec rand_start(boolean()) -> 'ok'.
+rand_start(CryptoExists) ->
     _ = random:seed(now()),
     %% TODO: read option for RNG bijections here
-    case Opts#opts.crypto of
+    case CryptoExists of
 	true ->
 	    case crypto:start() of
 		ok ->

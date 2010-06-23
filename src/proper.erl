@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,18 +17,18 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis
+%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([set_size/1, erase_size/0, grow_size/0, get_size/1, global_state_init/1,
+-export([set_size/1, erase_size/0, grow_size/0, get_size/1, global_state_init/0,
 	 global_state_erase/0]).
 -export([numtests/2, collect/2, fails/1, equals/2]).
 -export([check/1, check/2, still_fails/3, skip_to_next/1]).
 -export([print/3]).
 
--export_type([imm_testcase/0, test/0, forall_clause/0, fail_reason/0]).
+-export_type([imm_testcase/0, test/0, forall_clause/0, fail_reason/0, opts/0]).
 
 -include("proper_internal.hrl").
 
@@ -86,6 +87,7 @@
 	      bound        = []    :: imm_testcase(),
 	      fail_actions = []    :: fail_actions(),
 	      categories   = []    :: [category()]}).
+-type ctx() :: #ctx{}.
 -type single_run_result() :: {'passed', 'didnt_crash'}
 			   | {'passed', {'categories',[category()]}}
 			   | {'failed', fail_reason(), imm_testcase(),
@@ -108,6 +110,20 @@
 			 clean_testcase()}
 		      | {'failed', pos_integer(), fail_reason(),
 			 clean_testcase(), non_neg_integer(), clean_testcase()}.
+
+%%------------------------------------------------------------------------------
+%% Options record
+%%------------------------------------------------------------------------------
+
+-record(opts, {quiet            = false :: boolean(),
+	       crypto           = false :: boolean(),
+	       numtests         = 100   :: pos_integer(),
+	       max_shrinks      = 300   :: non_neg_integer(),
+	       constraint_tries = 50    :: pos_integer(),
+	       expect_fail      = false :: boolean(),
+	       try_shrunk       = false :: boolean(),
+	       shrunk                   :: proper:imm_testcase()}).
+-type opts() :: #opts{}.
 
 
 %%------------------------------------------------------------------------------
@@ -147,11 +163,11 @@ get_size(Type) ->
 	error       -> Size2
     end.
 
--spec parse_opts([opt()] | opt()) -> #opts{}.
+-spec parse_opts([opt()] | opt()) -> opts().
 parse_opts(OptsList) ->
     parse_opts_tr(OptsList, #opts{}).
 
--spec parse_opts_tr([opt()] | opt(), #opts{}) -> #opts{}.
+-spec parse_opts_tr([opt()] | opt(), opts()) -> opts().
 parse_opts_tr([], Opts) ->
     Opts;
 parse_opts_tr([Opt | Rest], Opts) ->
@@ -159,7 +175,7 @@ parse_opts_tr([Opt | Rest], Opts) ->
 parse_opts_tr(Opt, Opts) ->
     parse_opt(Opt, Opts).
 
--spec parse_opt(opt(), #opts{}) -> #opts{}.
+-spec parse_opt(opt(), opts()) -> opts().
 parse_opt(Opt, Opts) ->
     case Opt of
 	quiet                        -> Opts#opts{quiet = true};
@@ -171,10 +187,14 @@ parse_opt(Opt, Opts) ->
 	fails                        -> Opts#opts{expect_fail = true}
     end.
 
--spec global_state_init(#opts{}) -> 'ok'.
-global_state_init(Opts) ->
-    put('$constraint_tries', Opts#opts.constraint_tries),
-    proper_arith:rand_start(Opts),
+-spec global_state_init() -> 'ok'.
+global_state_init() ->
+    global_state_init(#opts{}).
+
+-spec global_state_init(opts()) -> 'ok'.
+global_state_init(#opts{constraint_tries = CTries, crypto = Crypto}) ->
+    put('$constraint_tries', CTries),
+    proper_arith:rand_start(Crypto),
     set_size(0),
     ok.
 
@@ -215,7 +235,7 @@ equals(A, B) ->
 check(Test) ->
     check(Test, #opts{}).
 
--spec check(outer_test(), #opts{} | [opt()] | opt()) ->
+-spec check(outer_test(), opts() | [opt()] | opt()) ->
 	  final_result() | boolean().
 check({'$numtests',N,Test}, #opts{} = Opts) ->
     check(Test, Opts#opts{numtests = N});
@@ -238,7 +258,7 @@ check(Test, #opts{numtests = NumTests, quiet = Quiet} = Opts) ->
 check(Test, OptsList) ->
     check(Test, parse_opts(OptsList)).
 
--spec get_short_result(imm_result(), #opts{}) -> boolean().
+-spec get_short_result(imm_result(), opts()) -> boolean().
 get_short_result({passed,_,_}, #opts{expect_fail = ExpectFail}) ->
     not ExpectFail;
 get_short_result({failed,_,_,_,_}, #opts{expect_fail = ExpectFail}) ->
@@ -246,14 +266,14 @@ get_short_result({failed,_,_,_,_}, #opts{expect_fail = ExpectFail}) ->
 get_short_result({error,_}, _Opts) ->
     false.
 
--spec get_final_result(imm_result(), test(), #opts{}) -> final_result().
+-spec get_final_result(imm_result(), test(), opts()) -> final_result().
 get_final_result({failed,Performed,Reason,ImmFailedTestCase,_FailActions}, Test,
-		 #opts{expect_fail = ExpectFail} = Opts) ->
+		 #opts{max_shrinks = Max, expect_fail = ExpectFail} = Opts) ->
     FailedTestCase = proper_gen:clean_instance(ImmFailedTestCase),
     case ExpectFail of %% TODO: no shrink option here
 	false ->
 	    {Shrinks, ImmMinTestCase} =
-		proper_shrink:shrink(ImmFailedTestCase, Test, Reason, Opts),
+		proper_shrink:shrink(ImmFailedTestCase, Test, Reason, Max, Opts),
 	    NewOpts = #opts{quiet = true, try_shrunk = true,
 			    shrunk = ImmMinTestCase},
 	    {failed, _Reason, _Bound, MinFailActions} = run(Test, NewOpts),
@@ -267,7 +287,7 @@ get_final_result(ImmResult, _Test, _Opts) ->
     ImmResult.
 
 -spec perform(non_neg_integer(), non_neg_integer(), test(),
-	      [cat_dict()] | 'none', #opts{}) -> imm_result().
+	      [cat_dict()] | 'none', opts()) -> imm_result().
 perform(0, 0, _Test, _CatDicts, _Opts) ->
     {error, cant_satisfy};
 perform(Performed, 0, _Test, CatDicts, _Opts) ->
@@ -307,11 +327,11 @@ add_to_category(Category, CatDict) ->
 	error       -> orddict:store(Category, 1, CatDict)
     end.
 
--spec run(test(), #opts{}) -> single_run_result().
+-spec run(test(), opts()) -> single_run_result().
 run(Test, Opts) ->
     run(Test, #ctx{}, Opts).
 
--spec run(test(), #ctx{}, #opts{}) -> single_run_result().
+-spec run(test(), ctx(), opts()) -> single_run_result().
 run(true, Context, _Opts) ->
     {passed, {categories,lists:reverse(Context#ctx.categories)}};
 run(false, Context, _Opts) ->
@@ -383,7 +403,7 @@ run({'$apply',Args,Prop}, Context, Opts) ->
 	    setelement(2, run(false,Context,Opts), {exit,ExcReason})
     end.
 
--spec child(pid(), delayed_test(), #ctx{}, #opts{}) -> 'ok'.
+-spec child(pid(), delayed_test(), ctx(), opts()) -> 'ok'.
 child(Father, Prop, Context, Opts) ->
     Result = run({'$apply',[],Prop}, Context, Opts),
     Father ! {result, Result},
@@ -442,14 +462,14 @@ skip_to_next({'$apply',Args,Prop}) ->
 %% Output functions
 %%------------------------------------------------------------------------------
 
--spec print(string(), [term()], #opts{}) -> 'ok'.
-print(Str, Args, Opts) ->
-    case Opts#opts.quiet of
+-spec print(string(), [term()], opts()) -> 'ok'.
+print(Str, Args, #opts{quiet = Quiet}) ->
+    case Quiet of
 	true  -> ok;
 	false -> io:format(Str, Args)
     end.
 
--spec report_imm_result(imm_result(), #opts{}) -> 'ok'.
+-spec report_imm_result(imm_result(), opts()) -> 'ok'.
 report_imm_result({error,{unexpected,Unexpected}}, _Opts) ->
     io:format("~nInternal error: the last run returned an unexpected result:~n"
 	      "~w~nPlease notify the maintainers about this error~n",
@@ -511,7 +531,7 @@ execute_actions(FailActions) ->
     ok.
 
 -spec report_shrinking(non_neg_integer(), clean_testcase(), fail_actions(),
-		       #opts{}) -> 'ok'.
+		       opts()) -> 'ok'.
 report_shrinking(_Shrinks, _MinTestCase, _FailActions, #opts{quiet = true}) ->
     ok;
 report_shrinking(Shrinks, MinTestCase, FailActions, _Opts) ->

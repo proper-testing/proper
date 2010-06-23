@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,12 +17,13 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis
+%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc The generator subsystem and generators for basic types are contained in
 %%%	 this module.
 
 -module(proper_gen).
+
 -export([generate/1, generate/2, pick/1, pick/2]).
 -export([normal_gen/1, alt_gens/1, clean_instance/1, get_ret_type/2,
 	 function_body/3, gen_state_erase/0]).
@@ -132,8 +134,7 @@ pick(RawType) ->
 
 -spec pick(proper_types:raw_type(), size()) -> instance().
 pick(RawType, Size) ->
-    Opts = #opts{},
-    proper:global_state_init(Opts),
+    proper:global_state_init(),
     proper:set_size(Size),
     ImmInstance = generate(RawType),
     %% io:format("~p~n~n", [ImmInstance]),

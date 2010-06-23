@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -41,17 +42,3 @@
 -type length() :: non_neg_integer().
 -type position() :: pos_integer().
 -type frequency() :: pos_integer().
-
-
-%%------------------------------------------------------------------------------
-%% Options record
-%%------------------------------------------------------------------------------
-
--record(opts, {quiet            = false :: boolean(),
-	       crypto           = false :: boolean(),
-	       numtests         = 100   :: pos_integer(),
-	       max_shrinks      = 300   :: non_neg_integer(),
-	       constraint_tries = 50    :: pos_integer(),
-	       expect_fail      = false :: boolean(),
-	       try_shrunk       = false :: boolean(),
-	       shrunk                   :: proper:imm_testcase()}).
