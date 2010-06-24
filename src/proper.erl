@@ -111,6 +111,7 @@
 		      | {'failed', pos_integer(), fail_reason(),
 			 clean_testcase(), non_neg_integer(), clean_testcase()}.
 
+
 %%------------------------------------------------------------------------------
 %% Options record
 %%------------------------------------------------------------------------------
@@ -367,7 +368,7 @@ run({'$implies',Pre,Prop}, Context, Opts) ->
 	true  -> run({'$apply',[],Prop}, Context, Opts);
 	false -> {error, rejected}
     end;
-run({'$collect',NewCategory,Prop}, Context = #ctx{categories = Categories},
+run({'$collect',NewCategory,Prop}, #ctx{categories = Categories} = Context,
 	Opts) ->
     NewContext = Context#ctx{categories = [NewCategory | Categories]},
     run(Prop, NewContext, Opts);

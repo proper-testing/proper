@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,7 +17,7 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis
+%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc This module contains functions used when symbolically generating
 %%%	 datatypes.
@@ -34,14 +35,15 @@
 %% Types
 %%------------------------------------------------------------------------------
 
+-type module_name() :: atom().
 -type function_name() :: atom().
-%% -type symb_call()  :: {'call', module(), function_name(), [symb_term()]}.
+%% -type symb_call()  :: {'call',module_name(),function_name(),[symb_term()]}.
 -type var_id() :: atom().
-%% -type symb_var() :: {'var', var_id()}.
+%% -type symb_var() :: {'var',var_id()}.
 -type var_values_list() :: [{var_id(),term()}].
 -type symb_term() :: term().
 -type handled_term() :: term().
--type call_handler() :: fun((module(), function_name(), [handled_term()]) ->
+-type call_handler() :: fun((module_name(),function_name(),[handled_term()]) ->
 				handled_term()).
 -type term_handler() :: fun((term()) -> handled_term()).
 
@@ -77,46 +79,45 @@ pretty_print(SymbTerm) ->
 
 -spec pretty_print(var_values_list(), symb_term()) -> string().
 pretty_print(VarValues, SymbTerm) ->
-    ParseTree =
+    ExprTree =
 	symb_walk(VarValues, SymbTerm, fun parse_fun/3, fun parse_term/1),
-    erl_prettypr:format(ParseTree).
+    lists:flatten(erl_pp:expr(ExprTree)).
 
--spec parse_fun(module(), function_name(), [erl_syntax:syntaxTree()]) ->
-	  erl_syntax:syntaxTree().
+%% TODO: what is the type for abstract format expressions?
+-spec parse_fun(module_name(), function_name(), [_]) -> _.
 parse_fun(Module, Function, ArgTreeList) ->
-    ModuleTree = erl_syntax:atom(Module),
-    FunctionTree = erl_syntax:atom(Function),
-    erl_syntax:application(ModuleTree, FunctionTree, ArgTreeList).
+    {call,0,{remote,0,{atom,0,Module},{atom,0,Function}},ArgTreeList}.
 
--spec parse_term(term()) -> erl_syntax:syntaxTree().
+-spec parse_term(term()) -> _.
 parse_term(TreeList) when is_list(TreeList) ->
-    case proper_arith:cut_improper_tail(TreeList) of
-	{ProperHead, ImproperTail} ->
-	    erl_syntax:list(ProperHead, ImproperTail);
-	ProperList ->
-	    erl_syntax:list(ProperList, none)
-    end;
+    {RestOfList, Acc0} =
+	case proper_arith:cut_improper_tail(TreeList) of
+	    X = {_ProperHead,_ImproperTail} -> X;
+	    ProperList                      -> {ProperList,{nil,0}}
+	end,
+    lists:foldr(fun(X,Acc) -> {cons,0,X,Acc} end, Acc0, RestOfList);
 parse_term(TreeTuple) when is_tuple(TreeTuple) ->
-    erl_syntax:tuple(tuple_to_list(TreeTuple));
+    {tuple,0,tuple_to_list(TreeTuple)};
 parse_term(Term) ->
     %% TODO: pid, port, reference, function value?
-    erl_syntax:abstract(Term).
+    erl_parse:abstract(Term).
 
 -spec symb_walk(var_values_list(), symb_term(), call_handler(),
 		term_handler()) -> handled_term().
 %% TODO: should this handle improper lists?
 %% TODO: only atoms are allowed as variable identifiers?
 symb_walk(VarValues, {call,Module,Function,Args}, HandleCall, HandleTerm) ->
-    SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleCall, HandleTerm) end,
-    HandledArgs = proper_arith:safemap(SymbWalk, Args),
+    HandledArgs = [symb_walk(VarValues,A,HandleCall,HandleTerm) || A <- Args],
     HandleCall(Module, Function, HandledArgs);
-symb_walk(VarValues, SymbTerm = {var,VarId}, _HandleCall, HandleTerm) ->
-    Term =
-	case lists:keyfind(VarId, 1, VarValues) of
-	    {VarId,VarValue} -> VarValue;
-	    false            -> SymbTerm
-	end,
-    HandleTerm(Term);
+symb_walk(VarValues, {var,VarId}, HandleCall, HandleTerm) ->
+    SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleCall, HandleTerm) end,
+    case lists:keyfind(VarId, 1, VarValues) of
+	{VarId,VarValue} ->
+	    %% TODO: this allows symbolic calls and vars inside var values
+	    SymbWalk(VarValue);
+	false ->
+	    HandleTerm({HandleTerm(var),SymbWalk(VarId)})
+    end;
 symb_walk(VarValues, SymbTerm, HandleCall, HandleTerm) ->
     SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleCall, HandleTerm) end,
     Term =

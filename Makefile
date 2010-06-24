@@ -31,6 +31,7 @@ ERLC_FLAGS=-W2 -Ddebug -DTEST +debug_info +warn_missing_spec +warn_untyped_recor
 EDOC_OPTIONS=[{dialyzer_specs,all}, {report_missing_type,true}, {report_type_mismatch,true}, {pretty_print,erl_pp}, {preprocess,true}]
 DIALYZER=dialyzer
 DIALYZER_FLAGS=-Wunmatched_returns
+NEEDED_APPS=compiler erts kernel stdlib crypto
 RM=rm -f
 TAR=tar -czf
 
@@ -39,7 +40,7 @@ TAR=tar -czf
 # TODO: extra targets: test, tags, commit/update
 # TODO: header and text files as dependencies: more fine-grained
 
-.PHONY: default all compile tests doc check clean distclean rebuild release
+.PHONY: default all compile tests doc check clean distclean rebuild release build_plt
 
 default: compile
 
@@ -76,3 +77,6 @@ rebuild: distclean compile
 release: all clean
 	$(RM) $(RELEASE_FILE)
 	$(TAR) $(RELEASE_FILE) $(APP_SRC_FILES) $(APP_BIN_FILES) $(HDR_FILES) $(DOC_FILES) $(TST_SRC_FILES) $(EXM_FILES) $(TXT_FILES)
+
+build_plt:
+	$(DIALYZER) --build_plt --apps $(NEEDED_APPS)
