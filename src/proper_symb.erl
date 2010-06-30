@@ -23,6 +23,7 @@
 %%%	 datatypes.
 
 -module(proper_symb).
+
 -export([eval/1, eval/2, defined/1, well_defined/1, pretty_print/1,
 	 pretty_print/2]).
 
@@ -83,11 +84,12 @@ pretty_print(VarValues, SymbTerm) ->
 	symb_walk(VarValues, SymbTerm, fun parse_fun/3, fun parse_term/1),
     lists:flatten(erl_pp:expr(ExprTree)).
 
-%% TODO: what is the type for abstract format expressions?
+%% TODO: fill in the type of abstract format expressions
 -spec parse_fun(module_name(), function_name(), [_]) -> _.
 parse_fun(Module, Function, ArgTreeList) ->
     {call,0,{remote,0,{atom,0,Module},{atom,0,Function}},ArgTreeList}.
 
+%% TODO: fill in the type of abstract format expressions
 -spec parse_term(term()) -> _.
 parse_term(TreeList) when is_list(TreeList) ->
     {RestOfList, Acc0} =
@@ -113,7 +115,9 @@ symb_walk(VarValues, {var,VarId}, HandleCall, HandleTerm) ->
     SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleCall, HandleTerm) end,
     case lists:keyfind(VarId, 1, VarValues) of
 	{VarId,VarValue} ->
-	    %% TODO: this allows symbolic calls and vars inside var values
+	    %% TODO: this allows symbolic calls and vars inside var values,
+	    %%       which may result in an infinite loop, as in:
+	    %%       [{aZz,{call,m,f,[{var,a}]}}], {var,a}
 	    SymbWalk(VarValue);
 	false ->
 	    HandleTerm({HandleTerm(var),SymbWalk(VarId)})

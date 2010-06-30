@@ -23,10 +23,12 @@
 %%%	 this module.
 
 -module(proper_gen).
+-export([pick/1, pick/2]).
 
--export([generate/1, generate/2, pick/1, pick/2]).
+-export([gen_state_get/0, gen_state_set/1, gen_state_erase/0]).
+-export([generate/1]).
 -export([normal_gen/1, alt_gens/1, clean_instance/1, get_ret_type/2,
-	 function_body/3, gen_state_erase/0]).
+	 function_body/3]).
 -export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
 	 binary_str_gen/1, binary_rev/1, binary_len_gen/1, binary_len_str_gen/1,
 	 bitstring_gen/0, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
@@ -35,7 +37,7 @@
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
-	      alt_gens/0]).
+	      alt_gens/0, gen_state/0]).
 
 -include("proper_internal.hrl").
 
@@ -47,20 +49,79 @@
 -type instance() :: term().
 %% TODO: update imm_instance() when adding more types: be careful when reading
 %%	 anything that returns it
--type imm_instance() :: proper_types:raw_type() % TODO: is this correct?
+-type imm_instance() :: proper_types:raw_type()
 		      | instance()
-		      | {'$used', _, _}.
+		      | {'$used', imm_instance(), imm_instance()}.
 
 -type sized_generator() :: fun((size()) -> imm_instance()).
 -type nosize_generator() :: fun(() -> imm_instance()).
 -type generator() :: sized_generator() | nosize_generator().
--type sized_straight_gen() :: fun((size()) -> instance()).
--type nosize_straight_gen() :: fun(() -> instance()).
+-type sized_straight_gen() :: fun((size()) -> instance() | '$cant_generate').
+-type nosize_straight_gen() :: fun(() -> instance() | '$cant_generate').
 -type straight_gen() :: sized_straight_gen() | nosize_straight_gen().
 -type reverse_gen() :: fun((instance()) -> imm_instance()).
 -type combine_fun() :: fun((instance()) -> imm_instance()).
 -type alt_gens() :: fun(() -> [imm_instance()]).
 -type fun_num() :: pos_integer().
+
+%% TODO: fill in the type of abstract format clauses
+-opaque gen_state() :: {fun_num(), _}.
+
+
+%%------------------------------------------------------------------------------
+%% State handling functions
+%%------------------------------------------------------------------------------
+
+%% TODO: fill in the type of abstract format clauses
+-spec get_forms() -> _.
+get_forms() ->
+    get('$forms').
+
+%% TODO: fill in the type of abstract format clauses
+-spec set_forms(_) -> 'ok'.
+set_forms(Forms) ->
+    put('$forms', Forms),
+    ok.
+
+-spec get_next_fun_num() -> fun_num().
+get_next_fun_num() ->
+    FunNum = case get('$next_fun_num') of
+		 undefined -> 1;
+		 N         -> N
+	     end,
+    put('$next_fun_num', FunNum + 1),
+    FunNum.
+
+-spec gen_state_get() -> gen_state().
+gen_state_get() ->
+    {get('$forms'), get('$next_fun_num')}.
+
+-spec gen_state_set(gen_state()) -> 'ok'.
+gen_state_set({Forms, NextFunNum}) ->
+    put('$forms', Forms),
+    put('$next_fun_num', NextFunNum),
+    case Forms of
+	undefined ->
+	    ok;
+	_  ->
+	    load_forms()
+    end.
+
+-spec gen_state_erase() -> 'ok'.
+gen_state_erase() ->
+    erase('$forms'),
+    erase('$next_fun_num'),
+    _ = code:purge('$temp_mod'),
+    _ = code:delete('$temp_mod'),
+    _ = code:purge('$temp_mod'),
+    ok.
+
+-spec load_forms() -> 'ok'.
+load_forms() ->
+    %% TODO: verbose and report options?
+    {ok,'$temp_mod',Code} = compile:forms(get('$forms'), [export_all]),
+    {module,_Mod} = code:load_binary('$temp_mod', "no_file", Code),
+    ok.
 
 
 %%------------------------------------------------------------------------------
@@ -68,15 +129,9 @@
 %%------------------------------------------------------------------------------
 
 -spec generate(proper_types:raw_type()) -> imm_instance() | '$cant_generate'.
-generate(Type = {'$type',_Props}) ->
-    generate(Type, get('$constraint_tries'), '$cant_generate');
 generate(RawType) ->
-    generate(proper_types:cook_outer(RawType)).
-
--spec generate(proper_types:type(), non_neg_integer()) ->
-	  imm_instance() | '$cant_generate'.
-generate(Type, MaxTries) ->
-    generate(Type, MaxTries, '$cant_generate').
+    Type = proper_types:cook_outer(RawType),
+    generate(Type, get('$constraint_tries'), '$cant_generate').
 
 -spec generate(proper_types:type(), non_neg_integer(), term()) -> term().
 generate(_Type, 0, Fallback) ->
@@ -98,14 +153,10 @@ generate(Type, TriesLeft, Fallback) ->
 		{clean_instance(ImmInstance2),{'$used',ImmParts,ImmInstance2}};
 	    Kind ->
 		ImmInstance1 =
-		    case {Kind, proper_types:find_prop(straight_gen,Type)} of
-			{wrapper, {ok,StraightGen}} ->
-			    %% TODO: should we have an option to enable this?
-			    ReverseGen =
-				proper_types:get_prop(reverse_gen, Type),
-			    ReverseGen(call_gen(StraightGen, Type));
-			_ ->
-			    normal_gen(Type)
+		    case Kind of
+			%% TODO: should we have an option to enable this?
+			wrapper -> normal_or_str_gen(Type);
+			_       -> normal_gen(Type)
 		    end,
 		ImmInstance2 =
 		    case proper_types:is_raw_type(ImmInstance1) of
@@ -123,49 +174,69 @@ generate(Type, TriesLeft, Fallback) ->
     case proper_types:satisfies_all(Instance, Type) of
 	{_,true}      -> Result;
 	{true,false}  -> generate(Type, TriesLeft - 1, Result);
-	{false,false} -> % TODO: is it okay to grow the size here?
-			 proper:grow_size(),
-			 generate(Type, TriesLeft - 1, Fallback)
+	{false,false} -> generate(Type, TriesLeft - 1, Fallback)
     end.
 
--spec pick(proper_types:raw_type()) -> instance().
+-spec pick(proper_types:raw_type()) -> 'error' | {'ok',instance()}.
 pick(RawType) ->
     pick(RawType, 10).
 
--spec pick(proper_types:raw_type(), size()) -> instance().
+-spec pick(proper_types:raw_type(), size()) -> 'error' | {'ok',instance()}.
 pick(RawType, Size) ->
-    proper:global_state_init(),
-    proper:set_size(Size),
-    ImmInstance = generate(RawType),
-    %% io:format("~p~n~n", [ImmInstance]),
-    Instance = clean_instance(ImmInstance),
-    if
-	is_function(Instance) ->
+    proper:global_state_init_size(Size),
+    case clean_instance(generate(RawType)) of
+	'$cant_generate' ->
+	    io:format("Error: couldn't produce an instance that satisfies all "
+		      "strict constraints after ~b tries~n",
+		      [get('$constraint_tries')]),
+	    proper:global_state_erase(),
+	    error;
+	FunInstance when is_function(FunInstance) ->
 	    io:format("WARNING: Some garbage has been left in the process "
 		      "registry and the code server to allow for the returned "
 		      "function to run normally.~nPlease run "
-		      "proper:global_state_erase() when done.~n", []);
-	true ->
-	    proper:global_state_erase()
-    end,
-    Instance.
+		      "proper:global_state_erase() when done.~n", []),
+	    {ok,FunInstance};
+	Instance ->
+	    proper:global_state_erase(),
+	    {ok,Instance}
+    end.
 
 
 %%------------------------------------------------------------------------------
 %% Utility functions
 %%------------------------------------------------------------------------------
 
+-spec normal_or_str_gen(proper_types:type()) -> imm_instance().
+normal_or_str_gen(Type) ->
+    case proper_types:find_prop(straight_gen,Type) of
+	{ok, StraightGen} ->
+	    case call_gen(StraightGen, Type) of
+		'$cant_generate' ->
+		    normal_gen(Type);
+		Instance ->
+		    ReverseGen = proper_types:get_prop(reverse_gen, Type),
+		    ReverseGen(Instance)
+	    end;
+	error ->
+	    normal_gen(Type)
+    end.
+
 -spec normal_gen(proper_types:type()) -> imm_instance().
 normal_gen(Type) ->
     call_gen(proper_types:get_prop(generator,Type), Type).
 
 -spec call_gen(generator() | straight_gen(), proper_types:type()) ->
-	  imm_instance() | instance().
+	  imm_instance() | instance() | '$cant_generate'.
 call_gen(Gen, Type) ->
     if
-	is_function(Gen, 0) -> Gen();
-	is_function(Gen, 1) -> Size = proper:get_size(Type),
-			       Gen(Size)
+	is_function(Gen, 0) ->
+	    Gen();
+	is_function(Gen, 1) ->
+	    case proper:get_size(Type) of
+		undefined -> throw('$need_size_info');
+		Size      -> Gen(Size)
+	    end
     end.
 
 -spec alt_gens(proper_types:type()) -> [imm_instance()].
@@ -188,15 +259,6 @@ clean_instance(ImmInstance) ->
 	true ->
 	    ImmInstance
     end.
-
--spec get_next_fun_num() -> fun_num().
-get_next_fun_num() ->
-    FunNum = case get('$next_fun_num') of
-		 undefined -> 1;
-		 N         -> N
-	     end,
-    put('$next_fun_num', FunNum + 1),
-    FunNum.
 
 -spec get_ret_type(function(), arity()) -> proper_types:type().
 get_ret_type(Fun, Arity) ->
@@ -227,13 +289,6 @@ function_body(Args, ImmRetType, {Seed1,Seed2}) ->
 		    Ret
 	    end
     end.
-
--spec gen_state_erase() -> 'ok'.
-gen_state_erase() ->
-    erase('$next_fun_num'),
-    erase('$forms'),
-    ok.
-
 
 %%------------------------------------------------------------------------------
 %% Basic type generators
@@ -283,7 +338,7 @@ binary_gen(Size) ->
 			     proper_types:list(proper_types:byte())),
 	 list_to_binary(Bytes)).
 
--spec binary_str_gen(size()) -> binary().
+-spec binary_str_gen(size()) -> binary() | '$cant_generate'.
 binary_str_gen(Size) ->
     Len = proper_arith:rand_int(0, Size),
     binary_len_str_gen(Len).
@@ -298,7 +353,7 @@ binary_len_gen(Len) ->
 	 proper_types:vector(Len, proper_types:byte()),
 	 list_to_binary(Bytes)).
 
--spec binary_len_str_gen(length()) -> binary().
+-spec binary_len_str_gen(length()) -> binary() | '$cant_generate'.
 binary_len_str_gen(Len) ->
     proper_arith:rand_bytes(Len).
 
@@ -373,30 +428,30 @@ function_gen(Arity, RetType) ->
 	       proper_arith:rand_int(0,?SEED_RANGE - 1)},
     case Arity of
 	0 ->
-	    fun() -> function_body([], RetType, FunSeed) end;
+	    fun() -> ?MODULE:function_body([], RetType, FunSeed) end;
 	1 ->
-	    fun(A) -> function_body([A], RetType, FunSeed) end;
+	    fun(A) -> ?MODULE:function_body([A], RetType, FunSeed) end;
 	2 ->
-	    fun(A,B) -> function_body([A,B], RetType, FunSeed) end;
+	    fun(A,B) -> ?MODULE:function_body([A,B], RetType, FunSeed) end;
 	3 ->
-	    fun(A,B,C) -> function_body([A,B,C], RetType, FunSeed) end;
+	    fun(A,B,C) -> ?MODULE:function_body([A,B,C], RetType, FunSeed) end;
 	4 ->
-	    fun(A,B,C,D) -> function_body([A,B,C,D], RetType, FunSeed) end;
+	    fun(A,B,C,D) ->
+		?MODULE:function_body([A,B,C,D], RetType, FunSeed)
+	    end;
 	_ ->
-	    OldForms = case get('$forms') of
+	    OldForms = case get_forms() of
 			   undefined -> [{attribute,0,module,'$temp_mod'}];
 			   F         -> F
 		       end,
 	    {FunName,FunForm} = new_function(Arity, RetType, FunSeed),
 	    Forms = OldForms ++ [FunForm],
-	    put('$forms', Forms),
-	    %% TODO: verbose and report options?
-	    {ok,'$temp_mod',Code} = compile:forms(Forms, [export_all]),
-	    {module,_Mod} = code:load_binary('$temp_mod', "no_file", Code),
+	    set_forms(Forms),
+	    load_forms(),
 	    erlang:make_fun('$temp_mod', FunName, Arity)
     end.
 
-%% TODO: what is the type for abstract format clauses?
+%% TODO: fill in the type of abstract format clauses
 -spec new_function(arity(), proper_types:type(), {integer(),integer()}) ->
 	  {atom(), _}.
 new_function(Arity, RetType, FunSeed) ->

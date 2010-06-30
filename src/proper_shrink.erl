@@ -25,8 +25,7 @@
 -module(proper_shrink).
 
 -export([shrink/5]).
-
--export([integer_shrinker/4, float_shrinker/4, union_first_choice_shrinker/3,
+-export([number_shrinker/4, union_first_choice_shrinker/3,
 	 union_recursive_shrinker/3]).
 
 -export_type([shrinker/0]).
@@ -39,9 +38,9 @@
 %%------------------------------------------------------------------------------
 
 -type forall2_clause() :: {'$forall2', proper_types:type(),
-			   fun((proper_gen:instance()) -> proper:test())}.
+			   proper:dependent_test()}.
 %% TODO: rename to 'shrinker_state()'?
--type state() :: 'init' | 'done' | {'shrunk',position(),_} | term().
+-type state() :: 'init' | 'done' | {'shrunk',position(),state()} | term().
 -type shrinker() :: fun((proper_gen:imm_instance(), proper_types:type(),
 			state()) -> {[proper_gen:imm_instance()],state()}).
 
@@ -50,15 +49,16 @@
 %% Main shrinking functions
 %%------------------------------------------------------------------------------
 
+
 -spec shrink(proper:imm_testcase(), proper:test(), proper:fail_reason(),
-	     non_neg_integer(), proper:opts()) ->
+	     non_neg_integer(), proper:output_fun()) ->
     {non_neg_integer(),proper:imm_testcase()}.
-shrink(ImmFailedTestCase, Test, Reason, Shrinks, Opts) ->
-    shrink_to_fixpoint(ImmFailedTestCase, Test, Reason, 0, Shrinks, Opts).
+shrink(ImmTestCase, Test, Reason, Shrinks, Print) ->
+    shrink_to_fixpoint(ImmTestCase, Test, Reason, 0, Shrinks, Print).
 
 -spec shrink_to_fixpoint(proper:imm_testcase(), proper:test(),
 			 proper:fail_reason(), non_neg_integer(),
-			 non_neg_integer(), proper:opts()) ->
+			 non_neg_integer(), proper:output_fun()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: is it too much if we try to reach an equilibrium by repeaing all the
 %%	 shrinkers?
@@ -66,46 +66,47 @@ shrink(ImmFailedTestCase, Test, Reason, Shrinks, Opts) ->
 %%	 dangerous)? should we check if the returned values have been
 %%	 encountered before?
 shrink_to_fixpoint(ImmFailedTestCase, _Test, _Reason,
-		   TotalShrinks, 0, _Opts) ->
+		   TotalShrinks, 0, _Print) ->
     {TotalShrinks, ImmFailedTestCase};
 shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
-		   TotalShrinks, ShrinksLeft, Opts) ->
+		   TotalShrinks, ShrinksLeft, Print) ->
     {Shrinks, ImmMinTestCase} =
 	shrink_tr([], ImmFailedTestCase, proper:skip_to_next(Test), Reason,
-		  0, ShrinksLeft, init, Opts),
+		  0, ShrinksLeft, init, Print),
     case Shrinks of
 	0 -> {TotalShrinks, ImmMinTestCase};
 	N -> shrink_to_fixpoint(ImmMinTestCase, Test, Reason,
-				TotalShrinks + N, ShrinksLeft - N, Opts)
+				TotalShrinks + N, ShrinksLeft - N, Print)
     end.
 
 -spec shrink_tr(proper:imm_testcase(), proper:imm_testcase(),
 		proper:forall_clause() | forall2_clause(), proper:fail_reason(),
-		non_neg_integer(), non_neg_integer(), state(), proper:opts()) ->
+		non_neg_integer(), non_neg_integer(), state(),
+		proper:output_fun()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: 'tries_left' instead of 'shrinks_left'?
 shrink_tr(Shrunk, TestTail, error, _Reason,
-	  Shrinks, _ShrinksLeft, _State, _Opts) ->
+	  Shrinks, _ShrinksLeft, _State, _Print) ->
     io:format("~nInternal Error: skip_to_next returned error~n", []),
     {Shrinks, lists:reverse(Shrunk) ++ TestTail};
-shrink_tr(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Opts) ->
+shrink_tr(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Print) ->
     {Shrinks, lists:reverse(Shrunk) ++ TestTail};
-shrink_tr(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Opts) ->
+shrink_tr(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Print) ->
     {Shrinks, lists:reverse(Shrunk)};
 shrink_tr(Shrunk, TestTail, {'$forall',RawType,Prop}, Reason,
-	  Shrinks, ShrinksLeft, init, Opts) ->
+	  Shrinks, ShrinksLeft, init, Print) ->
     Type = proper_types:cook_outer(RawType),
     shrink_tr(Shrunk, TestTail, {'$forall2',Type,Prop}, Reason,
-	      Shrinks, ShrinksLeft, init, Opts);
+	      Shrinks, ShrinksLeft, init, Print);
 shrink_tr(Shrunk, [ImmInstance | Rest], {'$forall2',_Type,Prop}, Reason,
-	  Shrinks, ShrinksLeft, done, Opts) ->
+	  Shrinks, ShrinksLeft, done, Print) ->
     Instance = proper_gen:clean_instance(ImmInstance),
     NewTest = proper:skip_to_next({'$apply',[Instance],Prop}),
     shrink_tr([ImmInstance | Shrunk], Rest, NewTest, Reason,
-	      Shrinks, ShrinksLeft, init, Opts);
+	      Shrinks, ShrinksLeft, init, Print);
 shrink_tr(Shrunk, TestTail = [ImmInstance | Rest],
 	  Test = {'$forall2',Type,Prop}, Reason,
-	  Shrinks, ShrinksLeft, State, Opts) ->
+	  Shrinks, ShrinksLeft, State, Print) ->
     {NewImmInstances,NewState} = shrink_one(ImmInstance, Type, State),
     %% we also test if the recently returned instance is a valid instance
     %% for its type, since we don't check constraints while shrinking
@@ -120,11 +121,11 @@ shrink_tr(Shrunk, TestTail = [ImmInstance | Rest],
     case find_first(IsValid, NewImmInstances) of
 	none ->
 	    shrink_tr(Shrunk, TestTail, Test, Reason,
-		      Shrinks, ShrinksLeft, NewState, Opts);
+		      Shrinks, ShrinksLeft, NewState, Print);
 	{Pos, ShrunkImmInstance} ->
-	    proper:print(".", [], Opts),
+	    Print(".", []),
 	    shrink_tr(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
-		      Shrinks + 1, ShrinksLeft - 1, {shrunk,Pos,NewState}, Opts)
+		      Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Print)
     end.
 
 -spec find_first(fun((T) -> boolean()), [T]) -> {position(),T} | 'none'.
@@ -178,10 +179,10 @@ get_shrinkers(Type) ->
 			[fun parts_shrinker/3, fun recursive_shrinker/3];
 		    semi_opaque ->
 			[fun split_shrinker/3, fun remove_shrinker/3,
-			fun elements_shrinker/3];
+			 fun elements_shrinker/3];
 		    opaque ->
 			[fun split_shrinker/3, fun remove_shrinker/3,
-			fun elements_shrinker/3]
+			 fun elements_shrinker/3]
 		end,
 	    CustomShrinkers ++ StandardShrinkers
     end.
@@ -274,8 +275,7 @@ try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
 			    {'$used',ImmParts,OldImmInstance};
 			false ->
 			    %% TODO: return more than one? then we must flatten
-			    NewImmInstance = proper_gen:generate(InnerType,
-				?MAX_RANDOM_TRIES_WHEN_SHRINKING),
+			    NewImmInstance = proper_gen:generate(InnerType),
 			    {'$used',ImmParts,NewImmInstance}
 		    end;
 		false ->
@@ -467,73 +467,65 @@ elements_shrinker(Instance, Type,
 %% Custom shrinkers
 %%------------------------------------------------------------------------------
 
--spec integer_shrinker(integer(), proper_arith:extint(), proper_arith:extint(),
-		       state()) -> {[integer()],state()}.
-integer_shrinker(X, Low, High, init) ->
-    Operators = [fun(Y) -> Y div 10 end,
-		 fun(Y) -> Y - sign(Y) end,
-		 fun(Y) -> abs(Y) end],
-    number_shrinker(X, 0, Low, High, {operators,Operators});
-integer_shrinker(X, Low, High, State) ->
-    number_shrinker(X, 0, Low, High, State).
+-spec number_shrinker(number(), proper_arith:extnum(), proper_arith:extnum(),
+		      state()) -> {[number()],state()}.
+number_shrinker(X, Low, High, init) ->
+    {Target,Inc,OverLimit} = find_target(X, Low, High),
+    case X =:= Target of
+	true  -> {[], done};
+	false -> {[Target], {inc,Target,Inc,OverLimit}}
+    end;
+number_shrinker(_X, _Low, _High, {inc,Last,Inc,OverLimit}) ->
+    NewLast = Inc(Last),
+    case OverLimit(NewLast) of
+	true  -> {[], done};
+	false -> {[NewLast], {inc,NewLast,Inc,OverLimit}}
+    end;
+number_shrinker(_X, _Low, _High, {shrunk,_Pos,_State}) ->
+    {[], done}.
 
--spec float_shrinker(float(), proper_arith:extnum(), proper_arith:extnum(),
-		     state()) -> {[float()],state()}.
-float_shrinker(X, Low, High, init) ->
-    Operators = [fun(Y) -> Y / 10.0 end,
-		 fun(Y) -> Y - sign(Y) end,
-		 fun(Y) -> abs(Y) end],
-    number_shrinker(X, 0.0, Low, High, {operators,Operators});
-float_shrinker(X, Low, High, State) ->
-    number_shrinker(X, 0.0, Low, High, State).
-
--spec number_shrinker(T, T, T | 'inf', T | 'inf', state()) -> {[T],state()}.
-%% TODO: produce a few (random) values per operator
-number_shrinker(_X, _Target, _Low, _High, {operators,[]}) ->
-    {[], done};
-number_shrinker(X, Target, Low, High, {operators,[Op | Rest]}) ->
-    {op_to_target(X,Target,Low,High,Op), {just_used,Op,Rest}};
-number_shrinker(X, Target, Low, High, {just_used,_Op,Rest}) ->
-    number_shrinker(X, Target, Low, High, {operators,Rest});
-number_shrinker(X, Target, Low, High, {shrunk,_Pos,{just_used,Op,Rest}}) ->
-    number_shrinker(X, Target, Low, High, {operators,[Op | Rest]}).
-
--spec op_to_target(T, T, T | 'inf', T | 'inf', fun((T) -> T)) -> [T].
-%% Op should be a function that approaces Target,
-%% X should be between Low and High
-op_to_target(_Target, _Target, _Low, _High, _Op) ->
-    [];
-op_to_target(X, Target, Low, High, Op) ->
-    NewX = Op(X),
-    case NewX =:= X of
-	true ->
-	    [];
-	false ->
-	    case proper_arith:le(Low, Target) of
-		false ->
-		    case proper_arith:le(Low, NewX) of
-			false -> [];
-			true  -> [NewX]
-		    end;
-		true ->
-		    case proper_arith:le(Target, High) of
-			false ->
-			    case proper_arith:le(NewX, High) of
-				false -> [];
-				true  -> [NewX]
-			    end;
-			true ->
-			    [NewX]
-		    end
-	    end
+-spec find_target(number(), number(), number()) ->
+	  {number(),fun((number()) -> number()),fun((number()) -> boolean())}.
+find_target(X, Low, High) ->
+    case {proper_arith:le(Low,0), proper_arith:le(0,High)} of
+	{false, _} ->
+	    Limit = find_limit(X, Low, High, High),
+	    {Low, fun(Y) -> Y + 1 end, fun(Y) -> Y > Limit end};
+	{true,false} ->
+	    Limit = find_limit(X, Low, High, Low),
+	    {High, fun(Y) -> Y - 1 end, fun(Y) -> Y < Limit end};
+	{true,true} ->
+	    Sign = sign(X),
+	    OverLimit =
+		case X >= 0 of
+		    true ->
+			Limit = find_limit(X, Low, High, High),
+			fun(Y) -> Y > Limit end;
+		    false ->
+			Limit = find_limit(X, Low, High, Low),
+			fun(Y) -> Y < Limit end
+		end,
+	    {zero(X), fun(Y) -> Y + Sign end, OverLimit}
     end.
 
--spec sign(number()) -> -1 | 1.
+-spec find_limit(number(), number(), number(), number()) -> number().
+find_limit(X, Low, High, FallBack) ->
+    case proper_arith:le(Low, X) andalso proper_arith:le(X, High) of
+	true  -> X;
+	false -> FallBack
+    end.
+
+-spec sign(number()) -> number().
 sign(X) ->
     if
-	X >= 0 -> 1;
-	X < 0  -> -1
+	X > 0 -> 1;
+	X < 0 -> -1;
+	true  -> zero(X)
     end.
+
+-spec zero(number()) -> number().
+zero(X) when is_integer(X) -> 0;
+zero(X) when is_float(X)   -> 0.0.
 
 -spec union_first_choice_shrinker(proper_gen:instance(), [proper_types:type()],
 				  state()) -> {[proper_gen:instance()],state()}.
@@ -545,8 +537,7 @@ union_first_choice_shrinker(Instance, Choices, init) ->
 	    {[],done};
 	{N,_Type} ->
 	    %% TODO: some kind of constraints test here?
-	    {[X || X <- [proper_gen:generate(T,
-					     ?MAX_RANDOM_TRIES_WHEN_SHRINKING)
+	    {[X || X <- [proper_gen:generate(T)
 			 || T <- lists:sublist(Choices, N - 1)],
 		   X =/= '$cant_generate'],
 	     done}

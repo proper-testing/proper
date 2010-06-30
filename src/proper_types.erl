@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,14 +17,16 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis
+%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc Type manipulation functions and predefined types are contained in this
 %%%	 module.
 
 -module(proper_types).
--export([cook_outer/1, is_raw_type/1, get_prop/2, find_prop/2, new_type/2,
-	 subtype/2, is_instance/2, unwrap/1, weakly/1, strongly/1,
+-export([is_instance/2]).
+
+-export([cook_outer/1, is_type/1, is_raw_type/1, get_prop/2, find_prop/2,
+	 new_type/2, subtype/2, unwrap/1, weakly/1, strongly/1,
 	 satisfies_all/2]).
 -export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
@@ -57,7 +60,7 @@
 -type type() :: {'$type', [type_prop()]}.
 %% TODO: update raw_type() when adding more standard types
 -type raw_type() :: type() | integer() | float() | atom() | tuple()
-		  | maybe_improper_list(_,_) | <<_:_ * 1>>.
+		    | maybe_improper_list(_,_) | <<_:_ * 1>>.
 -type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
 			| 'size_limit' | 'size_transform' | 'is_instance'
 			| 'shrinkers' | 'noshrink' | 'internal_type'
@@ -124,6 +127,12 @@ cook_outer(RawType) ->
 	true              -> exactly(RawType)
     end.
 
+-spec is_type(term()) -> boolean().
+is_type({'$type',_Props}) ->
+    true;
+is_type(_) ->
+    false.
+
 -spec is_raw_type(term()) -> boolean().
 is_raw_type({'$type',_TypeProps}) ->
     true;
@@ -178,31 +187,40 @@ new_type(PropList, Kind) ->
 subtype(PropList, Type) ->
     add_props(PropList, Type).
 
--spec is_instance(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
+-spec is_instance(proper_gen:imm_instance(), raw_type()) ->
+	  proper_arith:ternary().
 %% TODO: if the second argument is not a type, let it pass (don't even check for
 %%	 term equality?) - if it's a raw type, don't cook it, instead recurse
 %%	 into it.
-is_instance(ImmInstance, Type) ->
+is_instance(ImmInstance, RawType) ->
     CleanInstance = proper_gen:clean_instance(ImmInstance),
-    proper_arith:and3(
-	weakly(satisfies_all(CleanInstance, Type)),
-	proper_arith:or3(
-	    case find_prop(is_instance, Type) of
-		{ok, IsInstance} -> IsInstance(ImmInstance);
-		error            -> unknown
-	    end,
+    Type = cook_outer(RawType),
+    ?AND3(
+	?OR3(
 	    case get_prop(kind, Type) of
 		wrapper     -> wrapper_test(ImmInstance, Type);
 		constructed -> constructed_test(ImmInstance, Type);
-		_           -> unknown
+		_           -> false
+	    end,
+	    case find_prop(is_instance, Type) of
+		{ok, IsInstance} -> IsInstance(ImmInstance);
+		error            -> false
 	    end
-	)
+	),
+	weakly(satisfies_all(CleanInstance, Type))
     ).
 
 -spec wrapper_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
 wrapper_test(ImmInstance, Type) ->
     %% TODO: check if it's actually a raw type that's returned?
-    proper_arith:any3([is_instance(ImmInstance, T) || T <- unwrap(Type)]).
+    try
+	proper_arith:any3([is_instance(ImmInstance, T) || T <- unwrap(Type)])
+    catch
+	throw:'$need_size_info' ->
+	    %% TODO: print some more info?
+	    %% TODO: alt_gens can still give a result?
+	    unknown
+    end.
 
 -spec unwrap(type()) -> [type()].
 %% TODO: check if it's actually a raw type that's returned?
@@ -221,8 +239,7 @@ constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
 	    %% TODO: move construction code to proper_gen
 	    %% TODO: non-type => should we check for strict term equality?
 	    RawInnerType = Combine(proper_gen:clean_instance(ImmParts)),
-	    InnerType = cook_outer(RawInnerType),
-	    is_instance(ImmInstance, InnerType);
+	    is_instance(ImmInstance, RawInnerType);
 	Other ->
 	    Other
     end;
@@ -312,10 +329,9 @@ add_constraint(RawType, Condition, IsStrict) ->
 integer(Low, High) ->
     ?BASIC([
 	{generator, fun(Size) -> proper_gen:integer_gen(Size, Low, High) end},
-	{size_transform, fun(Size) -> Size div 3 end},
 	{is_instance, fun(X) -> integer_test(X, Low, High) end},
 	{shrinkers,
-	 [fun(X,_T,S) -> proper_shrink:integer_shrinker(X, Low, High, S) end]}
+	 [fun(X,_T,S) -> proper_shrink:number_shrinker(X, Low, High, S) end]}
     ]).
 
 -spec integer_test(proper_gen:imm_instance(), proper_arith:extint(),
@@ -329,10 +345,9 @@ integer_test(X, Low, High) ->
 float(Low, High) ->
     ?BASIC([
 	{generator, fun(Size) -> proper_gen:float_gen(Size, Low, High) end},
-	{size_transform, fun(Size) -> Size div 3 end},
 	{is_instance, fun(X) -> float_test(X, Low, High) end},
 	{shrinkers,
-	 [fun(X,_T,S) -> proper_shrink:float_shrinker(X, Low, High, S) end]}
+	 [fun(X,_T,S) -> proper_shrink:number_shrinker(X, Low, High, S) end]}
     ]).
 
 -spec float_test(proper_gen:imm_instance(), proper_arith:extnum(),
@@ -360,32 +375,22 @@ atom_test(X) ->
 
 -spec binary() -> type().
 binary() ->
-    %% TODO: this is very hard for the compiler to optimize, even though the
-    %%       '$crypto' flag is never changed while running
-    Type = ?WRAPPER([
+    ?WRAPPER([
 	{generator, fun proper_gen:binary_gen/1},
+	{straight_gen, fun proper_gen:binary_str_gen/1},
 	{reverse_gen, fun proper_gen:binary_rev/1},
 	{size_limit, ?MAX_BINARY_LEN},
 	{is_instance, fun erlang:is_binary/1}
-    ]),
-    case get('$crypto') of
-	true -> add_prop(straight_gen, fun proper_gen:binary_str_gen/1, Type);
-	_    -> Type
-    end.
+    ]).
 
 -spec binary(length()) -> type().
 binary(Len) ->
-    Type = ?WRAPPER([
+    ?WRAPPER([
 	{generator, fun() -> proper_gen:binary_len_gen(Len) end},
+	{straight_gen, fun() -> proper_gen:binary_len_str_gen(Len) end},
 	{reverse_gen, fun proper_gen:binary_rev/1},
 	{is_instance, fun(X) -> binary_len_test(X, Len) end}
-    ]),
-    case get('$crypto') of
-	true -> add_prop(straight_gen,
-			 fun() -> proper_gen:binary_len_str_gen(Len) end,
-			 Type);
-	_    -> Type
-    end.
+    ]).
 
 -spec binary_len_test(proper_gen:imm_instance(), length()) -> boolean().
 binary_len_test(X, Len) ->
@@ -563,8 +568,8 @@ fixed_list_test(X, {ProperHead,ImproperTail}) ->
     case is_list(X) andalso head_length(X) >= length(ProperHead) of
 	true ->
 	    {XHead,XTail} = lists:split(length(ProperHead), X),
-	    proper_arith:and3(fixed_list_test(XHead, ProperHead),
-			      is_instance(XTail, ImproperTail));
+	    ?AND3(fixed_list_test(XHead, ProperHead),
+		  is_instance(XTail, ImproperTail));
 	false ->
 	    false
     end;

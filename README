@@ -64,7 +64,7 @@ wrapping such a boolean expression with one or more of the following wrappers:
     rejected (it doesn't count as a failing test case), and PropEr starts over
     with a new random test case. Also, in verbose mode, an 'x' is printed on
     screen.
-collect(<Category>, <Prop>) or ?COLLECT(<Category>, <Prop>)
+collect(<Category>, <Prop>)
     The <Category> field can be an expression or statement block that evaluates
     to any term - the test case produced will be categorized under this term.
     All produced categories are printed at the end of testing (in case no test
@@ -96,9 +96,9 @@ equals(<A>, <B>)
 Additionally, a property may be wrapped with one or more of the following
 outer-level wrappers, which control the behaviour of the testing subsystem:
 
-numtests(<Positive_number>, <Prop>) or ?NUMTESTS(<Positive_number>, <Prop>)
+numtests(<Positive_number>, <Prop>)
     Specifies the number of tests to run. Default is 100.
-fails(<Prop>) or ?FAILS(<Prop>)
+fails(<Prop>)
     Specifies that we expect the property to fail for some input. The property
     will be considered failing if it passes all the tests.
 
@@ -145,7 +145,7 @@ available options are:
     Specifies the maximum number of times a failing test case should be shrunk
     before returning. Note that the shrinking may stop before so many shrinks
     are achieved if the shrinking subsystem deduces that it cannot shrink the
-    failing test case further. Default is 300.
+    failing test case further. Default is 500.
 {'constraint_tries', <Positive_number>}
     Specifies the maximum number of tries before the generator subsystem gives
     up on producing an instance that satisfies a ?SUCHTHAT constraint. Default

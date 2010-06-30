@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -26,7 +27,8 @@
 %% Test generation functions
 %%------------------------------------------------------------------------------
 
--import(proper, [numtests/2, collect/2, fails/1, equals/2]).
+-import(proper, [numtests/2, collect/2, aggregate/2, fails/1, on_output/2,
+		 equals/2]).
 
 
 %%------------------------------------------------------------------------------

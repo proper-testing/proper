@@ -43,6 +43,7 @@
 -type extint()  :: integer() | 'inf'.
 -type extnum()  :: number()  | 'inf'.
 -type ternary() :: boolean() | 'unknown'.
+-type delayed_ternary() :: fun(() -> ternary()).
 
 
 %%------------------------------------------------------------------------------
@@ -54,17 +55,29 @@ le(inf, _B) -> true;
 le(_A, inf) -> true;
 le(A, B)    -> A =< B.
 
--spec and3(ternary(), ternary()) -> ternary().
-and3(true, true) -> true;
-and3(false, _)   -> false;
-and3(_, false)   -> false;
-and3(_, _)       -> unknown.
+-spec and3(delayed_ternary(), delayed_ternary()) -> ternary().
+and3(A, B) ->
+    case ?FORCE(A) of
+	true    -> ?FORCE(B);
+	false   -> false;
+	unknown ->
+	    case ?FORCE(B) of
+		false -> false;
+		_     -> unknown
+	    end
+    end.
 
--spec or3(ternary(), ternary()) -> ternary().
-or3(false, false) -> false;
-or3(true, _)      -> true;
-or3(_, true)      -> true;
-or3(_, _)         -> unknown.
+-spec or3(delayed_ternary(), delayed_ternary()) -> ternary().
+or3(A, B) ->
+    case ?FORCE(A) of
+	true    -> true;
+	false   -> ?FORCE(B);
+	unknown ->
+	    case ?FORCE(B) of
+		true -> true;
+		_    -> unknown
+	    end
+    end.
 
 -spec any3([ternary()]) -> ternary().
 any3(TernList) ->
@@ -150,10 +163,10 @@ cut_improper_tail_tr(ImproperTail, AccList) ->
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
 -spec rand_start(boolean()) -> 'ok'.
-rand_start(CryptoExists) ->
+rand_start(Crypto) ->
     _ = random:seed(now()),
     %% TODO: read option for RNG bijections here
-    case CryptoExists of
+    case Crypto of
 	true ->
 	    case crypto:start() of
 		ok ->
@@ -220,11 +233,14 @@ rand_float(Low, High) when is_float(Low), is_float(High), Low =< High ->
 %% may be undefined at 1.0.
 %% TODO: read global options and decide here which bijection to use
 zero_one_to_zero_inf(X) ->
-    10 * X / math:sqrt(1 - X*X).
+    X / math:sqrt(1 - X*X).
 
--spec rand_bytes(length()) -> binary().
+-spec rand_bytes(length()) -> binary() | '$cant_generate'.
 rand_bytes(Len) ->
-    crypto:rand_bytes(Len).
+    case get('$crypto') of
+	true -> crypto:rand_bytes(Len);
+	_    -> '$cant_generate'
+    end.
 
 -spec jumble([T]) -> [T].
 %% @doc Produces a random permutation of a list.

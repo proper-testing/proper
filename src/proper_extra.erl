@@ -1,4 +1,5 @@
 %%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,7 +17,7 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis
+%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc Some additional types from the standard library are declared here.
 

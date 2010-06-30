@@ -26,12 +26,18 @@
 %% Constants
 %%------------------------------------------------------------------------------
 
-%% TODO: make some of these into parameters, store them in process registry
--define(MAX_RANDOM_TRIES_WHEN_SHRINKING, 5).
 -define(MAX_LIST_LEN, 200).
 -define(MAX_ATOM_LEN, 255).
 -define(MAX_BINARY_LEN, 300).
 -define(SEED_RANGE, 4294967296).
+
+
+%%------------------------------------------------------------------------------
+%% Macros
+%%------------------------------------------------------------------------------
+
+-define(AND3(X,Y), proper_arith:and3(?DELAY(X),?DELAY(Y))).
+-define(OR3(X,Y), proper_arith:or3(?DELAY(X),?DELAY(Y))).
 
 
 %%------------------------------------------------------------------------------
