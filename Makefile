@@ -54,6 +54,7 @@ $(APP_BIN_DIR)/%.beam: $(APP_SRC_DIR)/%.erl
 	$(ERLC) $(APP_ERLC_FLAGS) -o $(APP_BIN_DIR) $<
 
 tests: $(TST_BIN_FILES)
+	$(ENTER_ERL) eunit:test({dir,"$(TST_BIN_DIR)"},$(EUNIT_OPTIONS)) $(EXIT_ERL)
 
 $(TST_BIN_FILES): $(HDR_FILES)
 
@@ -62,9 +63,6 @@ $(TST_BIN_DIR)/%.beam: $(TST_SRC_DIR)/%.erl
 
 doc: $(APP_SRC_FILES) $(HDR_FILES) $(TXT_FILES)
 	$(ENTER_ERL) edoc:application(proper, ".", $(EDOC_OPTIONS)) $(EXIT_ERL)
-
-test: tests
-	$(ENTER_ERL) eunit:test({dir,"$(TST_BIN_DIR)"},$(EUNIT_OPTIONS)) $(EXIT_ERL)
 
 check: compile
 	$(DIALYZER) $(DIALYZER_FLAGS) $(APP_BIN_FILES)

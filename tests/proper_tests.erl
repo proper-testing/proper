@@ -407,10 +407,9 @@ false_props_test_() ->
 				 true  -> erlang:exit(you_got_it);
 				 false -> true
 			     end))),
-     {timeout, 3000,
-      ?_failsWith(timeout, [10],
-		  ?FORALL(Dt,range(8,12),
-			  ?TIMEOUT(100,timer:sleep(10 * Dt + 5) == ok)))},
+     ?_failsWith(timeout, _,
+		  ?FORALL(_, integer(),
+			  ?TIMEOUT(100,timer:sleep(150) =:= ok))),
      ?_assertRun(false, {failed,5,_SameCExm,0,_SameCExm},
 		 ?FORALL(X,?SIZED(Size,integer(Size,Size)),X < 5), []),
      ?_test(begin
@@ -435,11 +434,8 @@ false_props_test_() ->
      ?_assertRun(false, {failed,1,_,0,_}, ?FORALL(_,float(0.0,0.0),false), []),
      ?_assertRun(true, {failed,_,_}, fails(?FORALL(_,integer(),false)), []),
      ?_failsWith(false_prop, [16], ?FORALL(X,?LET(Y,integer(),Y*Y),X < 15)),
-     ?_failsWith(false_prop, ["42"],
-		 ?FORALL(S, ?LETSHRINK([A,B],
-				       [list(range($1,$5)),list(range($1,$5))],
-				       A ++ "," ++ B),
-			 not lists:prefix("42",S)))].
+     ?_failsWith(false_prop, [0.0],
+		 ?FORALL(_, ?LETSHRINK([A,B],[float(),atom()],{A,B}), false))].
 
 error_props_test_() ->
     [?_assertRun({error,cant_generate}, {error,cant_generate},
