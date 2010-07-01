@@ -38,7 +38,9 @@
 %%	stored separately from the record declaration, in a -type attribute
 %% -spec attributes:
 %%	{attribute,LINE,spec,_}
--define(ATTRS_TO_STRIP, [export_type,type,opaque,spec]).
+%% -callback attributes:
+%%	{attribute,LINE,callback,_}
+-define(ATTRS_TO_STRIP, [export_type,type,opaque,spec,callback]).
 
 parse_transform(Forms, _Options) ->
     strip_types(Forms, []).
