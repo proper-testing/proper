@@ -6,6 +6,8 @@ DOC_PATTERN=index.html overview-summary.html modules-frame.html packages-frame.h
 TST_SRC_DIR=tests
 TST_BIN_DIR=tests
 EXM_DIR=examples
+UTIL_SRC_DIR=util
+UTIL_BIN_DIR=util
 TMP_PATTERN=*~ \\\#*\\\# *.dump
 
 TXT_FILES=COPYING Makefile README $(DOC_DIR)/overview.edoc
@@ -20,13 +22,23 @@ TST_SRC_FILES=$(wildcard $(TST_SRC_DIR)/*.erl)
 TST_MODULES=$(TST_SRC_FILES:$(TST_SRC_DIR)/%.erl=%)
 TST_BIN_FILES=$(TST_MODULES:%=$(TST_BIN_DIR)/%.beam)
 EXM_FILES=$(wildcard $(EXM_DIR)/*.erl)
-TMP_FILES=$(TMP_PATTERN) $(addprefix $(APP_SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(HDR_DIR)/, $(TMP_PATTERN)) $(addprefix $(DOC_DIR)/, $(TMP_PATTERN)) $(addprefix $(TST_SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(EXM_DIR)/, $(TMP_PATTERN))
+UTIL_SRC_FILES=$(wildcard $(UTIL_SRC_DIR)/*.erl)
+UTIL_MODULES=$(UTIL_SRC_FILES:$(UTIL_SRC_DIR)/%.erl=%)
+UTIL_BIN_FILES=$(UTIL_MODULES:%=$(UTIL_BIN_DIR)/%.beam)
+TMP_FILES=$(TMP_PATTERN) $(addprefix $(APP_SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(HDR_DIR)/, $(TMP_PATTERN)) $(addprefix $(DOC_DIR)/, $(TMP_PATTERN)) $(addprefix $(TST_SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(EXM_DIR)/, $(TMP_PATTERN)) $(addprefix $(UTIL_SRC_DIR)/, $(TMP_PATTERN))
+BUILD_FILES=$(APP_BIN_FILES) $(DOC_FILES) $(TST_BIN_FILES) $(UTIL_BIN_FILES) $(RELEASE_FILE)
 
 ENTER_ERL=erl -noinput -pa $(APP_BIN_DIR) -eval '
 EXIT_ERL=' -run init stop
 ERLC=erlc
-APP_ERLC_FLAGS=-W2 -Ddebug +debug_info +warn_missing_spec +warn_untyped_record -I $(HDR_DIR)
-TST_ERLC_FLAGS=-W2 +debug_info +nowarn_unused_function -I $(HDR_DIR)
+ERLC_FLAGS=-W2 +debug_info -I $(HDR_DIR)
+ifdef NOTYPES
+APP_ERLC_FLAGS=-pa $(UTIL_BIN_DIR) +{parse_transform,strip_types} -o $(APP_BIN_DIR)
+else
+APP_ERLC_FLAGS=+warn_missing_spec +warn_untyped_record -o $(APP_BIN_DIR)
+endif
+TST_ERLC_FLAGS=+nowarn_unused_function -o $(TST_BIN_DIR)
+UTIL_ERLC_FLAGS=-o $(UTIL_BIN_DIR)
 EDOC_OPTIONS=[{dialyzer_specs,all}, {report_missing_type,true}, {report_type_mismatch,true}, {pretty_print,erl_pp}, {preprocess,true}]
 EUNIT_OPTIONS=[]
 DIALYZER=dialyzer
@@ -37,29 +49,34 @@ TAR=tar -czf
 
 
 # TODO: separate debug and optimization options
-# TODO: extra targets: test, tags, commit/update
+# TODO: extra targets: tags, commit/update
 # TODO: header and text files as dependencies: more fine-grained
 
-.PHONY: default all compile tests doc test check clean distclean rebuild release build_plt
+.PHONY: default all compile tests util doc check clean distclean rebuild release build_plt
 
 default: compile
 
 all: compile doc
 
-compile: $(APP_BIN_FILES)
+compile: util $(APP_BIN_FILES)
 
 $(APP_BIN_FILES): $(HDR_FILES)
 
 $(APP_BIN_DIR)/%.beam: $(APP_SRC_DIR)/%.erl
-	$(ERLC) $(APP_ERLC_FLAGS) -o $(APP_BIN_DIR) $<
+	$(ERLC) $(ERLC_FLAGS) $(APP_ERLC_FLAGS) $<
 
-tests: $(TST_BIN_FILES)
+tests: compile $(TST_BIN_FILES)
 	$(ENTER_ERL) eunit:test({dir,"$(TST_BIN_DIR)"},$(EUNIT_OPTIONS)) $(EXIT_ERL)
 
 $(TST_BIN_FILES): $(HDR_FILES)
 
 $(TST_BIN_DIR)/%.beam: $(TST_SRC_DIR)/%.erl
-	$(ERLC) $(TST_ERLC_FLAGS) -o $(TST_BIN_DIR) $<
+	$(ERLC) $(ERLC_FLAGS) $(TST_ERLC_FLAGS) $<
+
+util: $(UTIL_BIN_FILES)
+
+$(UTIL_BIN_DIR)/%.beam: $(UTIL_SRC_DIR)/%.erl
+	$(ERLC) $(ERLC_FLAGS) $(UTIL_ERLC_FLAGS) $<
 
 doc: $(APP_SRC_FILES) $(HDR_FILES) $(TXT_FILES)
 	$(ENTER_ERL) edoc:application(proper, ".", $(EDOC_OPTIONS)) $(EXIT_ERL)
@@ -73,13 +90,13 @@ clean:
 
 distclean: clean
 	@echo removing build artifacts...
-	@$(RM) $(APP_BIN_FILES) $(DOC_FILES) $(TST_BIN_FILES) $(RELEASE_FILE)
+	@$(RM) $(BUILD_FILES)
 
 rebuild: distclean compile
 
 release: all clean
 	$(RM) $(RELEASE_FILE)
-	$(TAR) $(RELEASE_FILE) $(APP_SRC_FILES) $(APP_BIN_FILES) $(HDR_FILES) $(DOC_FILES) $(TST_SRC_FILES) $(EXM_FILES) $(TXT_FILES)
+	$(TAR) $(RELEASE_FILE) $(APP_SRC_FILES) $(APP_BIN_FILES) $(HDR_FILES) $(DOC_FILES) $(TST_SRC_FILES) $(UTIL_SRC_FILES) $(UTIL_BIN_FILES) $(EXM_FILES) $(TXT_FILES)
 
 build_plt:
 	$(DIALYZER) --build_plt --apps $(NEEDED_APPS)
