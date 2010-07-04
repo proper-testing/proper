@@ -2,7 +2,7 @@
 Contact information and license
 --------------------------------------------------------------------------------
 
-PropEr (PROPerty-based testing tool for ERlang) is a open-source implementation
+PropEr (PROPerty-based testing tool for ERlang) is an open-source implementation
 of QuickCheck for Erlang developed by Manolis Papadakis (manopapad@gmail.com)
 and Kostis Sagonas (kostis@cs.ntua.gr).
 
@@ -35,6 +35,56 @@ Quickstart guide
      proper:check(your_module:some_property()).
   You can also try out the random instance generation subsystem by running:
      proper_gen:pick(some_type()).
+       or
+     proper_gen:pick(some_type(), <size>).
+
+Note to users of Erlang r13b03 or older:
+
+PropEr makes heavy use of recursive types, which are unsupported in versions of
+the Erlang/OTP distribution prior to r13b04. To compile PropEr under such a
+system, run 'make' like so:
+  make NOTYPES=1
+This enables the spec+type-stripping parse transform included in PropEr, which
+fixes the problem by stripping all type information from PropEr's source files
+while compiling.
+
+
+--------------------------------------------------------------------------------
+Instroduction
+--------------------------------------------------------------------------------
+
+Traditional testing methodologies essentially involve software testers writing a
+series of test inputs for their programs, along with their corresponding
+expected outputs, then running the program with these inputs and observing
+whether it behaves as expected. This method of testing, while simple and easy to
+automate, suffers from a few problems, such as:
+* Writing test cases by hand is tedious and time consuming.
+* It is hard to know whether the test suite covers all aspects of the software
+  under test.
+
+Property-based testing is a novel approach to software testing, where the tester
+needs only specify the generic structure of valid inputs for the program under
+test, plus certain properties (regarding the program's behaviour and the input-
+output relation) which are expected to hold for every valid input. A property-
+based testing tool, when supplied with this information, should randomly
+produce progressively more complex valid inputs, then apply those inputs to the
+program while monitoring its execution, to ensure that it behaves according to
+its specification, as outlined in the supplied properties.
+
+Here are a few examples of simple properties a user may wish to test, expressed
+in natural language:
+* The program should accept any character string and convert all lowercase
+  letters inside the string to uppercase.
+* The program should accept any list of integers. If the input list is at least
+  4 elements long, the program should return the 4th largest integer in the
+  list, else it should throw an exception.
+
+PropEr is such a property-based testing tool, designed to test programs written
+in the Erlang programming language. Its focus is on testing the behaviour of
+pure functions. The input domain of functions is specified through the use of
+a type system, modeled closely after the type system of the language itself
+(see the following sections for details). Properties are written using Erlang
+expressions, with the help of a few predefined macros.
 
 
 --------------------------------------------------------------------------------
@@ -71,11 +121,14 @@ collect(<Category>, <Prop>)
     fails) along with the percentage of test cases belonging to each category.
     Multiple 'collect' wrappers are allowed in a single property, in which case
     the percentages for each 'collect' wrapper are printed separately.
+aggregate(<Categories>, <Prop>)
+    Same as 'collect', but accepts a list of categories under which to classify
+    the produced test case.
 ?WHENFAIL(<Action>, <Prop>)
     The <Action> field should contain an expression or statement block that
     produces some side-effect (e.g. prints something to the screen). In case
-    this test fails, <Action> will be executed. Note that such actions are not
-    executed at all when in quiet mode.
+    this test fails, <Action> will be executed. Note that the output of such
+    actions is not affected by the verbosity setting of the main application.
 ?TRAPEXIT(<Prop>)
     Signifies that the code comprising <Prop> may report failure by exiting
     abnormally, e.g. if it spawns and links to a worker thread, the worker
@@ -101,15 +154,84 @@ numtests(<Positive_number>, <Prop>)
 fails(<Prop>)
     Specifies that we expect the property to fail for some input. The property
     will be considered failing if it passes all the tests.
+on_output(<Output_function>, <Prop>)
+    Specifies an output function to be used by PropEr for all output printing.
+    This wrapper is equivalent to the 'on_output' option (see the 'Options'
+    section for details).
 
-
-In verbose mode, each succeeding test prints a '.' on screen. If a test fails,
-a '!' is printed and, unless the test was expected to fail, the program attempts
-to produce a minimal test case that fails the property in the same way. Note
-that failure may also be signified by throwing an exception (but not an error).
+Note that failure of a property may also be signified by throwing an exception
+(but not an error).
 
 For some actual usage examples, see the code in the examples directory. The
 testing modules in the tests directory may also be of interest.
+
+
+--------------------------------------------------------------------------------
+Program behaviour
+--------------------------------------------------------------------------------
+
+When running in verbose mode (this is the default), each succeeding test prints
+a '.' on screen. If a test fails, a '!' is printed, along with the failing
+test case (the instances of the types in every ?FORALL) and the cause of the
+failure, if it was not simply the falsification of the property. Then, unless
+the test was expected to fail, PropEr attempts to produce a minimal test case
+that fails the property in the same way. This process is called
+'shrinking'. During shrinking, a '.' is printed for each successful
+simplification of the failing test case. When PropEr reaches its shrinking limit
+or realizes that the instance cannot be shrunk further while still failing the
+test, it prints the minimal failing test case and failure reason and exits.
+
+The return value of PropEr can be one of the following:
+
+* 'true': The property held for all valid produced inputs.
+* 'false': The property failed for some input.
+* {'error', <Type_of_error>}: An error occured - see the 'Errors' section for a
+  description of possible errors.
+
+In long-result mode (see the 'Options' section), a tagged tuple is returned,
+detailing the results of testing. The return tuple can be one of the following:
+
+* {'passed', <Number_of_tests_passed>, <List_of_categories_lists>}: The property
+  held for all <Number_of_tests_passed> valid produced inputs. The third element
+  of the return tuple is a list containing one list of collected categories for
+  each separate 'collect' or 'aggregate' clause in the test property.
+* {'failed', <After_so_many_tests>, <Counterexample>}: The property failed for
+  the input contained in <Counterexample> (see the 'Counterexamples' section).
+  PropEr had been instructed not to attempt shrinking on this input.
+* {'failed', <After_so_many_tests>, <Original_counterexample>,
+   <Number_of_shrinks>, <Simplified_counterexample>}: The property failed for
+  the input contained in <Original_counterexample>, which has been shrunk to the
+  minimal failing input contained in <Simplified_counterexample> (see the
+  'Counterexamples' section).
+* {'error', <Type_of_error>}: An error occured - see the 'Errors' section for a
+  description of possible errors.
+
+
+--------------------------------------------------------------------------------
+Counterexamples
+--------------------------------------------------------------------------------
+
+The last (simplest) counterexample produced by PropEr during a testing run can
+be retrieved after testing has finished, by running proper:get_counterexample().
+To enable this functionality, some information has to remain in the process
+dictionary even after proper:check has returned. To completely clean up the
+process dictionary of PropEr-produced entries, run proper:clean_garbage().
+Counterexamples can also be retrieved by running PropEr in long-result mode, in
+which case counterexamples are also returned as part of the return tuple.
+
+Apart from the actual produced instances of the types in ?FORALL wrappers, a
+counterexample contains some additional information that PropEr needs in order
+to re-check a failing test case. Use the following functions to extract the
+useful parts of a counterexample:
+* proper:get_bound/1: Extracts the actual test case (produced instances of types
+  in ?FORALLs).
+* proper:get_fail_reason/1: Extracts a term representing the cause of failure.
+  Possible failure reasons are:
+  - 'false_prop': The property evaluates to 'false' for this test case.
+  - 'timeout': Evaluation of the property exceeded the time limit specified in
+    a ?TIMEOUT clause.
+  - {'exception',<Kind>,<Reason>,<Stacktrace>}: A <Kind>:<Reason> exception
+    was thrown by the property evaluation code.
 
 
 --------------------------------------------------------------------------------
@@ -117,18 +239,21 @@ Options
 --------------------------------------------------------------------------------
 
 Options can be provided as a second argument to proper:check. A single option
-can be written stand-alone, or multiple options can be provided in a list. The
-available options are:
+can be written stand-alone, or multiple options can be provided in a list.
+Unrecognized options are ignored. The available options are:
 
 'quiet'
-    Enables quiet mode - nothing is printed on screen, the results of testing
-    are returned in a tagged tuple. The return tuple can be one of the
-    following:
-    * {'passed', <Number_of_tests_passed>, <Testcase_statistics>}
-    * {'failed', <After_so_many_tests>, <Failure_reason>, <Failing_testcase>}
-    * {'failed', <After_so_many_tests>, <Failure_reason>,
-       <Original_failing_testcase>, <Number_of_shrinks>, <Simplified_testcase>}
-    * {'error', <Type_of_error>}
+    Enables quiet mode - no output is printed on screen while PropEr is running.
+{'to_file', <IO_device>}
+    Redirects all of PropEr's output to <IO_device>, which should be an IO
+    device associated with a file opened for writing.
+{'on_output', <output_function>}
+    PropEr will use the supplied function for all output printing. This function
+    should accept two arguments in the style of io:format/2.
+    CAUTION: If multiple of the above three output control options are provided,
+    the last one in the list takes precedence.
+'long_result'
+    Enables long-result mode (see the 'Program behaviour' section for details).
 'crypto'
     Enables the use of the crypto module for some kinds of random generation
     (namely, the generation of binaries and the generation of ranges of
@@ -141,11 +266,16 @@ available options are:
 {'numtests', <Positive_number>} or simply <Positive_number>
     This is equivalent to the 'numtests' property wrapper. Any 'numtests'
     wrappers in the actual property will overwrite this setting.
+{'start_size', <Size>}
+    Specifies the initial value of the 'size' parameter (default is 1), see the
+    'Basic types' section for details.
 {'max_shrinks', <Non_negative_number>}
     Specifies the maximum number of times a failing test case should be shrunk
     before returning. Note that the shrinking may stop before so many shrinks
     are achieved if the shrinking subsystem deduces that it cannot shrink the
     failing test case further. Default is 500.
+'noshrink'
+    Instructs PropEr to not attempt to shrink any failing test cases.
 {'constraint_tries', <Positive_number>}
     Specifies the maximum number of tries before the generator subsystem gives
     up on producing an instance that satisfies a ?SUCHTHAT constraint. Default
@@ -379,9 +509,9 @@ Coming soon.
 Errors
 --------------------------------------------------------------------------------
 
-The following errors may be encountered during testing. The terms provided here
-are the error types returned if quiet mode is active - in verbose mode, a
-message is printed on screen describing the error.
+The following errors may be encountered during testing. The term provided for
+each error is the error type returned by proper:check in case such an error
+occurs. Normaly, a message is also printed on screen describing the error.
 
 * 'cant_generate': The instance generation subsystem has failed to produce an
   instance that satisfies some ?SUCHTHAT constraint. You should either increase
@@ -390,7 +520,28 @@ message is printed on screen describing the error.
 * 'cant_satisfy': All the tests were rejected because no produced test case
   would pass all ?IMPLIES checks. You should loosen the failing ?IMPLIES
   constraint(s).
+* 'type_mismatch': The variables' and types' structures inside a ?FORALL don't
+  match. Please check your properties.
 * {'unexpected', <Result>}: A test returned an unexpected result. If you ever
-  get this error, it means that you have probably found a bug in PropEr
-  - please send an error report to the maintainers and remember to include
-  both the failing test case and the output of the program, if possible.
+  get this error, it means that you have found a bug in PropEr - please send an
+  error report to the maintainers and remember to include both the failing test
+  case and the output of the program, if possible.
+
+
+--------------------------------------------------------------------------------
+Incompatibilities with Quviq QuickCheck
+--------------------------------------------------------------------------------
+
+We have generaly tried to keep PropEr's notation and output as compatible as
+possible with Quviq QuickCheck, to allow for the reuse of existing testing code
+written for QuickCheck. However, incompatibilities are to be expected, since
+the two programs probably bear little resemblance under the hood. Here we
+provide a nonexhaustive list of known incompatibilities:
+
+* ?SUCHTHATMAYBE behaves differently in PropEr.
+* In order to re-check a failing test case, PropEr requires more than the
+  instances of the failing test case itself. That required extra bit of
+  information is the reason for encapsulating the failing test case in an opaque
+  'counterexample' datatype.
+* proper_gen:pick differs from eqc_gen:pick in return value format.
+* PropEr handles 'size' differently from QuickCheck.

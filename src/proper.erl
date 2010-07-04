@@ -264,7 +264,8 @@ parse_opt(UserOpt, Opts) ->
 	{max_shrinks,N}              -> Opts#opts{max_shrinks = N};
 	noshrink                     -> Opts#opts{noshrink = true};
 	{constraint_tries,N}         -> Opts#opts{constraint_tries = N};
-	fails                        -> Opts#opts{expect_fail = true}
+	fails                        -> Opts#opts{expect_fail = true};
+	_                            -> Opts
     end.
 
 
