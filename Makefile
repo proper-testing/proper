@@ -10,8 +10,10 @@ UTIL_SRC_DIR=util
 UTIL_BIN_DIR=util
 TMP_PATTERN=*~ \\\#*\\\# *.dump
 
-TXT_FILES=COPYING Makefile README $(DOC_DIR)/overview.edoc
-RELEASE_FILE=proper.tar.gz
+TXT_FILES=COPYING README
+DOC_SRC_FILES=$(DOC_DIR)/overview.edoc
+MAKE_FILES=Makefile vsn.mk $(APP_SRC_DIR)/proper.app.src
+PACKAGE_FILE=proper.tar.gz
 
 include vsn.mk
 
@@ -28,7 +30,7 @@ UTIL_SRC_FILES=$(wildcard $(UTIL_SRC_DIR)/*.erl)
 UTIL_MODULES=$(UTIL_SRC_FILES:$(UTIL_SRC_DIR)/%.erl=%)
 UTIL_BIN_FILES=$(UTIL_MODULES:%=$(UTIL_BIN_DIR)/%.beam)
 TMP_FILES=$(TMP_PATTERN) $(addprefix $(APP_SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(HDR_DIR)/, $(TMP_PATTERN)) $(addprefix $(DOC_DIR)/, $(TMP_PATTERN)) $(addprefix $(TST_SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(EXM_DIR)/, $(TMP_PATTERN)) $(addprefix $(UTIL_SRC_DIR)/, $(TMP_PATTERN))
-BUILD_FILES=$(APP_BIN_FILES) $(DOC_FILES) $(TST_BIN_FILES) $(UTIL_BIN_FILES) $(RELEASE_FILE)
+BUILD_FILES=$(APP_BIN_FILES) $(DOC_FILES) $(TST_BIN_FILES) $(UTIL_BIN_FILES) $(PACKAGE_FILE)
 
 ENTER_ERL=erl -noinput -pa $(APP_BIN_DIR) -eval '
 EXIT_ERL=' -run init stop
@@ -51,10 +53,11 @@ TAR=tar -czf
 
 
 # TODO: separate debug and optimization options
-# TODO: extra targets: tags, commit/update
-# TODO: header and text files as dependencies: more fine-grained
+# TODO: extra targets: tags, commit/update, check_plt, analyze
+# TODO: header files as dependencies: more fine-grained
+# TODO: fill in the modules and applications in the .app file on the fly
 
-.PHONY: default all compile tests util doc check clean distclean rebuild release build_plt
+.PHONY: default all compile tests util doc check clean distclean rebuild package build_plt
 
 default: compile
 
@@ -62,46 +65,50 @@ all: compile doc
 
 compile: util $(APP_BIN_FILES)
 
-$(APP_BIN_FILES): $(HDR_FILES)
+$(APP_BIN_FILES): $(HDR_FILES) $(MAKE_FILES)
 
 $(APP_BIN_DIR)/%.beam: $(APP_SRC_DIR)/%.erl
 	$(ERLC) $(ERLC_FLAGS) $(APP_ERLC_FLAGS) $<
 
-$(APP_BIN_DIR)/%.app: $(APP_SRC_DIR)/%.app.src vsn.mk Makefile
+$(APP_BIN_DIR)/%.app: $(APP_SRC_DIR)/%.app.src
 	sed -e s^%PROPER_VSN%^$(PROPER_VSN)^ $< > $@
 
 tests: compile $(TST_BIN_FILES)
 	$(ENTER_ERL) eunit:test({dir,"$(TST_BIN_DIR)"},$(EUNIT_OPTIONS)) $(EXIT_ERL)
 
-$(TST_BIN_FILES): $(HDR_FILES)
+$(TST_BIN_FILES): $(HDR_FILES) $(MAKE_FILES)
 
 $(TST_BIN_DIR)/%.beam: $(TST_SRC_DIR)/%.erl
 	$(ERLC) $(ERLC_FLAGS) $(TST_ERLC_FLAGS) $<
 
 util: $(UTIL_BIN_FILES)
 
-$(UTIL_BIN_DIR)/%.beam: $(UTIL_SRC_DIR)/%.erl
+$(UTIL_BIN_DIR)/%.beam: $(UTIL_SRC_DIR)/%.erl $(MAKE_FILES)
 	$(ERLC) $(ERLC_FLAGS) $(UTIL_ERLC_FLAGS) $<
 
-doc: $(APP_SRC_FILES) $(HDR_FILES) $(TXT_FILES)
+doc: $(DOC_SRC_FILES) $(APP_SRC_FILES) $(HDR_FILES) $(MAKE_FILES)
 	$(ENTER_ERL) edoc:application(proper, ".", $(EDOC_OPTIONS)) $(EXIT_ERL)
 
 check: compile
-	$(DIALYZER) $(DIALYZER_FLAGS) $(APP_BIN_FILES)
+	$(DIALYZER) $(DIALYZER_FLAGS) $(APP_BIN_DIR)
 
 clean:
-	@echo removing temporary files...
+	@echo -n removing temporary files...
 	@$(RM) $(TMP_FILES)
+	@echo done
 
 distclean: clean
-	@echo removing build artifacts...
+	@echo -n removing build artifacts...
 	@$(RM) $(BUILD_FILES)
+	@echo done
 
 rebuild: distclean compile
 
-release: all clean
-	$(RM) $(RELEASE_FILE)
-	$(TAR) $(RELEASE_FILE) $(APP_SRC_FILES) $(APP_BIN_FILES) $(HDR_FILES) $(DOC_FILES) $(TST_SRC_FILES) $(UTIL_SRC_FILES) $(UTIL_BIN_FILES) $(EXM_FILES) $(TXT_FILES)
+package: all clean
+	$(RM) $(PACKAGE_FILE)
+	@echo -n packaging...
+	@$(TAR) $(PACKAGE_FILE) $(APP_SRC_FILES) $(APP_BIN_FILES) $(HDR_FILES) $(DOC_SRC_FILES) $(DOC_FILES) $(TST_SRC_FILES) $(UTIL_SRC_FILES) $(UTIL_BIN_FILES) $(EXM_FILES) $(TXT_FILES) $(MAKE_FILES)
+	@echo done
 
 build_plt:
 	$(DIALYZER) --build_plt --apps $(NEEDED_APPS)
