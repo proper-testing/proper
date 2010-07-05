@@ -3,6 +3,7 @@
 *.dump
 *.tar.gz
 *.beam
+*.app
 doc/*.html
 doc/*.css
 doc/*.png

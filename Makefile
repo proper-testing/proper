@@ -37,7 +37,7 @@ EXIT_ERL=' -run init stop
 ERLC=erlc
 ERLC_FLAGS=-W2 +debug_info -I $(HDR_DIR)
 ifdef NOTYPES
-APP_ERLC_FLAGS=-pa $(UTIL_BIN_DIR) +{parse_transform,strip_types} -o $(APP_BIN_DIR)
+APP_ERLC_FLAGS=-pa $(UTIL_BIN_DIR) '+{parse_transform,strip_types}' -o $(APP_BIN_DIR)
 else
 APP_ERLC_FLAGS=+warn_missing_spec +warn_untyped_record -o $(APP_BIN_DIR)
 endif
@@ -50,6 +50,7 @@ DIALYZER_FLAGS=-Wunmatched_returns
 NEEDED_APPS=compiler erts kernel stdlib crypto
 RM=rm -f
 TAR=tar -czf
+SUB_MAKE_FLAGS=--no-print-directory
 
 
 # TODO: separate debug and optimization options
@@ -63,9 +64,9 @@ default: compile
 
 all: compile doc
 
-compile: util $(APP_BIN_FILES)
+compile: $(APP_BIN_FILES)
 
-$(APP_BIN_FILES): $(HDR_FILES) $(MAKE_FILES)
+$(APP_BIN_FILES): $(UTIL_BIN_FILES) $(HDR_FILES) $(MAKE_FILES)
 
 $(APP_BIN_DIR)/%.beam: $(APP_SRC_DIR)/%.erl
 	$(ERLC) $(ERLC_FLAGS) $(APP_ERLC_FLAGS) $<
@@ -83,7 +84,9 @@ $(TST_BIN_DIR)/%.beam: $(TST_SRC_DIR)/%.erl
 
 util: $(UTIL_BIN_FILES)
 
-$(UTIL_BIN_DIR)/%.beam: $(UTIL_SRC_DIR)/%.erl $(MAKE_FILES)
+$(UTIL_BIN_FILES): $(MAKE_FILES)
+
+$(UTIL_BIN_DIR)/%.beam: $(UTIL_SRC_DIR)/%.erl
 	$(ERLC) $(ERLC_FLAGS) $(UTIL_ERLC_FLAGS) $<
 
 doc: $(DOC_SRC_FILES) $(APP_SRC_FILES) $(HDR_FILES) $(MAKE_FILES)
@@ -102,10 +105,13 @@ distclean: clean
 	@$(RM) $(BUILD_FILES)
 	@echo done
 
-rebuild: distclean compile
+rebuild:
+	@$(MAKE) $(SUB_MAKE_FLAGS) distclean
+	@$(MAKE) $(SUB_MAKE_FLAGS) compile
 
-package: all clean
-	$(RM) $(PACKAGE_FILE)
+package:
+	@$(MAKE) $(SUB_MAKE_FLAGS) all
+	@$(MAKE) $(SUB_MAKE_FLAGS) clean
 	@echo -n packaging...
 	@$(TAR) $(PACKAGE_FILE) $(APP_SRC_FILES) $(APP_BIN_FILES) $(HDR_FILES) $(DOC_SRC_FILES) $(DOC_FILES) $(TST_SRC_FILES) $(UTIL_SRC_FILES) $(UTIL_BIN_FILES) $(EXM_FILES) $(TXT_FILES) $(MAKE_FILES)
 	@echo done
