@@ -13,9 +13,11 @@ TMP_PATTERN=*~ \\\#*\\\# *.dump
 TXT_FILES=COPYING Makefile README $(DOC_DIR)/overview.edoc
 RELEASE_FILE=proper.tar.gz
 
+include vsn.mk
+
 APP_SRC_FILES=$(wildcard $(APP_SRC_DIR)/*.erl)
 APP_MODULES=$(APP_SRC_FILES:$(APP_SRC_DIR)/%.erl=%)
-APP_BIN_FILES=$(APP_MODULES:%=$(APP_BIN_DIR)/%.beam)
+APP_BIN_FILES=$(APP_MODULES:%=$(APP_BIN_DIR)/%.beam) $(APP_BIN_DIR)/proper.app
 HDR_FILES=$(wildcard $(HDR_DIR)/*.hrl)
 DOC_FILES=$(addprefix $(DOC_DIR)/, $(DOC_PATTERN) $(addsuffix .html, $(APP_MODULES)))
 TST_SRC_FILES=$(wildcard $(TST_SRC_DIR)/*.erl)
@@ -64,6 +66,9 @@ $(APP_BIN_FILES): $(HDR_FILES)
 
 $(APP_BIN_DIR)/%.beam: $(APP_SRC_DIR)/%.erl
 	$(ERLC) $(ERLC_FLAGS) $(APP_ERLC_FLAGS) $<
+
+$(APP_BIN_DIR)/%.app: $(APP_SRC_DIR)/%.app.src vsn.mk Makefile
+	sed -e s^%PROPER_VSN%^$(PROPER_VSN)^ $< > $@
 
 tests: compile $(TST_BIN_FILES)
 	$(ENTER_ERL) eunit:test({dir,"$(TST_BIN_DIR)"},$(EUNIT_OPTIONS)) $(EXIT_ERL)

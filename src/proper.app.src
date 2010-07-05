@@ -1,0 +1,12 @@
+{application, proper,
+ [{description, "A property-based testing tool for Erlang inspired by QuickCheck"},
+  {vsn, "%PROPER_VSN%"},
+  {modules, [proper,
+	     proper_arith,
+	     proper_extra,
+	     proper_shrink,
+	     proper_symb,
+	     proper_types]},
+  {registered, []},
+  {applications, [compiler, erts, kernel, stdlib, crypto]},
+  {env, []}]}.
