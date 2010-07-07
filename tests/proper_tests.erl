@@ -379,8 +379,8 @@ true_props_test_() ->
 		?assert(correct_smaller_length_aggregation(100, SmallerLens))
 	    end),
      ?_assertRun(true, {passed,300,[]}, numtests(300,?FORALL(_,1,true)), []),
-     ?_assertRun(true, {passed,_,[]},
-		 ?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X)), []),
+     ?_perfectRun(?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X))),
+     ?_perfectRun(?FORALL(X, integer(), ?IMPLIES(X >= 0, true))),
      ?_perfectRun(?FORALL({X,Lim},{int(),?SIZED(Size,Size)},abs(X) =< Lim)),
      ?_perfectRun(?FORALL({X,Lim},{nat(),?SIZED(Size,Size)},X =< Lim)),
      ?_perfectRun(?FORALL(L,orderedlist(integer()),is_sorted(L)))].

@@ -30,6 +30,7 @@
 -define(MAX_ATOM_LEN, 255).
 -define(MAX_BINARY_LEN, 300).
 -define(SEED_RANGE, 4294967296).
+-define(MAX_TRIES_FACTOR, 5).
 
 
 %%------------------------------------------------------------------------------

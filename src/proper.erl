@@ -361,22 +361,24 @@ get_long_result(ImmResult, _Test, _Opts) ->
 
 -spec perform(non_neg_integer(), test(), output_fun()) -> imm_result().
 perform(NumTests, Test, Print) ->
-    perform(0, 0, NumTests, Test, none, Print).
+    perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, Print).
 
 -spec perform(non_neg_integer(), non_neg_integer(), non_neg_integer(), test(),
 	      [sample()] | 'none', output_fun()) -> imm_result().
-perform(0, _Performed, 0, _Test, _Samples, _Print) ->
+perform(0, _ToPass, 0, _Test, _Samples, _Print) ->
     {error, cant_satisfy};
-perform(Passed, _Performed, 0, _Test, Samples, _Print) ->
+perform(Passed, _ToPass, 0, _Test, Samples, _Print) ->
     {passed, Passed, Samples};
-perform(Passed, Performed, Left, Test, Samples, Print) ->
+perform(ToPass, ToPass, _TriesLeft, _Test, Samples, _Print) ->
+    {passed, ToPass, Samples};
+perform(Passed, ToPass, TriesLeft, Test, Samples, Print) ->
     proper_gen:gen_state_erase(),
     case run(Test) of
 	{passed, true_prop, MoreSamples} ->
 	    Print(".", []),
 	    NewSamples = add_samples(MoreSamples, Samples),
 	    grow_size(),
-	    perform(Passed+1, Performed+1, Left-1, Test, NewSamples, Print);
+	    perform(Passed+1, ToPass, TriesLeft-1, Test, NewSamples, Print);
 	{failed, CExm, Actions} ->
 	    Print("!", []),
 	    {failed, Passed+1, CExm, Actions};
@@ -387,7 +389,7 @@ perform(Passed, Performed, Left, Test, Samples, Print) ->
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(),
-	    perform(Passed, Performed+1, Left-1, Test, Samples, Print);
+	    perform(Passed, ToPass, TriesLeft-1, Test, Samples, Print);
 	Unexpected ->
 	    {error, {unexpected,Unexpected}}
     end.
