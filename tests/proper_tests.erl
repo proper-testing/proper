@@ -443,7 +443,10 @@ error_props_test_() ->
      ?_assertRun({error,cant_satisfy}, {error,cant_satisfy},
 		 ?FORALL(X,pos_integer(),?IMPLIES(X =< 0,true)), []),
      ?_assertRun({error,type_mismatch}, {error,type_mismatch},
-		 ?FORALL({X,Y}, [integer(),integer()], X < Y), [])].
+		 ?FORALL({X,Y}, [integer(),integer()], X < Y), []),
+     {setup, fun() -> ok end, fun(_) -> proper:global_state_erase() end,
+      ?_assertError(function_clause,
+		    proper:check(?FORALL(_,1,lists:min([]) > 0)))}].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))

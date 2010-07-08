@@ -101,7 +101,7 @@ shrink_tr(Shrunk, TestTail, {'$forall',RawType,Prop}, Reason,
 shrink_tr(Shrunk, [ImmInstance | Rest], {'$forall2',_Type,Prop}, Reason,
 	  Shrinks, ShrinksLeft, done, Print) ->
     Instance = proper_gen:clean_instance(ImmInstance),
-    NewTest = proper:skip_to_next({'$apply',[Instance],Prop}),
+    NewTest = proper:force_skip(Instance, Prop),
     shrink_tr([ImmInstance | Shrunk], Rest, NewTest, Reason,
 	      Shrinks, ShrinksLeft, init, Print);
 shrink_tr(Shrunk, TestTail = [ImmInstance | Rest],

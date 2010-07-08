@@ -28,7 +28,7 @@
 
 -export([get_size/1, global_state_init_size/1]).
 -export([numtests/2, collect/2, aggregate/2, fails/1, on_output/2, equals/2]).
--export([still_fails/3, skip_to_next/1]).
+-export([still_fails/3, skip_to_next/1, force_skip/2]).
 
 -export_type([dependent_test/0, imm_testcase/0, test/0, fail_reason/0,
 	      forall_clause/0, output_fun/0]).
@@ -58,12 +58,12 @@
 	      | sample_clause()
 	      | whenfail_clause()
 	      | trapexit_clause()
-	      | timeout_clause()
+	      | timeout_clause().
 	      %%| always_clause()
 	      %%| sometimes_clause()
-	      | apply_clause().
--type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type delayed_test() :: fun(() -> test()).
+-type dependent_test() :: fun((proper_gen:instance()) -> test()).
+-type lazy_test() :: delayed_test() | dependent_test().
 
 -type numtests_clause() :: {'$numtests', pos_integer(), outer_test()}.
 -type fails_clause() :: {'$fails', outer_test()}.
@@ -77,7 +77,6 @@
 -type timeout_clause() :: {'$timeout', time_period(), delayed_test()}.
 %%-type always_clause() :: {'$always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'$sometimes', pos_integer(), delayed_test()}.
--type apply_clause() :: {'$apply', [term()], function()}.
 
 
 %%------------------------------------------------------------------------------
@@ -423,9 +422,9 @@ run({'$forall',RawType,Prop},
 							      RawType)) of
 		true ->
 		    Instance = proper_gen:clean_instance(ImmInstance),
-		    NewCtx =
-			Ctx#ctx{to_try = Rest, bound = [ImmInstance | Bound]},
-		    run({'$apply',[Instance],Prop}, NewCtx);
+		    NewCtx = Ctx#ctx{to_try = Rest,
+				     bound = [ImmInstance | Bound]},
+		    force(Instance, Prop, NewCtx);
 		false ->
 		    {error, wrong_type}
 	    end;
@@ -436,11 +435,11 @@ run({'$forall',RawType,Prop},
 		ImmInstance ->
 		    Instance = proper_gen:clean_instance(ImmInstance),
 		    NewCtx = Ctx#ctx{bound = [ImmInstance | Bound]},
-		    run({'$apply',[Instance],Prop}, NewCtx)
+		    force(Instance, Prop, NewCtx)
 	    end
     end;
 run({'$implies',true,Prop}, Ctx) ->
-    run({'$apply',[],Prop}, Ctx);
+    force(Prop, Ctx);
 run({'$implies',false,_Prop}, _Ctx) ->
     {error, rejected};
 run({'$sample',NewSample,Prop}, #ctx{samples = Samples} = Ctx) ->
@@ -448,10 +447,10 @@ run({'$sample',NewSample,Prop}, #ctx{samples = Samples} = Ctx) ->
     run(Prop, NewCtx);
 run({'$whenfail',NewAction,Prop}, #ctx{fail_actions = Actions} = Ctx)->
     NewCtx = Ctx#ctx{fail_actions = [NewAction | Actions]},
-    run({'$apply',[],Prop}, NewCtx);
+    force(Prop, NewCtx);
 run({'$trapexit',Prop}, Ctx) ->
     NewCtx = Ctx#ctx{catch_exits = true},
-    run({'$apply',[],Prop}, NewCtx);
+    force(Prop, NewCtx);
 run({'$timeout',Limit,Prop}, Ctx) ->
     Self = self(),
     Child = spawn_link(fun() -> child(Self,Prop,Ctx) end),
@@ -462,20 +461,38 @@ run({'$timeout',Limit,Prop}, Ctx) ->
 	exit(Child, kill),
 	clear_mailbox(),
 	create_failed_result(Ctx, timeout)
-    end;
-run({'$apply',Args,Prop}, Ctx) ->
-    try
+    end.
+
+-spec force(delayed_test(), ctx()) -> single_run_result().
+force(Prop, Ctx) ->
+    apply_args([], Prop, Ctx).
+
+-spec force(proper_gen:instance(), dependent_test(), ctx()) ->
+	  single_run_result().
+force(Arg, Prop, Ctx) ->
+    apply_args([Arg], Prop, Ctx).
+
+-spec apply_args([proper_gen:instance()], lazy_test(), ctx()) ->
+	  single_run_result().
+apply_args(Args, Prop, Ctx) ->
+    try apply(Prop, Args) of
 	%% TODO: should we care if the code returns true when trapping exits?
 	%%       If we are doing that, we are probably testing code that will
 	%%       run as a separate process against crashes.
-	run(apply(Prop,Args), Ctx)
+	InnerProp ->
+	    run(InnerProp, Ctx)
     catch
 	error:function_clause ->
-	    {error, type_mismatch};
+	    Trace = erlang:get_stacktrace(),
+	    case threw_exception(Prop, Trace) of
+		true  -> {error, type_mismatch};
+		false -> erlang:raise(error, function_clause, Trace)
+	    end;
 	throw:'$cant_generate' ->
 	    {error, cant_generate};
 	throw:'$need_size_info' ->
 	    {error, need_size_info};
+	%% TODO: remove our functions from the stacktrace
 	throw:ExcReason ->
 	    create_failed_result(Ctx, {exception, throw, ExcReason,
 				       erlang:get_stacktrace()});
@@ -493,7 +510,7 @@ create_failed_result(#ctx{bound = Bound, fail_actions = Actions}, Reason) ->
 
 -spec child(pid(), delayed_test(), ctx()) -> 'ok'.
 child(Father, Prop, Ctx) ->
-    Result = run({'$apply',[],Prop}, Ctx),
+    Result = force(Prop, Ctx),
     Father ! {result, Result},
     ok.
 
@@ -504,6 +521,18 @@ clear_mailbox() ->
     after 0 ->
 	ok
     end.
+
+-spec threw_exception(function(), stacktrace()) -> boolean().
+threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) ->
+    {module,FunMod} = erlang:fun_info(Fun, module),
+    {name,FunName} = erlang:fun_info(Fun, name),
+    {arity,FunArity} = erlang:fun_info(Fun, arity),
+    TopArity =
+	if
+	    is_integer(TopArgs) -> TopArgs;
+	    is_list(TopArgs)    -> length(TopArgs)
+	end,
+    FunMod =:= TopMod andalso FunName =:= TopName andalso FunArity =:= TopArity.
 
 -spec clean_testcase(imm_testcase()) -> clean_testcase().
 clean_testcase(ImmTestCase) ->
@@ -546,18 +575,28 @@ skip_to_next(false) ->
 skip_to_next(Test = {'$forall',_RawType,_Prop}) ->
     Test;
 skip_to_next({'$implies',true,Prop}) ->
-    skip_to_next({'$apply',[],Prop});
+    force_skip(Prop);
 skip_to_next({'$implies',false,_Prop}) ->
     error;
 skip_to_next({'$sample',_Sample,Prop}) ->
     skip_to_next(Prop);
 skip_to_next({'$whenfail',_Action,Prop}) ->
-    skip_to_next({'$apply',[],Prop});
+    force_skip(Prop);
 skip_to_next({'$trapexit',Prop}) ->
-    skip_to_next({'$apply',[],Prop});
+    force_skip(Prop);
 skip_to_next({'$timeout',_Limit,_Prop}) ->
-    false; % This is OK, since timeout cannot contain any ?FORALLs.
-skip_to_next({'$apply',Args,Prop}) ->
+    false. % This is OK, since timeout cannot contain any ?FORALLs.
+
+-spec force_skip(delayed_test()) -> forall_clause() | 'false' | 'error'.
+force_skip(Prop) -> apply_skip([], Prop).
+
+-spec force_skip(proper_gen:instance(), dependent_test()) ->
+	  forall_clause() | 'false' | 'error'.
+force_skip(Arg, Prop) -> apply_skip([Arg], Prop).
+
+-spec apply_skip([proper_gen:instance()], lazy_test()) ->
+	  forall_clause() | 'false' | 'error'.
+apply_skip(Args, Prop) ->
     try
 	skip_to_next(apply(Prop, Args))
     catch
