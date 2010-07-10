@@ -445,13 +445,19 @@ elements_shrinker(Instance, Type,
     elements_shrinker(Instance, Type, {inner,Rest,GetElemType,init});
 elements_shrinker(Instance, Type,
 		  {inner,Indices = [Index | _Rest],GetElemType,InnerState}) ->
+    Kind = proper_types:get_prop(kind, Type),
     Retrieve = proper_types:get_prop(retrieve, Type),
     Update = proper_types:get_prop(update, Type),
     Elem = Retrieve(Index, Instance),
     InnerType = GetElemType(Index),
-    {NewImmElems,NewInnerState} = shrink_one(Elem, InnerType, InnerState),
+    ImmElem =
+	case {Kind, proper_types:find_prop(reverse_gen,InnerType)} of
+	    {opaque,{ok,ReverseGen}} -> ReverseGen(Elem);
+	    _                        -> Elem
+	end,
+    {NewImmElems,NewInnerState} = shrink_one(ImmElem, InnerType, InnerState),
     NewElems =
-	case proper_types:get_prop(kind, Type) of
+	case Kind of
 	    opaque -> [proper_gen:clean_instance(E) || E <- NewImmElems];
 	    _      -> NewImmElems
 	end,

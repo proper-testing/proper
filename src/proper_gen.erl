@@ -31,9 +31,10 @@
 	 function_body/3]).
 -export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
 	 binary_str_gen/1, binary_rev/1, binary_len_gen/1, binary_len_str_gen/1,
-	 bitstring_gen/0, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
+	 bitstring_gen/1, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
 	 vector_gen/2, union_gen/1, weighted_union_gen/1, tuple_gen/1,
-	 exactly_gen/1, fixed_list_gen/1, function_gen/2]).
+	 loose_tuple_gen/2, loose_tuple_rev/2, exactly_gen/1, fixed_list_gen/1,
+	 function_gen/2, any_gen/1]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
@@ -357,12 +358,12 @@ binary_len_gen(Len) ->
 binary_len_str_gen(Len) ->
     proper_arith:rand_bytes(Len).
 
--spec bitstring_gen() -> proper_types:type().
-bitstring_gen() ->
+-spec bitstring_gen(size()) -> proper_types:type().
+bitstring_gen(Size) ->
     ?LET({BytesHead, NumBits, TailByte},
-	 {proper_types:binary(), proper_types:range(0,7),
-	  proper_types:range(0,127)},
-	  <<BytesHead/binary, TailByte:NumBits>>).
+	 {proper_types:resize(Size,proper_types:binary()),
+	  proper_types:range(0,7), proper_types:range(0,127)},
+	 <<BytesHead/binary, TailByte:NumBits>>).
 
 -spec bitstring_rev(bitstring()) -> imm_instance().
 bitstring_rev(BitString) ->
@@ -394,7 +395,14 @@ list_gen(Size, ElemType) ->
 
 -spec vector_gen(length(), proper_types:type()) -> [imm_instance()].
 vector_gen(Len, ElemType) ->
-    fixed_list_gen(lists:duplicate(Len, ElemType)).
+    vector_gen_tr(Len, ElemType, []).
+
+-spec vector_gen_tr(length(), proper_types:type(), [imm_instance()]) ->
+	  [imm_instance()].
+vector_gen_tr(0, _ElemType, AccList) ->
+    AccList;
+vector_gen_tr(Left, ElemType, AccList) ->
+    vector_gen_tr(Left - 1, ElemType, [generate(ElemType) | AccList]).
 
 -spec union_gen([proper_types:type()]) -> imm_instance().
 union_gen(Choices) ->
@@ -406,9 +414,24 @@ weighted_union_gen(FreqChoices) ->
     {_Choice,Type} = proper_arith:freq_choose(FreqChoices),
     generate(Type).
 
--spec tuple_gen([proper_types:type()]) -> tuple(imm_instance()).
+-spec tuple_gen([proper_types:type()]) -> tuple().
 tuple_gen(Fields) ->
     list_to_tuple(fixed_list_gen(Fields)).
+
+-spec loose_tuple_gen(size(), proper_types:type()) -> proper_types:type().
+loose_tuple_gen(Size, ElemType) ->
+    ?LET(L,
+	 proper_types:resize(Size, proper_types:list(ElemType)),
+	 list_to_tuple(L)).
+
+-spec loose_tuple_rev(tuple(), proper_types:type()) -> imm_instance().
+loose_tuple_rev(Tuple, ElemType) ->
+    CleanList = tuple_to_list(Tuple),
+    List = case proper_types:find_prop(reverse_gen, ElemType) of
+	       {ok,ReverseGen} -> [ReverseGen(X) || X <- CleanList];
+	       error           -> CleanList
+	   end,
+    {'$used', List, Tuple}.
 
 -spec exactly_gen(T) -> T.
 exactly_gen(X) ->
@@ -465,3 +488,27 @@ new_function(Arity, RetType, FunSeed) ->
 	      erl_parse:abstract(term_to_binary(RetType)),
 	      erl_parse:abstract(FunSeed)]}],
     {FunName, {function,0,FunName,Arity,[{clause,0,Args,[],Body}]}}.
+
+-spec any_gen(size()) -> imm_instance().
+any_gen(0) ->
+    SimpleTypes = [proper_types:integer(), proper_types:float(),
+		   proper_types:atom()],
+    union_gen(SimpleTypes);
+any_gen(Size) ->
+    FreqChoices = [{?ANY_SIMPLE_PROB,simple}, {?ANY_BINARY_PROB,binary},
+		   {?ANY_EXPAND_PROB,expand}],
+    case proper_arith:freq_choose(FreqChoices) of
+	{_,simple} ->
+	    any_gen(0);
+	{_,binary} ->
+	    generate(proper_types:resize(Size, proper_types:bitstring()));
+	{_,expand} ->
+	    %% TODO: statistics of produced terms?
+	    NumElems = proper_arith:rand_int(0, Size - 1),
+	    ElemSizes = proper_arith:distribute(Size - 1, NumElems),
+	    ElemTypes = [?LAZY(any_gen(S)) || S <- ElemSizes],
+	    case proper_arith:rand_int(1,2) of
+		1 -> fixed_list_gen(ElemTypes);
+		2 -> tuple_gen(ElemTypes)
+	    end
+    end.

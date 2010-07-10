@@ -31,14 +31,14 @@
 -export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
-	 exactly/1, fixed_list/1, function/2]).
+	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
-	 string/0, wunion/1]).
+	 list/0, tuple/0, string/0, wunion/1, term/0]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
 	 function1/1, function2/1, function3/1, function4/1]).
--export([resize/2, relimit/2, non_empty/1, noshrink/1]).
+-export([resize/2, non_empty/1, noshrink/1]).
 
 -export_type([type/0, raw_type/0]).
 
@@ -62,18 +62,20 @@
 -type raw_type() :: type() | integer() | float() | atom() | tuple()
 		    | maybe_improper_list(_,_) | <<_:_ * 1>>.
 -type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
-			| 'size_limit' | 'size_transform' | 'is_instance'
-			| 'shrinkers' | 'noshrink' | 'internal_type'
-			| 'internal_types' | 'get_length' | 'split' | 'join'
-			| 'get_indices' | 'remove' | 'retrieve' | 'update'
-			| 'constraints' | 'parts_type' | 'combine' | 'alt_gens'.
+			| 'size_transform' | 'is_instance' | 'shrinkers'
+			| 'noshrink' | 'internal_type' | 'internal_types'
+			| 'get_length' | 'split' | 'join' | 'get_indices'
+			| 'remove' | 'retrieve' | 'update' | 'constraints'
+			| 'parts_type' | 'combine' | 'alt_gens'.
 -type type_prop_value() :: term().
 -type type_prop() ::
       {'kind', type_kind()}
     | {'generator', proper_gen:generator()}
     | {'straight_gen', proper_gen:straight_gen()}
     | {'reverse_gen', proper_gen:reverse_gen()}
-    | {'size_limit', size()}
+    | {'parts_type', type()}
+    | {'combine', proper_gen:combine_fun()}
+    | {'alt_gens', proper_gen:alt_gens()}
     | {'size_transform', fun((size()) -> size())}
     | {'is_instance', instance_test()}
     | {'shrinkers', [proper_shrink:shrinker()]}
@@ -102,13 +104,10 @@
     | {'retrieve', fun((index(),proper_gen:imm_instance()) -> value())}
     | {'update', fun((index(),value(),proper_gen:imm_instance()) ->
 		     proper_gen:imm_instance())}
-    | {'constraints', [{constraint_fun(), boolean()}]}
+    | {'constraints', [{constraint_fun(), boolean()}]}.
       %% A list of constraints on instances of this type: each constraint is a
       %% tuple of a fun that must return 'true' for each valid instance and a
       %% boolean field that specifies whether the condition is strict.
-    | {'parts_type', type()}
-    | {'combine', proper_gen:combine_fun()}
-    | {'alt_gens', proper_gen:alt_gens()}.
 
 
 %%------------------------------------------------------------------------------
@@ -321,8 +320,7 @@ add_constraint(RawType, Condition, IsStrict) ->
 %% TODO: pid, port, ref (it's dangerous to provide random process data to
 %%	 functions - they must want it for a reason (least we can do is have a
 %%	 live function with that pid))
-%% TODO: any (union of all types? what are those?)
-%%	 number, atom, reference, fun, port, pid, tuple, list, bit string
+%% TODO: any: doesn't cover reference, port, pid, functions, impropers
 %% TODO: (records, none, improper_list(content_type, termination_type),
 %%	 maybe_improper_list)
 -spec integer(proper_arith:extint(), proper_arith:extint()) -> type().
@@ -362,7 +360,7 @@ atom() ->
     ?WRAPPER([
 	{generator, fun proper_gen:atom_gen/1},
 	{reverse_gen, fun proper_gen:atom_rev/1},
-	{size_limit, ?MAX_ATOM_LEN},
+	{size_transform, fun(Size) -> erlang:min(Size,255) end},
 	{is_instance, fun atom_test/1}
     ]).
 
@@ -379,7 +377,6 @@ binary() ->
 	{generator, fun proper_gen:binary_gen/1},
 	{straight_gen, fun proper_gen:binary_str_gen/1},
 	{reverse_gen, fun proper_gen:binary_rev/1},
-	{size_limit, ?MAX_BINARY_LEN},
 	{is_instance, fun erlang:is_binary/1}
     ]).
 
@@ -399,7 +396,7 @@ binary_len_test(X, Len) ->
 -spec bitstring() -> type().
 bitstring() ->
     ?WRAPPER([
-	{generator, fun proper_gen:bitstring_gen/0},
+	{generator, fun proper_gen:bitstring_gen/1},
 	{reverse_gen, fun proper_gen:bitstring_rev/1},
 	{is_instance, fun erlang:is_bitstring/1}
     ]).
@@ -422,7 +419,6 @@ list(RawElemType) ->
     ElemType = cook_outer(RawElemType),
     ?SEMI_OPAQUE([
 	{generator, fun(Size) -> proper_gen:list_gen(Size, ElemType) end},
-	{size_limit, ?MAX_LIST_LEN},
 	{is_instance, fun(X) -> list_test(X, ElemType) end},
 	{internal_type, ElemType},
 	{get_length, fun erlang:length/1},
@@ -523,6 +519,21 @@ tuple_test(X, Fields) ->
 tuple_update(Index, NewElem, Tuple) ->
     setelement(Index, Tuple, NewElem).
 
+-spec loose_tuple(raw_type()) -> type().
+loose_tuple(RawElemType) ->
+    ElemType = cook_outer(RawElemType),
+    ?WRAPPER([
+	{generator, fun(Size) -> proper_gen:loose_tuple_gen(Size,ElemType) end},
+	{reverse_gen, fun(X) -> proper_gen:loose_tuple_rev(X, ElemType) end},
+	{is_instance, fun(X) -> loose_tuple_test(X, ElemType) end}
+    ]).
+
+-spec loose_tuple_test(proper_gen:imm_instance(), type()) ->
+	  proper_arith:ternary().
+loose_tuple_test(X, ElemType) ->
+    %% TODO: Does this handle the case of imm_instance? {'$used',_,_}.
+    is_tuple(X) andalso list_test(tuple_to_list(X), ElemType).
+
 -spec exactly(term()) -> type().
 exactly(E) ->
     ?BASIC([
@@ -619,14 +630,23 @@ function_test(X, Arity, RetType) ->
     %% TODO: what if it's not a function we produced?
     andalso proper_gen:get_ret_type(X, Arity) =:= RetType.
 
+-spec any() -> type().
+any() ->
+    AllTypes = [integer(),float(),atom(),bitstring(),?LAZY(loose_tuple(any())),
+		?LAZY(list(any()))],
+    ?SUBTYPE(union(AllTypes), [
+	{generator, fun proper_gen:any_gen/1}
+    ]).
+
 
 %%------------------------------------------------------------------------------
 %% Type aliases
 %%------------------------------------------------------------------------------
 
-%% TODO: term, maybe_improper_list(), maybe_improper_list(T), nonempty string,
-%%	 iolist, module, mfa, node, timeout, list() => list(any()),
-%%	 typle() => any tuple, no_return
+%% TODO: impossible: maybe_improper_list(), maybe_improper_list(T), iolist,
+%%	 no_return
+%%	 don't need: nonempty_string, [T,...], timeout, module, mfa, node
+%%	 undocumented: dict, set, product, tid, arity
 -spec integer() -> type().
 integer() -> integer(inf, inf).
 
@@ -660,11 +680,20 @@ byte() -> integer(0, 255).
 -spec char() -> type().
 char() -> integer(0, 16#10ffff).
 
+-spec list() -> type().
+list() -> list(any()).
+
+-spec tuple() -> type().
+tuple() -> loose_tuple(any()).
+
 -spec string() -> type().
 string() -> list(char()).
 
 -spec wunion([{frequency(),raw_type()}]) -> type().
 wunion(FreqChoices) -> weighted_union(FreqChoices).
+
+-spec term() -> type().
+term() -> any().
 
 
 %%------------------------------------------------------------------------------
@@ -737,10 +766,6 @@ function4(RawRetType) ->
 -spec resize(size(), raw_type()) -> type().
 resize(Size, RawType) ->
     add_prop(size_transform, fun(_S) -> Size end, cook_outer(RawType)).
-
--spec relimit(size(), raw_type()) -> type().
-relimit(Limit, RawType) ->
-    add_prop(size_limit, Limit, cook_outer(RawType)).
 
 -spec non_empty(raw_type()) -> type().
 non_empty(RawListType) ->

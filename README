@@ -323,7 +323,7 @@ The following basic types are provided:
 * bitstring() : all bitstrings,
     instances shrink towards the empty bitstring, <<>>
 * atom() : all atoms, except those starting with '$'
-    You should not use any atoms starting with a '$', as these may clash
+    you should not use any atoms starting with a '$', as these may clash
     with atoms used internally by PropEr,
     instances shrink towards the empty atom, ''
 * boolean() : the atoms 'true' or 'false',
@@ -331,11 +331,15 @@ The following basic types are provided:
     instances shrink towards 'false'
 * list(ElemType) : all lists containing elements of type ElemType,
     instances shrink towards the empty list, []
+* list() : equivalent to list(any())
 * string() : all lists of characters,
     instances shrink towards the empty string, ""
 * function(ArgTypes, RetType) : all functions that map instances of ArgTypes
     (ArgTypes must be provided in a list) to instances of RetType,
     the syntax function(Arity, RetType) is also acceptable
+* any() : all Erlang terms (that PropEr can produce)
+    also written as term()
+    currently, functions are never produced as instances of any()
 
 All the above have analogues in the built-in types of the Erlang language.
 
@@ -358,6 +362,9 @@ In addition, the following types are provided:
 * tuple(ListOfTypes) : all tuples whose i-th element is an instance of the type
     at index i of ListOfTypes,
     also written simply as a tuple of types
+* loose_tuple(ElemType) : all tuples whose elements are all of type ElemType
+    instances shrink towards {}
+* tuple() : equivalent to loose_tuple(any())
 * vector(Len,ElemType) : all lists of length Len containing elements of type
     ElemType,
     Len must be an Erlang expression that evaluates to a non-negative integer
@@ -484,11 +491,6 @@ resize(<New_size>, <Type>)
     grow faster or slower, like so:
       ?SIZED(Size, resize(Size * 2, list(integer()))
     The above specifies a list type that grows twice as fast as normal lists.
-relimit(<New_limit>, <Type>)
-    Most sized types have a 'size_limit' parameter, which specifies a maximum to
-    the value of 'size' used when generating instances of the type. Lists, for
-    example, have a size limit of 200. Using this function, you can specify a
-    new such limit for a type. Has no effect on size-less types, such as unions.
 
 
 --------------------------------------------------------------------------------

@@ -207,6 +207,9 @@ types_with_data() ->
      {{integer(0,42),list(atom())}, [{42,[a,b]},{21,[c,de,f]},{0,[]}], {0,[]},
       [{-1,[a]},{12},{21,[b,c],12}]},
      {tuple([atom(),integer()]), [{the,1}], {'',0}, [{"a",0.0}]},
+     {loose_tuple(integer()), [{1,44,-1},{},{99,-99}], {}, [4,{hello,2},[1,2]]},
+     {loose_tuple(union([atom(),float()])), [{a,4.4,b},{},{'',c},{1.2,-3.4}], {},
+      [an_atom,0.4,{hello,2},[aa,bb,3.1]]},
      {exactly({[writing],unit,[tests,is],{2},boring}),
       [{[writing],unit,[tests,is],{2},boring}],
       {[writing],unit,[tests,is],{2},boring}, [no,its,'not','!']},
@@ -230,7 +233,10 @@ types_with_data() ->
      %% TODO: This behaviour may change in the future, since it's incompatible
      %%       with EQC.
      {?SUCHTHATMAYBE(X,non_neg_integer(),X rem 4 =:= 1), [1,2,3,4,5,37,89], 0,
-      [1.1,2.2,-12]}].
+      [1.1,2.2,-12]},
+     {any(), [1,-12,0,99.9,-42.2,0.0,an_atom,'',<<>>,<<1,2>>,<<1,2,3:5>>,[],
+	      [42,<<>>],{},{tag,12},{tag,[vals,12,12.2],[],<<>>}], 0, []},
+     {list(any()), [[<<>>,a,1,-42.0,{11.8,[]}]], [], [{1,aa},<<>>]}].
 
 function_types() ->
     [function([],atom()),
@@ -345,7 +351,6 @@ true_props_test_() ->
      ?_perfectRun(?FORALL(L,list(integer()),is_sorted(L,quicksort(L)))),
      ?_perfectRun(?FORALL(L,list(integer()),is_sorted(L,lists:sort(L)))),
      ?_perfectRun(?FORALL(L,ulist(integer()),is_sorted(L,lists:usort(L)))),
-     ?_perfectRun(?FORALL(L,relimit(5,list(integer())),length(L) =< 5)),
      ?_perfectRun(?FORALL(L,non_empty(list(integer())),L =/= [])),
      ?_assertRun(true, {passed,_,[]},
 		 ?FORALL({I,L}, {integer(),list(integer())},

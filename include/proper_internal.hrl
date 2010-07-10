@@ -26,11 +26,11 @@
 %% Constants
 %%------------------------------------------------------------------------------
 
--define(MAX_LIST_LEN, 200).
--define(MAX_ATOM_LEN, 255).
--define(MAX_BINARY_LEN, 300).
 -define(SEED_RANGE, 4294967296).
 -define(MAX_TRIES_FACTOR, 5).
+-define(ANY_SIMPLE_PROB, 3).
+-define(ANY_BINARY_PROB, 1).
+-define(ANY_EXPAND_PROB, 8).
 
 
 %%------------------------------------------------------------------------------

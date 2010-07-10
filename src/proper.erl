@@ -173,15 +173,10 @@ get_size(Type) ->
     case get('$size') of
 	undefined ->
 	    undefined;
-	Size1 ->
-	    Size2 = case proper_types:find_prop(size_transform, Type) of
-			 {ok, Transform} -> Transform(Size1);
-			 error           -> Size1
-		     end,
-	    %% TODO: should the size be normalized (streched or pressed)?
-	    case proper_types:find_prop(size_limit, Type) of
-		{ok, Limit} -> erlang:min(Size2, Limit);
-		error       -> Size2
+	Size ->
+	    case proper_types:find_prop(size_transform, Type) of
+		{ok,Transform} -> Transform(Size);
+		error          -> Size
 	    end
     end.
 

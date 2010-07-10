@@ -29,7 +29,7 @@
 -export([rand_start/1, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
-	 rand_bytes/1, jumble/1, rand_choose/1, freq_choose/1]).
+	 rand_bytes/1, distribute/2, jumble/1, rand_choose/1, freq_choose/1]).
 
 -export_type([extint/0, extnum/0, ternary/0]).
 
@@ -241,6 +241,22 @@ rand_bytes(Len) ->
 	true -> crypto:rand_bytes(Len);
 	_    -> '$cant_generate'
     end.
+
+-spec distribute(non_neg_integer(), non_neg_integer()) -> [non_neg_integer()].
+distribute(_Credits, 0) ->
+    [];
+distribute(Credits, People) ->
+    jumble(distribute_tr(Credits, People, [])).
+
+-spec distribute_tr(non_neg_integer(), pos_integer(), [non_neg_integer()]) ->
+	  [non_neg_integer()].
+distribute_tr(0, PeopleLeft, AccList) ->
+    lists:duplicate(PeopleLeft, 0) ++ AccList;
+distribute_tr(CreditsLeft, 1, AccList) ->
+    [CreditsLeft | AccList];
+distribute_tr(CreditsLeft, PeopleLeft, AccList) ->
+    YourCut = rand_int(0, CreditsLeft),
+    distribute_tr(CreditsLeft - YourCut, PeopleLeft - 1, [YourCut | AccList]).
 
 -spec jumble([T]) -> [T].
 %% @doc Produces a random permutation of a list.
