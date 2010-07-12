@@ -66,7 +66,7 @@
 -type fun_num() :: pos_integer().
 
 %% TODO: fill in the type of abstract format clauses
--opaque gen_state() :: {fun_num(), _}.
+-opaque gen_state() :: {_, fun_num()}.
 
 
 %%------------------------------------------------------------------------------

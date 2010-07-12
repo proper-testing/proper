@@ -58,9 +58,7 @@
 -type constraint_fun() :: fun((proper_gen:instance()) -> boolean()).
 
 -type type() :: {'$type', [type_prop()]}.
-%% TODO: update raw_type() when adding more standard types
--type raw_type() :: type() | integer() | float() | atom() | tuple()
-		    | maybe_improper_list(_,_) | <<_:_ * 1>>.
+-type raw_type() :: term().
 -type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
 			| 'size_transform' | 'is_instance' | 'shrinkers'
 			| 'noshrink' | 'internal_type' | 'internal_types'
