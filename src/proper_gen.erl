@@ -26,7 +26,7 @@
 -export([pick/1, pick/2]).
 
 -export([gen_state_get/0, gen_state_set/1, gen_state_erase/0]).
--export([generate/1]).
+-export([safe_generate/1]).
 -export([normal_gen/1, alt_gens/1, clean_instance/1, get_ret_type/2,
 	 function_body/3]).
 -export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
@@ -57,8 +57,8 @@
 -type sized_generator() :: fun((size()) -> imm_instance()).
 -type nosize_generator() :: fun(() -> imm_instance()).
 -type generator() :: sized_generator() | nosize_generator().
--type sized_straight_gen() :: fun((size()) -> instance() | '$cant_generate').
--type nosize_straight_gen() :: fun(() -> instance() | '$cant_generate').
+-type sized_straight_gen() :: fun((size()) -> {'ok',instance()} | 'error').
+-type nosize_straight_gen() :: fun(() -> {'ok',instance()} | 'error').
 -type straight_gen() :: sized_straight_gen() | nosize_straight_gen().
 -type reverse_gen() :: fun((instance()) -> imm_instance()).
 -type combine_fun() :: fun((instance()) -> imm_instance()).
@@ -129,13 +129,24 @@ load_forms() ->
 %% Instance generation functions
 %%------------------------------------------------------------------------------
 
--spec generate(proper_types:raw_type()) -> imm_instance() | '$cant_generate'.
+-spec safe_generate(proper_types:raw_type()) -> {'ok',imm_instance()} | 'error'.
+safe_generate(RawType) ->
+    try generate(RawType) of
+	ImmInstance -> {ok,ImmInstance}
+    catch
+	throw:'$cant_generate' -> error
+    end.
+
+-spec generate(proper_types:raw_type()) -> imm_instance().
 generate(RawType) ->
     Type = proper_types:cook_outer(RawType),
-    generate(Type, get('$constraint_tries'), '$cant_generate').
+    generate(Type, get('$constraint_tries'), none).
 
--spec generate(proper_types:type(), non_neg_integer(), term()) -> term().
-generate(_Type, 0, Fallback) ->
+-spec generate(proper_types:type(), non_neg_integer(),
+	       'none' | {'ok',imm_instance()}) -> imm_instance().
+generate(_Type, 0, none) ->
+    throw('$cant_generate');
+generate(_Type, 0, {ok,Fallback}) ->
     Fallback;
 generate(Type, TriesLeft, Fallback) ->
     {Instance, Result} =
@@ -174,34 +185,33 @@ generate(Type, TriesLeft, Fallback) ->
 	end,
     case proper_types:satisfies_all(Instance, Type) of
 	{_,true}      -> Result;
-	{true,false}  -> generate(Type, TriesLeft - 1, Result);
+	{true,false}  -> generate(Type, TriesLeft - 1, {ok,Result});
 	{false,false} -> generate(Type, TriesLeft - 1, Fallback)
     end.
 
--spec pick(proper_types:raw_type()) -> 'error' | {'ok',instance()}.
+-spec pick(proper_types:raw_type()) -> {'ok',instance()} | 'error'.
 pick(RawType) ->
     pick(RawType, 10).
 
--spec pick(proper_types:raw_type(), size()) -> 'error' | {'ok',instance()}.
+-spec pick(proper_types:raw_type(), size()) -> {'ok',instance()} | 'error'.
 pick(RawType, Size) ->
     proper:global_state_init_size(Size),
-    case clean_instance(generate(RawType)) of
-	'$cant_generate' ->
+    Result = clean_instance(safe_generate(RawType)),
+    case Result of
+	error ->
 	    io:format("Error: couldn't produce an instance that satisfies all "
 		      "strict constraints after ~b tries~n",
 		      [get('$constraint_tries')]),
-	    proper:global_state_erase(),
-	    error;
-	FunInstance when is_function(FunInstance) ->
+	    proper:global_state_erase();
+	{ok,FunInstance} when is_function(FunInstance) ->
 	    io:format("WARNING: Some garbage has been left in the process "
 		      "registry and the code server to allow for the returned "
 		      "function to run normally.~nPlease run "
-		      "proper:global_state_erase() when done.~n", []),
-	    {ok,FunInstance};
-	Instance ->
-	    proper:global_state_erase(),
-	    {ok,Instance}
-    end.
+		      "proper:global_state_erase() when done.~n", []);
+	_ ->
+	    proper:global_state_erase()
+    end,
+    Result.
 
 
 %%------------------------------------------------------------------------------
@@ -211,13 +221,13 @@ pick(RawType, Size) ->
 -spec normal_or_str_gen(proper_types:type()) -> imm_instance().
 normal_or_str_gen(Type) ->
     case proper_types:find_prop(straight_gen,Type) of
-	{ok, StraightGen} ->
+	{ok,StraightGen} ->
 	    case call_gen(StraightGen, Type) of
-		'$cant_generate' ->
-		    normal_gen(Type);
-		Instance ->
+		{ok,Instance} ->
 		    ReverseGen = proper_types:get_prop(reverse_gen, Type),
-		    ReverseGen(Instance)
+		    ReverseGen(Instance);
+		error ->
+		    normal_gen(Type)
 	    end;
 	error ->
 	    normal_gen(Type)
@@ -228,7 +238,7 @@ normal_gen(Type) ->
     call_gen(proper_types:get_prop(generator,Type), Type).
 
 -spec call_gen(generator() | straight_gen(), proper_types:type()) ->
-	  imm_instance() | instance() | '$cant_generate'.
+	  imm_instance() | {'ok',instance()} | 'error'.
 call_gen(Gen, Type) ->
     if
 	is_function(Gen, 0) ->
@@ -282,13 +292,9 @@ function_body(Args, ImmRetType, {Seed1,Seed2}) ->
 	_ ->
 	    SavedSeed = get(random_seed),
 	    put(random_seed, {Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
-	    case clean_instance(generate(RetType)) of
-		'$cant_generate' ->
-		    throw('$cant_generate');
-		Ret ->
-		    put(random_seed, SavedSeed),
-		    Ret
-	    end
+	    Ret = clean_instance(generate(RetType)),
+	    put(random_seed, SavedSeed),
+	    Ret
     end.
 
 %%------------------------------------------------------------------------------
@@ -339,7 +345,7 @@ binary_gen(Size) ->
 			     proper_types:list(proper_types:byte())),
 	 list_to_binary(Bytes)).
 
--spec binary_str_gen(size()) -> binary() | '$cant_generate'.
+-spec binary_str_gen(size()) -> {'ok',binary()} | 'error'.
 binary_str_gen(Size) ->
     Len = proper_arith:rand_int(0, Size),
     binary_len_str_gen(Len).
@@ -354,7 +360,7 @@ binary_len_gen(Len) ->
 	 proper_types:vector(Len, proper_types:byte()),
 	 list_to_binary(Bytes)).
 
--spec binary_len_str_gen(length()) -> binary() | '$cant_generate'.
+-spec binary_len_str_gen(length()) -> {'ok',binary()} | 'error'.
 binary_len_str_gen(Len) ->
     proper_arith:rand_bytes(Len).
 

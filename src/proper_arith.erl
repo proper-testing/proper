@@ -235,11 +235,11 @@ rand_float(Low, High) when is_float(Low), is_float(High), Low =< High ->
 zero_one_to_zero_inf(X) ->
     X / math:sqrt(1 - X*X).
 
--spec rand_bytes(length()) -> binary() | '$cant_generate'.
+-spec rand_bytes(length()) -> {'ok',binary()} | 'error'.
 rand_bytes(Len) ->
     case get('$crypto') of
-	true -> crypto:rand_bytes(Len);
-	_    -> '$cant_generate'
+	true -> {ok,crypto:rand_bytes(Len)};
+	_    -> error
     end.
 
 -spec distribute(non_neg_integer(), non_neg_integer()) -> [non_neg_integer()].

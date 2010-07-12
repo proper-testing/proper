@@ -202,8 +202,8 @@ is_instance(ImmInstance, RawType) ->
 		_           -> false
 	    end,
 	    case find_prop(is_instance, Type) of
-		{ok, IsInstance} -> IsInstance(ImmInstance);
-		error            -> false
+		{ok,IsInstance} -> IsInstance(ImmInstance);
+		error           -> false
 	    end
 	),
 	weakly(satisfies_all(CleanInstance, Type))
@@ -212,20 +212,20 @@ is_instance(ImmInstance, RawType) ->
 -spec wrapper_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
 wrapper_test(ImmInstance, Type) ->
     %% TODO: check if it's actually a raw type that's returned?
-    try
-	proper_arith:any3([is_instance(ImmInstance, T) || T <- unwrap(Type)])
-    catch
-	throw:'$need_size_info' ->
-	    %% TODO: print some more info?
-	    %% TODO: alt_gens can still give a result?
-	    unknown
-    end.
+    proper_arith:any3([is_instance(ImmInstance, T) || T <- unwrap(Type)]).
 
 -spec unwrap(type()) -> [type()].
 %% TODO: check if it's actually a raw type that's returned?
 unwrap(Type) ->
-    [cook_outer(InnerType) || InnerType <- proper_gen:alt_gens(Type)
-					   ++ [proper_gen:normal_gen(Type)]].
+    RawAltGenTypes = proper_gen:alt_gens(Type),
+    RawInnerTypes =
+	try proper_gen:normal_gen(Type) of
+	    T -> RawAltGenTypes ++ [T]
+	catch
+	    %% TODO: print some more info?
+	    throw:'$need_size_info' -> RawAltGenTypes
+	end,
+    [cook_outer(T) || T <- RawInnerTypes].
 
 -spec constructed_test(proper_gen:imm_instance(), type()) ->
 	  proper_arith:ternary().

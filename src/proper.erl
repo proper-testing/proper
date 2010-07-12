@@ -424,13 +424,13 @@ run({'$forall',RawType,Prop},
 		    {error, wrong_type}
 	    end;
 	{false, []} ->
-	    case proper_gen:generate(RawType) of
-		'$cant_generate' ->
-		    {error, cant_generate};
-		ImmInstance ->
+	    case proper_gen:safe_generate(RawType) of
+		{ok,ImmInstance} ->
 		    Instance = proper_gen:clean_instance(ImmInstance),
 		    NewCtx = Ctx#ctx{bound = [ImmInstance | Bound]},
-		    force(Instance, Prop, NewCtx)
+		    force(Instance, Prop, NewCtx);
+		error ->
+		    {error, cant_generate}
 	    end
     end;
 run({'$implies',true,Prop}, Ctx) ->

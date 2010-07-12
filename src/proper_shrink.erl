@@ -226,13 +226,7 @@ parts_shrinker({'$used',ImmParts,ImmInstance}, Type,
     Combine = proper_types:get_prop(combine, Type),
     DirtyNewInstances =
 	[try_combine(P, ImmInstance, PartsType, Combine) || P <- NewImmParts],
-    NotError = fun(X) ->
-		   case X of
-		       {'$used',_,'$cant_generate'} -> false;
-		       _                            -> true
-		   end
-	       end,
-    {NewInstances,NewLookup} = filter(NotError, DirtyNewInstances),
+    {NewInstances,NewLookup} = filter(DirtyNewInstances),
     {NewInstances, {parts,PartsType,NewLookup,NewPartsState}};
 parts_shrinker(Instance, Type,
 	       {shrunk,N,{parts,PartsType,Lookup,PartsState}}) ->
@@ -240,25 +234,22 @@ parts_shrinker(Instance, Type,
     parts_shrinker(Instance, Type,
 		   {parts,PartsType,dummy,{shrunk,ActualN,PartsState}}).
 
--spec filter(fun((T) -> boolean()), [T]) -> {[T],[position()]}.
-filter(Pred, List) ->
-    filter_tr(Pred, List, [], 1, []).
+-spec filter([{'ok',T} | 'error']) -> {[T],[position()]}.
+filter(List) ->
+    filter_tr(List, [], 1, []).
 
--spec filter_tr(fun((T) -> boolean()), [T], [T], position(), [position()]) ->
+-spec filter_tr([{'ok',T} | 'error'], [T], position(), [position()]) ->
 	  {[T],[position()]}.
-filter_tr(_Pred, [], Result, _Pos, Lookup) ->
+filter_tr([], Result, _Pos, Lookup) ->
     {lists:reverse(Result), lists:reverse(Lookup)};
-filter_tr(Pred, [X | Rest], Result, Pos, Lookup) ->
-    case Pred(X) of
-	true ->
-	    filter_tr(Pred, Rest, [X | Result], Pos + 1, [Pos | Lookup]);
-	false ->
-	    filter_tr(Pred, Rest, Result, Pos + 1, Lookup)
-    end.
+filter_tr([{ok,X} | Rest], Result, Pos, Lookup) ->
+    filter_tr(Rest, [X | Result], Pos + 1, [Pos | Lookup]);
+filter_tr([error | Rest], Result, Pos, Lookup) ->
+    filter_tr(Rest, Result, Pos + 1, Lookup).
 
 -spec try_combine(proper_gen:imm_instance(), proper_gen:imm_instance(),
 		  proper_types:type(), proper_gen:combine_fun()) ->
-	  proper_gen:imm_instance().
+	  {'ok',proper_gen:imm_instance()} | 'error'.
 try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
     case proper_arith:surely(proper_types:is_instance(ImmParts, PartsType)) of
 	true ->
@@ -272,17 +263,21 @@ try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
 		    case proper_arith:surely(proper_types:is_instance(
 			     OldImmInstance, InnerType)) of
 			true ->
-			    {'$used',ImmParts,OldImmInstance};
+			    {ok,{'$used',ImmParts,OldImmInstance}};
 			false ->
 			    %% TODO: return more than one? then we must flatten
-			    NewImmInstance = proper_gen:generate(InnerType),
-			    {'$used',ImmParts,NewImmInstance}
+			    case proper_gen:safe_generate(InnerType) of
+				{ok,NewImmInstance} ->
+				    {ok,{'$used',ImmParts,NewImmInstance}};
+				error ->
+				    error
+			    end
 		    end;
 		false ->
-		    {'$used',ImmParts,ImmInstance}
+		    {ok,{'$used',ImmParts,ImmInstance}}
 	    end;
 	false ->
-	    {'$used',dummy,'$cant_generate'}
+	    error
     end.
 
 -spec recursive_shrinker(proper_gen:imm_instance(), proper_types:type(),
@@ -533,8 +528,9 @@ sign(X) ->
 zero(X) when is_integer(X) -> 0;
 zero(X) when is_float(X)   -> 0.0.
 
--spec union_first_choice_shrinker(proper_gen:instance(), [proper_types:type()],
-				  state()) -> {[proper_gen:instance()],state()}.
+-spec union_first_choice_shrinker(proper_gen:imm_instance(),
+				  [proper_types:type()], state()) ->
+	  {[proper_gen:imm_instance()],state()}.
 %% TODO: just try first choice?
 %% TODO: do this incrementally?
 union_first_choice_shrinker(Instance, Choices, init) ->
@@ -542,17 +538,19 @@ union_first_choice_shrinker(Instance, Choices, init) ->
 	none ->
 	    {[],done};
 	{N,_Type} ->
+	    PriorChoices = lists:sublist(Choices, N - 1),
+	    DirtyNewInstances = [proper_gen:safe_generate(T)
+				 || T <- PriorChoices],
 	    %% TODO: some kind of constraints test here?
-	    {[X || X <- [proper_gen:generate(T)
-			 || T <- lists:sublist(Choices, N - 1)],
-		   X =/= '$cant_generate'],
-	     done}
+	    NewInstances = [X || {ok,X} <- DirtyNewInstances],
+	    {NewInstances,done}
     end;
 union_first_choice_shrinker(_Instance, _Choices, {shrunk,_Pos,done}) ->
     {[], done}.
 
--spec union_recursive_shrinker(proper_gen:instance(), [proper_types:type()],
-			       state()) -> {[proper_gen:instance()],state()}.
+-spec union_recursive_shrinker(proper_gen:imm_instance(), [proper_types:type()],
+			       state()) ->
+	  {[proper_gen:imm_instance()],state()}.
 union_recursive_shrinker(Instance, Choices, init) ->
     case first_plausible_choice(Instance, Choices) of
 	none ->
