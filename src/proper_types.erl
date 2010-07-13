@@ -644,7 +644,8 @@ any() ->
 %% TODO: impossible: maybe_improper_list(), maybe_improper_list(T), iolist,
 %%	 no_return
 %%	 don't need: nonempty_string, [T,...], timeout, module, mfa, node
-%%	 undocumented: dict, set, product, tid, arity
+%%	 undocumented: array, digraph, gb_set, gb_tree, identifier, iodata,
+%%	 dict, set, product, tid, arity, queue
 -spec integer() -> type().
 integer() -> integer(inf, inf).
 

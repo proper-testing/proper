@@ -80,9 +80,9 @@ shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
     end.
 
 -spec shrink_tr(proper:imm_testcase(), proper:imm_testcase(),
-		proper:forall_clause() | forall2_clause(), proper:fail_reason(),
-		non_neg_integer(), non_neg_integer(), state(),
-		proper:output_fun()) ->
+		proper:forall_clause() | 'false' | 'error' | forall2_clause(),
+		proper:fail_reason(), non_neg_integer(), non_neg_integer(),
+		state(), proper:output_fun()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: 'tries_left' instead of 'shrinks_left'?
 shrink_tr(Shrunk, TestTail, error, _Reason,
