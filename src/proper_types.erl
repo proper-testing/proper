@@ -242,7 +242,7 @@ constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
     end;
 constructed_test(_ImmInstance, _Type) ->
     %% TODO: can we do anything better?
-    unknown.
+    false.
 
 -spec weakly({boolean(),boolean()}) -> boolean().
 weakly({B1,_B2}) -> B1.
@@ -312,7 +312,7 @@ add_constraint(RawType, Condition, IsStrict) ->
 %% Basic types
 %%------------------------------------------------------------------------------
 
-%% TODO: bin types: specified length, base size, unit size?
+%% TODO: bin types: other unit sizes? what about size info?
 %% TODO: functions: generally some fun, unspecified number of arguments, but
 %%	 specified return type ("function" keyword?)
 %% TODO: pid, port, ref (it's dangerous to provide random process data to

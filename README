@@ -50,7 +50,7 @@ while compiling.
 
 
 --------------------------------------------------------------------------------
-Instroduction
+Introduction
 --------------------------------------------------------------------------------
 
 Traditional testing methodologies essentially involve software testers writing a
@@ -106,6 +106,17 @@ wrapping such a boolean expression with one or more of the following wrappers:
     inside the wrapped property <Prop>. When a ?FORALL wrapper is encountered, a
     random instance of <Xs_type> is produced and each variable in <Xs> is
     replaced inside <Prop> by its corresponding instance.
+?FORALL_B(<Xs>, <Xs_built-in_type>, <Prop>),
+    Equivalent to a normal ?FORALL, but the type of <Xs> is provided using the
+    built-in type language of Erlang. Both module-local and remote types may be
+    referenced inside <Xs_built-in_type>.
+    WARNING: Certain type-declaration constructs, such as functions, the '|'
+    symbol and binaries with specified base and/or unit sizes, cannot be used
+    inside the <Xs_built-in_type> field, since they are rejected by the Erlang
+    parser. To make use of such constructs, write your declaration in a type
+    attribute and use the new type in the ?FORALL_B.
+    WARNING: Due to the behaviour of erl_types,the actual returned type can
+    sometimes be broader than requested.
 ?IMPLIES(<Precondition>, <Prop>)
     This wrapper only makes sense when in the scope of at least one ?FORALL. The
     <Precondition> field must be a boolean expression or a statement block that
@@ -524,6 +535,9 @@ occurs. Normaly, a message is also printed on screen describing the error.
   constraint(s).
 * 'type_mismatch': The variables' and types' structures inside a ?FORALL don't
   match. Please check your properties.
+* {'typeserver', <SubError>}: The typeserver couldn't process a built-in type
+  inside a ?FORALL_B. The <SubError> field contains specific information
+  regarding the error.
 * {'unexpected', <Result>}: A test returned an unexpected result. If you ever
   get this error, it means that you have found a bug in PropEr - please send an
   error report to the maintainers and remember to include both the failing test

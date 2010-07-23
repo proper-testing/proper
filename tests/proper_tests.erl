@@ -53,7 +53,9 @@
 		end)).
 
 state_is_clean() ->
-    get() =:= [].
+    get() =:= []
+    andalso [] =:= [Proc || Proc <- registered(),
+			    lists:member(Proc, ?PROPER_REGISTERED)].
 
 -define(_failsWithReason(ExpReason, Test),
 	?_failsWith(ExpReason, _, Test)).
@@ -117,6 +119,39 @@ assertEqualsOneOf(X, List) ->
 
 exp_short_result(Opts) -> lists:member(fails, Opts).
 
+assert_is_instance(X, Type) ->
+    ?assert(proper_arith:surely(proper_types:is_instance(X, Type))
+	    andalso state_is_clean()).
+
+assert_can_generate(Type) ->
+    {ok,Instance} = proper_gen:pick(Type),
+    ?assert(state_is_clean()),
+    assert_is_instance(Instance, Type).
+
+assert_can_translate(Mod, TypeStr) ->
+    proper_typeserver:start(),
+    Result = proper_typeserver:translate_type({Mod,TypeStr}),
+    proper_typeserver:stop(),
+    ?assert(state_is_clean()),
+    {ok,Type} = Result,
+    Type.
+
+%% TODO: Use retesting of counterexample here, instead of using private
+%%	 functions to reset the state.
+assert_function_type_works(FunType) ->
+    {ok,F} = proper_gen:pick(FunType),
+    ?assert(proper_arith:surely(proper_types:is_instance(F, FunType))),
+    Results1 = assert_is_pure_function(F),
+    GenState = proper_gen:gen_state_get(),
+    proper:global_state_erase(),
+    ?assert(state_is_clean()),
+    proper:global_state_init_size(10),
+    proper_gen:gen_state_set(GenState),
+    Results2 = assert_is_pure_function(F),
+    ?assertEqual(Results1,Results2),
+    proper:global_state_erase(),
+    ?assert(state_is_clean()).
+
 assert_is_pure_function(F) ->
     {arity,Arity} = erlang:fun_info(F, arity),
     ArgsList = [lists:duplicate(Arity,0), lists:duplicate(Arity,1),
@@ -163,86 +198,108 @@ correct_smaller_length_aggregation(NotMoreThan, SmallerLens, Len) ->
 %%------------------------------------------------------------------------------
 
 types_with_data() ->
-    [{integer(), [-1,0,1,42,-200], 0, [0.3,someatom,<<1>>]},
-     {integer(7,88), [7,8,87,88,23], 7, [1,90,a]},
-     {integer(0,42), [0,11,42], 0, [-1,43]},
-     {integer(-99,0), [-88,-99,0], 0, [1,-1112]},
-     {integer(-999,-12), [-34,-999,-12], -12, [0,5]},
-     {integer(-99,21), [-98,0,21], 0, [-100]},
-     {integer(0,0), [0], 0, [1,-1,100,-100]},
-     {pos_integer(), [12,1,444], 1, [-12,0]},
-     {non_neg_integer(), [42,0], 0, [-9,rr]},
-     {neg_integer(), [-222,-1], -1, [0,1111]},
-     {float(), [17.65,-1.12], 0.0, [11,atomm,<<>>]},
-     {float(7.4,88.0), [7.4,88.0], 7.4, [-1.0,3.2]},
-     {float(0.0,42.1), [0.1,42.1], 0.0, [-0.1]},
-     {float(-99.9,0.0), [-0.01,-90.0], 0.0, [someatom,-12,-100.0,0.1]},
-     {float(-999.08,-12.12), [-12.12,-12.2], -12.12, [-1111.0,1000.0]},
-     {float(-71.8,99.0), [-71.8,99.0,0.0,11.1], 0.0, [100.0,-71.9]},
-     {float(0.0,0.0), [0.0], 0.0, [0.1,-0.1]},
-     {non_neg_float(), [88.8,98.9,0.0], 0.0, [-12,1,-0.01]},
-     {atom(), [elvis,'Another Atom',''], '', ["not_an_atom",12,12.2]},
-     {binary(), [<<>>,<<12,21>>], <<>>, [<<1,2:3>>,binary_atom,42]},
-     {binary(3), [<<41,42,43>>], <<0,0,0>>, [<<1,2,3,4>>]},
-     {binary(0), [<<>>], <<>>, [<<1>>]},
-     {bitstring(), [<<>>,<<87,76,65,5:4>>], <<>>, [{12,3},11]},
-     {bitstring(18), [<<0,1,2:2>>,<<1,32,123:2>>], <<0,0,0:2>>, [<<12,1,1:3>>]},
-     {bitstring(32), [<<120,120,120,120>>], <<0,0,0,0>>, [7,8]},
-     {bitstring(0), [<<>>], <<>>, [<<1>>]},
+    [{integer(), [-1,0,1,42,-200], 0, [0.3,someatom,<<1>>], "integer()"},
+     {integer(7,88), [7,8,87,88,23], 7, [1,90,a], "7..88"},
+     {integer(0,42), [0,11,42], 0, [-1,43], "0..42"},
+     {integer(-99,0), [-88,-99,0], 0, [1,-1112], "-99..0"},
+     {integer(-999,-12), [-34,-999,-12], -12, [0,5], "-999..-12"},
+     {integer(-99,21), [-98,0,21], 0, [-100], "-99..21"},
+     {integer(0,0), [0], 0, [1,-1,100,-100], "0..0"},
+     {pos_integer(), [12,1,444], 1, [-12,0], "pos_integer()"},
+     {non_neg_integer(), [42,0], 0, [-9,rr], "non_neg_integer()"},
+     {neg_integer(), [-222,-1], -1, [0,1111], "neg_integer()"},
+     {float(), [17.65,-1.12], 0.0, [11,atomm,<<>>], "float()"},
+     {float(7.4,88.0), [7.4,88.0], 7.4, [-1.0,3.2], none},
+     {float(0.0,42.1), [0.1,42.1], 0.0, [-0.1], none},
+     {float(-99.9,0.0), [-0.01,-90.0], 0.0, [someatom,-12,-100.0,0.1], none},
+     {float(-999.08,-12.12), [-12.12,-12.2], -12.12, [-1111.0,1000.0], none},
+     {float(-71.8,99.0), [-71.8,99.0,0.0,11.1], 0.0, [100.0,-71.9], none},
+     {float(0.0,0.0), [0.0], 0.0, [0.1,-0.1], none},
+     {non_neg_float(), [88.8,98.9,0.0], 0.0, [-12,1,-0.01], none},
+     {atom(), [elvis,'Another Atom',''], '', ["not_an_atom",12,12.2], "atom()"},
+     {binary(), [<<>>,<<12,21>>], <<>>, [<<1,2:3>>,binary_atom,42], "binary()"},
+     {binary(3), [<<41,42,43>>], <<0,0,0>>, [<<1,2,3,4>>], "<<_:3>>"},
+     {binary(0), [<<>>], <<>>, [<<1>>], none},
+     {bitstring(), [<<>>,<<87,76,65,5:4>>], <<>>, [{12,3},11], "bitstring()"},
+     {bitstring(18), [<<0,1,2:2>>,<<1,32,123:2>>], <<0,0,0:2>>, [<<12,1,1:3>>],
+      "<<_:18, _:_*1>>"},
+     {bitstring(32), [<<120,120,120,120>>], <<0,0,0,0>>, [7,8],
+      "<<_:32, _:_*1>>"},
+     {bitstring(0), [<<>>], <<>>, [<<1>>], none},
      {list(integer()), [[],[2,42],[0,1,1,2,3,5,8,13,21,34,55,89,144]], [],
-      [[4,4.2],{12,1},<<12,113>>]},
+      [[4,4.2],{12,1},<<12,113>>], "[integer()]"},
      {list(atom()), [[on,the,third,day,'of',christmas,my,true,love,sent,to,me]],
-      [], [['not',1,list,'of',atoms],not_a_list]},
+      [], [['not',1,list,'of',atoms],not_a_list], "[atom()]"},
      {list(union([integer(),atom()])), [[3,french,hens,2],[turtle,doves]], [],
-      [{'and',1}]},
+      [{'and',1}], "[integer() | atom()]"},
      {vector(5,atom()), [[partridge,in,a,pear,tree],[a,b,c,d,e]],
-      ['','','','',''], [[a,b,c,d],[a,b,c,d,e,f]]},
-     {vector(2,float()), [[0.0,1.1],[4.4,-5.5]], [0.0,0.0], [[1,1]]},
-     {vector(0,integer()), [[]], [], [[1],[2]]},
-     {union([good,bad,ugly]), [good,bad,ugly], good, [clint,"eastwood"]},
-     {union([integer(),atom()]), [twenty_one,21], 0, ["21",<<21>>]},
+      ['','','','',''], [[a,b,c,d],[a,b,c,d,e,f]], none},
+     {vector(2,float()), [[0.0,1.1],[4.4,-5.5]], [0.0,0.0], [[1,1]], none},
+     {vector(0,integer()), [[]], [], [[1],[2]], none},
+     {union([good,bad,ugly]), [good,bad,ugly], good, [clint,"eastwood"],
+      "good | bad | ugly"},
+     {union([integer(),atom()]), [twenty_one,21], 0, ["21",<<21>>],
+      "integer() | atom()"},
      {weighted_union([{10,luck},{20,skill},{15,concentrated_power_of_will},
 		      {5,pleasure},{50,pain},{100,remember_the_name}]),
-      [skill,pain,pleasure], luck, [clear,20,50]},
+      [skill,pain,pleasure], luck, [clear,20,50], none},
      {{integer(0,42),list(atom())}, [{42,[a,b]},{21,[c,de,f]},{0,[]}], {0,[]},
-      [{-1,[a]},{12},{21,[b,c],12}]},
-     {tuple([atom(),integer()]), [{the,1}], {'',0}, [{"a",0.0}]},
-     {loose_tuple(integer()), [{1,44,-1},{},{99,-99}], {}, [4,{hello,2},[1,2]]},
-     {loose_tuple(union([atom(),float()])), [{a,4.4,b},{},{'',c},{1.2,-3.4}], {},
-      [an_atom,0.4,{hello,2},[aa,bb,3.1]]},
+      [{-1,[a]},{12},{21,[b,c],12}], "{0..42,[atom()]}"},
+     {tuple([atom(),integer()]), [{the,1}], {'',0}, [{"a",0.0}],
+      "{atom(),integer()}"},
+     {{}, [{}], {}, [[],{1,2}], "{}"},
+     {loose_tuple(integer()), [{1,44,-1},{},{99,-99}], {}, [4,{hello,2},[1,2]],
+      none},
+     {loose_tuple(union([atom(),float()])), [{a,4.4,b},{},{'',c},{1.2,-3.4}],
+      {},[an_atom,0.4,{hello,2},[aa,bb,3.1]], none},
      {exactly({[writing],unit,[tests,is],{2},boring}),
       [{[writing],unit,[tests,is],{2},boring}],
-      {[writing],unit,[tests,is],{2},boring}, [no,its,'not','!']},
-     {[neg_integer(),pos_integer()], [[-12,32],[-1,1]], [-1,1], [[0,0]]},
+      {[writing],unit,[tests,is],{2},boring}, [no,its,'not','!'], none},
+     {[], [[]], [], [[a],[1,2,3]], "[]"},
+     {fixed_list([neg_integer(),pos_integer()]), [[-12,32],[-1,1]], [-1,1],
+      [[0,0]], none},
      {[atom(),integer(),atom(),float()], [[forty_two,42,forty_two,42.0]],
-      ['',0,'',0.0], [[proper,is,licensed],[under,the,gpl]]},
-     {[42 | list(integer())], [[42],[42,44,22]], [42], [[],[11,12]]},
-     {number(), [12,32.3,-9,-77.7], 0, [manolis,papadakis]},
-     {boolean(), [true,false], false, [unknown]},
-     {string(), ["hello","","world"], "", ['hello']},
-     {?LAZY(integer()), [0,2,99], 0, [1.1]},
-     {?LAZY(list(float())), [[0.0,1.2,1.99],[]], [], [1.1,[1,2]]},
-     {zerostream(10), [[0,0,0],[],[0,0,0,0,0,0,0]], [], [[1,0,0],[0.1]]},
-     {?SHRINK(pos_integer(),[0]), [1,12,0], 0, [-1,-9,6.0]},
+      ['',0,'',0.0], [[proper,is,licensed],[under,the,gpl]], none},
+     {[42 | list(integer())], [[42],[42,44,22]], [42], [[],[11,12]], none},
+     {number(), [12,32.3,-9,-77.7], 0, [manolis,papadakis], "number()"},
+     {boolean(), [true,false], false, [unknown], "boolean()"},
+     {string(), ["hello","","world"], "", ['hello'], "string()"},
+     {?LAZY(integer()), [0,2,99], 0, [1.1], "integer()"},
+     {?LAZY(list(float())), [[0.0,1.2,1.99],[]], [], [1.1,[1,2]], "[float()]"},
+     {zerostream(10), [[0,0,0],[],[0,0,0,0,0,0,0]], [], [[1,0,0],[0.1]], none},
+     {?SHRINK(pos_integer(),[0]), [1,12,0], 0, [-1,-9,6.0],
+      "pos_integer() | 0"},
      {?SHRINK(float(),[integer(),atom()]), [1.0,0.0,someatom,'',42,0], 0,
-      [<<>>,"hello"]},
-     {noshrink(?SHRINK(42,[0,1])), [42,0,1], 42, [-1]},
-     {non_empty(list(integer())), [[1,2,3],[3,42],[11]], [0], [[],[0.1]]},
-     {default(42,float()), [4.1,-99.0,0.0,42], 42, [43,44]},
-     {?SUCHTHAT(X,non_neg_integer(),X rem 4 =:= 1), [1,5,37,89], 1, [4,-12,11]},
+      [<<>>,"hello"], "float() | integer() | atom()"},
+     {noshrink(?SHRINK(42,[0,1])), [42,0,1], 42, [-1], "42 | 0 | 1"},
+     {non_empty(list(integer())), [[1,2,3],[3,42],[11]], [0], [[],[0.1]],
+      "[integer(),...]"},
+     {default(42,float()), [4.1,-99.0,0.0,42], 42, [43,44], "42 | float()"},
+     {?SUCHTHAT(X,non_neg_integer(),X rem 4 =:= 1), [1,5,37,89], 1, [4,-12,11],
+      none},
      %% TODO: This behaviour may change in the future, since it's incompatible
      %%       with EQC.
      {?SUCHTHATMAYBE(X,non_neg_integer(),X rem 4 =:= 1), [1,2,3,4,5,37,89], 0,
-      [1.1,2.2,-12]},
+      [1.1,2.2,-12], "non_neg_integer()"},
      {any(), [1,-12,0,99.9,-42.2,0.0,an_atom,'',<<>>,<<1,2>>,<<1,2,3:5>>,[],
-	      [42,<<>>],{},{tag,12},{tag,[vals,12,12.2],[],<<>>}], 0, []},
-     {list(any()), [[<<>>,a,1,-42.0,{11.8,[]}]], [], [{1,aa},<<>>]}].
+	      [42,<<>>],{},{tag,12},{tag,[vals,12,12.2],[],<<>>}],
+	     0, [], "any()"},
+     {list(any()), [[<<>>,a,1,-42.0,{11.8,[]}]], [], [{1,aa},<<>>], "[any()]"}].
 
 function_types() ->
-    [function([],atom()),
-     function([integer(),integer()],atom()),
-     function(5,union([a,b])),
-     function(0,function(1,integer()))].
+    [{function([],atom()), "fun(() -> atom())"},
+     {function([integer(),integer()],atom()),
+      "fun((integer(),integer()) -> atom())"},
+     {function(5,union([a,b])), "fun((_,_,_,_,_) -> a | b)"},
+     {function(0,function(1,integer())),
+      "fun(() -> fun((_) -> integer()))"}].
+
+remote_builtin_types() ->
+    [{types_test1,["#rec1{}","rec1()","exp1()","type1()","type2(atom())",
+		   "rem1()","rem2()","types_test1:exp1()",
+		   "types_test2:exp1(float())","types_test2:exp2()"]},
+     {types_test2,["exp1(#rec1{})","exp2()","#rec1{}","types_test1:exp1()",
+		   "types_test2:exp1(binary())","types_test2:exp2()"]}].
 
 impossible_types() ->
     [?SUCHTHAT(X, pos_integer(), X =< 0),
@@ -253,6 +310,11 @@ impossible_types() ->
      ?SUCHTHAT(L, vector(12,integer()), length(L) =/= 12),
      ?SUCHTHAT(B, binary(), lists:member(256,binary_to_list(B))),
      ?SUCHTHAT(X, exactly('Lelouch'), X =:= 'vi Brittania')].
+
+impossible_builtin_types() ->
+    [{types_test1, ["1.1","no_such_module:type1()","no_such_type()"]},
+     {types_test2, ["types_test1:type1()","function()","fun((...) -> atom())",
+		    "pid()","port()","ref()"]}].
 
 symb_calls() ->
     [{[3,2,1], "lists:reverse([1,2,3])", [], {call,lists,reverse,[[1,2,3]]}},
@@ -294,30 +356,44 @@ undefined_symb_calls() ->
 %%	 standalone instance testing and shrinking) - update needed after
 %%	 fixing the internal shrinking in LETs, use recursive datatypes, like
 %%	 trees for testing
+%% TODO: Due to optimizations done by erl_types, proper_typeserver may return a
+%%	 type that is broader than requested - thus, we can't include built-in
+%%	 types in the 'not_is_instance' and 'shrinks_to' tests.
 
 is_instance_test_() ->
-    [?_assert(proper_types:is_instance(X,Type) andalso state_is_clean())
-     || {Type,Xs,_Target,_Ys} <- types_with_data(), X <- Xs].
+    [?_test(assert_is_instance(X, Type))
+     || {Type,Xs,_Target,_Ys,_TypeStr} <- types_with_data(), X <- Xs].
+
+builtin_is_instance_test_() ->
+    [?_test(begin
+		Type = assert_can_translate(proper, TypeStr),
+		lists:foreach(fun(X) -> assert_is_instance(X,Type) end, Xs)
+	    end)
+     || {_Type,Xs,_Target,_Ys,TypeStr} <- types_with_data(), TypeStr =/= none].
 
 %% TODO: specific test-starting instances would be useful here
 %%	 (start from valid Xs)
 shrinks_to_test_() ->
-    [?_shrinksTo(Target,Type) || {Type,_Xs,Target,_Ys} <- types_with_data()].
+    [?_shrinksTo(Target, Type)
+     || {Type,_Xs,Target,_Ys,_TypeStr} <- types_with_data()].
 
 %% TODO: 'unknown' causes problems with 'not', need 'surely'
 not_is_instance_test_() ->
-    [?_assert(not proper_arith:surely(proper_types:is_instance(Y,Type))
+    [?_assert(not proper_arith:surely(proper_types:is_instance(Y, Type))
 	      andalso state_is_clean())
-     || {Type,_Xs,_Target,Ys} <- types_with_data(), Y <- Ys].
+     || {Type,_Xs,_Target,Ys,_TypeStr} <- types_with_data(), Y <- Ys].
 
-generate_test_() ->
-    [?_test(begin
-		{ok,Instance} = proper_gen:pick(Type),
-		?assert(state_is_clean()),
-		?assert(proper_types:is_instance(Instance, Type)),
-		?assert(state_is_clean())
-	    end)
-     || {Type,_Xs,_Target,_Ys} <- types_with_data()].
+can_generate_test_() ->
+    [?_test(assert_can_generate(Type))
+     || {Type,_Xs,_Target,_Ys,_TypeStr} <- types_with_data()].
+
+builtin_can_generate_test_() ->
+    [?_test(assert_can_generate(assert_can_translate(proper,TypeStr)))
+     || {_Type,_Xs,_Target,_Ys,TypeStr} <- types_with_data(), TypeStr =/= none].
+
+remote_builtin_types_test_() ->
+    [?_test(assert_can_translate(Mod,TypeStr))
+     || {Mod,Strings} <- remote_builtin_types(), TypeStr <- Strings].
 
 cant_generate_test_() ->
     [?_test(begin
@@ -326,30 +402,26 @@ cant_generate_test_() ->
 	    end)
      || Type <- impossible_types()].
 
-%% TODO: Use retesting of counterexample here, instead of using private
-%%	 functions to reset the state.
-random_functions_test_() ->
+builtin_cant_generate_test_() ->
     [?_test(begin
-		{ok,F} = proper_gen:pick(FunType),
-		?assert(proper_types:is_instance(F, FunType)),
-		Results1 = assert_is_pure_function(F),
-		GenState = proper_gen:gen_state_get(),
-		proper:global_state_erase(),
+		proper_typeserver:start(),
+		Result = proper_typeserver:translate_type({Mod,TypeStr}),
+		proper_typeserver:stop(),
 		?assert(state_is_clean()),
-		proper:global_state_init_size(10),
-		proper_gen:gen_state_set(GenState),
-		Results2 = assert_is_pure_function(F),
-		?assertEqual(Results1,Results2),
-		proper:global_state_erase(),
-		?assert(state_is_clean())
+		?assertMatch({error,_}, Result)
 	    end)
-     || FunType <- function_types()].
+     || {Mod,Strings} <- impossible_builtin_types(), TypeStr <- Strings].
+
+random_functions_test_() ->
+    [[?_test(assert_function_type_works(FunType)),
+      ?_test(assert_function_type_works(assert_can_translate(proper,TypeStr)))]
+     || {FunType,TypeStr} <- function_types()].
 
 true_props_test_() ->
     [?_perfectRun(?FORALL(X,integer(),X < X + 1)),
      ?_perfectRun(?FORALL(X,atom(),list_to_atom(atom_to_list(X)) =:= X)),
      ?_perfectRun(?FORALL(L,list(integer()),is_sorted(L,quicksort(L)))),
-     ?_perfectRun(?FORALL(L,list(integer()),is_sorted(L,lists:sort(L)))),
+     ?_perfectRun(?FORALL_B(L,[integer()],is_sorted(L,lists:sort(L)))),
      ?_perfectRun(?FORALL(L,ulist(integer()),is_sorted(L,lists:usort(L)))),
      ?_perfectRun(?FORALL(L,non_empty(list(integer())),L =/= [])),
      ?_assertRun(true, {passed,_,[]},

@@ -9,16 +9,24 @@ EXM_DIR=examples
 UTIL_SRC_DIR=util
 UTIL_BIN_DIR=util
 TMP_PATTERN=*~ \\\#*\\\# *.dump
+COMMA=,
+EMPTY=
+SPACE= $(EMPTY) $(EMPTY)
 
 TXT_FILES=COPYING README
 DOC_SRC_FILES=$(DOC_DIR)/overview.edoc
 MAKE_FILES=Makefile vsn.mk $(APP_SRC_DIR)/proper.app.src
 PACKAGE_FILE=proper.tar.gz
+REGISTERED_PROCS=typeserver
+NEEDED_APPS=compiler erts kernel stdlib crypto hipe dialyzer
 
 include vsn.mk
+PROPER_REGISTERED=$(subst $(SPACE),$(COMMA),$(REGISTERED_PROCS))
+PROPER_NEEDED_APPS=$(subst $(SPACE),$(COMMA),$(NEEDED_APPS))
 
 APP_SRC_FILES=$(wildcard $(APP_SRC_DIR)/*.erl)
 APP_MODULES=$(APP_SRC_FILES:$(APP_SRC_DIR)/%.erl=%)
+PROPER_MODULES=$(subst $(SPACE),$(COMMA),$(APP_MODULES))
 APP_BIN_FILES=$(APP_MODULES:%=$(APP_BIN_DIR)/%.beam) $(APP_BIN_DIR)/proper.app
 HDR_FILES=$(wildcard $(HDR_DIR)/*.hrl)
 DOC_FILES=$(addprefix $(DOC_DIR)/, $(DOC_PATTERN) $(addsuffix .html, $(APP_MODULES)))
@@ -32,22 +40,21 @@ UTIL_BIN_FILES=$(UTIL_MODULES:%=$(UTIL_BIN_DIR)/%.beam)
 TMP_FILES=$(TMP_PATTERN) $(addprefix $(APP_SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(HDR_DIR)/, $(TMP_PATTERN)) $(addprefix $(DOC_DIR)/, $(TMP_PATTERN)) $(addprefix $(TST_SRC_DIR)/, $(TMP_PATTERN)) $(addprefix $(EXM_DIR)/, $(TMP_PATTERN)) $(addprefix $(UTIL_SRC_DIR)/, $(TMP_PATTERN))
 BUILD_FILES=$(APP_BIN_FILES) $(DOC_FILES) $(TST_BIN_FILES) $(UTIL_BIN_FILES) $(PACKAGE_FILE)
 
-ENTER_ERL=erl -noinput -pa $(APP_BIN_DIR) -eval '
+ENTER_ERL=erl -noinput -pa $(APP_BIN_DIR) $(TST_BIN_DIR) -eval '
 EXIT_ERL=' -run init stop
 ERLC=erlc
-ERLC_FLAGS=-W2 +debug_info -I $(HDR_DIR)
+ERLC_FLAGS=+debug_info -I $(HDR_DIR)
 ifdef NOTYPES
-APP_ERLC_FLAGS=-pa $(UTIL_BIN_DIR) '+{parse_transform,strip_types}' -o $(APP_BIN_DIR)
+APP_ERLC_FLAGS=-W2 -pa $(UTIL_BIN_DIR) '+{parse_transform,strip_types}' -o $(APP_BIN_DIR)
 else
-APP_ERLC_FLAGS=+warn_missing_spec +warn_untyped_record -o $(APP_BIN_DIR)
+APP_ERLC_FLAGS=-W2 +warn_missing_spec +warn_untyped_record -o $(APP_BIN_DIR)
 endif
-TST_ERLC_FLAGS=+nowarn_unused_function -o $(TST_BIN_DIR)
-UTIL_ERLC_FLAGS=-o $(UTIL_BIN_DIR)
+TST_ERLC_FLAGS=-W0 -DPROPER_REGISTERED='[$(PROPER_REGISTERED)]' -o $(TST_BIN_DIR)
+UTIL_ERLC_FLAGS=-W2 -o $(UTIL_BIN_DIR)
 EDOC_OPTIONS=[{dialyzer_specs,all}, {report_missing_type,true}, {report_type_mismatch,true}, {pretty_print,erl_pp}, {preprocess,true}]
 EUNIT_OPTIONS=[]
 DIALYZER=dialyzer
 DIALYZER_FLAGS=-Wunmatched_returns
-NEEDED_APPS=compiler erts kernel stdlib crypto
 RM=rm -f
 TAR=tar -czf
 SUB_MAKE_FLAGS=--no-print-directory
@@ -56,7 +63,6 @@ SUB_MAKE_FLAGS=--no-print-directory
 # TODO: separate debug and optimization options
 # TODO: extra targets: tags, commit/update, check_plt, analyze
 # TODO: header files as dependencies: more fine-grained
-# TODO: fill in the modules and applications in the .app file on the fly
 
 .PHONY: default all compile tests util doc check clean distclean rebuild package build_plt
 
@@ -72,7 +78,11 @@ $(APP_BIN_DIR)/%.beam: $(APP_SRC_DIR)/%.erl
 	$(ERLC) $(ERLC_FLAGS) $(APP_ERLC_FLAGS) $<
 
 $(APP_BIN_DIR)/%.app: $(APP_SRC_DIR)/%.app.src
-	sed -e s^%PROPER_VSN%^$(PROPER_VSN)^ $< > $@
+	sed -e s^%PROPER_VSN%^$(PROPER_VSN)^ \
+	    -e s^%PROPER_MODULES%^$(PROPER_MODULES)^ \
+	    -e s^%PROPER_REGISTERED%^$(PROPER_REGISTERED)^ \
+	    -e s^%PROPER_NEEDED_APPS%^$(PROPER_NEEDED_APPS)^ \
+	    $< > $@
 
 tests: compile $(TST_BIN_FILES)
 	$(ENTER_ERL) eunit:test({dir,"$(TST_BIN_DIR)"},$(EUNIT_OPTIONS)) $(EXIT_ERL)

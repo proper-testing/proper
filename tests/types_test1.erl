@@ -19,12 +19,15 @@
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
-%%% @doc This is the file that generates the proper.app file.
+%%% @doc This modules contains types for testing the typeserver.
 
-{application, proper,
- [{description, "A property-based testing tool for Erlang inspired by QuickCheck"},
-  {vsn, "%PROPER_VSN%"},
-  {modules, [%PROPER_MODULES%]},
-  {registered, [%PROPER_REGISTERED%]},
-  {applications, [%PROPER_NEEDED_APPS%]},
-  {env, []}]}.
+-module(types_test1).
+-export_type([exp1/0]).
+
+-record(rec1, {a = 42 :: integer(), b :: float(), c = this_atom}).
+-type rec1() :: #rec1{}.
+-opaque exp1() :: rec1() | atom().
+-type type1() :: {exp1(), [float() | boolean()]}.
+-type type2(T) :: {T,T} | [T].
+-type rem1() :: types_test2:exp1(integer()) | integer().
+-type rem2() :: {bitstring(), types_test2:exp2()}.

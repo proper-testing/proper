@@ -30,8 +30,8 @@
 -export([numtests/2, collect/2, aggregate/2, fails/1, on_output/2, equals/2]).
 -export([still_fails/3, skip_to_next/1, force_skip/2]).
 
--export_type([dependent_test/0, imm_testcase/0, test/0, fail_reason/0,
-	      forall_clause/0, output_fun/0]).
+-export_type([imm_testcase/0, test/0, fail_reason/0, stripped_test/0,
+	      output_fun/0]).
 
 -include("proper_internal.hrl").
 
@@ -54,6 +54,7 @@
 		    | on_output_clause().
 -type test() :: boolean()
 	      | forall_clause()
+	      | forall_b_clause()
 	      | implies_clause()
 	      | sample_clause()
 	      | whenfail_clause()
@@ -64,12 +65,16 @@
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
+-type stripped_test() :: 'false' | 'error' | stripped_forall().
+-type stripped_forall()	:: {proper_types:type(),dependent_test()}.
 
 -type numtests_clause() :: {'$numtests', pos_integer(), outer_test()}.
 -type fails_clause() :: {'$fails', outer_test()}.
 -type on_output_clause() :: {'$on_output', output_fun(), outer_test()}.
 
 -type forall_clause() :: {'$forall', proper_types:raw_type(), dependent_test()}.
+-type forall_b_clause() :: {'$forall_b', proper_typeserver:imm_type(),
+			    dependent_test()}.
 -type implies_clause() :: {'$implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'$sample', sample(), test()}.
 -type whenfail_clause() :: {'$whenfail', side_effects_fun(), delayed_test()}.
@@ -132,11 +137,12 @@
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
 -type single_run_error_reason() :: 'wrong_type' | 'cant_generate' | 'rejected'
 				 | 'type_mismatch' | 'need_size_info'
-				 | 'too_many_instances'.
+				 | 'too_many_instances' | {'typeserver',term()}.
 
 -type pass_result() :: {'passed', pos_integer(), [sample()]}.
 -type error_result() :: {'error', error_reason()}.
 -type error_reason() :: 'cant_generate' | 'cant_satisfy' | 'type_mismatch'
+		      | {'typeserver',term()}
 		      | {'unexpected', single_run_result()}.
 -type common_result() :: pass_result() | error_result().
 -type imm_result() :: common_result()
@@ -191,11 +197,13 @@ global_state_init(#opts{start_size = Size, constraint_tries = CTries,
     put('$size', Size),
     put('$constraint_tries', CTries),
     proper_arith:rand_start(Crypto),
+    proper_typeserver:start(),
     ok.
 
 -spec global_state_erase() -> 'ok'.
 global_state_erase() ->
     proper_gen:gen_state_erase(),
+    proper_typeserver:stop(),
     proper_arith:rand_stop(),
     erase('$constraint_tries'),
     erase('$size'),
@@ -380,6 +388,8 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Print) ->
 	    Error;
 	{error, type_mismatch} = Error ->
 	    Error;
+	{error, {typeserver,_SubReason}} = Error ->
+	    Error;
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(),
@@ -432,6 +442,11 @@ run({'$forall',RawType,Prop},
 		error ->
 		    {error, cant_generate}
 	    end
+    end;
+run({'$forall_b',ImmType,Prop}, Ctx) ->
+    case proper_typeserver:translate_type(ImmType) of
+	{ok, Type}      -> run({'$forall',Type,Prop}, Ctx);
+	{error, Reason} -> {error, {typeserver,Reason}}
     end;
 run({'$implies',true,Prop}, Ctx) ->
     force(Prop, Ctx);
@@ -538,10 +553,11 @@ clean_testcase(ImmTestCase) ->
 %% Shrinking callback functions
 %%------------------------------------------------------------------------------
 
--spec still_fails(imm_testcase(), test(), fail_reason()) -> boolean().
-still_fails(ImmTestCase, Test, OldReason) ->
+-spec still_fails(imm_testcase(), stripped_forall(), fail_reason()) ->
+	  boolean().
+still_fails(ImmTestCase, {Type,Prop}, OldReason) ->
     Ctx = #ctx{try_shrunk = true, to_try = ImmTestCase},
-    case run(Test, Ctx) of
+    case run({'$forall',Type,Prop}, Ctx) of
 	%% We check that it's the same fault that caused the crash.
 	{failed, #cexm{fail_reason = NewReason}, _Actions} ->
 	    same_fail_reason(OldReason, NewReason);
@@ -560,15 +576,19 @@ same_fail_reason(_SameReason, _SameReason) ->
 same_fail_reason(_, _) ->
     false.
 
--spec skip_to_next(test()) -> forall_clause() | 'false' | 'error'.
-%% We should never encounter false ?IMPLIES, true final results or unprecedented
-%% tests.
+-spec skip_to_next(test()) -> stripped_test().
 skip_to_next(true) ->
     error;
 skip_to_next(false) ->
     false;
-skip_to_next(Test = {'$forall',_RawType,_Prop}) ->
-    Test;
+skip_to_next({'$forall',RawType,Prop}) ->
+    Type = proper_types:cook_outer(RawType),
+    {Type,Prop};
+skip_to_next({'$forall_b',ImmType,Prop}) ->
+    case proper_typeserver:translate_type(ImmType) of
+	{ok, Type}       -> skip_to_next({'$forall',Type,Prop});
+	{error, _Reason} -> error
+    end;
 skip_to_next({'$implies',true,Prop}) ->
     force_skip(Prop);
 skip_to_next({'$implies',false,_Prop}) ->
@@ -582,15 +602,13 @@ skip_to_next({'$trapexit',Prop}) ->
 skip_to_next({'$timeout',_Limit,_Prop}) ->
     false. % This is OK, since timeout cannot contain any ?FORALLs.
 
--spec force_skip(delayed_test()) -> forall_clause() | 'false' | 'error'.
+-spec force_skip(delayed_test()) -> stripped_test().
 force_skip(Prop) -> apply_skip([], Prop).
 
--spec force_skip(proper_gen:instance(), dependent_test()) ->
-	  forall_clause() | 'false' | 'error'.
+-spec force_skip(proper_gen:instance(), dependent_test()) -> stripped_test().
 force_skip(Arg, Prop) -> apply_skip([Arg], Prop).
 
--spec apply_skip([proper_gen:instance()], lazy_test()) ->
-	  forall_clause() | 'false' | 'error'.
+-spec apply_skip([proper_gen:instance()], lazy_test()) -> stripped_test().
 apply_skip(Args, Prop) ->
     try
 	skip_to_next(apply(Prop, Args))
@@ -644,6 +662,9 @@ report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
 	type_mismatch ->
 	    Print("~nError: the variables' and types' structures inside a "
 		  "?FORALL don't match.~n", []);
+	{typeserver,SubReason} ->
+	    Print("~nError: couldn't translate a built-in type.~nThe typeserver"
+		  " responded: ~w~n", [SubReason]);
 	{unexpected,Unexpected} ->
 	    Print("~nInternal error: the last run returned an unexpected result"
 		  ":~n~w~nPlease notify the maintainers about this error~n",

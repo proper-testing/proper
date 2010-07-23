@@ -37,9 +37,6 @@
 %% Types
 %%------------------------------------------------------------------------------
 
--type forall2_clause() :: {'$forall2', proper_types:type(),
-			   proper:dependent_test()}.
-%% TODO: rename to 'shrinker_state()'?
 -type state() :: 'init' | 'done' | {'shrunk',position(),state()} | term().
 -type shrinker() :: fun((proper_gen:imm_instance(), proper_types:type(),
 			state()) -> {[proper_gen:imm_instance()],state()}).
@@ -80,9 +77,8 @@ shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
     end.
 
 -spec shrink_tr(proper:imm_testcase(), proper:imm_testcase(),
-		proper:forall_clause() | 'false' | 'error' | forall2_clause(),
-		proper:fail_reason(), non_neg_integer(), non_neg_integer(),
-		state(), proper:output_fun()) ->
+		proper:stripped_test(), proper:fail_reason(), non_neg_integer(),
+		non_neg_integer(), state(), proper:output_fun()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: 'tries_left' instead of 'shrinks_left'?
 shrink_tr(Shrunk, TestTail, error, _Reason,
@@ -93,19 +89,13 @@ shrink_tr(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Print) ->
     {Shrinks, lists:reverse(Shrunk) ++ TestTail};
 shrink_tr(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Print) ->
     {Shrinks, lists:reverse(Shrunk)};
-shrink_tr(Shrunk, TestTail, {'$forall',RawType,Prop}, Reason,
-	  Shrinks, ShrinksLeft, init, Print) ->
-    Type = proper_types:cook_outer(RawType),
-    shrink_tr(Shrunk, TestTail, {'$forall2',Type,Prop}, Reason,
-	      Shrinks, ShrinksLeft, init, Print);
-shrink_tr(Shrunk, [ImmInstance | Rest], {'$forall2',_Type,Prop}, Reason,
+shrink_tr(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
 	  Shrinks, ShrinksLeft, done, Print) ->
     Instance = proper_gen:clean_instance(ImmInstance),
     NewTest = proper:force_skip(Instance, Prop),
     shrink_tr([ImmInstance | Shrunk], Rest, NewTest, Reason,
 	      Shrinks, ShrinksLeft, init, Print);
-shrink_tr(Shrunk, TestTail = [ImmInstance | Rest],
-	  Test = {'$forall2',Type,Prop}, Reason,
+shrink_tr(Shrunk, TestTail = [ImmInstance | Rest], Test = {Type,_Prop}, Reason,
 	  Shrinks, ShrinksLeft, State, Print) ->
     {NewImmInstances,NewState} = shrink_one(ImmInstance, Type, State),
     %% we also test if the recently returned instance is a valid instance
@@ -113,11 +103,10 @@ shrink_tr(Shrunk, TestTail = [ImmInstance | Rest],
     %% TODO: perhaps accept an 'unknown'?
     %% TODO: maybe this covers the LET parts-type test too?
     %% TODO: should we try producing new test tails while shrinking?
-    IsValid =
-	fun(I) ->
-	    I =/= ImmInstance andalso
-	    proper:still_fails([I | Rest], {'$forall',Type,Prop}, Reason)
-	end,
+    IsValid = fun(I) ->
+		  I =/= ImmInstance andalso
+		  proper:still_fails([I | Rest], Test, Reason)
+	      end,
     case find_first(IsValid, NewImmInstances) of
 	none ->
 	    shrink_tr(Shrunk, TestTail, Test, Reason,

@@ -24,6 +24,8 @@
 %%------------------------------------------------------------------------------
 
 -define(FORALL(X,RawType,Prop), {'$forall',RawType,fun(X) -> Prop end}).
+-define(FORALL_B(X,BuiltinType,Prop),
+	{'$forall_b',{?MODULE,??BuiltinType},fun(X) -> Prop end}).
 -define(IMPLIES(Pre,Prop), {'$implies',Pre,?DELAY(Prop)}).
 -define(WHENFAIL(Action,Prop), {'$whenfail',?DELAY(Action),?DELAY(Prop)}).
 -define(TRAPEXIT(Prop), {'$trapexit',?DELAY(Prop)}).
