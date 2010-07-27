@@ -25,10 +25,6 @@
 -module(proper_types).
 -export([is_instance/2]).
 
--export([cook_outer/1, is_type/1, is_raw_type/1, get_prop/2, find_prop/2,
-	 new_type/2, subtype/2, unwrap/1, weakly/1, strongly/1,
-	 satisfies_all/2]).
--export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
 	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0]).
@@ -39,6 +35,11 @@
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
 	 function1/1, function2/1, function3/1, function4/1]).
 -export([resize/2, non_empty/1, noshrink/1]).
+
+-export([cook_outer/1, is_type/1, is_raw_type/1, get_prop/2, find_prop/2,
+	 new_type/2, subtype/2, unwrap/1, weakly/1, strongly/1,
+	 satisfies_all/2]).
+-export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
 
 -export_type([type/0, raw_type/0]).
 

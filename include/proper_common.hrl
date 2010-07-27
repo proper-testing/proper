@@ -23,15 +23,15 @@
 %% Test generation macros
 %%------------------------------------------------------------------------------
 
--define(FORALL(X,RawType,Prop), {'$forall',RawType,fun(X) -> Prop end}).
+-define(FORALL(X,RawType,Prop), proper:forall(RawType,fun(X) -> Prop end)).
 -define(FORALL_B(X,BuiltinType,Prop),
-	{'$forall_b',{?MODULE,??BuiltinType},fun(X) -> Prop end}).
--define(IMPLIES(Pre,Prop), {'$implies',Pre,?DELAY(Prop)}).
--define(WHENFAIL(Action,Prop), {'$whenfail',?DELAY(Action),?DELAY(Prop)}).
--define(TRAPEXIT(Prop), {'$trapexit',?DELAY(Prop)}).
--define(TIMEOUT(Limit,Prop), {'$timeout',Limit,?DELAY(Prop)}).
-%% TODO: -define(ALWAYS(Tests,Prop), {'$always',Tests,?DELAY(Prop)}).
-%% TODO: -define(SOMETIMES(Tests,Prop), {'$sometimes',Tests,?DELAY(Prop)}).
+	proper:forall_b(?MODULE,??BuiltinType,fun(X) -> Prop end)).
+-define(IMPLIES(Pre,Prop), proper:implies(Pre,?DELAY(Prop))).
+-define(WHENFAIL(Action,Prop), proper:whenfail(?DELAY(Action),?DELAY(Prop))).
+-define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).
+-define(TIMEOUT(Limit,Prop), proper:timeout(Limit,?DELAY(Prop))).
+%% TODO: -define(ALWAYS(Tests,Prop), proper:always(Tests,?DELAY(Prop))).
+%% TODO: -define(SOMETIMES(Tests,Prop), proper:sometimes(Tests,?DELAY(Prop))).
 
 
 %%------------------------------------------------------------------------------

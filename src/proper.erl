@@ -23,15 +23,17 @@
 
 -module(proper).
 -export([check/1, check/2]).
+-export([numtests/2, fails/1, on_output/2]).
+-export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
+	 with_title/1, equals/2]).
 -export([global_state_erase/0, get_counterexample/0, clean_garbage/0,
 	 get_fail_reason/1, get_bound/1]).
 
 -export([get_size/1, global_state_init_size/1]).
--export([numtests/2, collect/2, aggregate/2, fails/1, on_output/2, equals/2]).
--export([still_fails/3, skip_to_next/1, force_skip/2]).
+-export([forall/2, forall_b/3, implies/2, whenfail/2, trapexit/1, timeout/2]).
+-export([still_fails/3, force_skip/2]).
 
--export_type([imm_testcase/0, test/0, fail_reason/0, stripped_test/0,
-	      output_fun/0]).
+-export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
 
 -include("proper_internal.hrl").
 
@@ -43,9 +45,14 @@
 -type imm_testcase() :: [proper_gen:imm_instance()].
 -type clean_testcase() :: [proper_gen:instance()].
 -type sample() :: [term()].
+-type freq_sample() :: [{term(),frequency()}].
 -type side_effects_fun() :: fun(() -> 'ok').
 -type fail_actions() :: [side_effects_fun()].
 -type output_fun() :: fun((string(), [term()]) -> 'ok').
+-type title() :: atom() | string().
+-type stats_printer() :: fun((sample()) -> 'ok')
+		       | fun((sample(), pos_integer(), output_fun()) -> 'ok')
+		       | fun((sample(), pos_integer()) -> 'ok').
 -type time_period() :: non_neg_integer().
 
 -type outer_test() :: test()
@@ -76,7 +83,7 @@
 -type forall_b_clause() :: {'$forall_b', proper_typeserver:imm_type(),
 			    dependent_test()}.
 -type implies_clause() :: {'$implies', boolean(), delayed_test()}.
--type sample_clause() :: {'$sample', sample(), test()}.
+-type sample_clause() :: {'$sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'$whenfail', side_effects_fun(), delayed_test()}.
 -type trapexit_clause() :: {'$trapexit', delayed_test()}.
 -type timeout_clause() :: {'$timeout', time_period(), delayed_test()}.
@@ -118,7 +125,8 @@
 	      bound        = []    :: imm_testcase(),
 	      to_try       = []    :: imm_testcase(),
 	      fail_actions = []    :: fail_actions(),
-	      samples      = []    :: [sample()]}).
+	      samples      = []    :: [sample()],
+	      printers     = []    :: [stats_printer()]}).
 -type ctx() :: #ctx{}.
 
 
@@ -126,12 +134,13 @@
 %% Result types
 %%------------------------------------------------------------------------------
 
--type single_run_result() :: {'passed', pass_reason(), [sample()]}
+-type single_run_result() :: {'passed', pass_reason(), [sample()],
+			      [stats_printer()]}
 			   | {'failed', counterexample(), fail_actions()}
 			   | {'error', single_run_error_reason()}.
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
--type fail_reason() :: 'false_prop' | 'timeout'
-		     | {'exception',exc_kind(),exc_reason(),stacktrace()}.
+-opaque fail_reason() :: 'false_prop' | 'timeout'
+		       | {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
@@ -139,15 +148,15 @@
 				 | 'type_mismatch' | 'need_size_info'
 				 | 'too_many_instances' | {'typeserver',term()}.
 
--type pass_result() :: {'passed', pos_integer(), [sample()]}.
 -type error_result() :: {'error', error_reason()}.
 -type error_reason() :: 'cant_generate' | 'cant_satisfy' | 'type_mismatch'
 		      | {'typeserver',term()}
 		      | {'unexpected', single_run_result()}.
--type common_result() :: pass_result() | error_result().
--type imm_result() :: common_result()
+-type imm_result() :: error_result()
+		    | {'passed', pos_integer(), [sample()], [stats_printer()]}
 		    | {'failed',pos_integer(),counterexample(),fail_actions()}.
--type long_result() :: common_result()
+-type long_result() :: error_result()
+		     | {'passed', pos_integer(), [sample()]}
 		     | {'failed', pos_integer(), counterexample()}
 		     | {'failed', pos_integer(), counterexample(),
 			 non_neg_integer(), counterexample()}.
@@ -279,14 +288,6 @@ parse_opt(UserOpt, Opts) ->
 numtests(N, Test) ->
     {'$numtests', N, Test}.
 
--spec collect(term(), test()) -> sample_clause().
-collect(SingleSample, Prop) ->
-    aggregate([SingleSample], Prop).
-
--spec aggregate(sample(), test()) -> sample_clause().
-aggregate(Sample, Prop) ->
-    {'$sample', Sample, Prop}.
-
 -spec fails(outer_test()) -> fails_clause().
 fails(Test) ->
     {'$fails', Test}.
@@ -294,6 +295,52 @@ fails(Test) ->
 -spec on_output(output_fun(), outer_test()) -> on_output_clause().
 on_output(Print, Test) ->
     {'$on_output', Print, Test}.
+
+-spec forall(proper_types:raw_type(), dependent_test()) -> forall_clause().
+forall(RawType, DTest) ->
+    {'$forall', RawType, DTest}.
+
+-spec forall_b(string(), string(), dependent_test()) -> forall_b_clause().
+forall_b(Module, BuiltinType, DTest) ->
+    {'$forall_b', {Module,BuiltinType}, DTest}.
+
+-spec implies(boolean(), delayed_test()) -> implies_clause().
+implies(Pre, DTest) ->
+    {'$implies', Pre, DTest}.
+
+-spec collect(term(), test()) -> sample_clause().
+collect(Term, Test) ->
+    collect(with_title(""), Term, Test).
+
+-spec collect(stats_printer(), term(), test()) -> sample_clause().
+collect(Printer, Term, Test) ->
+    aggregate(Printer, [Term], Test).
+
+-spec aggregate(sample(), test()) -> sample_clause().
+aggregate(Sample, Test) ->
+    aggregate(with_title(""), Sample, Test).
+
+-spec aggregate(stats_printer(), sample(), test()) -> sample_clause().
+aggregate(Printer, Sample, Test) ->
+    {'$sample', Sample, Printer, Test}.
+
+-spec measure(title(), number() | [number()], test()) -> sample_clause().
+measure(Title, Sample, Test) when is_number(Sample) ->
+    measure(Title, [Sample], Test);
+measure(Title, Sample, Test) when is_list(Sample) ->
+    aggregate(numeric_with_title(Title), Sample, Test).
+
+-spec whenfail(side_effects_fun(), delayed_test()) -> whenfail_clause().
+whenfail(Action, DTest) ->
+    {'$whenfail', Action, DTest}.
+
+-spec trapexit(delayed_test()) -> trapexit_clause().
+trapexit(DTest) ->
+    {'$trapexit', DTest}.
+
+-spec timeout(time_period(), delayed_test()) -> timeout_clause().
+timeout(Limit, DTest) ->
+    {'$timeout', Limit, DTest}.
 
 -spec equals(term(), term()) -> whenfail_clause().
 equals(A, B) ->
@@ -323,6 +370,7 @@ check(Test, #opts{numtests = NumTests, output_fun = Print,
 		  long_result = ReturnLong} = Opts) ->
     global_state_init(Opts),
     ImmResult = perform(NumTests, Test, Print),
+    Print("~n", []),
     report_imm_result(ImmResult, Opts),
     ShortResult = get_short_result(ImmResult, Opts),
     LongResult = get_long_result(ImmResult, Test, Opts),
@@ -335,7 +383,7 @@ check(Test, UserOpts) ->
     check(Test, parse_opts(UserOpts)).
 
 -spec get_short_result(imm_result(), opts()) -> short_result().
-get_short_result({passed,_Passed,_Samples}, Opts) ->
+get_short_result({passed,_Passed,_Samples,_Printers}, Opts) ->
     not Opts#opts.expect_fail;
 get_short_result({failed,_Performed,_CExm,_Actions}, Opts) ->
     Opts#opts.expect_fail;
@@ -343,13 +391,16 @@ get_short_result({error,_Reason} = ErrorResult, _Opts) ->
     ErrorResult.
 
 -spec get_long_result(imm_result(), test(), opts()) -> long_result().
+get_long_result({passed,Passed,Samples,_Printers}, _Test, _Opts) ->
+    {passed, Passed, Samples};
 get_long_result({failed,Performed,CExm,_Actions}, Test,
 		 #opts{expect_fail = false, noshrink = false,
 		       max_shrinks = MaxShrinks, output_fun = Print}) ->
     Print("Shrinking", []),
     #cexm{fail_reason = Reason, bound = ImmTestCase} = CExm,
+    StrTest = skip_to_next(Test),
     {Shrinks, MinImmTestCase} =
-	proper_shrink:shrink(ImmTestCase, Test, Reason, MaxShrinks, Print),
+	proper_shrink:shrink(ImmTestCase, StrTest, Reason, MaxShrinks, Print),
     Ctx = #ctx{try_shrunk = true, to_try = MinImmTestCase},
     {failed, MinCExm, MinActions} = run(Test, Ctx),
     report_shrinking(Shrinks, MinImmTestCase, MinActions, Print),
@@ -363,27 +414,34 @@ get_long_result(ImmResult, _Test, _Opts) ->
 
 -spec perform(non_neg_integer(), test(), output_fun()) -> imm_result().
 perform(NumTests, Test, Print) ->
-    perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, Print).
+    perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Print).
 
 -spec perform(non_neg_integer(), non_neg_integer(), non_neg_integer(), test(),
-	      [sample()] | 'none', output_fun()) -> imm_result().
-perform(0, _ToPass, 0, _Test, _Samples, _Print) ->
-    {error, cant_satisfy};
-perform(Passed, _ToPass, 0, _Test, Samples, _Print) ->
-    {passed, Passed, Samples};
-perform(ToPass, ToPass, _TriesLeft, _Test, Samples, _Print) ->
-    {passed, ToPass, Samples};
-perform(Passed, ToPass, TriesLeft, Test, Samples, Print) ->
+	      [sample()] | 'none', [stats_printer()] | 'none', output_fun()) ->
+	  imm_result().
+perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Print) ->
+    case Passed of
+	0 -> {error, cant_satisfy};
+	_ -> {passed, Passed, Samples, Printers}
+    end;
+perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Print) ->
+    {passed, ToPass, Samples, Printers};
+perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
     proper_gen:gen_state_erase(),
     case run(Test) of
-	{passed, true_prop, MoreSamples} ->
+	{passed, true_prop, MoreSamples, MorePrinters} ->
 	    Print(".", []),
 	    NewSamples = add_samples(MoreSamples, Samples),
+	    NewPrinters = case Printers of
+			      none -> MorePrinters;
+			      _    -> Printers
+			  end,
 	    grow_size(),
-	    perform(Passed+1, ToPass, TriesLeft-1, Test, NewSamples, Print);
+	    perform(Passed + 1, ToPass, TriesLeft - 1, Test,
+		    NewSamples, NewPrinters, Print);
 	{failed, CExm, Actions} ->
 	    Print("!", []),
-	    {failed, Passed+1, CExm, Actions};
+	    {failed, Passed + 1, CExm, Actions};
 	{error, cant_generate} = Error ->
 	    Error;
 	{error, type_mismatch} = Error ->
@@ -393,7 +451,8 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Print) ->
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(),
-	    perform(Passed, ToPass, TriesLeft-1, Test, Samples, Print);
+	    perform(Passed, ToPass, TriesLeft - 1, Test,
+		    Samples, Printers, Print);
 	Unexpected ->
 	    {error, {unexpected,Unexpected}}
     end.
@@ -409,8 +468,8 @@ run(Test) ->
     run(Test, #ctx{}).
 
 -spec run(test(), ctx()) -> single_run_result().
-run(true, #ctx{to_try = [], samples = Samples}) ->
-    {passed, true_prop, lists:reverse(Samples)};
+run(true, #ctx{to_try = [], samples = Samples, printers = Printers}) ->
+    {passed, true_prop, lists:reverse(Samples), lists:reverse(Printers)};
 run(true, _Ctx) ->
     {error, too_many_instances};
 run(false, #ctx{to_try = []} = Ctx) ->
@@ -421,7 +480,7 @@ run({'$forall',RawType,Prop},
     #ctx{try_shrunk = TryShrunk, to_try = ToTry, bound = Bound} = Ctx) ->
     case {TryShrunk, ToTry} of
 	{true, []} ->
-	    {passed, didnt_crash, []};
+	    {passed, didnt_crash, [], []};
 	{true, [ImmInstance | Rest]} ->
 	    case proper_arith:surely(proper_types:is_instance(ImmInstance,
 							      RawType)) of
@@ -452,8 +511,10 @@ run({'$implies',true,Prop}, Ctx) ->
     force(Prop, Ctx);
 run({'$implies',false,_Prop}, _Ctx) ->
     {error, rejected};
-run({'$sample',NewSample,Prop}, #ctx{samples = Samples} = Ctx) ->
-    NewCtx = Ctx#ctx{samples = [NewSample | Samples]},
+run({'$sample',NewSample,NewPrinter,Prop},
+    #ctx{samples = Samples, printers = Printers} = Ctx) ->
+    NewCtx = Ctx#ctx{samples = [NewSample | Samples],
+		     printers = [NewPrinter | Printers]},
     run(Prop, NewCtx);
 run({'$whenfail',NewAction,Prop}, #ctx{fail_actions = Actions} = Ctx)->
     NewCtx = Ctx#ctx{fail_actions = [NewAction | Actions]},
@@ -593,7 +654,7 @@ skip_to_next({'$implies',true,Prop}) ->
     force_skip(Prop);
 skip_to_next({'$implies',false,_Prop}) ->
     error;
-skip_to_next({'$sample',_Sample,Prop}) ->
+skip_to_next({'$sample',_Sample,_Printer,Prop}) ->
     skip_to_next(Prop);
 skip_to_next({'$whenfail',_Action,Prop}) ->
     force_skip(Prop);
@@ -603,10 +664,12 @@ skip_to_next({'$timeout',_Limit,_Prop}) ->
     false. % This is OK, since timeout cannot contain any ?FORALLs.
 
 -spec force_skip(delayed_test()) -> stripped_test().
-force_skip(Prop) -> apply_skip([], Prop).
+force_skip(Prop) ->
+    apply_skip([], Prop).
 
 -spec force_skip(proper_gen:instance(), dependent_test()) -> stripped_test().
-force_skip(Arg, Prop) -> apply_skip([Arg], Prop).
+force_skip(Arg, Prop) ->
+    apply_skip([Arg], Prop).
 
 -spec apply_skip([proper_gen:instance()], lazy_test()) -> stripped_test().
 apply_skip(Args, Prop) ->
@@ -624,21 +687,23 @@ apply_skip(Args, Prop) ->
 %%------------------------------------------------------------------------------
 
 -spec report_imm_result(imm_result(), opts()) -> 'ok'.
-report_imm_result({passed,Passed,Samples},
+report_imm_result({passed,Passed,Samples,Printers},
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("~nError: no test failed~n", []);
-	false -> Print("~nOK, passed ~b tests~n", [Passed])
+	true  -> Print("Error: no test failed~n", []);
+	false -> Print("OK, passed ~b tests~n", [Passed])
     end,
-    lists:foreach(fun(S) -> print_percentages(S,Passed,Print) end, Samples),
+    SortedSamples = [lists:sort(Sample) || Sample <- Samples],
+    lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Passed, Print) end,
+		  lists:zip(Printers, SortedSamples)),
     ok;
 report_imm_result({failed,Performed,_CExm,_Actions},
 		  #opts{expect_fail = true, output_fun = Print}) ->
-    Print("~nOK, failed as expected, after ~b tests.~n", [Performed]);
+    Print("OK, failed as expected, after ~b tests.~n", [Performed]);
 report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
 		   Actions},
 		  #opts{expect_fail = false, output_fun = Print}) ->
-    Print("~nFailed, after ~b tests.~n", [Performed]),
+    Print("Failed, after ~b tests.~n", [Performed]),
     case Reason of
 	false_prop ->
 	    ok;
@@ -654,42 +719,100 @@ report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
 report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
     case Reason of
 	cant_generate ->
-	    Print("~nError: couldn't produce an instance that satisfies all "
+	    Print("Error: couldn't produce an instance that satisfies all "
 		  "strict constraints after ~b tries~n",
 		  [get('$constraint_tries')]);
 	cant_satisfy ->
-	    Print("~nError: no valid test could be generated.~n", []);
+	    Print("Error: no valid test could be generated.~n", []);
 	type_mismatch ->
-	    Print("~nError: the variables' and types' structures inside a "
+	    Print("Error: the variables' and types' structures inside a "
 		  "?FORALL don't match.~n", []);
 	{typeserver,SubReason} ->
-	    Print("~nError: couldn't translate a built-in type.~nThe typeserver"
+	    Print("Error: couldn't translate a built-in type.~nThe typeserver"
 		  " responded: ~w~n", [SubReason]);
 	{unexpected,Unexpected} ->
-	    Print("~nInternal error: the last run returned an unexpected result"
+	    Print("Internal error: the last run returned an unexpected result"
 		  ":~n~w~nPlease notify the maintainers about this error~n",
 		  [Unexpected])
     end,
     ok.
 
--spec print_percentages(sample(), pos_integer(), output_fun()) -> 'ok'.
-print_percentages([], _Passed, _Print) ->
-    ok;
-print_percentages(Sample, Passed, Print) ->
-    FreqDict = lists:foldl(fun add_one_to_freq/2, dict:new(), Sample),
-    Freqs = dict:to_list(FreqDict),
-    SortedFreqs = lists:reverse(lists:keysort(2, Freqs)),
-    Print("~n", []),
-    lists:foreach(fun({X,F}) -> Print("~b\% ~w~n", [100 * F div Passed,X]) end,
-		  SortedFreqs),
-    ok.
-
--spec add_one_to_freq(term(), dict()) -> dict().
-add_one_to_freq(X, Dict) ->
-    case dict:find(X, Dict) of
-	{ok,Freq} -> dict:store(X, Freq + 1, Dict);
-	error     -> dict:store(X, 1, Dict)
+-spec apply_stats_printer(stats_printer(), sample(), pos_integer(),
+			  output_fun()) -> 'ok'.
+apply_stats_printer(Printer, SortedSample, Passed, Print) ->
+    {arity,Arity} = erlang:fun_info(Printer, arity),
+    case Arity of
+	1 -> Printer(SortedSample);
+	2 -> Printer(SortedSample, Passed);
+	3 -> Printer(SortedSample, Passed, Print)
     end.
+
+-spec with_title(title()) -> stats_printer().
+with_title(Title) ->
+    fun(S,P,O) -> plain_stats_printer(S, P, O, Title) end.
+
+-spec plain_stats_printer(sample(),pos_integer(),output_fun(),title()) -> 'ok'.
+plain_stats_printer(SortedSample, Passed, Print, Title) ->
+    print_title(Title, Print),
+    FreqSample = process_sorted_sample(SortedSample),
+    lists:foreach(fun({X,F}) -> Print("~b\% ~w~n", [100 * F div Passed,X]) end,
+		  FreqSample).
+
+-spec print_title(title(), output_fun()) -> 'ok'.
+print_title(RawTitle, Print) ->
+    Print("~n", []),
+    Title = if
+                is_atom(RawTitle) -> atom_to_list(RawTitle);
+                is_list(RawTitle) -> RawTitle
+	    end,
+    case Title of
+	"" -> ok;
+	_  -> Print(Title ++ "~n", [])
+    end.
+
+-spec process_sorted_sample(sample()) -> freq_sample().
+process_sorted_sample(SortedSample) ->
+    Freqs = get_freqs(SortedSample, []),
+    lists:reverse(lists:keysort(2, Freqs)).
+
+-spec get_freqs(sample(), freq_sample()) -> freq_sample().
+get_freqs([], Freqs) ->
+    Freqs;
+get_freqs([Term | Rest], Freqs) ->
+    {Freq,Others} = remove_all(Term, 1, Rest),
+    get_freqs(Others, [{Term,Freq} | Freqs]).
+
+-spec remove_all(term(), frequency(), sample()) -> {frequency(), sample()}.
+remove_all(X, Freq, [X | Rest]) ->
+    remove_all(X, Freq + 1, Rest);
+remove_all(_X, Freq, Sample) ->
+    {Freq, Sample}.
+
+-spec numeric_with_title(title()) -> stats_printer().
+numeric_with_title(Title) ->
+    fun(S,P,O) -> num_stats_printer(S, P, O, Title) end.
+
+-spec num_stats_printer([number()],pos_integer(),output_fun(),title()) -> 'ok'.
+num_stats_printer(SortedSample, _Passed, Print, Title) ->
+    print_title(Title, Print),
+    {Min,Avg,Max} = get_numeric_stats(SortedSample),
+    Print("minimum: ~w~naverage: ~w~nmaximum: ~w~n", [Min,Avg,Max]).
+
+-spec get_numeric_stats([number()]) -> {number() | 'undefined',
+					number() | 'undefined',
+					number() | 'undefined'}.
+get_numeric_stats([]) ->
+    {undefined, undefined, undefined};
+get_numeric_stats([Min | _Rest] = SortedSample) ->
+    {Avg,Max} = avg_and_last(SortedSample, 0, 0),
+    {Min,Avg,Max}.
+
+-spec avg_and_last([number(),...], number(), non_neg_integer()) ->
+	  {number(),number()}.
+avg_and_last([Last], Sum, Len) ->
+    {(Sum + Last) / (Len + 1), Last};
+avg_and_last([X | Rest], Sum, Len) ->
+    avg_and_last(Rest, Sum + X, Len + 1).
 
 -spec print_bound(imm_testcase(), output_fun()) -> 'ok'.
 print_bound(ImmInstances, Print) ->

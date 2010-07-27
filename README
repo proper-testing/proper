@@ -132,9 +132,28 @@ collect(<Category>, <Prop>)
     fails) along with the percentage of test cases belonging to each category.
     Multiple 'collect' wrappers are allowed in a single property, in which case
     the percentages for each 'collect' wrapper are printed separately.
+collect(<Stats_printer>, <Category>, <Prop>)
+    Same as collect/2, but takes an extra first argument, which should be a fun
+    with one of the following signatures:
+    (SortedSample :: [term()]) -> 'ok'
+    (SortedSample :: [term()], TestsPassed :: pos_integer()) -> 'ok'
+    This fun will be called at the end of testing (in case no test fails) with
+    a sorted list of collected terms and, in the case of the 2-argument variant,
+    the number of tests that actually succeeded. It is expected to print some
+    statistics over the collected terms. with_title/1 is a predefined function
+    that accepts an atom or string and returns a stats printing function which
+    is equivalent to the default one, but prints the given title above the
+    statistics.
 aggregate(<Categories>, <Prop>)
-    Same as 'collect', but accepts a list of categories under which to classify
+    Same as collect/2, but accepts a list of categories under which to classify
     the produced test case.
+aggregate(<Stats_printer>, <Categories>, <Prop>)
+    Same as collect/3, but accepts a list of categories under which to classify
+    the produced test case.
+measure(<Title>, <Number> | <List_of_numbers>, <Prop>)
+    The number (or numbers) provided are collected and some numeric statistics
+    over the collected sample are printed at the end of testing (in case no test
+    fails), prepended with <Title>, which should be an atom or string.
 ?WHENFAIL(<Action>, <Prop>)
     The <Action> field should contain an expression or statement block that
     produces some side-effect (e.g. prints something to the screen). In case

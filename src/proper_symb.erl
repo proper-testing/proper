@@ -23,7 +23,6 @@
 %%%	 datatypes.
 
 -module(proper_symb).
-
 -export([eval/1, eval/2, defined/1, well_defined/1, pretty_print/1,
 	 pretty_print/2]).
 

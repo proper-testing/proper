@@ -47,13 +47,13 @@
 %%------------------------------------------------------------------------------
 
 
--spec shrink(proper:imm_testcase(), proper:test(), proper:fail_reason(),
-	     non_neg_integer(), proper:output_fun()) ->
+-spec shrink(proper:imm_testcase(), proper:stripped_test(),
+	     proper:fail_reason(), non_neg_integer(), proper:output_fun()) ->
     {non_neg_integer(),proper:imm_testcase()}.
 shrink(ImmTestCase, Test, Reason, Shrinks, Print) ->
     shrink_to_fixpoint(ImmTestCase, Test, Reason, 0, Shrinks, Print).
 
--spec shrink_to_fixpoint(proper:imm_testcase(), proper:test(),
+-spec shrink_to_fixpoint(proper:imm_testcase(), proper:stripped_test(),
 			 proper:fail_reason(), non_neg_integer(),
 			 non_neg_integer(), proper:output_fun()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
@@ -68,7 +68,7 @@ shrink_to_fixpoint(ImmFailedTestCase, _Test, _Reason,
 shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
 		   TotalShrinks, ShrinksLeft, Print) ->
     {Shrinks, ImmMinTestCase} =
-	shrink_tr([], ImmFailedTestCase, proper:skip_to_next(Test), Reason,
+	shrink_tr([], ImmFailedTestCase, Test, Reason,
 		  0, ShrinksLeft, init, Print),
     case Shrinks of
 	0 -> {TotalShrinks, ImmMinTestCase};
