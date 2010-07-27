@@ -109,7 +109,10 @@ wrapping such a boolean expression with one or more of the following wrappers:
 ?FORALL_B(<Xs>, <Xs_built-in_type>, <Prop>),
     Equivalent to a normal ?FORALL, but the type of <Xs> is provided using the
     built-in type language of Erlang. Both module-local and remote types may be
-    referenced inside <Xs_built-in_type>.
+    referenced inside <Xs_built-in_type>. The module containing the ?FORALL_B
+    declaration and any modules referenced (directly or indirectly) inside
+    <Xs_built-in_type> must have been compiled with debug_info enabled and must
+    be in the codepath.
     WARNING: Certain type-declaration constructs, such as functions, the '|'
     symbol and binaries with specified base and/or unit sizes, cannot be used
     inside the <Xs_built-in_type> field, since they are rejected by the Erlang
