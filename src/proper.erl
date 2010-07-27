@@ -75,20 +75,20 @@
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
 -type stripped_forall()	:: {proper_types:type(),dependent_test()}.
 
--type numtests_clause() :: {'$numtests', pos_integer(), outer_test()}.
--type fails_clause() :: {'$fails', outer_test()}.
--type on_output_clause() :: {'$on_output', output_fun(), outer_test()}.
+-type numtests_clause() :: {numtests, pos_integer(), outer_test()}.
+-type fails_clause() :: {fails, outer_test()}.
+-type on_output_clause() :: {on_output, output_fun(), outer_test()}.
 
--type forall_clause() :: {'$forall', proper_types:raw_type(), dependent_test()}.
--type forall_b_clause() :: {'$forall_b', proper_typeserver:imm_type(),
+-type forall_clause() :: {forall, proper_types:raw_type(), dependent_test()}.
+-type forall_b_clause() :: {forall_b, proper_typeserver:imm_type(),
 			    dependent_test()}.
--type implies_clause() :: {'$implies', boolean(), delayed_test()}.
--type sample_clause() :: {'$sample', sample(), stats_printer(), test()}.
--type whenfail_clause() :: {'$whenfail', side_effects_fun(), delayed_test()}.
--type trapexit_clause() :: {'$trapexit', delayed_test()}.
--type timeout_clause() :: {'$timeout', time_period(), delayed_test()}.
-%%-type always_clause() :: {'$always', pos_integer(), delayed_test()}.
-%%-type sometimes_clause() :: {'$sometimes', pos_integer(), delayed_test()}.
+-type implies_clause() :: {implies, boolean(), delayed_test()}.
+-type sample_clause() :: {sample, sample(), stats_printer(), test()}.
+-type whenfail_clause() :: {whenfail, side_effects_fun(), delayed_test()}.
+-type trapexit_clause() :: {trapexit, delayed_test()}.
+-type timeout_clause() :: {timeout, time_period(), delayed_test()}.
+%%-type always_clause() :: {always, pos_integer(), delayed_test()}.
+%%-type sometimes_clause() :: {sometimes, pos_integer(), delayed_test()}.
 
 
 %%------------------------------------------------------------------------------
@@ -286,27 +286,27 @@ parse_opt(UserOpt, Opts) ->
 
 -spec numtests(pos_integer(), outer_test()) -> numtests_clause().
 numtests(N, Test) ->
-    {'$numtests', N, Test}.
+    {numtests, N, Test}.
 
 -spec fails(outer_test()) -> fails_clause().
 fails(Test) ->
-    {'$fails', Test}.
+    {fails, Test}.
 
 -spec on_output(output_fun(), outer_test()) -> on_output_clause().
 on_output(Print, Test) ->
-    {'$on_output', Print, Test}.
+    {on_output, Print, Test}.
 
 -spec forall(proper_types:raw_type(), dependent_test()) -> forall_clause().
 forall(RawType, DTest) ->
-    {'$forall', RawType, DTest}.
+    {forall, RawType, DTest}.
 
 -spec forall_b(string(), string(), dependent_test()) -> forall_b_clause().
 forall_b(Module, BuiltinType, DTest) ->
-    {'$forall_b', {Module,BuiltinType}, DTest}.
+    {forall_b, {Module,BuiltinType}, DTest}.
 
 -spec implies(boolean(), delayed_test()) -> implies_clause().
 implies(Pre, DTest) ->
-    {'$implies', Pre, DTest}.
+    {implies, Pre, DTest}.
 
 -spec collect(term(), test()) -> sample_clause().
 collect(Term, Test) ->
@@ -322,7 +322,7 @@ aggregate(Sample, Test) ->
 
 -spec aggregate(stats_printer(), sample(), test()) -> sample_clause().
 aggregate(Printer, Sample, Test) ->
-    {'$sample', Sample, Printer, Test}.
+    {sample, Sample, Printer, Test}.
 
 -spec measure(title(), number() | [number()], test()) -> sample_clause().
 measure(Title, Sample, Test) when is_number(Sample) ->
@@ -332,15 +332,15 @@ measure(Title, Sample, Test) when is_list(Sample) ->
 
 -spec whenfail(side_effects_fun(), delayed_test()) -> whenfail_clause().
 whenfail(Action, DTest) ->
-    {'$whenfail', Action, DTest}.
+    {whenfail, Action, DTest}.
 
 -spec trapexit(delayed_test()) -> trapexit_clause().
 trapexit(DTest) ->
-    {'$trapexit', DTest}.
+    {trapexit, DTest}.
 
 -spec timeout(time_period(), delayed_test()) -> timeout_clause().
 timeout(Limit, DTest) ->
-    {'$timeout', Limit, DTest}.
+    {timeout, Limit, DTest}.
 
 -spec equals(term(), term()) -> whenfail_clause().
 equals(A, B) ->
@@ -360,11 +360,11 @@ check(Test) ->
 %% will cause the test to fail before the 'fails' is processed.
 -spec check(outer_test(), opts() | [user_opt()] | user_opt()) ->
 	  long_result() | short_result().
-check({'$numtests',N,Test}, #opts{} = Opts) ->
+check({numtests,N,Test}, #opts{} = Opts) ->
     check(Test, Opts#opts{numtests = N});
-check({'$fails',Test}, #opts{} = Opts) ->
+check({fails,Test}, #opts{} = Opts) ->
     check(Test, Opts#opts{expect_fail = true});
-check({'$on_output',Print,Test}, #opts{} = Opts) ->
+check({on_output,Print,Test}, #opts{} = Opts) ->
     check(Test, Opts#opts{output_fun = Print});
 check(Test, #opts{numtests = NumTests, output_fun = Print,
 		  long_result = ReturnLong} = Opts) ->
@@ -476,7 +476,7 @@ run(false, #ctx{to_try = []} = Ctx) ->
     create_failed_result(Ctx, false_prop);
 run(false, _Ctx) ->
     {error, too_many_instances};
-run({'$forall',RawType,Prop},
+run({forall,RawType,Prop},
     #ctx{try_shrunk = TryShrunk, to_try = ToTry, bound = Bound} = Ctx) ->
     case {TryShrunk, ToTry} of
 	{true, []} ->
@@ -502,27 +502,27 @@ run({'$forall',RawType,Prop},
 		    {error, cant_generate}
 	    end
     end;
-run({'$forall_b',ImmType,Prop}, Ctx) ->
+run({forall_b,ImmType,Prop}, Ctx) ->
     case proper_typeserver:translate_type(ImmType) of
-	{ok, Type}      -> run({'$forall',Type,Prop}, Ctx);
+	{ok, Type}      -> run({forall,Type,Prop}, Ctx);
 	{error, Reason} -> {error, {typeserver,Reason}}
     end;
-run({'$implies',true,Prop}, Ctx) ->
+run({implies,true,Prop}, Ctx) ->
     force(Prop, Ctx);
-run({'$implies',false,_Prop}, _Ctx) ->
+run({implies,false,_Prop}, _Ctx) ->
     {error, rejected};
-run({'$sample',NewSample,NewPrinter,Prop},
+run({sample,NewSample,NewPrinter,Prop},
     #ctx{samples = Samples, printers = Printers} = Ctx) ->
     NewCtx = Ctx#ctx{samples = [NewSample | Samples],
 		     printers = [NewPrinter | Printers]},
     run(Prop, NewCtx);
-run({'$whenfail',NewAction,Prop}, #ctx{fail_actions = Actions} = Ctx)->
+run({whenfail,NewAction,Prop}, #ctx{fail_actions = Actions} = Ctx)->
     NewCtx = Ctx#ctx{fail_actions = [NewAction | Actions]},
     force(Prop, NewCtx);
-run({'$trapexit',Prop}, Ctx) ->
+run({trapexit,Prop}, Ctx) ->
     NewCtx = Ctx#ctx{catch_exits = true},
     force(Prop, NewCtx);
-run({'$timeout',Limit,Prop}, Ctx) ->
+run({timeout,Limit,Prop}, Ctx) ->
     Self = self(),
     Child = spawn_link(fun() -> child(Self,Prop,Ctx) end),
     receive
@@ -618,7 +618,7 @@ clean_testcase(ImmTestCase) ->
 	  boolean().
 still_fails(ImmTestCase, {Type,Prop}, OldReason) ->
     Ctx = #ctx{try_shrunk = true, to_try = ImmTestCase},
-    case run({'$forall',Type,Prop}, Ctx) of
+    case run({forall,Type,Prop}, Ctx) of
 	%% We check that it's the same fault that caused the crash.
 	{failed, #cexm{fail_reason = NewReason}, _Actions} ->
 	    same_fail_reason(OldReason, NewReason);
@@ -642,25 +642,25 @@ skip_to_next(true) ->
     error;
 skip_to_next(false) ->
     false;
-skip_to_next({'$forall',RawType,Prop}) ->
+skip_to_next({forall,RawType,Prop}) ->
     Type = proper_types:cook_outer(RawType),
     {Type,Prop};
-skip_to_next({'$forall_b',ImmType,Prop}) ->
+skip_to_next({forall_b,ImmType,Prop}) ->
     case proper_typeserver:translate_type(ImmType) of
-	{ok, Type}       -> skip_to_next({'$forall',Type,Prop});
+	{ok, Type}       -> skip_to_next({forall,Type,Prop});
 	{error, _Reason} -> error
     end;
-skip_to_next({'$implies',true,Prop}) ->
+skip_to_next({implies,true,Prop}) ->
     force_skip(Prop);
-skip_to_next({'$implies',false,_Prop}) ->
+skip_to_next({implies,false,_Prop}) ->
     error;
-skip_to_next({'$sample',_Sample,_Printer,Prop}) ->
+skip_to_next({sample,_Sample,_Printer,Prop}) ->
     skip_to_next(Prop);
-skip_to_next({'$whenfail',_Action,Prop}) ->
+skip_to_next({whenfail,_Action,Prop}) ->
     force_skip(Prop);
-skip_to_next({'$trapexit',Prop}) ->
+skip_to_next({trapexit,Prop}) ->
     force_skip(Prop);
-skip_to_next({'$timeout',_Limit,_Prop}) ->
+skip_to_next({timeout,_Limit,_Prop}) ->
     false. % This is OK, since timeout cannot contain any ?FORALLs.
 
 -spec force_skip(delayed_test()) -> stripped_test().
