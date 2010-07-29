@@ -490,6 +490,7 @@ run({forall,RawType,Prop},
 				     bound = [ImmInstance | Bound]},
 		    force(Instance, Prop, NewCtx);
 		false ->
+		    %% TODO: could try to fix the instances here
 		    {error, wrong_type}
 	    end;
 	{false, []} ->
@@ -728,11 +729,11 @@ report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
 	    Print("Error: the variables' and types' structures inside a "
 		  "?FORALL don't match.~n", []);
 	{typeserver,SubReason} ->
-	    Print("Error: couldn't translate a built-in type.~nThe typeserver"
-		  " responded: ~w~n", [SubReason]);
+	    Print("Error: couldn't translate a built-in type.~nThe typeserver "
+		  "responded: ~w~n", [SubReason]);
 	{unexpected,Unexpected} ->
-	    Print("Internal error: the last run returned an unexpected result"
-		  ":~n~w~nPlease notify the maintainers about this error~n",
+	    Print("Internal error: the last run returned an unexpected result:"
+		  "~n~w~nPlease notify the maintainers about this error~n",
 		  [Unexpected])
     end,
     ok.

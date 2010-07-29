@@ -39,7 +39,7 @@
 
 -type state() :: 'init' | 'done' | {'shrunk',position(),state()} | term().
 -type shrinker() :: fun((proper_gen:imm_instance(), proper_types:type(),
-			state()) -> {[proper_gen:imm_instance()],state()}).
+			 state()) -> {[proper_gen:imm_instance()],state()}).
 
 
 %%------------------------------------------------------------------------------
@@ -50,71 +50,64 @@
 -spec shrink(proper:imm_testcase(), proper:stripped_test(),
 	     proper:fail_reason(), non_neg_integer(), proper:output_fun()) ->
     {non_neg_integer(),proper:imm_testcase()}.
-shrink(ImmTestCase, Test, Reason, Shrinks, Print) ->
-    shrink_to_fixpoint(ImmTestCase, Test, Reason, 0, Shrinks, Print).
+shrink(TestCase, Test, Reason, Shrinks, Print) ->
+    fix_shrink(TestCase, Test, Reason, 0, Shrinks, Print).
 
--spec shrink_to_fixpoint(proper:imm_testcase(), proper:stripped_test(),
-			 proper:fail_reason(), non_neg_integer(),
-			 non_neg_integer(), proper:output_fun()) ->
+-spec fix_shrink(proper:imm_testcase(), proper:stripped_test(),
+		 proper:fail_reason(), non_neg_integer(), non_neg_integer(),
+		 proper:output_fun()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
-%% TODO: is it too much if we try to reach an equilibrium by repeaing all the
+%% TODO: is it too much that we try to reach an equilibrium by repeaing all the
 %%	 shrinkers?
 %% TODO: is it possible to get stuck in an infinite loop (unions are the most
 %%	 dangerous)? should we check if the returned values have been
 %%	 encountered before?
-shrink_to_fixpoint(ImmFailedTestCase, _Test, _Reason,
-		   TotalShrinks, 0, _Print) ->
-    {TotalShrinks, ImmFailedTestCase};
-shrink_to_fixpoint(ImmFailedTestCase, Test, Reason,
-		   TotalShrinks, ShrinksLeft, Print) ->
-    {Shrinks, ImmMinTestCase} =
-	shrink_tr([], ImmFailedTestCase, Test, Reason,
-		  0, ShrinksLeft, init, Print),
+fix_shrink(FailedTestCase, _Test, _Reason, TotalShrinks, 0, _Print) ->
+    {TotalShrinks, FailedTestCase};
+fix_shrink(FailedTestCase, Test, Reason, TotalShrinks, ShrinksLeft, Print) ->
+    {Shrinks, MinTestCase} =
+	shrink([], FailedTestCase, Test, Reason, 0, ShrinksLeft, init, Print),
     case Shrinks of
-	0 -> {TotalShrinks, ImmMinTestCase};
-	N -> shrink_to_fixpoint(ImmMinTestCase, Test, Reason,
-				TotalShrinks + N, ShrinksLeft - N, Print)
+	0 -> {TotalShrinks, MinTestCase};
+	N -> fix_shrink(MinTestCase, Test, Reason,
+			TotalShrinks + N, ShrinksLeft - N, Print)
     end.
 
--spec shrink_tr(proper:imm_testcase(), proper:imm_testcase(),
-		proper:stripped_test(), proper:fail_reason(), non_neg_integer(),
-		non_neg_integer(), state(), proper:output_fun()) ->
+-spec shrink(proper:imm_testcase(), proper:imm_testcase(),
+	     proper:stripped_test(), proper:fail_reason(), non_neg_integer(),
+	     non_neg_integer(), state(), proper:output_fun()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
 %% TODO: 'tries_left' instead of 'shrinks_left'?
-shrink_tr(Shrunk, TestTail, error, _Reason,
-	  Shrinks, _ShrinksLeft, _State, _Print) ->
+shrink(Shrunk, TestTail, error, _Reason,
+       Shrinks, _ShrinksLeft, _State, _Print) ->
     io:format("~nInternal Error: skip_to_next returned error~n", []),
     {Shrinks, lists:reverse(Shrunk) ++ TestTail};
-shrink_tr(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Print) ->
+shrink(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Print) ->
     {Shrinks, lists:reverse(Shrunk) ++ TestTail};
-shrink_tr(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Print) ->
+shrink(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Print) ->
     {Shrinks, lists:reverse(Shrunk)};
-shrink_tr(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
-	  Shrinks, ShrinksLeft, done, Print) ->
+shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
+       Shrinks, ShrinksLeft, done, Print) ->
     Instance = proper_gen:clean_instance(ImmInstance),
     NewTest = proper:force_skip(Instance, Prop),
-    shrink_tr([ImmInstance | Shrunk], Rest, NewTest, Reason,
-	      Shrinks, ShrinksLeft, init, Print);
-shrink_tr(Shrunk, TestTail = [ImmInstance | Rest], Test = {Type,_Prop}, Reason,
-	  Shrinks, ShrinksLeft, State, Print) ->
+    shrink([ImmInstance | Shrunk], Rest, NewTest, Reason,
+	   Shrinks, ShrinksLeft, init, Print);
+shrink(Shrunk, TestTail = [ImmInstance | Rest], Test = {Type,_Prop}, Reason,
+       Shrinks, ShrinksLeft, State, Print) ->
     {NewImmInstances,NewState} = shrink_one(ImmInstance, Type, State),
-    %% we also test if the recently returned instance is a valid instance
-    %% for its type, since we don't check constraints while shrinking
-    %% TODO: perhaps accept an 'unknown'?
-    %% TODO: maybe this covers the LET parts-type test too?
-    %% TODO: should we try producing new test tails while shrinking?
+    %% TODO: should we try fixing the nested ?FORALLs while shrinking?
     IsValid = fun(I) ->
 		  I =/= ImmInstance andalso
 		  proper:still_fails([I | Rest], Test, Reason)
 	      end,
     case find_first(IsValid, NewImmInstances) of
 	none ->
-	    shrink_tr(Shrunk, TestTail, Test, Reason,
-		      Shrinks, ShrinksLeft, NewState, Print);
+	    shrink(Shrunk, TestTail, Test, Reason,
+		   Shrinks, ShrinksLeft, NewState, Print);
 	{Pos, ShrunkImmInstance} ->
 	    Print(".", []),
-	    shrink_tr(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
-		      Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Print)
+	    shrink(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
+		   Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Print)
     end.
 
 -spec find_first(fun((T) -> boolean()), [T]) -> {position(),T} | 'none'.
@@ -133,19 +126,46 @@ find_first_tr(Pred, [X | Rest], Pos) ->
 
 -spec shrink_one(proper_gen:imm_instance(), proper_types:type(), state()) ->
 	  {[proper_gen:imm_instance()],state()}.
+%% We reject all shrunk instances that don't satisfy all constraints. A full
+%% is_instance check is not necessary if we assume that generators and shrinkers
+%% always return valid instances of the base type.
 shrink_one(ImmInstance, Type, init) ->
     Shrinkers = get_shrinkers(Type),
-    shrink_one(ImmInstance, Type, {shrinker,Shrinkers,init});
-shrink_one(_ImmInstance, _Type, {shrinker,[],init}) ->
+    shrink_one(ImmInstance, Type, {shrinker,Shrinkers,dummy,init});
+shrink_one(_ImmInstance, _Type, {shrinker,[],_Lookup,init}) ->
     {[], done};
-shrink_one(ImmInstance, Type, {shrinker,[_Shrinker | Rest],done}) ->
-    shrink_one(ImmInstance, Type, {shrinker,Rest,init});
-shrink_one(ImmInstance, Type, {shrinker,Shrinkers,State}) ->
+shrink_one(ImmInstance, Type, {shrinker,[_Shrinker | Rest],_Lookup,done}) ->
+    shrink_one(ImmInstance, Type, {shrinker,Rest,dummy,init});
+shrink_one(ImmInstance, Type, {shrinker,Shrinkers,_Lookup,State}) ->
     [Shrinker | _Rest] = Shrinkers,
-    {NewImmInstances,NewState} = Shrinker(ImmInstance, Type, State),
-    {NewImmInstances, {shrinker,Shrinkers,NewState}};
-shrink_one(ImmInstance, Type, {shrunk,N,{shrinker,Shrinkers,State}}) ->
-    shrink_one(ImmInstance, Type, {shrinker,Shrinkers,{shrunk,N,State}}).
+    {DirtyImmInstances,NewState} = Shrinker(ImmInstance, Type, State),
+    SatisfiesAll =
+	fun(I) ->
+	    Instance = proper_gen:clean_instance(I),
+	    proper_types:weakly(proper_types:satisfies_all(Instance, Type))
+	end,
+    {NewImmInstances,NewLookup} = filter(SatisfiesAll, DirtyImmInstances),
+    {NewImmInstances, {shrinker,Shrinkers,NewLookup,NewState}};
+shrink_one(ImmInstance, Type, {shrunk,N,{shrinker,Shrinkers,Lookup,State}}) ->
+    ActualN = lists:nth(N, Lookup),
+    shrink_one(ImmInstance, Type,
+	       {shrinker,Shrinkers,dummy,{shrunk,ActualN,State}}).
+
+-spec filter(fun((T) -> boolean()), [T]) -> {[T],[position()]}.
+filter(Pred, List) ->
+    filter_tr(Pred, List, [], 1, []).
+
+-spec filter_tr(fun((T) -> boolean()), [T], [T], position(), [position()]) ->
+	  {[T],[position()]}.
+filter_tr(_Pred, [], Result, _Pos, Lookup) ->
+    {lists:reverse(Result), lists:reverse(Lookup)};
+filter_tr(Pred, [X | Rest], Result, Pos, Lookup) ->
+    case Pred(X) of
+	true ->
+	    filter_tr(Pred, Rest, [X | Result], Pos + 1, [Pos | Lookup]);
+	false ->
+	    filter_tr(Pred, Rest, Result, Pos + 1, Lookup)
+    end.
 
 -spec get_shrinkers(proper_types:type()) -> [shrinker()].
 get_shrinkers(Type) ->
@@ -213,9 +233,10 @@ parts_shrinker({'$used',ImmParts,ImmInstance}, Type,
 	       {parts,PartsType,_Lookup,PartsState}) ->
     {NewImmParts,NewPartsState} = shrink_one(ImmParts, PartsType, PartsState),
     Combine = proper_types:get_prop(combine, Type),
-    DirtyNewInstances =
-	[try_combine(P, ImmInstance, PartsType, Combine) || P <- NewImmParts],
-    {NewInstances,NewLookup} = filter(DirtyNewInstances),
+    DirtyInstances = [try_combine(P, ImmInstance, Combine) || P <- NewImmParts],
+    NotError = fun({ok,_}) -> true; (error) -> false end,
+    {NewOKInstances,NewLookup} = filter(NotError, DirtyInstances),
+    NewInstances = [X || {ok,X} <- NewOKInstances],
     {NewInstances, {parts,PartsType,NewLookup,NewPartsState}};
 parts_shrinker(Instance, Type,
 	       {shrunk,N,{parts,PartsType,Lookup,PartsState}}) ->
@@ -223,50 +244,32 @@ parts_shrinker(Instance, Type,
     parts_shrinker(Instance, Type,
 		   {parts,PartsType,dummy,{shrunk,ActualN,PartsState}}).
 
--spec filter([{'ok',T} | 'error']) -> {[T],[position()]}.
-filter(List) ->
-    filter_tr(List, [], 1, []).
-
--spec filter_tr([{'ok',T} | 'error'], [T], position(), [position()]) ->
-	  {[T],[position()]}.
-filter_tr([], Result, _Pos, Lookup) ->
-    {lists:reverse(Result), lists:reverse(Lookup)};
-filter_tr([{ok,X} | Rest], Result, Pos, Lookup) ->
-    filter_tr(Rest, [X | Result], Pos + 1, [Pos | Lookup]);
-filter_tr([error | Rest], Result, Pos, Lookup) ->
-    filter_tr(Rest, Result, Pos + 1, Lookup).
-
 -spec try_combine(proper_gen:imm_instance(), proper_gen:imm_instance(),
-		  proper_types:type(), proper_gen:combine_fun()) ->
+		  proper_gen:combine_fun()) ->
 	  {'ok',proper_gen:imm_instance()} | 'error'.
-try_combine(ImmParts, OldImmInstance, PartsType, Combine) ->
-    case proper_arith:surely(proper_types:is_instance(ImmParts, PartsType)) of
+try_combine(ImmParts, OldImmInstance, Combine) ->
+    Parts = proper_gen:clean_instance(ImmParts),
+    ImmInstance = Combine(Parts),
+    case proper_types:is_raw_type(ImmInstance) of
 	true ->
-	    Parts = proper_gen:clean_instance(ImmParts),
-	    ImmInstance = Combine(Parts),
-	    case proper_types:is_raw_type(ImmInstance) of
+	    InnerType = proper_types:cook_outer(ImmInstance),
+	    %% TODO: special case if the immediately internal is a LET?
+	    %% TODO: more specialized is_instance check here?
+	    case proper_arith:surely(proper_types:is_instance(OldImmInstance,
+							      InnerType)) of
 		true ->
-		    InnerType = proper_types:cook_outer(ImmInstance),
-		    %% TODO: special case if the immediately internal is a LET?
-		    %% TODO: more specialized is_instance check here
-		    case proper_arith:surely(proper_types:is_instance(
-			     OldImmInstance, InnerType)) of
-			true ->
-			    {ok,{'$used',ImmParts,OldImmInstance}};
-			false ->
-			    %% TODO: return more than one? then we must flatten
-			    case proper_gen:safe_generate(InnerType) of
-				{ok,NewImmInstance} ->
-				    {ok,{'$used',ImmParts,NewImmInstance}};
-				error ->
-				    error
-			    end
-		    end;
+		    {ok,{'$used',ImmParts,OldImmInstance}};
 		false ->
-		    {ok,{'$used',ImmParts,ImmInstance}}
+		    %% TODO: return more than one? then we must flatten
+		    case proper_gen:safe_generate(InnerType) of
+			{ok,NewImmInstance} ->
+			    {ok,{'$used',ImmParts,NewImmInstance}};
+			error ->
+			    error
+		    end
 	    end;
 	false ->
-	    error
+	    {ok,{'$used',ImmParts,ImmInstance}}
     end.
 
 -spec recursive_shrinker(proper_gen:imm_instance(), proper_types:type(),
@@ -275,6 +278,7 @@ recursive_shrinker(Instance = {'$used',ImmParts,_ImmInstance}, Type, init) ->
     Combine = proper_types:get_prop(combine, Type),
     Parts = proper_gen:clean_instance(ImmParts),
     ImmInstance = Combine(Parts),
+    %% TODO: more specialized raw_type check here?
     case proper_types:is_raw_type(ImmInstance) of
 	true ->
 	    InnerType = proper_types:cook_outer(ImmInstance),
@@ -520,7 +524,6 @@ zero(X) when is_float(X)   -> 0.0.
 -spec union_first_choice_shrinker(proper_gen:imm_instance(),
 				  [proper_types:type()], state()) ->
 	  {[proper_gen:imm_instance()],state()}.
-%% TODO: just try first choice?
 %% TODO: do this incrementally?
 union_first_choice_shrinker(Instance, Choices, init) ->
     case first_plausible_choice(Instance, Choices) of
@@ -528,10 +531,8 @@ union_first_choice_shrinker(Instance, Choices, init) ->
 	    {[],done};
 	{N,_Type} ->
 	    PriorChoices = lists:sublist(Choices, N - 1),
-	    DirtyNewInstances = [proper_gen:safe_generate(T)
-				 || T <- PriorChoices],
-	    %% TODO: some kind of constraints test here?
-	    NewInstances = [X || {ok,X} <- DirtyNewInstances],
+	    DirtyInstances = [proper_gen:safe_generate(T) || T <- PriorChoices],
+	    NewInstances = [X || {ok,X} <- DirtyInstances],
 	    {NewInstances,done}
     end;
 union_first_choice_shrinker(_Instance, _Choices, {shrunk,_Pos,done}) ->
