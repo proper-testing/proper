@@ -272,8 +272,7 @@ try_combine(ImmParts, OldImmInstance, Combine) ->
 	    InnerType = proper_types:cook_outer(ImmInstance),
 	    %% TODO: special case if the immediately internal is a LET?
 	    %% TODO: more specialized is_instance check here?
-	    case proper_arith:surely(proper_types:is_instance(OldImmInstance,
-							      InnerType)) of
+	    case proper_types:is_instance(OldImmInstance, InnerType) of
 		true ->
 		    {ok,{'$used',ImmParts,OldImmInstance}};
 		false ->
@@ -592,8 +591,5 @@ union_recursive_shrinker(Instance, Choices,
 			     [proper_types:type()]) ->
 	  {position(),proper_types:type()} | 'none'.
 first_plausible_choice(Instance, Choices) ->
-    IsInstance = fun(Type) ->
-		     proper_arith:surely(proper_types:is_instance(Instance,
-								  Type))
-		 end,
+    IsInstance = fun(Type) -> proper_types:is_instance(Instance, Type) end,
     find_first(IsInstance, Choices).

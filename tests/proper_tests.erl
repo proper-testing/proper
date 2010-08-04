@@ -120,8 +120,7 @@ assertEqualsOneOf(X, List) ->
 exp_short_result(Opts) -> lists:member(fails, Opts).
 
 assert_is_instance(X, Type) ->
-    ?assert(proper_arith:surely(proper_types:is_instance(X, Type))
-	    andalso state_is_clean()).
+    ?assert(proper_types:is_instance(X, Type) andalso state_is_clean()).
 
 assert_can_generate(Type) ->
     {ok,Instance} = proper_gen:pick(Type),
@@ -140,7 +139,7 @@ assert_can_translate(Mod, TypeStr) ->
 %%	 functions to reset the state.
 assert_function_type_works(FunType) ->
     {ok,F} = proper_gen:pick(FunType),
-    ?assert(proper_arith:surely(proper_types:is_instance(F, FunType))),
+    ?assert(proper_types:is_instance(F, FunType)),
     Results1 = assert_is_pure_function(F),
     GenState = proper_gen:gen_state_get(),
     proper:global_state_erase(),
@@ -377,10 +376,8 @@ shrinks_to_test_() ->
     [?_shrinksTo(Target, Type)
      || {Type,_Xs,Target,_Ys,_TypeStr} <- types_with_data()].
 
-%% TODO: 'unknown' causes problems with 'not', need 'surely'
 not_is_instance_test_() ->
-    [?_assert(not proper_arith:surely(proper_types:is_instance(Y, Type))
-	      andalso state_is_clean())
+    [?_assert(not proper_types:is_instance(Y, Type) andalso state_is_clean())
      || {Type,_Xs,_Target,Ys,_TypeStr} <- types_with_data(), Y <- Ys].
 
 can_generate_test_() ->

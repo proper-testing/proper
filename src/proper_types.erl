@@ -52,8 +52,7 @@
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed'
 		   | 'semi_opaque' | 'opaque'.
--type instance_test() :: fun((proper_gen:imm_instance()) ->
-			     proper_arith:ternary()).
+-type instance_test() :: fun((proper_gen:imm_instance()) -> boolean()).
 -type index() :: term().
 -type value() :: term().
 -type constraint_fun() :: fun((proper_gen:instance()) -> boolean()).
@@ -188,33 +187,29 @@ new_type(PropList, Kind) ->
 subtype(PropList, Type) ->
     add_props(PropList, Type).
 
--spec is_instance(proper_gen:imm_instance(), raw_type()) ->
-	  proper_arith:ternary().
-%% TODO: if the second argument is not a type, let it pass (don't even check for
+-spec is_instance(proper_gen:imm_instance(), raw_type()) -> boolean().
+%% TODO: If the second argument is not a type, let it pass (don't even check for
 %%	 term equality?) - if it's a raw type, don't cook it, instead recurse
 %%	 into it.
 is_instance(ImmInstance, RawType) ->
     CleanInstance = proper_gen:clean_instance(ImmInstance),
     Type = cook_outer(RawType),
-    ?AND3(
-	?OR3(
-	    case get_prop(kind, Type) of
-		wrapper     -> wrapper_test(ImmInstance, Type);
-		constructed -> constructed_test(ImmInstance, Type);
-		_           -> false
-	    end,
-	    case find_prop(is_instance, Type) of
-		{ok,IsInstance} -> IsInstance(ImmInstance);
-		error           -> false
-	    end
-	),
-	weakly(satisfies_all(CleanInstance, Type))
-    ).
+    (case get_prop(kind, Type) of
+	 wrapper     -> wrapper_test(ImmInstance, Type);
+	 constructed -> constructed_test(ImmInstance, Type);
+	 _           -> false
+     end
+     orelse
+     case find_prop(is_instance, Type) of
+	 {ok,IsInstance} -> IsInstance(ImmInstance);
+	 error           -> false
+     end)
+    andalso weakly(satisfies_all(CleanInstance, Type)).
 
--spec wrapper_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
+-spec wrapper_test(proper_gen:imm_instance(), type()) -> boolean().
 wrapper_test(ImmInstance, Type) ->
     %% TODO: check if it's actually a raw type that's returned?
-    proper_arith:any3([is_instance(ImmInstance, T) || T <- unwrap(Type)]).
+    lists:any(fun(T) -> is_instance(ImmInstance, T) end, unwrap(Type)).
 
 -spec unwrap(type()) -> [type()].
 %% TODO: check if it's actually a raw type that's returned?
@@ -229,37 +224,32 @@ unwrap(Type) ->
 	end,
     [cook_outer(T) || T <- RawInnerTypes].
 
--spec constructed_test(proper_gen:imm_instance(), type()) ->
-	  proper_arith:ternary().
+-spec constructed_test(proper_gen:imm_instance(), type()) -> boolean().
 constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
     PartsType = get_prop(parts_type, Type),
     Combine = get_prop(combine, Type),
-    case is_instance(ImmParts, PartsType) of
-	true ->
-	    %% TODO: check if it's actually a raw type that's returned?
-	    %% TODO: move construction code to proper_gen
-	    %% TODO: non-type => should we check for strict term equality?
-	    RawInnerType = Combine(proper_gen:clean_instance(ImmParts)),
-	    is_instance(ImmInstance, RawInnerType);
-	Other ->
-	    Other
+    is_instance(ImmParts, PartsType) andalso
+    begin
+	%% TODO: check if it's actually a raw type that's returned?
+	%% TODO: move construction code to proper_gen
+	%% TODO: non-type => should we check for strict term equality?
+	RawInnerType = Combine(proper_gen:clean_instance(ImmParts)),
+	is_instance(ImmInstance, RawInnerType)
     end;
 constructed_test({'$to_part',Part,NumParts,ImmInstance}, Type) ->
-    ?AND3(
-	get_prop(shrink_to_parts, Type) =:= true,
+    get_prop(shrink_to_parts, Type) =:= true andalso
+    begin
+	%% This is a ?LETSHRINK, thus the parts are in a fixed list.
+	PartsType = get_prop(parts_type, Type),
+	PartTypesList = get_prop(internal_types, PartsType),
+	length(PartTypesList) =:= NumParts andalso
 	begin
-	    %% This is a ?LETSHRINK, thus the parts are in a fixed list.
-	    PartsType = get_prop(parts_type, Type),
-	    PartTypesList = get_prop(internal_types, PartsType),
-	    ?AND3(
-		length(PartTypesList) =:= NumParts,
-		begin
-		    %% TODO: this isn't very clean
-		    PartType = lists:nth(Part, PartTypesList),
-		    is_instance(ImmInstance, PartType)
-		end)
-	end);
-constructed_test(_ImmInstance, _Type) ->
+	    %% TODO: this isn't very clean
+	    PartType = lists:nth(Part, PartTypesList),
+	    is_instance(ImmInstance, PartType)
+	end
+    end;
+constructed_test(_CleanInstance, _Type) ->
     %% TODO: can we do anything better?
     false.
 
@@ -283,7 +273,7 @@ satisfies_all(Instance, Type) ->
 	{ok, Constraints} ->
 	    L = [satisfies(Instance, C) || C <- Constraints],
 	    {L1,L2} = lists:unzip(L),
-	    {proper_arith:all3(L1), proper_arith:all3(L2)};
+	    {lists:all(fun(B) -> B end, L1), lists:all(fun(B) -> B end, L2)};
 	error ->
 	    {true,true}
     end.
@@ -448,10 +438,10 @@ list(RawElemType) ->
 	{update, fun(I,V,X) -> list_update(I, V, X) end}
     ]).
 
--spec list_test(proper_gen:imm_instance(), type()) -> proper_arith:ternary().
+-spec list_test(proper_gen:imm_instance(), type()) -> boolean().
 list_test(X, ElemType) ->
     is_list(X)
-    andalso proper_arith:all3([is_instance(E, ElemType) || E <- X]).
+    andalso lists:all(fun(E) -> is_instance(E, ElemType) end, X).
 
 -spec list_get_indices(list()) -> [position()].
 list_get_indices(List) ->
@@ -480,12 +470,11 @@ vector(Len, RawElemType) ->
 	{update, fun(I,V,X) -> list_update(I, V, X) end}
     ]).
 
--spec vector_test(proper_gen:imm_instance(), length(), type()) ->
-	  proper_arith:ternary().
+-spec vector_test(proper_gen:imm_instance(), length(), type()) -> boolean().
 vector_test(X, Len, ElemType) ->
     is_list(X)
     andalso length(X) =:= Len
-    andalso proper_arith:all3([is_instance(E, ElemType) || E <- X]).
+    andalso lists:all(fun(E) -> is_instance(E, ElemType) end, X).
 
 -spec union([raw_type()]) -> type().
 union(RawChoices) ->
@@ -502,9 +491,9 @@ union(RawChoices) ->
 	  end]}
     ]).
 
--spec union_test(proper_gen:imm_instance(), [type()]) -> proper_arith:ternary().
+-spec union_test(proper_gen:imm_instance(), [type()]) -> boolean().
 union_test(X, Choices) ->
-    proper_arith:any3([is_instance(X, C) || C <- Choices]).
+    lists:any(fun(C) -> is_instance(X, C) end, Choices).
 
 -spec weighted_union([{frequency(),raw_type()}]) -> type().
 weighted_union(RawFreqChoices) ->
@@ -528,8 +517,7 @@ tuple(RawFields) ->
 	{update, fun(I,V,X) -> tuple_update(I, V, X) end}
     ]).
 
--spec tuple_test(proper_gen:imm_instance(), [type()]) ->
-	  proper_arith:ternary().
+-spec tuple_test(proper_gen:imm_instance(), [type()]) -> boolean().
 tuple_test(X, Fields) ->
     is_tuple(X) andalso fixed_list_test(tuple_to_list(X), Fields).
 
@@ -546,10 +534,8 @@ loose_tuple(RawElemType) ->
 	{is_instance, fun(X) -> loose_tuple_test(X, ElemType) end}
     ]).
 
--spec loose_tuple_test(proper_gen:imm_instance(), type()) ->
-	  proper_arith:ternary().
+-spec loose_tuple_test(proper_gen:imm_instance(), type()) -> boolean().
 loose_tuple_test(X, ElemType) ->
-    %% TODO: Does this handle the case of imm_instance? {'$used',_,_}.
     is_tuple(X) andalso list_test(tuple_to_list(X), ElemType).
 
 -spec exactly(term()) -> type().
@@ -591,22 +577,24 @@ fixed_list(MaybeImproperRawFields) ->
 	{update, Update}
     ]).
 
--spec fixed_list_test(proper_gen:imm_instance(), [type()] | {[type()],type()})
-	  -> proper_arith:ternary().
+-spec fixed_list_test(proper_gen:imm_instance(),
+		      [type()] | {[type()],type()}) -> boolean().
 fixed_list_test(X, {ProperHead,ImproperTail}) ->
-    case is_list(X) andalso head_length(X) >= length(ProperHead) of
-	true ->
-	    {XHead,XTail} = lists:split(length(ProperHead), X),
-	    ?AND3(fixed_list_test(XHead, ProperHead),
-		  is_instance(XTail, ImproperTail));
-	false ->
-	    false
+    is_list(X) andalso
+    begin
+	ProperHeadLen = length(ProperHead),
+	head_length(X) >= ProperHeadLen andalso
+	begin
+	    {XHead,XTail} = lists:split(ProperHeadLen, X),
+	    fixed_list_test(XHead, ProperHead)
+	    andalso is_instance(XTail, ImproperTail)
+	end
     end;
 fixed_list_test(X, ProperFields) ->
     is_list(X)
     andalso length(X) =:= length(ProperFields)
-    andalso proper_arith:all3(lists:zipwith(fun(E,T) -> is_instance(E, T) end,
-					    X, ProperFields)).
+    andalso lists:all(fun({E,T}) -> is_instance(E, T) end,
+		      lists:zip(X, ProperFields)).
 
 -spec head_length(maybe_improper_list()) -> length().
 %% CAUTION: must handle improper lists

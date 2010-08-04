@@ -24,14 +24,14 @@
 
 -module(proper_arith).
 
--export([le/2, and3/2, or3/2, any3/1, all3/1, maybe/1, surely/1]).
+-export([le/2]).
 -export([safemap/2, tuplemap/2, cut_improper_tail/1]).
 -export([rand_start/1, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
 	 rand_bytes/1, distribute/2, jumble/1, rand_choose/1, freq_choose/1]).
 
--export_type([extint/0, extnum/0, ternary/0]).
+-export_type([extint/0, extnum/0]).
 
 -include("proper_internal.hrl").
 
@@ -42,8 +42,6 @@
 
 -type extint()  :: integer() | 'inf'.
 -type extnum()  :: number()  | 'inf'.
--type ternary() :: boolean() | 'unknown'.
--type delayed_ternary() :: fun(() -> ternary()).
 
 
 %%------------------------------------------------------------------------------
@@ -54,70 +52,6 @@
 le(inf, _B) -> true;
 le(_A, inf) -> true;
 le(A, B)    -> A =< B.
-
--spec and3(delayed_ternary(), delayed_ternary()) -> ternary().
-and3(A, B) ->
-    case ?FORCE(A) of
-	true    -> ?FORCE(B);
-	false   -> false;
-	unknown ->
-	    case ?FORCE(B) of
-		false -> false;
-		_     -> unknown
-	    end
-    end.
-
--spec or3(delayed_ternary(), delayed_ternary()) -> ternary().
-or3(A, B) ->
-    case ?FORCE(A) of
-	true    -> true;
-	false   -> ?FORCE(B);
-	unknown ->
-	    case ?FORCE(B) of
-		true -> true;
-		_    -> unknown
-	    end
-    end.
-
--spec any3([ternary()]) -> ternary().
-any3(TernList) ->
-    any3_tr(TernList, false).
-
--spec any3_tr([ternary()], boolean()) -> ternary().
-any3_tr([], true) ->
-    unknown;
-any3_tr([], false) ->
-    false;
-any3_tr([true | _Rest], _FoundUnknown) ->
-    true;
-any3_tr([false | Rest], FoundUnknown) ->
-    any3_tr(Rest, FoundUnknown);
-any3_tr([unknown | Rest], _FoundUnknown) ->
-    any3_tr(Rest, true).
-
--spec all3([ternary()]) -> ternary().
-all3(TernList) ->
-    all3_tr(TernList, false).
-
--spec all3_tr([ternary()], boolean()) -> ternary().
-all3_tr([], true) ->
-    unknown;
-all3_tr([], false) ->
-    true;
-all3_tr([true | Rest], FoundUnknown) ->
-    all3_tr(Rest, FoundUnknown);
-all3_tr([false | _Rest], _FoundUnknown) ->
-    false;
-all3_tr([unknown | Rest], _FoundUnknown) ->
-    all3_tr(Rest, true).
-
--spec maybe(ternary()) -> boolean().
-maybe(unknown) -> true;
-maybe(Boolean) -> Boolean.
-
--spec surely(ternary()) -> boolean().
-surely(unknown) -> false;
-surely(Boolean) -> Boolean.
 
 
 %%------------------------------------------------------------------------------

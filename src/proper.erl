@@ -484,8 +484,7 @@ run({forall,RawType,Prop},
 	{true, []} ->
 	    {passed, didnt_crash, [], []};
 	{true, [ImmInstance | Rest]} ->
-	    case proper_arith:surely(proper_types:is_instance(ImmInstance,
-							      RawType)) of
+	    case proper_types:is_instance(ImmInstance, RawType) of
 		true ->
 		    Instance = proper_gen:clean_instance(ImmInstance),
 		    NewCtx = Ctx#ctx{to_try = Rest,
