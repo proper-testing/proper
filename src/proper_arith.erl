@@ -64,7 +64,7 @@ le(A, B)    -> A =< B.
 safemap(Fun, List) ->
     safemap_tr(Fun, List, []).
 
--spec safemap_tr(fun((T) -> S), maybe_improper_list(T,term()), [S]) ->
+-spec safemap_tr(fun((T) -> S), maybe_improper_list(T,term()) | T, [S]) ->
           maybe_improper_list(S,term()).
 safemap_tr(_Fun, [], AccList) ->
     lists:reverse(AccList);
@@ -94,6 +94,7 @@ cut_improper_tail_tr(ImproperTail, AccList) ->
 head_length(List) ->
     head_length_tr(List, 0).
 
+-spec head_length_tr(term(), length()) -> length().
 head_length_tr([], Len) ->
     Len;
 head_length_tr([_Head | Tail], Len) ->
