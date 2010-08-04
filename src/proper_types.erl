@@ -39,7 +39,7 @@
 -export([cook_outer/1, is_type/1, is_raw_type/1, get_prop/2, find_prop/2,
 	 new_type/2, subtype/2, unwrap/1, weakly/1, strongly/1,
 	 satisfies_all/2]).
--export([lazy/1, sized/1, bind/2, shrinkwith/2, add_constraint/3]).
+-export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3]).
 
 -export_type([type/0, raw_type/0]).
 
@@ -61,11 +61,13 @@
 -type type() :: {'$type', [type_prop()]}.
 -type raw_type() :: term().
 -type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
-			| 'size_transform' | 'is_instance' | 'shrinkers'
-			| 'noshrink' | 'internal_type' | 'internal_types'
-			| 'get_length' | 'split' | 'join' | 'get_indices'
-			| 'remove' | 'retrieve' | 'update' | 'constraints'
-			| 'parts_type' | 'combine' | 'alt_gens'.
+			| 'parts_type' | 'combine' | 'alt_gens'
+			| 'shrink_to_parts' | 'size_transform' | 'is_instance'
+			| 'shrinkers' | 'noshrink' | 'internal_type'
+			| 'internal_types' | 'get_length' | 'split' | 'join'
+			| 'get_indices' | 'remove' | 'retrieve' | 'update'
+			| 'constraints'.
+
 -type type_prop_value() :: term().
 -type type_prop() ::
       {'kind', type_kind()}
@@ -75,12 +77,13 @@
     | {'parts_type', type()}
     | {'combine', proper_gen:combine_fun()}
     | {'alt_gens', proper_gen:alt_gens()}
+    | {'shrink_to_parts', boolean()}
     | {'size_transform', fun((size()) -> size())}
     | {'is_instance', instance_test()}
     | {'shrinkers', [proper_shrink:shrinker()]}
     | {'noshrink', boolean()}
     | {'internal_type', raw_type()}
-    | {'internal_types', tuple(type()) | maybe_improper_list(type(),term())}
+    | {'internal_types', tuple() | maybe_improper_list(type(),term())}
       %% The items returned by 'remove' must be of this type.
     | {'get_length', fun((proper_gen:imm_instance()) -> length())}
       %% If this is a container type, this should return the number of elements
@@ -241,6 +244,21 @@ constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
 	Other ->
 	    Other
     end;
+constructed_test({'$to_part',Part,NumParts,ImmInstance}, Type) ->
+    ?AND3(
+	get_prop(shrink_to_parts, Type) =:= true,
+	begin
+	    %% This is a ?LETSHRINK, thus the parts are in a fixed list.
+	    PartsType = get_prop(parts_type, Type),
+	    PartTypesList = get_prop(internal_types, PartsType),
+	    ?AND3(
+		length(PartTypesList) =:= NumParts,
+		begin
+		    %% TODO: this isn't very clean
+		    PartType = lists:nth(Part, PartTypesList),
+		    is_instance(ImmInstance, PartType)
+		end)
+	end);
 constructed_test(_ImmInstance, _Type) ->
     %% TODO: can we do anything better?
     false.
@@ -287,12 +305,13 @@ sized(Gen) ->
 	{generator, Gen}
     ]).
 
--spec bind(raw_type(), proper_gen:combine_fun()) -> type().
-bind(RawPartsType, Combine) ->
+-spec bind(raw_type(), proper_gen:combine_fun(), boolean()) -> type().
+bind(RawPartsType, Combine, ShrinkToParts) ->
     PartsType = cook_outer(RawPartsType),
     ?CONSTRUCTED([
 	{parts_type, PartsType},
-	{combine, Combine}
+	{combine, Combine},
+	{shrink_to_parts, ShrinkToParts}
     ]).
 
 -spec shrinkwith(proper_gen:nosize_generator(), proper_gen:alt_gens()) ->
@@ -765,7 +784,13 @@ function4(RawRetType) ->
 
 -spec resize(size(), raw_type()) -> type().
 resize(Size, RawType) ->
-    add_prop(size_transform, fun(_S) -> Size end, cook_outer(RawType)).
+    Type = cook_outer(RawType),
+    case find_prop(size_transform, Type) of
+	{ok,Transform} ->
+	    add_prop(size_transform, fun(_S) -> Transform(Size) end, Type);
+	error ->
+	    add_prop(size_transform, fun(_S) -> Size end, Type)
+    end.
 
 -spec non_empty(raw_type()) -> type().
 non_empty(RawListType) ->

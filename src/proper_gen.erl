@@ -52,7 +52,9 @@
 %%	 anything that returns it
 -type imm_instance() :: proper_types:raw_type()
 		      | instance()
-		      | {'$used', imm_instance(), imm_instance()}.
+		      | {'$used', imm_instance(), imm_instance()}
+		      | {'$to_part', pos_integer(), pos_integer(),
+			 imm_instance()}.
 
 -type sized_generator() :: fun((size()) -> imm_instance()).
 -type nosize_generator() :: fun(() -> imm_instance()).
@@ -204,6 +206,7 @@ pick(RawType, Size) ->
 		      [get('$constraint_tries')]),
 	    proper:global_state_erase();
 	{ok,FunInstance} when is_function(FunInstance) ->
+	    %% TODO: This should also cover functions in tuples etc.
 	    io:format("WARNING: Some garbage has been left in the process "
 		      "registry and the code server to allow for the returned "
 		      "function to run normally.~nPlease run "
@@ -259,6 +262,8 @@ alt_gens(Type) ->
 
 -spec clean_instance(imm_instance()) -> instance().
 clean_instance({'$used',_ImmParts,ImmInstance}) ->
+    clean_instance(ImmInstance);
+clean_instance({'$to_part',_Part,_NumParts,ImmInstance}) ->
     clean_instance(ImmInstance);
 clean_instance(ImmInstance) ->
     if

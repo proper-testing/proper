@@ -31,7 +31,7 @@
 
 -export([get_size/1, global_state_init_size/1]).
 -export([forall/2, forall_b/3, implies/2, whenfail/2, trapexit/1, timeout/2]).
--export([still_fails/3, force_skip/2]).
+-export([still_fails/4, force_skip/2]).
 
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
 
@@ -53,6 +53,8 @@
 -type stats_printer() :: fun((sample()) -> 'ok')
 		       | fun((sample(), pos_integer(), output_fun()) -> 'ok')
 		       | fun((sample(), pos_integer()) -> 'ok').
+-type numeric_stat() :: number() | 'undefined'.
+-type numeric_stats() :: {numeric_stat(),numeric_stat(),numeric_stat()}.
 -type time_period() :: non_neg_integer().
 
 -type outer_test() :: test()
@@ -615,11 +617,12 @@ clean_testcase(ImmTestCase) ->
 %% Shrinking callback functions
 %%------------------------------------------------------------------------------
 
--spec still_fails(imm_testcase(), stripped_forall(), fail_reason()) ->
-	  boolean().
-still_fails(ImmTestCase, {Type,Prop}, OldReason) ->
-    Ctx = #ctx{try_shrunk = true, to_try = ImmTestCase},
-    case run({forall,Type,Prop}, Ctx) of
+-spec still_fails(proper_gen:imm_instance(), imm_testcase(), dependent_test(),
+		  fail_reason()) -> boolean().
+still_fails(ImmInstance, TestTail, Prop, OldReason) ->
+    Instance = proper_gen:clean_instance(ImmInstance),
+    Ctx = #ctx{try_shrunk = true, to_try = TestTail},
+    case force(Instance, Prop, Ctx) of
 	%% We check that it's the same fault that caused the crash.
 	{failed, #cexm{fail_reason = NewReason}, _Actions} ->
 	    same_fail_reason(OldReason, NewReason);
@@ -799,14 +802,12 @@ num_stats_printer(SortedSample, _Passed, Print, Title) ->
     {Min,Avg,Max} = get_numeric_stats(SortedSample),
     Print("minimum: ~w~naverage: ~w~nmaximum: ~w~n", [Min,Avg,Max]).
 
--spec get_numeric_stats([number()]) -> {number() | 'undefined',
-					number() | 'undefined',
-					number() | 'undefined'}.
+-spec get_numeric_stats([number()]) -> numeric_stats().
 get_numeric_stats([]) ->
     {undefined, undefined, undefined};
 get_numeric_stats([Min | _Rest] = SortedSample) ->
     {Avg,Max} = avg_and_last(SortedSample, 0, 0),
-    {Min,Avg,Max}.
+    {Min, Avg, Max}.
 
 -spec avg_and_last([number(),...], number(), non_neg_integer()) ->
 	  {number(),number()}.

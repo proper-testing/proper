@@ -165,12 +165,13 @@ measure(<Title>, <Number> | <List_of_numbers>, <Prop>)
 ?TRAPEXIT(<Prop>)
     Signifies that the code comprising <Prop> may report failure by exiting
     abnormally, e.g. if it spawns and links to a worker thread, the worker
-    thread crashes and the parent thread was not trapping exits itself.
+    thread crashes and the parent thread was not trapping exits itself. The
+    <Prop> field cannot contain any ?FORALL or ?FORALL_B macros.
 ?TIMEOUT(<Time_limit>, <Prop>)
     Signifies that <Prop> should be considered failing if it takes more than
     <Time_limit> milliseconds to return. The purpose of this wrapper is to test
     code that may hang if something goes wrong. The <Prop> field cannot contain
-    any ?FORALL or ?TIMEOUT macros.
+    any ?FORALL, ?FORALL_B or ?TIMEOUT macros.
 
 The following predefined properties may be used in place of a simple boolean
 expression as the innermost property:

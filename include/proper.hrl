@@ -60,7 +60,7 @@
 %% Type manipulation functions
 %%------------------------------------------------------------------------------
 
--import(proper_types, [resize/2, relimit/2, non_empty/1, noshrink/1]).
+-import(proper_types, [resize/2, non_empty/1, noshrink/1]).
 
 
 %%------------------------------------------------------------------------------

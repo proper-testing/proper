@@ -42,14 +42,11 @@
 -define(DELAY(X), fun() -> X end).
 -define(LAZY(X), proper_types:lazy(?DELAY(X))).
 -define(SIZED(SizeArg,Gen), proper_types:sized(fun(SizeArg) -> Gen end)).
--define(LET(X,RawType,Gen), proper_types:bind(RawType,fun(X) -> Gen end)).
+-define(LET(X,RawType,Gen), proper_types:bind(RawType,fun(X) -> Gen end,false)).
 -define(SHRINK(Gen,AltGens),
 	proper_types:shrinkwith(?DELAY(Gen),?DELAY(AltGens))).
 -define(LETSHRINK(Xs,RawType,Gen),
-	proper_types:bind(RawType,
-			  fun(Xs) ->
-			      proper_types:shrinkwith(?DELAY(Gen),?DELAY(Xs))
-			  end)).
+	proper_types:bind(RawType,fun(Xs) -> Gen end,true)).
 -define(SUCHTHAT(X,RawType,Condition),
 	proper_types:add_constraint(RawType,fun(X) -> Condition end,true)).
 -define(SUCHTHATMAYBE(X,RawType,Condition),

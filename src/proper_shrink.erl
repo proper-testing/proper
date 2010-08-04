@@ -92,13 +92,14 @@ shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
     NewTest = proper:force_skip(Instance, Prop),
     shrink([ImmInstance | Shrunk], Rest, NewTest, Reason,
 	   Shrinks, ShrinksLeft, init, Print);
-shrink(Shrunk, TestTail = [ImmInstance | Rest], Test = {Type,_Prop}, Reason,
+shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
        Shrinks, ShrinksLeft, State, Print) ->
     {NewImmInstances,NewState} = shrink_one(ImmInstance, Type, State),
-    %% TODO: should we try fixing the nested ?FORALLs while shrinking?
+    %% TODO: Should we try fixing the nested ?FORALLs while shrinking? We could
+    %%       also just produce new test tails.
     IsValid = fun(I) ->
 		  I =/= ImmInstance andalso
-		  proper:still_fails([I | Rest], Test, Reason)
+		  proper:still_fails(I, Rest, Prop, Reason)
 	      end,
     case find_first(IsValid, NewImmInstances) of
 	none ->
@@ -185,7 +186,13 @@ get_shrinkers(Type) ->
 		    wrapper ->
 			[fun alternate_shrinker/3, fun unwrap_shrinker/3];
 		    constructed ->
-			[fun parts_shrinker/3, fun recursive_shrinker/3];
+			case proper_types:get_prop(shrink_to_parts, Type) of
+			    true ->
+				[fun to_part_shrinker/3, fun parts_shrinker/3,
+				 fun in_shrinker/3];
+			    false ->
+				[fun parts_shrinker/3, fun in_shrinker/3]
+			end;
 		    semi_opaque ->
 			[fun split_shrinker/3, fun remove_shrinker/3,
 			 fun elements_shrinker/3];
@@ -218,6 +225,16 @@ unwrap_shrinker(Instance, Type, init) ->
     union_recursive_shrinker(Instance, Choices, init);
 unwrap_shrinker(Instance, _Type, State) ->
     union_recursive_shrinker(Instance, [], State).
+
+-spec to_part_shrinker(proper_gen:imm_instance(), proper_types:type(),
+		       state()) -> {[proper_gen:imm_instance()],state()}.
+to_part_shrinker({'$used',ImmParts,_ImmInstance}, _Type, init) ->
+    NumParts = length(ImmParts),
+    NumberedImmParts = lists:zip(lists:seq(1,NumParts), ImmParts),
+    NewInstances = [{'$to_part',N,NumParts,P} || {N,P} <- NumberedImmParts],
+    {NewInstances, done};
+to_part_shrinker(_Instance, _Type, _State) ->
+    {[], done}.
 
 -spec parts_shrinker(proper_gen:imm_instance(), proper_types:type(), state()) ->
 	  {[proper_gen:imm_instance()],state()}.
@@ -272,9 +289,9 @@ try_combine(ImmParts, OldImmInstance, Combine) ->
 	    {ok,{'$used',ImmParts,ImmInstance}}
     end.
 
--spec recursive_shrinker(proper_gen:imm_instance(), proper_types:type(),
-			 state()) -> {[proper_gen:imm_instance()],state()}.
-recursive_shrinker(Instance = {'$used',ImmParts,_ImmInstance}, Type, init) ->
+-spec in_shrinker(proper_gen:imm_instance(), proper_types:type(), state()) ->
+	  {[proper_gen:imm_instance()],state()}.
+in_shrinker(Instance = {'$used',ImmParts,_ImmInstance}, Type, init) ->
     Combine = proper_types:get_prop(combine, Type),
     Parts = proper_gen:clean_instance(ImmParts),
     ImmInstance = Combine(Parts),
@@ -282,22 +299,35 @@ recursive_shrinker(Instance = {'$used',ImmParts,_ImmInstance}, Type, init) ->
     case proper_types:is_raw_type(ImmInstance) of
 	true ->
 	    InnerType = proper_types:cook_outer(ImmInstance),
-	    recursive_shrinker(Instance, Type, {inner,InnerType,init});
+	    in_shrinker(Instance, Type, {inner,InnerType,init});
 	false ->
 	    {[], done}
     end;
-recursive_shrinker(_CleanInstance, _Type, init) ->
+in_shrinker(Instance = {'$to_part',Part,_NumParts,_ImmInstance}, Type, init) ->
+    %% TODO: move this to proper_types
+    PartsType = proper_types:get_prop(parts_type, Type),
+    PartTypesList = proper_types:get_prop(internal_types, PartsType),
+    %% TODO: this isn't very clean
+    PartType = lists:nth(Part, PartTypesList),
+    in_shrinker(Instance, Type, {part_rec,PartType,init});
+in_shrinker(_CleanInstance, _Type, init) ->
     {[], done};
-recursive_shrinker(_Instance, _Type, {inner,_InnerType,done}) ->
+in_shrinker(_Instance, _Type, {_Decl,_RecType,done}) ->
     {[], done};
-recursive_shrinker({'$used',ImmParts,ImmInstance}, _Type,
-		   {inner,InnerType,InnerState}) ->
+in_shrinker({'$used',ImmParts,ImmInstance}, _Type,
+	    {inner,InnerType,InnerState}) ->
     {NewImmInstances,NewInnerState} =
 	shrink_one(ImmInstance, InnerType, InnerState),
     NewInstances = [{'$used',ImmParts,I} || I <- NewImmInstances],
     {NewInstances, {inner,InnerType,NewInnerState}};
-recursive_shrinker(Instance, Type, {shrunk,N,{inner,InnerType,InnerState}}) ->
-    recursive_shrinker(Instance, Type, {inner,InnerType,{shrunk,N,InnerState}}).
+in_shrinker({'$to_part',Part,NumParts,ImmInstance}, _Type,
+	    {part_rec,PartType,PartState}) ->
+    {NewImmInstances,NewPartState} =
+	shrink_one(ImmInstance, PartType, PartState),
+    NewInstances = [{'$to_part',Part,NumParts,I} || I <- NewImmInstances],
+    {NewInstances, {part_rec,PartType,NewPartState}};
+in_shrinker(Instance, Type, {shrunk,N,{Decl,RecType,InnerState}}) ->
+    in_shrinker(Instance, Type, {Decl,RecType,{shrunk,N,InnerState}}).
 
 
 %%------------------------------------------------------------------------------
@@ -562,15 +592,8 @@ union_recursive_shrinker(Instance, Choices,
 			     [proper_types:type()]) ->
 	  {position(),proper_types:type()} | 'none'.
 first_plausible_choice(Instance, Choices) ->
-    first_plausible_choice_tr(Instance, Choices, 1).
-
--spec first_plausible_choice_tr(proper_gen:imm_instance(),
-				[proper_types:type()], position()) ->
-	  {position(),proper_types:type()} | 'none'.
-first_plausible_choice_tr(_Instance, [], _Pos) ->
-    none;
-first_plausible_choice_tr(Instance, [Type | Rest], Pos) ->
-    case proper_arith:surely(proper_types:is_instance(Instance, Type)) of
-	true  -> {Pos,Type};
-	false -> first_plausible_choice_tr(Instance, Rest, Pos + 1)
-    end.
+    IsInstance = fun(Type) ->
+		     proper_arith:surely(proper_types:is_instance(Instance,
+								  Type))
+		 end,
+    find_first(IsInstance, Choices).
