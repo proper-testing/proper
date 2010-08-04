@@ -25,7 +25,8 @@
 -module(proper_arith).
 
 -export([le/2]).
--export([safemap/2, tuplemap/2, cut_improper_tail/1]).
+-export([safemap/2, tuplemap/2, cut_improper_tail/1, head_length/1,
+	 find_first/2, filter/2]).
 -export([rand_start/1, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
@@ -88,6 +89,47 @@ cut_improper_tail_tr([Head | Tail], AccList) ->
     cut_improper_tail_tr(Tail, [Head | AccList]);
 cut_improper_tail_tr(ImproperTail, AccList) ->
     {lists:reverse(AccList), ImproperTail}.
+
+-spec head_length(maybe_improper_list()) -> length().
+head_length(List) ->
+    head_length_tr(List, 0).
+
+head_length_tr([], Len) ->
+    Len;
+head_length_tr([_Head | Tail], Len) ->
+    head_length_tr(Tail, Len + 1);
+head_length_tr(_ImproperTail, Len) ->
+    Len.
+
+-spec find_first(fun((T) -> boolean()), [T]) -> {position(),T} | 'none'.
+find_first(Pred, List) ->
+    find_first_tr(Pred, List, 1).
+
+-spec find_first_tr(fun((T) -> boolean()), [T], position()) ->
+	  {position(),T} | 'none'.
+find_first_tr(_Pred, [], _Pos) ->
+    none;
+find_first_tr(Pred, [X | Rest], Pos) ->
+    case Pred(X) of
+	true  -> {Pos, X};
+	false -> find_first_tr(Pred, Rest, Pos + 1)
+    end.
+
+-spec filter(fun((T) -> boolean()), [T]) -> {[T],[position()]}.
+filter(Pred, List) ->
+    filter_tr(Pred, List, [], 1, []).
+
+-spec filter_tr(fun((T) -> boolean()), [T], [T], position(), [position()]) ->
+	  {[T],[position()]}.
+filter_tr(_Pred, [], Result, _Pos, Lookup) ->
+    {lists:reverse(Result), lists:reverse(Lookup)};
+filter_tr(Pred, [X | Rest], Result, Pos, Lookup) ->
+    case Pred(X) of
+	true ->
+	    filter_tr(Pred, Rest, [X | Result], Pos + 1, [Pos | Lookup]);
+	false ->
+	    filter_tr(Pred, Rest, Result, Pos + 1, Lookup)
+    end.
 
 
 %%------------------------------------------------------------------------------

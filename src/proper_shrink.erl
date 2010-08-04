@@ -101,7 +101,7 @@ shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
 		  I =/= ImmInstance andalso
 		  proper:still_fails(I, Rest, Prop, Reason)
 	      end,
-    case find_first(IsValid, NewImmInstances) of
+    case proper_arith:find_first(IsValid, NewImmInstances) of
 	none ->
 	    shrink(Shrunk, TestTail, Test, Reason,
 		   Shrinks, ShrinksLeft, NewState, Print);
@@ -109,20 +109,6 @@ shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
 	    Print(".", []),
 	    shrink(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
 		   Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Print)
-    end.
-
--spec find_first(fun((T) -> boolean()), [T]) -> {position(),T} | 'none'.
-find_first(Pred, List) ->
-    find_first_tr(Pred, List, 1).
-
--spec find_first_tr(fun((T) -> boolean()), [T], position()) ->
-	  {position(),T} | 'none'.
-find_first_tr(_Pred, [], _Pos) ->
-    none;
-find_first_tr(Pred, [X | Rest], Pos) ->
-    case Pred(X) of
-	true  -> {Pos, X};
-	false -> find_first_tr(Pred, Rest, Pos + 1)
     end.
 
 -spec shrink_one(proper_gen:imm_instance(), proper_types:type(), state()) ->
@@ -145,28 +131,13 @@ shrink_one(ImmInstance, Type, {shrinker,Shrinkers,_Lookup,State}) ->
 	    Instance = proper_gen:clean_instance(I),
 	    proper_types:weakly(proper_types:satisfies_all(Instance, Type))
 	end,
-    {NewImmInstances,NewLookup} = filter(SatisfiesAll, DirtyImmInstances),
+    {NewImmInstances,NewLookup} =
+	proper_arith:filter(SatisfiesAll, DirtyImmInstances),
     {NewImmInstances, {shrinker,Shrinkers,NewLookup,NewState}};
 shrink_one(ImmInstance, Type, {shrunk,N,{shrinker,Shrinkers,Lookup,State}}) ->
     ActualN = lists:nth(N, Lookup),
     shrink_one(ImmInstance, Type,
 	       {shrinker,Shrinkers,dummy,{shrunk,ActualN,State}}).
-
--spec filter(fun((T) -> boolean()), [T]) -> {[T],[position()]}.
-filter(Pred, List) ->
-    filter_tr(Pred, List, [], 1, []).
-
--spec filter_tr(fun((T) -> boolean()), [T], [T], position(), [position()]) ->
-	  {[T],[position()]}.
-filter_tr(_Pred, [], Result, _Pos, Lookup) ->
-    {lists:reverse(Result), lists:reverse(Lookup)};
-filter_tr(Pred, [X | Rest], Result, Pos, Lookup) ->
-    case Pred(X) of
-	true ->
-	    filter_tr(Pred, Rest, [X | Result], Pos + 1, [Pos | Lookup]);
-	false ->
-	    filter_tr(Pred, Rest, Result, Pos + 1, Lookup)
-    end.
 
 -spec get_shrinkers(proper_types:type()) -> [shrinker()].
 get_shrinkers(Type) ->
@@ -252,7 +223,7 @@ parts_shrinker({'$used',ImmParts,ImmInstance}, Type,
     Combine = proper_types:get_prop(combine, Type),
     DirtyInstances = [try_combine(P, ImmInstance, Combine) || P <- NewImmParts],
     NotError = fun({ok,_}) -> true; (error) -> false end,
-    {NewOKInstances,NewLookup} = filter(NotError, DirtyInstances),
+    {NewOKInstances,NewLookup} = proper_arith:filter(NotError, DirtyInstances),
     NewInstances = [X || {ok,X} <- NewOKInstances],
     {NewInstances, {parts,PartsType,NewLookup,NewPartsState}};
 parts_shrinker(Instance, Type,
@@ -592,4 +563,4 @@ union_recursive_shrinker(Instance, Choices,
 	  {position(),proper_types:type()} | 'none'.
 first_plausible_choice(Instance, Choices) ->
     IsInstance = fun(Type) -> proper_types:is_instance(Instance, Type) end,
-    find_first(IsInstance, Choices).
+    proper_arith:find_first(IsInstance, Choices).

@@ -368,8 +368,8 @@ The following basic types are provided:
 * list() : equivalent to list(any())
 * string() : all lists of characters,
     instances shrink towards the empty string, ""
-* function(ArgTypes, RetType) : all functions that map instances of ArgTypes
-    (ArgTypes must be provided in a list) to instances of RetType,
+* function(ArgTypes, RetType) : all pure functions that map instances of
+    ArgTypes (ArgTypes must be provided in a list) to instances of RetType,
     the syntax function(Arity, RetType) is also acceptable
 * any() : all Erlang terms (that PropEr can produce)
     also written as term()

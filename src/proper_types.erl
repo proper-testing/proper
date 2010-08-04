@@ -583,7 +583,7 @@ fixed_list_test(X, {ProperHead,ImproperTail}) ->
     is_list(X) andalso
     begin
 	ProperHeadLen = length(ProperHead),
-	head_length(X) >= ProperHeadLen andalso
+	proper_arith:head_length(X) >= ProperHeadLen andalso
 	begin
 	    {XHead,XTail} = lists:split(ProperHeadLen, X),
 	    fixed_list_test(XHead, ProperHead)
@@ -595,18 +595,6 @@ fixed_list_test(X, ProperFields) ->
     andalso length(X) =:= length(ProperFields)
     andalso lists:all(fun({E,T}) -> is_instance(E, T) end,
 		      lists:zip(X, ProperFields)).
-
--spec head_length(maybe_improper_list()) -> length().
-%% CAUTION: must handle improper lists
-head_length(List) ->
-    head_length_tr(List, 0).
-
-head_length_tr([], Len) ->
-    Len;
-head_length_tr([_Head | Tail], Len) ->
-    head_length_tr(Tail, Len + 1);
-head_length_tr(_ImproperTail, Len) ->
-    Len.
 
 improper_list_retrieve(Index, List, HeadLen) ->
     case Index =< HeadLen of
