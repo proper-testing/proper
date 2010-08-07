@@ -29,5 +29,7 @@
 -include("proper_internal.hrl").
 
 
-%% TODO: array, dict, set, gb_tree, gb_set, orddict, ordset, queue. sofs, ...
+%% TODO: array, dict, digraph, set, gb_tree, gb_set, orddict, ordset, queue.
+%%	 sofs...
 %% TODO: syntax trees, erl_parse trees
+

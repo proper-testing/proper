@@ -67,21 +67,18 @@
 -type alt_gens() :: fun(() -> [imm_instance()]).
 -type fun_num() :: pos_integer().
 
-%% TODO: fill in the type of abstract format clauses
--opaque gen_state() :: {_, fun_num()}.
+-opaque gen_state() :: {[abs_form()],fun_num()}.
 
 
 %%------------------------------------------------------------------------------
 %% State handling functions
 %%------------------------------------------------------------------------------
 
-%% TODO: fill in the type of abstract format clauses
--spec get_forms() -> _.
+-spec get_forms() -> [abs_form()] | 'undefined'.
 get_forms() ->
     get('$forms').
 
-%% TODO: fill in the type of abstract format clauses
--spec set_forms(_) -> 'ok'.
+-spec set_forms([abs_form()]) -> 'ok'.
 set_forms(Forms) ->
     put('$forms', Forms),
     ok.
@@ -485,9 +482,8 @@ function_gen(Arity, RetType) ->
 	    erlang:make_fun('$temp_mod', FunName, Arity)
     end.
 
-%% TODO: fill in the type of abstract format clauses
 -spec new_function(arity(), proper_types:type(), {integer(),integer()}) ->
-	  {atom(), _}.
+	  {atom(),abs_form()}.
 new_function(Arity, RetType, FunSeed) ->
     FunNum = get_next_fun_num(),
     FunName = list_to_atom("f" ++ integer_to_list(FunNum)),

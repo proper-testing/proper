@@ -431,6 +431,8 @@ In addition, the following types are provided:
     also chosen by the random instance generation subsystem half the time
 * function[0-4](RetType) : equivalent to function([0-4], RetType), provided for
     compatibility with QuickCheck
+* timeout() : equivalent to union([non_neg_integer() | 'timeout']),
+    instances shrink towards 0
 
 As you can see from the above descriptions, types can be combined in tuples or
 lists to produce other types, while exact values (such as exact numbers, atoms

@@ -41,3 +41,6 @@
 -type length() :: non_neg_integer().
 -type position() :: pos_integer().
 -type frequency() :: pos_integer().
+%% TODO: Replace these with the appropriate types from stdlib.
+-type abs_form() :: term().
+-type abs_expr() :: term().

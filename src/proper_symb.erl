@@ -83,13 +83,11 @@ pretty_print(VarValues, SymbTerm) ->
 	symb_walk(VarValues, SymbTerm, fun parse_fun/3, fun parse_term/1),
     lists:flatten(erl_pp:expr(ExprTree)).
 
-%% TODO: fill in the type of abstract format expressions
--spec parse_fun(module_name(), function_name(), [_]) -> _.
+-spec parse_fun(module_name(), function_name(), [abs_expr()]) -> abs_expr().
 parse_fun(Module, Function, ArgTreeList) ->
     {call,0,{remote,0,{atom,0,Module},{atom,0,Function}},ArgTreeList}.
 
-%% TODO: fill in the type of abstract format expressions
--spec parse_term(term()) -> _.
+-spec parse_term(term()) -> abs_expr().
 parse_term(TreeList) when is_list(TreeList) ->
     {RestOfList, Acc0} =
 	case proper_arith:cut_improper_tail(TreeList) of
