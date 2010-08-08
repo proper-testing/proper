@@ -75,22 +75,22 @@
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
--type stripped_forall()	:: {proper_types:type(),dependent_test()}.
+-type stripped_forall()	:: {proper_types:type(), dependent_test()}.
 
--type numtests_clause() :: {numtests, pos_integer(), outer_test()}.
--type fails_clause() :: {fails, outer_test()}.
--type on_output_clause() :: {on_output, output_fun(), outer_test()}.
+-type numtests_clause() :: {'numtests', pos_integer(), outer_test()}.
+-type fails_clause() :: {'fails', outer_test()}.
+-type on_output_clause() :: {'on_output', output_fun(), outer_test()}.
 
--type forall_clause() :: {forall, proper_types:raw_type(), dependent_test()}.
--type forall_b_clause() :: {forall_b, proper_typeserver:imm_type(),
+-type forall_clause() :: {'forall', proper_types:raw_type(), dependent_test()}.
+-type forall_b_clause() :: {'forall_b', proper_typeserver:imm_type(),
 			    dependent_test()}.
--type implies_clause() :: {implies, boolean(), delayed_test()}.
--type sample_clause() :: {sample, sample(), stats_printer(), test()}.
--type whenfail_clause() :: {whenfail, side_effects_fun(), delayed_test()}.
--type trapexit_clause() :: {trapexit, delayed_test()}.
+-type implies_clause() :: {'implies', boolean(), delayed_test()}.
+-type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
+-type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
+-type trapexit_clause() :: {'trapexit', delayed_test()}.
 -type timeout_clause() :: {timeout, time_period(), delayed_test()}.
-%%-type always_clause() :: {always, pos_integer(), delayed_test()}.
-%%-type sometimes_clause() :: {sometimes, pos_integer(), delayed_test()}.
+%%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
+%%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
 
 %%------------------------------------------------------------------------------
@@ -141,7 +141,7 @@
 			   | {'failed', counterexample(), fail_actions()}
 			   | {'error', single_run_error_reason()}.
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
--opaque fail_reason() :: 'false_prop' | 'timeout'
+-opaque fail_reason() :: 'false_prop' | 'time_out'
 		       | {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'exit'.
 -type exc_reason() :: term().
@@ -302,7 +302,7 @@ on_output(Print, Test) ->
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
 
--spec forall_b(string(), string(), dependent_test()) -> forall_b_clause().
+-spec forall_b(atom(), string(), dependent_test()) -> forall_b_clause().
 forall_b(Module, BuiltinType, DTest) ->
     {forall_b, {Module,BuiltinType}, DTest}.
 
@@ -533,7 +533,7 @@ run({timeout,Limit,Prop}, Ctx) ->
 	unlink(Child),
 	exit(Child, kill),
 	clear_mailbox(),
-	create_failed_result(Ctx, timeout)
+	create_failed_result(Ctx, time_out)
     end.
 
 -spec force(delayed_test(), ctx()) -> single_run_result().
@@ -710,7 +710,7 @@ report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
     case Reason of
 	false_prop ->
 	    ok;
-	timeout ->
+	time_out ->
 	    Print("Reason: timeout.~n", []);
 	{exception,ExcKind,ExcReason,_StackTrace} ->
 	    %% TODO: print stacktrace too?
