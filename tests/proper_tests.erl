@@ -481,7 +481,7 @@ false_props_test_() ->
 				 true  -> erlang:exit(you_got_it);
 				 false -> true
 			     end))),
-     ?_failsWith(timeout, _,
+     ?_failsWith(time_out, _,
 		  ?FORALL(_, integer(),
 			  ?TIMEOUT(100,timer:sleep(150) =:= ok))),
      ?_assertRun(false, {failed,5,_SameCExm,0,_SameCExm},
