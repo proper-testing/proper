@@ -43,4 +43,6 @@
 -type frequency() :: pos_integer().
 %% TODO: Replace these with the appropriate types from stdlib.
 -type abs_form() :: term().
+-type abs_type() :: term().
+-type abs_rec_field() :: term().
 -type abs_expr() :: term().

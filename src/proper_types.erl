@@ -36,8 +36,8 @@
 	 function1/1, function2/1, function3/1, function4/1]).
 -export([resize/2, non_empty/1, noshrink/1]).
 
--export([cook_outer/1, is_type/1, is_raw_type/1, get_prop/2, find_prop/2,
-	 new_type/2, subtype/2, unwrap/1, weakly/1, strongly/1,
+-export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, get_prop/2,
+	 find_prop/2, new_type/2, subtype/2, unwrap/1, weakly/1, strongly/1,
 	 satisfies_all/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3]).
 
@@ -159,6 +159,12 @@ cook_outer(RawType) ->
 is_type({'$type',_Props}) ->
     true;
 is_type(_) ->
+    false.
+
+-spec equal_types(type(), type()) -> boolean().
+equal_types(_Type, _Type) ->
+    true;
+equal_types(_, _) ->
     false.
 
 -spec is_raw_type(term()) -> boolean().

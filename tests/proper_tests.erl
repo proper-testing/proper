@@ -119,6 +119,7 @@ assertEqualsOneOf(X, List) ->
 
 exp_short_result(Opts) -> lists:member(fails, Opts).
 
+%% TODO: after fixing the typesystem, use generic reverse function.
 assert_is_instance(X, Type) ->
     ?assert(proper_types:is_instance(X, Type) andalso state_is_clean()).
 

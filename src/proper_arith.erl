@@ -26,7 +26,7 @@
 
 -export([le/2]).
 -export([safemap/2, tuplemap/2, cut_improper_tail/1, head_length/1,
-	 find_first/2, filter/2]).
+	 find_first/2, filter/2, partition/2, insert/3]).
 -export([rand_start/1, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
@@ -118,19 +118,33 @@ find_first_tr(Pred, [X | Rest], Pos) ->
 
 -spec filter(fun((T) -> boolean()), [T]) -> {[T],[position()]}.
 filter(Pred, List) ->
-    filter_tr(Pred, List, [], 1, []).
+    {Trues,TrueLookup,_Falses,_FalseLookup} = partition(Pred, List),
+    {Trues, TrueLookup}.
 
--spec filter_tr(fun((T) -> boolean()), [T], [T], position(), [position()]) ->
-	  {[T],[position()]}.
-filter_tr(_Pred, [], Result, _Pos, Lookup) ->
-    {lists:reverse(Result), lists:reverse(Lookup)};
-filter_tr(Pred, [X | Rest], Result, Pos, Lookup) ->
+-spec partition(fun((T) -> boolean()), [T]) ->
+	  {[T],[position()],[T],[position()]}.
+partition(Pred, List) ->
+    partition_tr(Pred, List, 1, [], [], [], []).
+
+-spec partition_tr(fun((T) -> boolean()), [T], position(), [T], [position()],
+		   [T], [position()]) -> {[T],[position()],[T],[position()]}.
+partition_tr(_Pred, [], _Pos, Trues, TrueLookup, Falses, FalseLookup) ->
+    {lists:reverse(Trues), lists:reverse(TrueLookup), lists:reverse(Falses),
+     lists:reverse(FalseLookup)};
+partition_tr(Pred, [X | Rest], Pos, Trues, TrueLookup, Falses, FalseLookup) ->
     case Pred(X) of
 	true ->
-	    filter_tr(Pred, Rest, [X | Result], Pos + 1, [Pos | Lookup]);
+	    partition_tr(Pred, Rest, Pos + 1, [X | Trues], [Pos | TrueLookup],
+			 Falses, FalseLookup);
 	false ->
-	    filter_tr(Pred, Rest, Result, Pos + 1, Lookup)
+	    partition_tr(Pred, Rest, Pos + 1, Trues, TrueLookup, [X | Falses],
+			 [Pos | FalseLookup])
     end.
+
+-spec insert(T, position(), [T]) -> [T].
+insert(X, Pos, List) ->
+    {Front,Back} = lists:split(Pos - 1, List),
+    Front ++ [X] ++ Back.
 
 
 %%------------------------------------------------------------------------------

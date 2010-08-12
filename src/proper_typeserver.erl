@@ -64,19 +64,19 @@
 -spec start() -> 'ok'.
 start() ->
     ServerPid = spawn_link(fun init/0),
-    true = register(typeserver, ServerPid),
+    true = register(proper_typeserver, ServerPid),
     ok.
 
 -spec stop() -> 'ok'.
 stop() ->
-    ServerPid = whereis(typeserver),
-    unregister(typeserver),
+    ServerPid = whereis(proper_typeserver),
+    unregister(proper_typeserver),
     ServerPid ! stop,
     ok.
 
 -spec translate_type(imm_type()) -> rich_result(proper_types:type()).
 translate_type(ImmType) ->
-    typeserver ! {self(),translate_type,ImmType},
+    proper_typeserver ! {self(),translate_type,ImmType},
     receive
 	Result -> Result
     end.
