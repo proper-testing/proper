@@ -26,7 +26,7 @@
 
 -export([le/2]).
 -export([safemap/2, tuplemap/2, cut_improper_tail/1, head_length/1,
-	 find_first/2, filter/2, partition/2, insert/3]).
+	 find_first/2, filter/2, partition/2, remove/2, insert/3, unflatten/2]).
 -export([rand_start/1, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
@@ -141,10 +141,39 @@ partition_tr(Pred, [X | Rest], Pos, Trues, TrueLookup, Falses, FalseLookup) ->
 			 [Pos | FalseLookup])
     end.
 
--spec insert(T, position(), [T]) -> [T].
-insert(X, Pos, List) ->
-    {Front,Back} = lists:split(Pos - 1, List),
-    Front ++ [X] ++ Back.
+-spec remove([T], [position()]) -> [T].
+remove(Xs, Positions) ->
+    remove_tr(Xs, Positions, 1, []).
+
+-spec remove_tr([T], [position()], position(), [T]) -> [T].
+remove_tr(Xs, [], _Pos, Acc) ->
+    lists:reverse(Acc) ++ Xs;
+remove_tr([_X | XsTail], [Pos | PosTail], Pos, Acc) ->
+    remove_tr(XsTail, PosTail, Pos + 1, Acc);
+remove_tr([X | XsTail], Positions, Pos, Acc) ->
+    remove_tr(XsTail, Positions, Pos + 1, [X | Acc]).
+
+-spec insert([T], [position()], [T]) -> [T].
+insert(Xs, Positions, Ys) ->
+    insert_tr(Xs, Positions, Ys, 1, []).
+
+-spec insert_tr([T], [position()], [T], position(), [T]) -> [T].
+insert_tr([], [], Ys, _Pos, Acc) ->
+    lists:reverse(Acc) ++ Ys;
+insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos, Acc) ->
+    insert_tr(XsTail, PosTail, Ys, Pos + 1, [X | Acc]);
+insert_tr(Xs, Positions, [Y | YsTail], Pos, Acc) ->
+    insert_tr(Xs, Positions, YsTail, Pos + 1, [Y | Acc]).
+
+-spec unflatten([T], [length()]) -> [[T]].
+unflatten(List, Lens) ->
+    {[],RevSubLists} = lists:foldl(fun remove_n/2, {List,[]}, Lens),
+    lists:reverse(RevSubLists).
+
+-spec remove_n(non_neg_integer(), {[T],[[T]]}) -> {[T],[[T]]}.
+remove_n(N, {List,Acc}) ->
+    {Front,Back} = lists:split(N, List),
+    {Back, [Front | Acc]}.
 
 
 %%------------------------------------------------------------------------------

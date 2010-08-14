@@ -356,9 +356,26 @@ undefined_symb_calls() ->
 %%	 standalone instance testing and shrinking) - update needed after
 %%	 fixing the internal shrinking in LETs, use recursive datatypes, like
 %%	 trees for testing
-%% TODO: Due to optimizations done by erl_types, proper_typeserver may return a
-%%	 type that is broader than requested - thus, we can't include built-in
-%%	 types in the 'not_is_instance' and 'shrinks_to' tests.
+
+%% TODO: use size=100 for is_instance testing?
+%% TODO: now typeserver is exact, include more tests
+%% TODO: recursive and mutuals, also write the expected types as generators here
+%% TODO: remotes + recursives
+%% TODO: wrong recursives
+%% TODO: one test for is_instance, shrinks_to, can_generate and not_is_instance
+
+%% TODO:
+%% Test on:
+%% -type a() :: 'aleaf' | b() | [{'rec',a()}] | c() | d().
+%% -type b() :: 'bleaf' | {'bnode',b(),b()}.
+%% -type c() :: [c()] | {'cnode1',a()} | {'cnode2',d()}.
+%% -type d() :: [a()].
+%% Test on:
+%% -type mylist(T) :: [] | {'cons',T,mylist(T)}
+%% -type b() :: mylist(integer()).
+%% -type a() :: 'aleaf' | mylist(a()).
+%% Test on:
+%% -type deeplist() :: [deeplist()].
 
 is_instance_test_() ->
     [?_test(assert_is_instance(X, Type))
