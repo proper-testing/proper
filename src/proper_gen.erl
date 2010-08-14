@@ -245,13 +245,8 @@ normal_gen(Type) ->
 	  imm_instance() | {'ok',instance()} | 'error'.
 call_gen(Gen, Type) ->
     if
-	is_function(Gen, 0) ->
-	    Gen();
-	is_function(Gen, 1) ->
-	    case proper:get_size(Type) of
-		undefined -> throw('$need_size_info');
-		Size      -> Gen(Size)
-	    end
+	is_function(Gen, 0) -> Gen();
+	is_function(Gen, 1) -> Gen(proper:get_size(Type))
     end.
 
 -spec alt_gens(proper_types:type()) -> [imm_instance()].

@@ -23,7 +23,7 @@
 %%%	 module.
 
 -module(proper_types).
--export([is_instance/2]).
+-export([is_inst/2, is_inst/3]).
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
@@ -37,8 +37,8 @@
 -export([resize/2, non_empty/1, noshrink/1]).
 
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, get_prop/2,
-	 find_prop/2, new_type/2, subtype/2, unwrap/1, weakly/1, strongly/1,
-	 satisfies_all/2]).
+	 find_prop/2, new_type/2, subtype/2, is_instance/2, unwrap/1, weakly/1,
+	 strongly/1, satisfies_all/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3]).
 
 -export_type([type/0, raw_type/0]).
@@ -222,6 +222,17 @@ new_type(PropList, Kind) ->
 subtype(PropList, Type) ->
     add_props(PropList, Type).
 
+-spec is_inst(proper_gen:instance(), raw_type()) -> boolean().
+is_inst(Instance, RawType) ->
+    is_inst(Instance, RawType, 10).
+
+-spec is_inst(proper_gen:instance(), raw_type(), size()) -> boolean().
+is_inst(Instance, RawType, Size) ->
+    proper:global_state_init_size(Size),
+    Result = is_instance(Instance, RawType),
+    proper:global_state_erase(),
+    Result.
+
 -spec is_instance(proper_gen:imm_instance(), raw_type()) -> boolean().
 %% TODO: If the second argument is not a type, let it pass (don't even check for
 %%	 term equality?) - if it's a raw type, don't cook it, instead recurse
@@ -249,14 +260,7 @@ wrapper_test(ImmInstance, Type) ->
 -spec unwrap(type()) -> [type()].
 %% TODO: check if it's actually a raw type that's returned?
 unwrap(Type) ->
-    RawAltGenTypes = proper_gen:alt_gens(Type),
-    RawInnerTypes =
-	try proper_gen:normal_gen(Type) of
-	    T -> RawAltGenTypes ++ [T]
-	catch
-	    %% TODO: print some more info?
-	    throw:'$need_size_info' -> RawAltGenTypes
-	end,
+    RawInnerTypes = proper_gen:alt_gens(Type) ++ [proper_gen:normal_gen(Type)],
     [cook_outer(T) || T <- RawInnerTypes].
 
 -spec constructed_test(proper_gen:imm_instance(), type()) -> boolean().

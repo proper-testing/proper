@@ -147,8 +147,8 @@
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
 -type single_run_error_reason() :: 'wrong_type' | 'cant_generate' | 'rejected'
-				 | 'type_mismatch' | 'need_size_info'
-				 | 'too_many_instances' | {'typeserver',term()}.
+				 | 'type_mismatch' | 'too_many_instances'
+				 | {'typeserver',term()}.
 
 -type error_result() :: {'error', error_reason()}.
 -type error_reason() :: 'cant_generate' | 'cant_satisfy' | 'type_mismatch'
@@ -563,8 +563,6 @@ apply_args(Args, Prop, Ctx) ->
 	    end;
 	throw:'$cant_generate' ->
 	    {error, cant_generate};
-	throw:'$need_size_info' ->
-	    {error, need_size_info};
 	%% TODO: remove our functions from the stacktrace
 	throw:ExcReason ->
 	    create_failed_result(Ctx, {exception, throw, ExcReason,

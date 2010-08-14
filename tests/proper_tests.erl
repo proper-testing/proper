@@ -121,7 +121,7 @@ exp_short_result(Opts) -> lists:member(fails, Opts).
 
 %% TODO: after fixing the typesystem, use generic reverse function.
 assert_is_instance(X, Type) ->
-    ?assert(proper_types:is_instance(X, Type) andalso state_is_clean()).
+    ?assert(proper_types:is_inst(X, Type) andalso state_is_clean()).
 
 assert_can_generate(Type) ->
     {ok,Instance} = proper_gen:pick(Type),
@@ -395,7 +395,7 @@ shrinks_to_test_() ->
      || {Type,_Xs,Target,_Ys,_TypeStr} <- types_with_data()].
 
 not_is_instance_test_() ->
-    [?_assert(not proper_types:is_instance(Y, Type) andalso state_is_clean())
+    [?_assert(not proper_types:is_inst(Y, Type) andalso state_is_clean())
      || {Type,_Xs,_Target,Ys,_TypeStr} <- types_with_data(), Y <- Ys].
 
 can_generate_test_() ->
