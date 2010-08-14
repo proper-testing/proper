@@ -60,6 +60,5 @@
 -define(BASIC(PropList), proper_types:new_type(PropList,basic)).
 -define(WRAPPER(PropList), proper_types:new_type(PropList,wrapper)).
 -define(CONSTRUCTED(PropList), proper_types:new_type(PropList,constructed)).
--define(SEMI_OPAQUE(PropList), proper_types:new_type(PropList,semi_opaque)).
--define(OPAQUE(PropList), proper_types:new_type(PropList,opaque)).
+-define(CONTAINER(PropList), proper_types:new_type(PropList,container)).
 -define(SUBTYPE(Type,PropList), proper_types:subtype(PropList,Type)).

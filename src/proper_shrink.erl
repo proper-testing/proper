@@ -164,10 +164,7 @@ get_shrinkers(Type) ->
 			    false ->
 				[fun parts_shrinker/3, fun in_shrinker/3]
 			end;
-		    semi_opaque ->
-			[fun split_shrinker/3, fun remove_shrinker/3,
-			 fun elements_shrinker/3];
-		    opaque ->
+		    container ->
 			[fun split_shrinker/3, fun remove_shrinker/3,
 			 fun elements_shrinker/3]
 		end,
@@ -176,7 +173,7 @@ get_shrinkers(Type) ->
 
 
 %%------------------------------------------------------------------------------
-%% Non-opaque type shrinkers
+%% Wrapper type shrinkers
 %%------------------------------------------------------------------------------
 
 -spec alternate_shrinker(proper_gen:imm_instance(), proper_types:type(),
@@ -196,6 +193,11 @@ unwrap_shrinker(Instance, Type, init) ->
     union_recursive_shrinker(Instance, Choices, init);
 unwrap_shrinker(Instance, _Type, State) ->
     union_recursive_shrinker(Instance, [], State).
+
+
+%%------------------------------------------------------------------------------
+%% Constructed type shrinkers
+%%------------------------------------------------------------------------------
 
 -spec to_part_shrinker(proper_gen:imm_instance(), proper_types:type(),
 		       state()) -> {[proper_gen:imm_instance()],state()}.
@@ -301,11 +303,11 @@ in_shrinker(Instance, Type, {shrunk,N,{Decl,RecType,InnerState}}) ->
 
 
 %%------------------------------------------------------------------------------
-%% Opaque type shrinkers
+%% Container type shrinkers
 %%------------------------------------------------------------------------------
 
--spec split_shrinker(proper_gen:instance(), proper_types:type(), state()) ->
-	  {[proper_gen:instance()],state()}.
+-spec split_shrinker(proper_gen:imm_instance(), proper_types:type(), state()) ->
+	  {[proper_gen:imm_instance()],state()}.
 split_shrinker(Instance, Type, init) ->
     case {proper_types:find_prop(split, Type),
 	  proper_types:find_prop(get_length, Type),
@@ -343,8 +345,9 @@ split_shrinker(Instance, Type, {shrunk,Pos,{slices,DoubleN,_Len}}) ->
 	    split_shrinker(Instance, Type, {slices,N-1,GetLength(Instance)})
     end.
 
--spec slice(proper_gen:instance(), proper_types:type(), pos_integer(),
-	    length()) -> {[proper_gen:instance()], [proper_gen:instance()]}.
+-spec slice(proper_gen:imm_instance(), proper_types:type(), pos_integer(),
+	    length()) ->
+	  {[proper_gen:imm_instance()],[proper_gen:imm_instance()]}.
 slice(Instance, Type, Slices, Len) ->
     BigSlices = Len rem Slices,
     SmallSlices = Slices - BigSlices,
@@ -359,8 +362,9 @@ slice(Instance, Type, Slices, Len) ->
     lists:unzip([take_slice(Instance, Type, From, SliceLen)
 		 || {From,SliceLen} <- WhereToSlice]).
 
--spec take_slice(proper_gen:instance(), proper_types:type(), pos_integer(),
-		 length()) -> {proper_gen:instance(), proper_gen:instance()}.
+-spec take_slice(proper_gen:imm_instance(), proper_types:type(), pos_integer(),
+		 length()) ->
+	  {proper_gen:imm_instance(),proper_gen:imm_instance()}.
 take_slice(Instance, Type, From, SliceLen) ->
     Split = proper_types:get_prop(split, Type),
     Join = proper_types:get_prop(join, Type),
@@ -368,8 +372,8 @@ take_slice(Instance, Type, From, SliceLen) ->
     {Slice,Back} = Split(SliceLen, ImmBack),
     {Slice, Join(Front, Back)}.
 
--spec remove_shrinker(proper_gen:instance(), proper_types:type(), state()) ->
-	  {[proper_gen:instance()], state()}.
+-spec remove_shrinker(proper_gen:imm_instance(), proper_types:type(),
+		      state()) -> {[proper_gen:imm_instance()], state()}.
 %% TODO: try removing more than one elemnent: 2,4,... or 2,3,... - when to stop?
 remove_shrinker(Instance, Type, init) ->
     case {proper_types:find_prop(get_indices, Type),
@@ -400,8 +404,8 @@ remove_shrinker(Instance, Type, {shrunk,1,{indices,Checked,_ToCheck}}) ->
     NewToCheck = ordsets:subtract(Indices, Checked),
     remove_shrinker(Instance, Type, {indices,Checked,NewToCheck}).
 
--spec elements_shrinker(proper_gen:instance(), proper_types:type(), state()) ->
-	  {[proper_gen:instance()],state()}.
+-spec elements_shrinker(proper_gen:imm_instance(), proper_types:type(),
+			state()) -> {[proper_gen:imm_instance()],state()}.
 %% TODO: is it safe to assume that all functions and the indices will not change
 %%	 after any update?
 %% TODO: shrink many elements concurrently?
@@ -433,23 +437,12 @@ elements_shrinker(Instance, Type,
     elements_shrinker(Instance, Type, {inner,Rest,GetElemType,init});
 elements_shrinker(Instance, Type,
 		  {inner,Indices = [Index | _Rest],GetElemType,InnerState}) ->
-    Kind = proper_types:get_prop(kind, Type),
     Retrieve = proper_types:get_prop(retrieve, Type),
     Update = proper_types:get_prop(update, Type),
-    Elem = Retrieve(Index, Instance),
+    ImmElem = Retrieve(Index, Instance),
     InnerType = GetElemType(Index),
-    ImmElem =
-	case {Kind, proper_types:find_prop(reverse_gen,InnerType)} of
-	    {opaque,{ok,ReverseGen}} -> ReverseGen(Elem);
-	    _                        -> Elem
-	end,
     {NewImmElems,NewInnerState} = shrink_one(ImmElem, InnerType, InnerState),
-    NewElems =
-	case Kind of
-	    opaque -> [proper_gen:clean_instance(E) || E <- NewImmElems];
-	    _      -> NewImmElems
-	end,
-    NewInstances = [Update(Index, E, Instance) || E <- NewElems],
+    NewInstances = [Update(Index, E, Instance) || E <- NewImmElems],
     {NewInstances, {inner,Indices,GetElemType,NewInnerState}};
 elements_shrinker(Instance, Type,
 		  {shrunk,N,{inner,Indices,GetElemType,InnerState}}) ->

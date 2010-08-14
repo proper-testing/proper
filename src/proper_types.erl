@@ -78,8 +78,7 @@
 %% Types
 %%------------------------------------------------------------------------------
 
--type type_kind() :: 'basic' | 'wrapper' | 'constructed'
-		   | 'semi_opaque' | 'opaque'.
+-type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container'.
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean()).
 -type index() :: term().
 -type value() :: term().
@@ -130,7 +129,9 @@
       %% can use to remove or insert elements from the given instance.
     | {'remove', fun((index(),proper_gen:imm_instance()) ->
 		     proper_gen:imm_instance())}
-    | {'retrieve', fun((index(),proper_gen:imm_instance()) -> value())}
+    | {'retrieve', fun((index(), proper_gen:imm_instance() | tuple()
+			       | maybe_improper_list(type(),term())) ->
+		       value() | type())}
     | {'update', fun((index(),value(),proper_gen:imm_instance()) ->
 		     proper_gen:imm_instance())}
     | {'constraints', [{constraint_fun(), boolean()}]}.
@@ -450,7 +451,7 @@ bitstring_len_test(X, Len) ->
 % TODO: subtyping would be useful here (list, vector, fixed_list)
 list(RawElemType) ->
     ElemType = cook_outer(RawElemType),
-    ?SEMI_OPAQUE([
+    ?CONTAINER([
 	{generator, fun(Size) -> proper_gen:list_gen(Size, ElemType) end},
 	{is_instance, fun(X) -> list_test(X, ElemType) end},
 	{internal_type, ElemType},
@@ -486,7 +487,7 @@ list_update(Index, NewElem, List) ->
 vector(Len, RawElemType) ->
     ElemType = cook_outer(RawElemType),
     Indices = lists:seq(1, Len),
-    ?SEMI_OPAQUE([
+    ?CONTAINER([
 	{generator, fun() -> proper_gen:vector_gen(Len, ElemType) end},
 	{is_instance, fun(X) -> vector_test(X, Len, ElemType) end},
 	{internal_type, ElemType},
@@ -533,7 +534,7 @@ weighted_union(RawFreqChoices) ->
 tuple(RawFields) ->
     Fields = [cook_outer(F) || F <- RawFields],
     Indices = lists:seq(1, length(Fields)),
-    ?SEMI_OPAQUE([
+    ?CONTAINER([
 	{generator, fun() -> proper_gen:tuple_gen(Fields) end},
 	{is_instance, fun(X) -> tuple_test(X, Fields) end},
 	{internal_types, list_to_tuple(Fields)},
@@ -593,7 +594,7 @@ fixed_list(MaybeImproperRawFields) ->
 		 fun lists:nth/2,
 		 fun(I,V,X) -> list_update(I, V, X) end}
 	end,
-    ?SEMI_OPAQUE([
+    ?CONTAINER([
 	{generator, fun() -> proper_gen:fixed_list_gen(Fields) end},
 	{is_instance, fun(X) -> fixed_list_test(X, Fields) end},
 	{internal_types, Internal},

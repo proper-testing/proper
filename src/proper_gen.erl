@@ -148,7 +148,7 @@ generate(_Type, 0, none) ->
 generate(_Type, 0, {ok,Fallback}) ->
     Fallback;
 generate(Type, TriesLeft, Fallback) ->
-    {Instance, Result} =
+    ImmInstance =
 	case proper_types:get_prop(kind, Type) of
 	    constructed ->
 		PartsType = proper_types:get_prop(parts_type, Type),
@@ -161,7 +161,7 @@ generate(Type, TriesLeft, Fallback) ->
 			true  -> generate(ImmInstance1);
 			false -> ImmInstance1
 		    end,
-		{clean_instance(ImmInstance2),{'$used',ImmParts,ImmInstance2}};
+		{'$used',ImmParts,ImmInstance2};
 	    Kind ->
 		ImmInstance1 =
 		    case Kind of
@@ -169,22 +169,14 @@ generate(Type, TriesLeft, Fallback) ->
 			wrapper -> normal_or_str_gen(Type);
 			_       -> normal_gen(Type)
 		    end,
-		ImmInstance2 =
-		    case proper_types:is_raw_type(ImmInstance1) of
-			true  -> generate(ImmInstance1);
-			false -> ImmInstance1
-		    end,
-		CleanInstance = clean_instance(ImmInstance2),
-		ImmInstance3 =
-		    case Kind of
-			opaque -> CleanInstance;
-			_      -> ImmInstance2
-		    end,
-		{CleanInstance,ImmInstance3}
+		case proper_types:is_raw_type(ImmInstance1) of
+		    true  -> generate(ImmInstance1);
+		    false -> ImmInstance1
+		end
 	end,
-    case proper_types:satisfies_all(Instance, Type) of
-	{_,true}      -> Result;
-	{true,false}  -> generate(Type, TriesLeft - 1, {ok,Result});
+    case proper_types:satisfies_all(clean_instance(ImmInstance), Type) of
+	{_,true}      -> ImmInstance;
+	{true,false}  -> generate(Type, TriesLeft - 1, {ok,ImmInstance});
 	{false,false} -> generate(Type, TriesLeft - 1, Fallback)
     end.
 
@@ -198,20 +190,32 @@ pick(RawType, Size) ->
     Result = clean_instance(safe_generate(RawType)),
     case Result of
 	error ->
-	    io:format("Error: couldn't produce an instance that satisfies all "
-		      "strict constraints after ~b tries~n",
-		      [get('$constraint_tries')]),
+	    Msg = "Error: couldn't produce an instance that satisfies all "
+		  "strict constraints after ~b tries~n",
+	    io:format(Msg, [get('$constraint_tries')]),
 	    proper:global_state_erase();
-	{ok,FunInstance} when is_function(FunInstance) ->
-	    %% TODO: This should also cover functions in tuples etc.
-	    io:format("WARNING: Some garbage has been left in the process "
-		      "registry and the code server to allow for the returned "
-		      "function to run normally.~nPlease run "
-		      "proper:global_state_erase() when done.~n", []);
-	_ ->
-	    proper:global_state_erase()
+	{ok,Instance} ->
+	    Msg = "WARNING: Some garbage has been left in the process registry "
+		  "and the code server to allow for the returned function(s) "
+		  "to run normally.~n"
+		  "Please run proper:global_state_erase() when done.~n",
+	    case contains_fun(Instance) of
+		true  -> io:format(Msg, []);
+		false -> proper:global_state_erase()
+	    end
     end,
     Result.
+
+-spec contains_fun(term()) -> boolean().
+%% TODO: if improper lists are ever returned, this should cover them too.
+contains_fun(List) when is_list(List) ->
+    lists:any(fun contains_fun/1, List);
+contains_fun(Tuple) when is_tuple(Tuple) ->
+    contains_fun(tuple_to_list(Tuple));
+contains_fun(Fun) when is_function(Fun) ->
+    true;
+contains_fun(_Term) ->
+    false.
 
 
 %%------------------------------------------------------------------------------
