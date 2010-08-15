@@ -76,6 +76,10 @@ state_is_clean() ->
 	?_failRun(false_prop, _, [ExpShrunkInstance], none,
 		  ?FORALL(_X,Type,false), ?SHRINK_TEST_OPTS)).
 
+-define(_builtinShrinksTo(ExpShrunkInstance, TypeStr),
+	?_failRun(false_prop, _, [ExpShrunkInstance], none,
+		  ?FORALL_B(_X,TypeStr,false), ?SHRINK_TEST_OPTS)).
+
 -define(_shrinksToOneOf(AllShrunkInstances, Type),
 	?_failRun(false_prop, _, _, [[X] || X <- AllShrunkInstances],
 		  ?FORALL(_X,Type,false), ?SHRINK_TEST_OPTS)).
@@ -117,24 +121,67 @@ assertEqualsOneOf(X, List) ->
 		   ?assert(state_is_clean())
 	       end)).
 
-exp_short_result(Opts) -> lists:member(fails, Opts).
+exp_short_result(Opts) ->
+    lists:member(fails, Opts).
+
+assert_simple_type_works({Type,Are,_Target,Arent,TypeStr}) ->
+    lists:foreach(fun(X) -> assert_is_instance(X,Type) end, Are),
+    assert_can_generate(Type, true),
+    lists:foreach(fun(X) -> assert_not_is_instance(X,Type) end, Arent),
+    case TypeStr of
+	none ->
+	    ok;
+	_ ->
+	    TransType = assert_can_translate(types_test1, TypeStr),
+	    lists:foreach(fun(X) -> assert_is_instance(X,TransType) end, Are),
+	    assert_can_generate(TransType, true),
+	    lists:foreach(fun(X) -> assert_not_is_instance(X,TransType) end,
+			  Arent)
+    end.
+
+assert_can_translate(Mod, TypeStr) ->
+    proper_typeserver:start(),
+    Result1 = proper_typeserver:translate_type({Mod,TypeStr}),
+    Result2 = proper_typeserver:translate_type({Mod,TypeStr}),
+    proper_typeserver:stop(),
+    ?assert(state_is_clean()),
+    {ok,Type1} = Result1,
+    {ok,Type2} = Result2,
+    ?assert(proper_types:equal_types(Type1,Type2)),
+    Type1.
+
+assert_cant_translate(Mod, TypeStr) ->
+    proper_typeserver:start(),
+    Result = proper_typeserver:translate_type({Mod,TypeStr}),
+    proper_typeserver:stop(),
+    ?assert(state_is_clean()),
+    ?assertMatch({error,_}, Result).
 
 %% TODO: after fixing the typesystem, use generic reverse function.
 assert_is_instance(X, Type) ->
     ?assert(proper_types:is_inst(X, Type) andalso state_is_clean()).
 
-assert_can_generate(Type) ->
-    {ok,Instance} = proper_gen:pick(Type),
-    ?assert(state_is_clean()),
-    assert_is_instance(Instance, Type).
+assert_can_generate(Type, CheckIsInstance) ->
+    lists:foreach(fun(Size) -> try_generate(Type,Size,CheckIsInstance) end,
+		  [1,2,5,10,20,40,50]).
 
-assert_can_translate(Mod, TypeStr) ->
-    proper_typeserver:start(),
-    Result = proper_typeserver:translate_type({Mod,TypeStr}),
-    proper_typeserver:stop(),
+try_generate(Type, Size, CheckIsInstance) ->
+    {ok,Instance} = proper_gen:pick(Type, Size),
     ?assert(state_is_clean()),
-    {ok,Type} = Result,
-    Type.
+    case CheckIsInstance of
+	true  -> assert_is_instance(Instance, Type);
+	false -> ok
+    end.
+
+assert_builtin_can_generate(Mod, TypeStr, CheckIsInstance) ->
+    assert_can_generate(assert_can_translate(Mod,TypeStr), CheckIsInstance).
+
+assert_cant_generate(Type) ->
+    ?assertEqual(error, proper_gen:pick(Type)),
+    ?assert(state_is_clean()).
+
+assert_not_is_instance(X, Type) ->
+    ?assert(not proper_types:is_inst(X, Type) andalso state_is_clean()).
 
 %% TODO: Use retesting of counterexample here, instead of using private
 %%	 functions to reset the state.
@@ -197,7 +244,7 @@ correct_smaller_length_aggregation(NotMoreThan, SmallerLens, Len) ->
 %% Unit test arguments
 %%------------------------------------------------------------------------------
 
-types_with_data() ->
+simple_types_with_data() ->
     [{integer(), [-1,0,1,42,-200], 0, [0.3,someatom,<<1>>], "integer()"},
      {integer(7,88), [7,8,87,88,23], 7, [1,90,a], "7..88"},
      {integer(0,42), [0,11,42], 0, [-1,43], "0..42"},
@@ -251,7 +298,11 @@ types_with_data() ->
      {loose_tuple(integer()), [{1,44,-1},{},{99,-99}], {}, [4,{hello,2},[1,2]],
       none},
      {loose_tuple(union([atom(),float()])), [{a,4.4,b},{},{'',c},{1.2,-3.4}],
-      {},[an_atom,0.4,{hello,2},[aa,bb,3.1]], none},
+      {}, [an_atom,0.4,{hello,2},[aa,bb,3.1]], none},
+     {loose_tuple(list(integer())), [{[1,-1],[],[2,3,-12]},{}], {},
+      [[[1,2],[3,4]],{1,12},{[1,99,0.0],[]}], none},
+     {loose_tuple(loose_tuple(integer())), [{},{{}},{{1,2},{-1,11},{}}], {},
+      [{123},[{12},{24}]], none},
      {exactly({[writing],unit,[tests,is],{2},boring}),
       [{[writing],unit,[tests,is],{2},boring}],
       {[writing],unit,[tests,is],{2},boring}, [no,its,'not','!'], none},
@@ -267,18 +318,15 @@ types_with_data() ->
      {?LAZY(integer()), [0,2,99], 0, [1.1], "integer()"},
      {?LAZY(list(float())), [[0.0,1.2,1.99],[]], [], [1.1,[1,2]], "[float()]"},
      {zerostream(10), [[0,0,0],[],[0,0,0,0,0,0,0]], [], [[1,0,0],[0.1]], none},
-     {?SHRINK(pos_integer(),[0]), [1,12,0], 0, [-1,-9,6.0],
-      "pos_integer() | 0"},
+     {?SHRINK(pos_integer(),[0]), [1,12,0], 0, [-1,-9,6.0], none},
      {?SHRINK(float(),[integer(),atom()]), [1.0,0.0,someatom,'',42,0], 0,
-      [<<>>,"hello"], "float() | integer() | atom()"},
+      [<<>>,"hello"], none},
      {noshrink(?SHRINK(42,[0,1])), [42,0,1], 42, [-1], "42 | 0 | 1"},
      {non_empty(list(integer())), [[1,2,3],[3,42],[11]], [0], [[],[0.1]],
       "[integer(),...]"},
      {default(42,float()), [4.1,-99.0,0.0,42], 42, [43,44], "42 | float()"},
      {?SUCHTHAT(X,non_neg_integer(),X rem 4 =:= 1), [1,5,37,89], 1, [4,-12,11],
       none},
-     %% TODO: This behaviour may change in the future, since it's incompatible
-     %%       with EQC.
      {?SUCHTHATMAYBE(X,non_neg_integer(),X rem 4 =:= 1), [1,2,3,4,5,37,89], 0,
       [1.1,2.2,-12], "non_neg_integer()"},
      {any(), [1,-12,0,99.9,-42.2,0.0,an_atom,'',<<>>,<<1,2>>,<<1,2,3:5>>,[],
@@ -315,6 +363,15 @@ impossible_builtin_types() ->
     [{types_test1, ["1.1","no_such_module:type1()","no_such_type()"]},
      {types_test2, ["types_test1:type1()","function()","fun((...) -> atom())",
 		    "pid()","port()","ref()"]}].
+
+recursive_builtin_types() ->
+    [{rec_test1, ["a()","b()","a()|b()","d()","f()","deeplist()",
+		  "mylist(float())","aa()","bb()"]},
+     {rec_test2, ["a()","expa()","rec()"]}].
+
+impossible_recursive_builtin_types() ->
+    [{rec_test1, ["c()","e()","cc()","#rec{}","expb()"]},
+     {rec_test2, ["b()","#rec{}","aa()"]}].
 
 symb_calls() ->
     [{[3,2,1], "lists:reverse([1,2,3])", [], {call,lists,reverse,[[1,2,3]]}},
@@ -355,77 +412,45 @@ undefined_symb_calls() ->
 %% TODO: LET and LETSHRINK testing (these need their intermediate form for
 %%	 standalone instance testing and shrinking) - update needed after
 %%	 fixing the internal shrinking in LETs, use recursive datatypes, like
-%%	 trees for testing
-
+%%	 trees, for testing
 %% TODO: use size=100 for is_instance testing?
-%% TODO: now typeserver is exact, include more tests
-%% TODO: recursive and mutuals, also write the expected types as generators here
-%% TODO: remotes + recursives
-%% TODO: wrong recursives
-%% TODO: one test for is_instance, shrinks_to, can_generate and not_is_instance
+%% TODO: typeserver: check that the same type is returned for consecutive calls,
+%%	 even with no caching (no_caching option?)
+%% TODO: typeserver: recursive types containing functions
 
-%% TODO:
-%% Test on:
-%% -type a() :: 'aleaf' | b() | [{'rec',a()}] | c() | d().
-%% -type b() :: 'bleaf' | {'bnode',b(),b()}.
-%% -type c() :: [c()] | {'cnode1',a()} | {'cnode2',d()}.
-%% -type d() :: [a()].
-%% Test on:
-%% -type mylist(T) :: [] | {'cons',T,mylist(T)}
-%% -type b() :: mylist(integer()).
-%% -type a() :: 'aleaf' | mylist(a()).
-%% Test on:
-%% -type deeplist() :: [deeplist()].
-
-is_instance_test_() ->
-    [?_test(assert_is_instance(X, Type))
-     || {Type,Xs,_Target,_Ys,_TypeStr} <- types_with_data(), X <- Xs].
-
-builtin_is_instance_test_() ->
-    [?_test(begin
-		Type = assert_can_translate(proper, TypeStr),
-		lists:foreach(fun(X) -> assert_is_instance(X,Type) end, Xs)
-	    end)
-     || {_Type,Xs,_Target,_Ys,TypeStr} <- types_with_data(), TypeStr =/= none].
+simple_types_test_() ->
+    [?_test(assert_simple_type_works(TD)) || TD <- simple_types_with_data()].
 
 %% TODO: specific test-starting instances would be useful here
 %%	 (start from valid Xs)
 shrinks_to_test_() ->
     [?_shrinksTo(Target, Type)
-     || {Type,_Xs,Target,_Ys,_TypeStr} <- types_with_data()].
+     || {Type,_Xs,Target,_Ys,_TypeStr} <- simple_types_with_data()].
 
-not_is_instance_test_() ->
-    [?_assert(not proper_types:is_inst(Y, Type) andalso state_is_clean())
-     || {Type,_Xs,_Target,Ys,_TypeStr} <- types_with_data(), Y <- Ys].
+builtin_shrinks_to_test_() ->
+    [?_builtinShrinksTo(Target, TypeStr)
+     || {_Type,_Xs,Target,_Ys,TypeStr} <- simple_types_with_data(),
+	TypeStr =/= none].
 
-can_generate_test_() ->
-    [?_test(assert_can_generate(Type))
-     || {Type,_Xs,_Target,_Ys,_TypeStr} <- types_with_data()].
+cant_generate_test_() ->
+    [?_test(assert_cant_generate(Type)) || Type <- impossible_types()].
 
-builtin_can_generate_test_() ->
-    [?_test(assert_can_generate(assert_can_translate(proper,TypeStr)))
-     || {_Type,_Xs,_Target,_Ys,TypeStr} <- types_with_data(), TypeStr =/= none].
+builtin_cant_translate_test_() ->
+    [?_test(assert_cant_translate(Mod,TypeStr))
+     || {Mod,Strings} <- impossible_builtin_types(), TypeStr <- Strings].
 
 remote_builtin_types_test_() ->
     [?_test(assert_can_translate(Mod,TypeStr))
      || {Mod,Strings} <- remote_builtin_types(), TypeStr <- Strings].
 
-cant_generate_test_() ->
-    [?_test(begin
-		?assertEqual(error, proper_gen:pick(Type)),
-		?assert(state_is_clean())
-	    end)
-     || Type <- impossible_types()].
+recursive_builtin_types_test_() ->
+    [?_test(assert_builtin_can_generate(Mod,TypeStr,false))
+     || {Mod,Strings} <- recursive_builtin_types(), TypeStr <- Strings].
 
-builtin_cant_generate_test_() ->
-    [?_test(begin
-		proper_typeserver:start(),
-		Result = proper_typeserver:translate_type({Mod,TypeStr}),
-		proper_typeserver:stop(),
-		?assert(state_is_clean()),
-		?assertMatch({error,_}, Result)
-	    end)
-     || {Mod,Strings} <- impossible_builtin_types(), TypeStr <- Strings].
+recursive_builtin_cant_translate_test_() ->
+    [?_test(assert_cant_translate(Mod,TypeStr))
+     || {Mod,Strings} <- impossible_recursive_builtin_types(),
+	TypeStr <- Strings].
 
 random_functions_test_() ->
     [[?_test(assert_function_type_works(FunType)),
@@ -436,7 +461,7 @@ true_props_test_() ->
     [?_perfectRun(?FORALL(X,integer(),X < X + 1)),
      ?_perfectRun(?FORALL(X,atom(),list_to_atom(atom_to_list(X)) =:= X)),
      ?_perfectRun(?FORALL(L,list(integer()),is_sorted(L,quicksort(L)))),
-     ?_perfectRun(?FORALL_B(L,[integer()],is_sorted(L,lists:sort(L)))),
+     ?_perfectRun(?FORALL_B(L,"[integer()]",is_sorted(L,lists:sort(L)))),
      ?_perfectRun(?FORALL(L,ulist(integer()),is_sorted(L,lists:usort(L)))),
      ?_perfectRun(?FORALL(L,non_empty(list(integer())),L =/= [])),
      ?_assertRun(true, {passed,_,[]},

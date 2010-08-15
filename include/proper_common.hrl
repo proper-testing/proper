@@ -25,7 +25,7 @@
 
 -define(FORALL(X,RawType,Prop), proper:forall(RawType,fun(X) -> Prop end)).
 -define(FORALL_B(X,BuiltinType,Prop),
-	proper:forall_b(?MODULE,??BuiltinType,fun(X) -> Prop end)).
+	proper:forall_b(?MODULE,BuiltinType,fun(X) -> Prop end)).
 -define(IMPLIES(Pre,Prop), proper:implies(Pre,?DELAY(Prop))).
 -define(WHENFAIL(Action,Prop), proper:whenfail(?DELAY(Action),?DELAY(Prop))).
 -define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).

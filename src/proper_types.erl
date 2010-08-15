@@ -639,7 +639,7 @@ improper_list_update(Index, Value, List, HeadLen) ->
     end.
 
 -spec function([raw_type()] | arity(), raw_type()) -> type().
-function(Arity, RawRetType) when is_integer(Arity), Arity >= 0 ->
+function(Arity, RawRetType) when is_integer(Arity), Arity >= 0, Arity =< 256 ->
     RetType = cook_outer(RawRetType),
     ?BASIC([
 	{generator, fun() -> proper_gen:function_gen(Arity, RetType) end},

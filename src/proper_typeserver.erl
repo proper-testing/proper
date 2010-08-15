@@ -150,7 +150,16 @@ translate_type({Mod,Str} = ImmType, #state{cached = Cached} = State) ->
 		{ok,TypeForm} ->
 		    case add_module(Mod, State) of
 			{ok,NewState} ->
-			    convert(Mod, TypeForm, NewState);
+			    case convert(Mod, TypeForm, NewState) of
+				{ok,FinType,
+				 #state{cached = Cached} = FinalState} ->
+				    NewCached = dict:store(ImmType, FinType,
+							   Cached),
+				    {ok, FinType,
+				     FinalState#state{cached = NewCached}};
+				{error,_Reason} = Error ->
+				    Error
+			    end;
 			{error,_Reason} = Error ->
 			    Error
 		    end;
@@ -398,7 +407,7 @@ convert_list(Mod, NonEmpty, ElemForm, State, Stack, VarDict) ->
 			 case Len of
 			     0 -> [];
 			     %% TODO: inner type needs to be lazy?
-			     _ -> InnerType = RecFun(GenFuns,(Size-1) div Len),
+			     _ -> InnerType = RecFun(GenFuns,Size div Len),
 				  proper_types:vector(Len, InnerType)
 			 end)
 		end,
@@ -649,18 +658,22 @@ convert_rec_type(RecFun, MyPos, [], State) ->
     NumRecArgs = length(MyPos),
     M = fun(GenFun) ->
 	    fun(Size) ->
-		RecFun(lists:duplicate(NumRecArgs,GenFun), Size - 1)
+		GenFuns = lists:duplicate(NumRecArgs, GenFun),
+		RecFun(GenFuns, erlang:max(0,Size - 1))
 	    end
 	end,
     SizedGen = y(M),
-    {ok, {simple,?SIZED(Size,SizedGen(Size))}, State};
+    {ok, {simple,?SIZED(Size,SizedGen(Size + 1))}, State};
 convert_rec_type(RecFun, MyPos, OtherRecArgs, State) ->
+    NumRecArgs = length(MyPos),
     NewRecFun =
 	fun(OtherGens,TopSize) ->
 	    M = fun(GenFun) ->
 		    fun(Size) ->
-			AllGens = proper_arith:insert(GenFun, MyPos, OtherGens),
-			RecFun(AllGens, Size)
+			GenFuns = lists:duplicate(NumRecArgs, GenFun),
+			AllGens =
+			    proper_arith:insert(GenFuns, MyPos, OtherGens),
+			RecFun(AllGens, erlang:max(0,Size - 1))
 		    end
 		end,
 	    (y(M))(TopSize)
@@ -754,8 +767,8 @@ partition_by_toplevel(RecArgs, [Parent | _Upper], OnlyInstanceAccepting) ->
 -spec at_toplevel(rec_args(), stack()) -> boolean().
 at_toplevel(RecArgs, Stack) ->
     case partition_by_toplevel(RecArgs, Stack, false) of
-	{[],[],_,_} -> true;
-	_           -> false
+	{[],[],_,_} -> false;
+	_           -> true
     end.
 
 -spec partition_rec_args(full_type_ref(), rec_args(), boolean()) ->
@@ -782,32 +795,47 @@ combine_ret_types(RetTypes, EnclosingType) ->
 	    FinTypes = [T || {simple,T} <- RetTypes],
 	    {simple, Combine(FinTypes)};
 	false ->
-	    NumTypes = length(RetTypes),
+	    NumTypes = erlang:max(1, length(RetTypes)),
 	    {RevRecFuns,RevRecArgsList,NumRecs} =
 		lists:foldl(fun add_ret_type/2, {[],[],0}, RetTypes),
 	    RecFuns = lists:reverse(RevRecFuns),
 	    RecArgsList = lists:reverse(RevRecArgsList),
 	    RecArgLens = [length(RecArgs) || RecArgs <- RecArgsList],
 	    FlatRecArgs = lists:flatten(RecArgsList),
-	    {Divisor,NewRecArgs,ZipFun} =
+	    NewRecArgs =
 		case EnclosingType of
-		    tuple ->
-			{NumRecs, FlatRecArgs, fun(_W,F,A) -> F(A) end};
-		    union ->
-			{1, clean_rec_args(FlatRecArgs),
-			 fun(_W,F,A) -> ?LAZY(F(A)) end};
-		    wunion ->
-			{1, clean_rec_args(FlatRecArgs),
-			 fun(W,F,A) -> {W,?LAZY(F(A))} end}
+		    tuple  -> FlatRecArgs;
+		    union  -> clean_rec_args(FlatRecArgs);
+		    wunion -> clean_rec_args(FlatRecArgs)
 		end,
 	    NewRecFun =
-		fun(AllGenFuns,TopSize) ->
-		    GenFunsList = proper_arith:unflatten(AllGenFuns,RecArgLens),
-		    Size = TopSize div Divisor,
-		    RecWeight = Size div (NumTypes - 1) + 1,
-		    Weights = [1 | lists:duplicate(NumTypes - 1, RecWeight)],
-		    ArgsList = [[GenFuns,Size] || GenFuns <- GenFunsList],
-		    Combine(lists:zipwith3(ZipFun, Weights, RecFuns, ArgsList))
+		case EnclosingType of
+		    tuple ->
+			fun(AllGFs,TopSize) ->
+			    Size = TopSize div NumRecs,
+			    GFsList = proper_arith:unflatten(AllGFs,RecArgLens),
+			    ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
+			    ZipFun = fun(F,A) -> apply(F,A) end,
+			    Combine(lists:zipwith(ZipFun, RecFuns, ArgsList))
+			end;
+		    union ->
+			fun(AllGFs,Size) ->
+			    GFsList = proper_arith:unflatten(AllGFs,RecArgLens),
+			    ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
+			    ZipFun = fun(F,A) -> ?LAZY(apply(F,A)) end,
+			    Combine(lists:zipwith(ZipFun, RecFuns, ArgsList))
+			end;
+		    wunion ->
+			fun(AllGFs,Size) ->
+			    GFsList = proper_arith:unflatten(AllGFs,RecArgLens),
+			    ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
+			    ZipFun = fun(W,F,A) -> {W,?LAZY(apply(F,A))} end,
+			    RecWeight = Size div (NumTypes - 1) + 1,
+			    Weights =
+				[1 | lists:duplicate(NumTypes - 1, RecWeight)],
+			    Combine(lists:zipwith3(ZipFun, Weights, RecFuns,
+						    ArgsList))
+			end
 		end,
 	    {rec, NewRecFun, NewRecArgs}
     end.

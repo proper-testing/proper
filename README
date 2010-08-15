@@ -106,20 +106,10 @@ wrapping such a boolean expression with one or more of the following wrappers:
     inside the wrapped property <Prop>. When a ?FORALL wrapper is encountered, a
     random instance of <Xs_type> is produced and each variable in <Xs> is
     replaced inside <Prop> by its corresponding instance.
-?FORALL_B(<Xs>, <Xs_built-in_type>, <Prop>),
+?FORALL_B(<Xs>, <Xs_built-in_type_in_a_string>, <Prop>),
     Equivalent to a normal ?FORALL, but the type of <Xs> is provided using the
-    built-in type language of Erlang. Both module-local and remote types may be
-    referenced inside <Xs_built-in_type>. The module containing the ?FORALL_B
-    declaration and any modules referenced (directly or indirectly) inside
-    <Xs_built-in_type> must have been compiled with debug_info enabled and must
-    be in the codepath.
-    WARNING: Certain type-declaration constructs, such as functions, the '|'
-    symbol and binaries with specified base and/or unit sizes, cannot be used
-    inside the <Xs_built-in_type> field, since they are rejected by the Erlang
-    parser. To make use of such constructs, write your declaration in a type
-    attribute and use the new type in the ?FORALL_B.
-    WARNING: Due to the behaviour of erl_types,the actual returned type can
-    sometimes be broader than requested.
+    built-in type language of Erlang. See the 'Reading built-in types' section
+    for more details.
 ?IMPLIES(<Precondition>, <Prop>)
     This wrapper only makes sense when in the scope of at least one ?FORALL. The
     <Precondition> field must be a boolean expression or a statement block that
@@ -527,6 +517,51 @@ resize(<New_size>, <Type>)
     grow faster or slower, like so:
       ?SIZED(Size, resize(Size * 2, list(integer()))
     The above specifies a list type that grows twice as fast as normal lists.
+
+
+--------------------------------------------------------------------------------
+Reading built-in types
+--------------------------------------------------------------------------------
+
+PropEr can parse types expressed in Erlang's built-in type format and convert
+them to its native type format. Such expressions can be provided in string form
+as the second argument of a ?FORALL_B macro, in place of the PropEr type-style
+argument of normal ?FORALLs, and are subject to the following usage rules:
+
+* They may contain any Erlang type construct, such as '[...]', '{...}' or '|'.
+* They may reference types declared in -type attributes, so long as these types
+  are exported from their respective modules, or they are declared in the same
+  module as the ?FORALL_B macro which contains the type expression.
+* They may contain references to self-recursive or mutually recursive types, as
+  long as each type in the hierarchy has a clear base case. Currently, PropEr
+  requires that the toplevel of any recursive type declaration is either a
+  (maybe empty) list or a union containing at least one choice that doesn't
+  reference the type (it may, however, reference any of the types that are
+  mutually recursive with this one). This means, for example, that some valid
+  recursive type declarations, such as this one:
+    ?FORALL_B(..., "a()", ...) where:
+    -type a() :: {'a','none' | a()}.
+  are not accepted by PropEr. However, such types can be rewritten in a way that
+  allows PropEr to parse them:
+    ?FORALL_B(..., "a()", ...) where:
+    -type a() :: {'a','none'} | {'a',a()}.
+  This also means that recursive record declarations are not allowed:
+    ?FORALL_B(..., "#rec{}", ...) where:
+    -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
+  A little rewritting can usually remedy this problem as well:
+    ?FORALL_B(..., "rec()", ...) where:
+    -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
+    -type rec() :: #rec{b :: 'nil'} | #rec{b :: rec()}.
+* For a ?FORALL_B macro to function properly, both the module that contains it,
+  as well as any module that contains the declaration of a type referenced
+  (directly or indirectly) from inside the type expression of the ?FORALL_B
+  must have been compiled with debug_info enabled and must be present in the
+  codepath at the time of testing.
+* Parametric types are fully supported. Of course, they can only appear
+  instantiated inside the type expression of a ?FORALL_B.
+* Inline record-field type declarations that reference non-existent field and
+  type variables that are not present in the RHS of a -type declaration are
+  silently ignored.
 
 
 --------------------------------------------------------------------------------
