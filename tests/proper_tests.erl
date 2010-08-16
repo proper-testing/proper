@@ -52,6 +52,15 @@
 		   ?assert(state_is_clean())
 		end)).
 
+-define(_assertReRun(ExpShortResult, Test, CExm, Opts),
+	?_test(begin
+		   ?assertEqual(ExpShortResult, proper:check(Test,CExm,Opts)),
+		   ?assert(state_is_clean())
+		end)).
+
+cexm(FailReason, Bound) ->
+    {cexm, FailReason, Bound, 10, {undefined,undefined}}.
+
 state_is_clean() ->
     get() =:= []
     andalso [] =:= [Proc || Proc <- registered(),
@@ -103,6 +112,9 @@ assertEqualsOneOf(X, List) ->
 		   CExm1 = proper:get_counterexample(),
 		   ?assert(CExm1 =/= undefined),
 		   proper:clean_garbage(),
+		   ?assert(state_is_clean()),
+		   ?assertEqual(exp_short_result(Opts),
+				proper:check(Test, CExm1, Opts)),
 		   ?assert(state_is_clean()),
 		   case proper:check(Test, [long_result | Opts]) of
 		       {failed,_,CExm2,_,CExm3} ->
@@ -183,8 +195,6 @@ assert_cant_generate(Type) ->
 assert_not_is_instance(X, Type) ->
     ?assert(not proper_types:is_inst(X, Type) andalso state_is_clean()).
 
-%% TODO: Use retesting of counterexample here, instead of using private
-%%	 functions to reset the state.
 assert_function_type_works(FunType) ->
     {ok,F} = proper_gen:pick(FunType),
     ?assert(proper_types:is_instance(F, FunType)),
@@ -563,7 +573,18 @@ error_props_test_() ->
 		 ?FORALL({X,Y}, [integer(),integer()], X < Y), []),
      {setup, fun() -> ok end, fun(_) -> proper:global_state_erase() end,
       ?_assertError(function_clause,
-		    proper:check(?FORALL(_,1,lists:min([]) > 0)))}].
+		    proper:check(?FORALL(_,1,lists:min([]) > 0)))},
+     ?_assertReRun({error,wrong_type}, ?FORALL(X,pos_integer(),X < 0),
+		   cexm(false_prop,[1.2]), []),
+     ?_assertReRun({error,rejected}, ?FORALL(X,integer(),?IMPLIES(X > 5,X < 6)),
+		   cexm(false_prop,[2]), []),
+     ?_assertReRun({error,too_many_instances}, ?FORALL(X,pos_integer(),X < 0),
+		   cexm(false_prop,[1,ab]), []),
+     ?_assertReRun({error,too_few_instances}, ?FORALL(X,pos_integer(),X < 0),
+		   cexm(false_prop,[]), []),
+     ?_assertReRun({error,too_few_instances},
+		   ?FORALL(X,pos_integer(),?FORALL(Y,pos_integer(),X*Y =< 0)),
+		   cexm(false_prop,[42]), [])].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))

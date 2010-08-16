@@ -22,7 +22,7 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([check/1, check/2]).
+-export([check/1, check/2, check/3]).
 -export([numtests/2, fails/1, on_output/2]).
 -export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
 	 with_title/1, equals/2]).
@@ -36,6 +36,13 @@
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
 
 -include("proper_internal.hrl").
+
+
+%%------------------------------------------------------------------------------
+%% Macros
+%%------------------------------------------------------------------------------
+
+-define(MISMATCH_MSG, "Error: the input doesn't correspond to this property: ").
 
 
 %%------------------------------------------------------------------------------
@@ -146,13 +153,16 @@
 -type exc_kind() :: 'throw' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
--type single_run_error_reason() :: 'wrong_type' | 'cant_generate' | 'rejected'
-				 | 'type_mismatch' | 'too_many_instances'
-				 | {'typeserver',term()}.
+-type common_error_reason() :: 'cant_generate' | 'type_mismatch'
+			     | {'typeserver',term()}.
+-type single_run_error_reason() :: common_error_reason() | 'wrong_type'
+				 | 'rejected' | 'too_many_instances'.
+
+-type rerun_result() :: boolean() | {'error', rerun_error_reason()}.
+-type rerun_error_reason() :: single_run_error_reason() | 'too_few_instances'.
 
 -type error_result() :: {'error', error_reason()}.
--type error_reason() :: 'cant_generate' | 'cant_satisfy' | 'type_mismatch'
-		      | {'typeserver',term()}
+-type error_reason() :: common_error_reason() | 'cant_satisfy'
 		      | {'unexpected', single_run_result()}.
 -type imm_result() :: error_result()
 		    | {'passed', pos_integer(), [sample()], [stats_printer()]}
@@ -211,6 +221,13 @@ global_state_init(#opts{start_size = Size, constraint_tries = CTries,
     proper_typeserver:start(),
     ok.
 
+-spec global_state_restore(counterexample(), opts()) -> 'ok'.
+global_state_restore(#cexm{size = Size, gen_state = GenState}, Opts) ->
+    global_state_init(Opts),
+    put('$size', Size),
+    proper_gen:gen_state_set(GenState),
+    ok.
+
 -spec global_state_erase() -> 'ok'.
 global_state_erase() ->
     proper_gen:gen_state_erase(),
@@ -244,8 +261,28 @@ get_bound(#cexm{bound = ImmTestCase}) ->
 
 
 %%------------------------------------------------------------------------------
-%% Options support
+%% Outwards interface functions
 %%------------------------------------------------------------------------------
+
+-spec check(outer_test()) -> long_result() | short_result().
+check(OuterTest) ->
+    check(OuterTest, []).
+
+-spec check(outer_test(), [user_opt()] | user_opt() | counterexample()) ->
+	  long_result() | short_result() | rerun_result().
+check(OuterTest, #cexm{} = CExm) ->
+    check(OuterTest, CExm, []);
+check(OuterTest, UserOpts) ->
+    ImmOpts = parse_opts(UserOpts),
+    {Test,Opts} = peel_test(OuterTest, ImmOpts),
+    test(Test, Opts).
+
+-spec check(outer_test(), counterexample(), [user_opt()] | user_opt()) ->
+	  rerun_result().
+check(OuterTest, CExm, UserOpts) ->
+    ImmOpts = parse_opts(UserOpts),
+    {Test,Opts} = peel_test(OuterTest, ImmOpts),
+    retest(Test, CExm, Opts).
 
 -spec parse_opts([user_opt()] | user_opt()) -> opts().
 parse_opts(OptsList) ->
@@ -280,6 +317,16 @@ parse_opt(UserOpt, Opts) ->
 	fails                        -> Opts#opts{expect_fail = true};
 	_                            -> Opts
     end.
+
+-spec peel_test(outer_test(), opts()) -> {test(),opts()}.
+peel_test({numtests,N,OuterTest}, Opts) ->
+    peel_test(OuterTest, Opts#opts{numtests = N});
+peel_test({fails,OuterTest}, Opts) ->
+    peel_test(OuterTest, Opts#opts{expect_fail = true});
+peel_test({on_output,Print,OuterTest}, Opts) ->
+    peel_test(OuterTest, Opts#opts{output_fun = Print});
+peel_test(Test, Opts) ->
+    {Test, Opts}.
 
 
 %%------------------------------------------------------------------------------
@@ -350,26 +397,12 @@ equals(A, B) ->
 
 
 %%------------------------------------------------------------------------------
-%% Main usage functions
+%% Main testing functions
 %%------------------------------------------------------------------------------
 
--spec check(outer_test()) -> long_result() | short_result().
-check(Test) ->
-    check(Test, #opts{}).
-
-%% We only allow a 'fails' to be an external wrapper, since the property
-%% wrapped by a 'fails' is not delayed, and thus a failure-inducing exception
-%% will cause the test to fail before the 'fails' is processed.
--spec check(outer_test(), opts() | [user_opt()] | user_opt()) ->
-	  long_result() | short_result().
-check({numtests,N,Test}, #opts{} = Opts) ->
-    check(Test, Opts#opts{numtests = N});
-check({fails,Test}, #opts{} = Opts) ->
-    check(Test, Opts#opts{expect_fail = true});
-check({on_output,Print,Test}, #opts{} = Opts) ->
-    check(Test, Opts#opts{output_fun = Print});
-check(Test, #opts{numtests = NumTests, output_fun = Print,
-		  long_result = ReturnLong} = Opts) ->
+-spec test(test(), opts()) -> long_result() | short_result().
+test(Test, #opts{numtests = NumTests, output_fun = Print,
+		 long_result = ReturnLong} = Opts) ->
     global_state_init(Opts),
     ImmResult = perform(NumTests, Test, Print),
     Print("~n", []),
@@ -380,9 +413,15 @@ check(Test, #opts{numtests = NumTests, output_fun = Print,
     case ReturnLong of
 	true  -> LongResult;
 	false -> ShortResult
-    end;
-check(Test, UserOpts) ->
-    check(Test, parse_opts(UserOpts)).
+    end.
+
+-spec retest(test(), counterexample(), opts()) -> rerun_result().
+retest(Test, #cexm{bound = ImmTestCase} = CExm, Opts) ->
+    global_state_restore(CExm, Opts),
+    SingleRunResult = rerun(Test, ImmTestCase),
+    RerunResult = get_rerun_result(SingleRunResult, CExm, Opts),
+    global_state_erase(),
+    RerunResult.
 
 -spec get_short_result(imm_result(), opts()) -> short_result().
 get_short_result({passed,_Passed,_Samples,_Printers}, Opts) ->
@@ -403,8 +442,7 @@ get_long_result({failed,Performed,CExm,_Actions}, Test,
     StrTest = skip_to_next(Test),
     {Shrinks, MinImmTestCase} =
 	proper_shrink:shrink(ImmTestCase, StrTest, Reason, MaxShrinks, Print),
-    Ctx = #ctx{try_shrunk = true, to_try = MinImmTestCase},
-    {failed, MinCExm, MinActions} = run(Test, Ctx),
+    {failed, MinCExm, MinActions} = rerun(Test, MinImmTestCase),
     report_shrinking(Shrinks, MinImmTestCase, MinActions, Print),
     save_counterexample(MinCExm),
     {failed, Performed, CExm, Shrinks, MinCExm};
@@ -468,6 +506,11 @@ add_samples(MoreSamples, Samples) ->
 -spec run(test()) -> single_run_result().
 run(Test) ->
     run(Test, #ctx{}).
+
+-spec rerun(test(), imm_testcase()) -> single_run_result().
+rerun(Test, ImmTestCase) ->
+    Ctx = #ctx{try_shrunk = true, to_try = ImmTestCase},
+    run(Test, Ctx).
 
 -spec run(test(), ctx()) -> single_run_result().
 run(true, #ctx{to_try = [], samples = Samples, printers = Printers}) ->
@@ -700,43 +743,111 @@ report_imm_result({passed,Passed,Samples,Printers},
     ok;
 report_imm_result({failed,Performed,_CExm,_Actions},
 		  #opts{expect_fail = true, output_fun = Print}) ->
-    Print("OK, failed as expected, after ~b tests.~n", [Performed]);
+    Print("OK, failed as expected, after ~b tests.~n", [Performed]),
+    ok;
 report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
 		   Actions},
 		  #opts{expect_fail = false, output_fun = Print}) ->
-    Print("Failed, after ~b tests.~n", [Performed]),
-    case Reason of
-	false_prop ->
-	    ok;
-	time_out ->
-	    Print("Reason: timeout.~n", []);
-	{exception,ExcKind,ExcReason,_StackTrace} ->
-	    %% TODO: print stacktrace too?
-	    Print("Reason: ~w:~w.~n", [ExcKind,ExcReason])
-    end,
+    Print("Failed, after ~b tests.~nReason: ", [Performed]),
+    report_fail_reason(Reason, Print, false),
     print_bound(Bound, Print),
     execute_actions(Actions),
     ok;
 report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
-    case Reason of
-	cant_generate ->
-	    Print("Error: couldn't produce an instance that satisfies all "
-		  "strict constraints after ~b tries~n",
-		  [get('$constraint_tries')]);
-	cant_satisfy ->
-	    Print("Error: no valid test could be generated.~n", []);
-	type_mismatch ->
-	    Print("Error: the variables' and types' structures inside a "
-		  "?FORALL don't match.~n", []);
-	{typeserver,SubReason} ->
-	    Print("Error: couldn't translate a built-in type.~nThe typeserver "
-		  "responded: ~w~n", [SubReason]);
-	{unexpected,Unexpected} ->
-	    Print("Internal error: the last run returned an unexpected result:"
-		  "~n~w~nPlease notify the maintainers about this error~n",
-		  [Unexpected])
-    end,
+    report_error(Reason, Print),
     ok.
+
+-spec get_rerun_result(single_run_result(), counterexample(), opts()) ->
+	  rerun_result().
+get_rerun_result({passed,true_prop,_Samples,_Printers}, _CExm,
+		 #opts{expect_fail = ExpectF, output_fun = Print}) ->
+    Print("The input passed the test.~n", []),
+    not ExpectF;
+get_rerun_result({passed,didnt_crash,_Samples,_Printers},
+		 #cexm{fail_reason = Reason},
+		 #opts{expect_fail = ExpectF, output_fun = Print}) ->
+    case Reason of
+	{exception,_ExcKind,_ExcReason,_StackTrace} ->
+	    Print("The input didn't raise an early exception.~n", []),
+	    not ExpectF;
+	_ ->
+	    report_error(too_few_instances, Print),
+	    {error, too_few_instances}
+    end;
+get_rerun_result({failed,#cexm{fail_reason = NewReason},Actions},
+		 #cexm{fail_reason = OldReason},
+		 #opts{expect_fail = ExpectF, output_fun = Print}) ->
+    Print("The input still fails the test", []),
+    case same_fail_reason(OldReason, NewReason) of
+	true  -> Print(".~n", []);
+	false -> Print(", but for a different reason:~n", []),
+		 report_fail_reason(NewReason, Print, true)
+    end,
+    execute_actions(Actions),
+    ExpectF;
+get_rerun_result({error,Reason} = Error, _CExm, #opts{output_fun = Print}) ->
+    report_error(Reason, Print),
+    Error.
+
+-spec report_error(rerun_error_reason() | error_reason(), output_fun()) -> 'ok'.
+report_error(cant_generate, Print) ->
+    Print("Error: couldn't produce an instance that satisfies all strict "
+	  "constraints after ~b tries.~n", [get('$constraint_tries')]);
+report_error(type_mismatch, Print) ->
+    Print("Error: the variables' and types' structures inside a ?FORALL don't "
+	  "match.~n", []);
+report_error({typeserver,SubReason}, Print) ->
+    Print("Error: couldn't translate a built-in type.~nThe typeserver "
+	  "responded: ~w~n", [SubReason]);
+report_error(wrong_type, Print) ->
+    Print(?MISMATCH_MSG ++ "the instances don't match the types.~n", []);
+report_error(rejected, Print) ->
+    Print(?MISMATCH_MSG ++ "it failed an ?IMPLIES check.~n", []);
+report_error(too_many_instances, Print) ->
+    Print(?MISMATCH_MSG ++ "it's too long.~n", []); %% that's what she said
+report_error(too_few_instances, Print) ->
+    Print(?MISMATCH_MSG ++ "it's too short.~n", []);
+report_error(cant_satisfy, Print) ->
+    Print("Error: no valid test could be generated.~n", []);
+report_error({unexpected,Unexpected}, Print) ->
+    Print("Internal error: the last run returned an unexpected result:~n~w~n"
+	  "Please notify the maintainers about this error~n", [Unexpected]).
+
+-spec report_fail_reason(fail_reason(), output_fun(), boolean()) -> 'ok'.
+report_fail_reason(false_prop, _Print, false) ->
+    ok;
+report_fail_reason(false_prop, Print, true) ->
+    Print("The property was falsified.~n", []);
+report_fail_reason(time_out, Print, _ReportFalseProp) ->
+    Print("Test execution timed out.~n", []);
+report_fail_reason({exception,ExcKind,ExcReason,_StackTrace}, Print,
+		   _ReportFalseProp) ->
+    %% TODO: print stacktrace too?
+    Print("An exception was raised: ~w:~w.~n", [ExcKind,ExcReason]).
+
+-spec print_bound(imm_testcase(), output_fun()) -> 'ok'.
+print_bound(ImmInstances, Print) ->
+    Instances = clean_testcase(ImmInstances),
+    lists:foreach(fun(I) -> Print("~w~n", [I]) end, Instances),
+    ok.
+
+-spec execute_actions(fail_actions()) -> 'ok'.
+execute_actions(Actions) ->
+    lists:foreach(fun(A) -> ?FORCE(A) end, Actions),
+    ok.
+
+-spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
+		       output_fun()) -> 'ok'.
+report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
+    Print("(~b times)~n", [Shrinks]),
+    print_bound(MinImmTestCase, Print),
+    execute_actions(MinActions),
+    ok.
+
+
+%%------------------------------------------------------------------------------
+%% Stats printing functions
+%%------------------------------------------------------------------------------
 
 -spec apply_stats_printer(stats_printer(), sample(), pos_integer(),
 			  output_fun()) -> 'ok'.
@@ -812,22 +923,3 @@ avg_and_last([Last], Sum, Len) ->
     {(Sum + Last) / (Len + 1), Last};
 avg_and_last([X | Rest], Sum, Len) ->
     avg_and_last(Rest, Sum + X, Len + 1).
-
--spec print_bound(imm_testcase(), output_fun()) -> 'ok'.
-print_bound(ImmInstances, Print) ->
-    Instances = clean_testcase(ImmInstances),
-    lists:foreach(fun(I) -> Print("~w~n", [I]) end, Instances),
-    ok.
-
--spec execute_actions(fail_actions()) -> 'ok'.
-execute_actions(Actions) ->
-    lists:foreach(fun(A) -> ?FORCE(A) end, Actions),
-    ok.
-
--spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
-		       output_fun()) -> 'ok'.
-report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
-    Print("(~b times)~n", [Shrinks]),
-    print_bound(MinImmTestCase, Print),
-    execute_actions(MinActions),
-    ok.

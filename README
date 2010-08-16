@@ -33,6 +33,8 @@ Quickstart guide
   test.
 * For each property, run:
      proper:check(your_module:some_property()).
+       or
+     proper:check(your_module:some_property(), <option/options>).
   You can also try out the random instance generation subsystem by running:
      proper_gen:pick(some_type()).
        or
@@ -242,6 +244,20 @@ dictionary even after proper:check has returned. To completely clean up the
 process dictionary of PropEr-produced entries, run proper:clean_garbage().
 Counterexamples can also be retrieved by running PropEr in long-result mode, in
 which case counterexamples are also returned as part of the return tuple.
+
+You can re-check a specific counterexample <CExm> against the property <Prop>
+that it previously falsified by running:
+   proper:check(<Prop>, <CExm>)
+     or
+   proper:check(<Prop>, <CExm>, <option/options>)
+This will return one of the following:
+  * 'true': The property now holds for this test case.
+  * 'false': The test case still fails (although not necessarily for the same
+    reason as before).
+  * {'error', <Type_of_error>}: An error occured - see the 'Errors' section for
+    a description of possible errors.
+Unless silent mode is active, PropEr will also print a message on screen,
+describing the result of the re-checking.
 
 Apart from the actual produced instances of the types in ?FORALL wrappers, a
 counterexample contains some additional information that PropEr needs in order
@@ -582,19 +598,30 @@ occurs. Normaly, a message is also printed on screen describing the error.
 * 'cant_generate': The instance generation subsystem has failed to produce an
   instance that satisfies some ?SUCHTHAT constraint. You should either increase
   the 'constraint_tries' limit, loosen the failing constraint, or make it
-  non-strict.
+  non-strict. This error should only be encountered during normal operation.
 * 'cant_satisfy': All the tests were rejected because no produced test case
   would pass all ?IMPLIES checks. You should loosen the failing ?IMPLIES
-  constraint(s).
+  constraint(s). This error should only be encountered during normal operation.
 * 'type_mismatch': The variables' and types' structures inside a ?FORALL don't
   match. Please check your properties.
 * {'typeserver', <SubError>}: The typeserver couldn't process a built-in type
   inside a ?FORALL_B. The <SubError> field contains specific information
   regarding the error.
-* {'unexpected', <Result>}: A test returned an unexpected result. If you ever
-  get this error, it means that you have found a bug in PropEr - please send an
-  error report to the maintainers and remember to include both the failing test
-  case and the output of the program, if possible.
+* {'unexpected', <Result>}: A test returned an unexpected result during normal
+  operation. If you ever get this error, it means that you have found a bug in
+  PropEr - please send an error report to the maintainers and remember to
+  include both the failing test case and the output of the program, if possible.
+* 'wrong_type': Only encountered during re-checking, the counterexample does not
+  match the property, since the instances in the counterexample and the types in
+  the property don't match.
+* 'rejected': Only encountered during re-checking, the counterexample does not
+  match the property, since the counterexample doesn't pass an ?IMPLIES check.
+* 'too_many_instances': Only encountered during re-checking, the counterexample
+  does not match the property, since the counterexample contains more instances
+  than there are ?FORALLs in the property.
+* 'too_few_instances': Only encountered during re-checking, the counterexample
+  does not match the property, since the counterexample contains fewer instances
+  than there are ?FORALLs in the property.
 
 
 --------------------------------------------------------------------------------

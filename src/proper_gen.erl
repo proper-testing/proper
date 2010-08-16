@@ -67,7 +67,7 @@
 -type alt_gens() :: fun(() -> [imm_instance()]).
 -type fun_num() :: pos_integer().
 
--opaque gen_state() :: {[abs_form()] | 'undefined',fun_num()}.
+-opaque gen_state() :: {[abs_form()] | 'undefined',fun_num() | 'undefined'}.
 
 
 %%------------------------------------------------------------------------------
