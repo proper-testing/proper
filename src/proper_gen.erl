@@ -128,12 +128,15 @@ load_forms() ->
 %% Instance generation functions
 %%------------------------------------------------------------------------------
 
--spec safe_generate(proper_types:raw_type()) -> {'ok',imm_instance()} | 'error'.
+-spec safe_generate(proper_types:raw_type()) ->
+	  {'ok',imm_instance()}
+	| {'error','cant_generate' | {'typeserver',term()}}.
 safe_generate(RawType) ->
     try generate(RawType) of
-	ImmInstance -> {ok,ImmInstance}
+	ImmInstance -> {ok, ImmInstance}
     catch
-	throw:'$cant_generate' -> error
+	throw:'$cant_generate'          -> {error, cant_generate};
+	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
     end.
 
 -spec generate(proper_types:raw_type()) -> imm_instance().
@@ -187,14 +190,8 @@ pick(RawType) ->
 -spec pick(proper_types:raw_type(), size()) -> {'ok',instance()} | 'error'.
 pick(RawType, Size) ->
     proper:global_state_init_size(Size),
-    Result = clean_instance(safe_generate(RawType)),
-    case Result of
-	error ->
-	    Msg = "Error: couldn't produce an instance that satisfies all "
-		  "strict constraints after ~b tries~n",
-	    io:format(Msg, [get('$constraint_tries')]),
-	    proper:global_state_erase();
-	{ok,Instance} ->
+    case clean_instance(safe_generate(RawType)) of
+	{ok,Instance} = Result ->
 	    Msg = "WARNING: Some garbage has been left in the process registry "
 		  "and the code server to allow for the returned function(s) "
 		  "to run normally.~n"
@@ -202,9 +199,13 @@ pick(RawType, Size) ->
 	    case contains_fun(Instance) of
 		true  -> io:format(Msg, []);
 		false -> proper:global_state_erase()
-	    end
-    end,
-    Result.
+	    end,
+	    Result;
+	{error,Reason} ->
+	    proper:report_error(Reason, fun io:format/2),
+	    proper:global_state_erase(),
+	    error
+    end.
 
 -spec contains_fun(term()) -> boolean().
 %% TODO: if improper lists are ever returned, this should cover them too.

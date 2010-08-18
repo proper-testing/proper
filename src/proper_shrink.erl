@@ -175,6 +175,9 @@ get_shrinkers(Type) ->
 %% Wrapper type shrinkers
 %%------------------------------------------------------------------------------
 
+%% Since shrinking only happens for generated values, any built-in types have
+%% already been produced by the typeserver, thus we are sure we won't get a
+%% typeserver exception.
 -spec alternate_shrinker(proper_gen:imm_instance(), proper_types:type(),
 			 state()) -> {[proper_gen:imm_instance()],state()}.
 %% we stop at the smaller alternative shrinker
@@ -244,6 +247,8 @@ try_combine(ImmParts, OldImmInstance, Combine) ->
 	    InnerType = proper_types:cook_outer(ImmInstance),
 	    %% TODO: special case if the immediately internal is a LET?
 	    %% TODO: more specialized is_instance check here?
+	    %% This should never throw an exception, since built-ins are not
+	    %% allowed in ?LETs
 	    case proper_types:is_instance(OldImmInstance, InnerType) of
 		true ->
 		    {ok,{'$used',ImmParts,OldImmInstance}};
@@ -252,7 +257,7 @@ try_combine(ImmParts, OldImmInstance, Combine) ->
 		    case proper_gen:safe_generate(InnerType) of
 			{ok,NewImmInstance} ->
 			    {ok,{'$used',ImmParts,NewImmInstance}};
-			error ->
+			{error,_Reason} ->
 			    error
 		    end
 	    end;
@@ -554,5 +559,7 @@ union_recursive_shrinker(Instance, Choices,
 			     [proper_types:type()]) ->
 	  {position(),proper_types:type()} | 'none'.
 first_plausible_choice(Instance, Choices) ->
+    %% This should never throw an exception, provided the instance has already
+    %% been instance-checked.
     IsInstance = fun(Type) -> proper_types:is_instance(Instance, Type) end,
     proper_arith:find_first(IsInstance, Choices).

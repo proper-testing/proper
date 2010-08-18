@@ -29,7 +29,7 @@
 -export([global_state_erase/0, get_counterexample/0, clean_garbage/0,
 	 get_fail_reason/1, get_bound/1]).
 
--export([get_size/1, global_state_init_size/1]).
+-export([get_size/1, global_state_init_size/1, report_error/2]).
 -export([forall/2, forall_b/3, implies/2, whenfail/2, trapexit/1, timeout/2]).
 -export([still_fails/4, force_skip/2]).
 
@@ -527,7 +527,7 @@ run({forall,RawType,Prop},
 	{true, []} ->
 	    {passed, didnt_crash, [], []};
 	{true, [ImmInstance | Rest]} ->
-	    case proper_types:is_instance(ImmInstance, RawType) of
+	    case proper_types:safe_is_instance(ImmInstance, RawType) of
 		true ->
 		    Instance = proper_gen:clean_instance(ImmInstance),
 		    NewCtx = Ctx#ctx{to_try = Rest,
@@ -535,7 +535,9 @@ run({forall,RawType,Prop},
 		    force(Instance, Prop, NewCtx);
 		false ->
 		    %% TODO: could try to fix the instances here
-		    {error, wrong_type}
+		    {error, wrong_type};
+		{error,_Reason} = Error ->
+		    Error
 	    end;
 	{false, []} ->
 	    case proper_gen:safe_generate(RawType) of
@@ -543,8 +545,8 @@ run({forall,RawType,Prop},
 		    Instance = proper_gen:clean_instance(ImmInstance),
 		    NewCtx = Ctx#ctx{bound = [ImmInstance | Bound]},
 		    force(Instance, Prop, NewCtx);
-		error ->
-		    {error, cant_generate}
+		{error,_Reason} = Error ->
+		    Error
 	    end
     end;
 run({forall_b,ImmType,Prop}, Ctx) ->
@@ -609,6 +611,7 @@ apply_args(Args, Prop, Ctx) ->
 	    end;
 	throw:'$cant_generate' ->
 	    {error, cant_generate};
+	%% TODO: Do we need to guard against typeserver exceptions too?
 	throw:ExcReason ->
 	    create_failed_result(Ctx, {exception,throw,ExcReason,
 				       erlang:get_stacktrace()});

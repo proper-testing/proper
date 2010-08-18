@@ -197,6 +197,7 @@ assert_not_is_instance(X, Type) ->
 
 assert_function_type_works(FunType) ->
     {ok,F} = proper_gen:pick(FunType),
+    %% TODO: this isn't exception-safe
     ?assert(proper_types:is_instance(F, FunType)),
     Results1 = assert_is_pure_function(F),
     GenState = proper_gen:gen_state_get(),
@@ -428,6 +429,9 @@ undefined_symb_calls() ->
 %%	 even with no caching (no_caching option?)
 %% TODO: typeserver: recursive types containing functions
 %% TODO: typeserver: adding a module: to a type doesn't make it separate
+%% TODO: check all sorts of mixing proper and built-in types
+%% TODO: check retesting,is_instance,picking with a valid and an invalid
+%%	 built-in type
 
 simple_types_test_() ->
     [?_test(assert_simple_type_works(TD)) || TD <- simple_types_with_data()].

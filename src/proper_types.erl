@@ -37,8 +37,8 @@
 -export([resize/2, non_empty/1, noshrink/1]).
 
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, get_prop/2,
-	 find_prop/2, new_type/2, subtype/2, is_instance/2, unwrap/1, weakly/1,
-	 strongly/1, satisfies_all/2]).
+	 find_prop/2, new_type/2, subtype/2, safe_is_instance/2, is_instance/2,
+	 unwrap/1, weakly/1, strongly/1, satisfies_all/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3]).
 
 -export_type([type/0, raw_type/0]).
@@ -222,16 +222,27 @@ new_type(PropList, Kind) ->
 subtype(PropList, Type) ->
     add_props(PropList, Type).
 
--spec is_inst(proper_gen:instance(), raw_type()) -> boolean().
+-spec is_inst(proper_gen:instance(), raw_type()) ->
+	  boolean() | {'error',{'typeserver',term()}}.
 is_inst(Instance, RawType) ->
     is_inst(Instance, RawType, 10).
 
--spec is_inst(proper_gen:instance(), raw_type(), size()) -> boolean().
+-spec is_inst(proper_gen:instance(), raw_type(), size()) ->
+	  boolean() | {'error',{'typeserver',term()}}.
 is_inst(Instance, RawType, Size) ->
     proper:global_state_init_size(Size),
-    Result = is_instance(Instance, RawType),
+    Result = safe_is_instance(Instance, RawType),
     proper:global_state_erase(),
     Result.
+
+-spec safe_is_instance(proper_gen:imm_instance(), raw_type()) ->
+	  boolean() | {'error',{'typeserver',term()}}.
+safe_is_instance(ImmInstance, RawType) ->
+    try is_instance(ImmInstance, RawType) of
+	Result -> Result
+    catch
+	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
+    end.
 
 -spec is_instance(proper_gen:imm_instance(), raw_type()) -> boolean().
 %% TODO: If the second argument is not a type, let it pass (don't even check for
