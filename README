@@ -186,7 +186,7 @@ on_output(<Output_function>, <Prop>)
     section for details).
 
 Note that failure of a property may also be signified by throwing an exception
-(but not an error).
+or an error.
 
 For some actual usage examples, see the code in the examples directory. The
 testing modules in the tests directory may also be of interest.

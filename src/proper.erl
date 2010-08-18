@@ -58,8 +58,8 @@
 -type output_fun() :: fun((string(), [term()]) -> 'ok').
 -type title() :: atom() | string().
 -type stats_printer() :: fun((sample()) -> 'ok')
-		       | fun((sample(), pos_integer(), output_fun()) -> 'ok')
-		       | fun((sample(), pos_integer()) -> 'ok').
+		       | fun((sample(), pos_integer()) -> 'ok')
+		       | fun((sample(), pos_integer(), output_fun()) -> 'ok').
 -type numeric_stat() :: number() | 'undefined'.
 -type numeric_stats() :: {numeric_stat(),numeric_stat(),numeric_stat()}.
 -type time_period() :: non_neg_integer().
@@ -150,7 +150,7 @@
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
 -opaque fail_reason() :: 'false_prop' | 'time_out'
 		       | {'exception',exc_kind(),exc_reason(),stacktrace()}.
--type exc_kind() :: 'throw' | 'exit'.
+-type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
 -type common_error_reason() :: 'cant_generate' | 'type_mismatch'
@@ -598,20 +598,22 @@ apply_args(Args, Prop, Ctx) ->
 	InnerProp ->
 	    run(InnerProp, Ctx)
     catch
-	error:function_clause ->
+	%% TODO: remove our functions from the stacktrace
+	error:ErrReason ->
 	    Trace = erlang:get_stacktrace(),
-	    case threw_exception(Prop, Trace) of
+	    case ErrReason =:= function_clause
+		 andalso threw_exception(Prop, Trace) of
 		true  -> {error, type_mismatch};
-		false -> erlang:raise(error, function_clause, Trace)
+		false -> create_failed_result(Ctx, {exception,error,ErrReason,
+						    Trace})
 	    end;
 	throw:'$cant_generate' ->
 	    {error, cant_generate};
-	%% TODO: remove our functions from the stacktrace
 	throw:ExcReason ->
-	    create_failed_result(Ctx, {exception, throw, ExcReason,
+	    create_failed_result(Ctx, {exception,throw,ExcReason,
 				       erlang:get_stacktrace()});
-	exit:ExcReason when Ctx#ctx.catch_exits ->
-	    create_failed_result(Ctx, {exception, exit, ExcReason,
+	exit:ExitReason when Ctx#ctx.catch_exits ->
+	    create_failed_result(Ctx, {exception,exit,ExitReason,
 				       erlang:get_stacktrace()})
     end.
 

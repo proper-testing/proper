@@ -46,7 +46,6 @@
 %% Main shrinking functions
 %%------------------------------------------------------------------------------
 
-
 -spec shrink(proper:imm_testcase(), proper:stripped_test(),
 	     proper:fail_reason(), non_neg_integer(), proper:output_fun()) ->
     {non_neg_integer(),proper:imm_testcase()}.

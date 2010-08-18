@@ -427,6 +427,7 @@ undefined_symb_calls() ->
 %% TODO: typeserver: check that the same type is returned for consecutive calls,
 %%	 even with no caching (no_caching option?)
 %% TODO: typeserver: recursive types containing functions
+%% TODO: typeserver: adding a module: to a type doesn't make it separate
 
 simple_types_test_() ->
     [?_test(assert_simple_type_works(TD)) || TD <- simple_types_with_data()].
@@ -527,6 +528,8 @@ false_props_test_() ->
 			     true  -> throw(not_zero);
 			     false -> true
 			 end)),
+     ?_failsWithReason({exception,error,function_clause,_},
+		       ?FORALL(_,1,lists:min([]) > 0)),
      ?_failsWith({exception,exit,you_got_it,_}, [[12,42]],
 		 ?FORALL(L, [12,42|list(integer())],
 			 ?TRAPEXIT(
@@ -571,9 +574,6 @@ error_props_test_() ->
 		 ?FORALL(X,pos_integer(),?IMPLIES(X =< 0,true)), []),
      ?_assertRun({error,type_mismatch}, {error,type_mismatch},
 		 ?FORALL({X,Y}, [integer(),integer()], X < Y), []),
-     {setup, fun() -> ok end, fun(_) -> proper:global_state_erase() end,
-      ?_assertError(function_clause,
-		    proper:check(?FORALL(_,1,lists:min([]) > 0)))},
      ?_assertReRun({error,wrong_type}, ?FORALL(X,pos_integer(),X < 0),
 		   cexm(false_prop,[1.2]), []),
      ?_assertReRun({error,rejected}, ?FORALL(X,integer(),?IMPLIES(X > 5,X < 6)),
