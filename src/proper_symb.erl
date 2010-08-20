@@ -35,15 +35,13 @@
 %% Types
 %%------------------------------------------------------------------------------
 
--type module_name() :: atom().
--type function_name() :: atom().
-%% -type symb_call()  :: {'call',module_name(),function_name(),[symb_term()]}.
+%% -type symb_call()  :: {'call',mod_name(),fun_name(),[symb_term()]}.
 -type var_id() :: atom().
 %% -type symb_var() :: {'var',var_id()}.
 -type var_values_list() :: [{var_id(),term()}].
 -type symb_term() :: term().
 -type handled_term() :: term().
--type call_handler() :: fun((module_name(),function_name(),[handled_term()]) ->
+-type call_handler() :: fun((mod_name(),fun_name(),[handled_term()]) ->
 				handled_term()).
 -type term_handler() :: fun((term()) -> handled_term()).
 
@@ -83,7 +81,7 @@ pretty_print(VarValues, SymbTerm) ->
 	symb_walk(VarValues, SymbTerm, fun parse_fun/3, fun parse_term/1),
     lists:flatten(erl_pp:expr(ExprTree)).
 
--spec parse_fun(module_name(), function_name(), [abs_expr()]) -> abs_expr().
+-spec parse_fun(mod_name(), fun_name(), [abs_expr()]) -> abs_expr().
 parse_fun(Module, Function, ArgTreeList) ->
     {call,0,{remote,0,{atom,0,Module},{atom,0,Function}},ArgTreeList}.
 

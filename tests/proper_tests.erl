@@ -432,6 +432,9 @@ undefined_symb_calls() ->
 %% TODO: check all sorts of mixing proper and built-in types
 %% TODO: check retesting,is_instance,picking with a valid and an invalid
 %%	 built-in type
+%% TODO: check auto-exporting, translation of generators to types in ?FORALLs
+%%	 (probably in another module), plus things that can go wrong
+%% TODO: try remote-generator calling (as opposed to remote-type)
 
 simple_types_test_() ->
     [?_test(assert_simple_type_works(TD)) || TD <- simple_types_with_data()].

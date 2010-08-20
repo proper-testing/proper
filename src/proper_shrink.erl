@@ -247,8 +247,8 @@ try_combine(ImmParts, OldImmInstance, Combine) ->
 	    InnerType = proper_types:cook_outer(ImmInstance),
 	    %% TODO: special case if the immediately internal is a LET?
 	    %% TODO: more specialized is_instance check here?
-	    %% This should never throw an exception, since built-ins are not
-	    %% allowed in ?LETs
+	    %% This should never throw an exception, provided the instance
+	    %% has already been instance-checked.
 	    case proper_types:is_instance(OldImmInstance, InnerType) of
 		true ->
 		    {ok,{'$used',ImmParts,OldImmInstance}};

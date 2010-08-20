@@ -30,7 +30,7 @@
 	 get_fail_reason/1, get_bound/1]).
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
--export([forall/2, forall_b/3, implies/2, whenfail/2, trapexit/1, timeout/2]).
+-export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
 -export([still_fails/4, force_skip/2]).
 
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
@@ -70,7 +70,6 @@
 		    | on_output_clause().
 -type test() :: boolean()
 	      | forall_clause()
-	      | forall_b_clause()
 	      | implies_clause()
 	      | sample_clause()
 	      | whenfail_clause()
@@ -89,8 +88,6 @@
 -type on_output_clause() :: {'on_output', output_fun(), outer_test()}.
 
 -type forall_clause() :: {'forall', proper_types:raw_type(), dependent_test()}.
--type forall_b_clause() :: {'forall_b', proper_typeserver:imm_type(),
-			    dependent_test()}.
 -type implies_clause() :: {'implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
@@ -349,10 +346,6 @@ on_output(Print, Test) ->
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
 
--spec forall_b(atom(), string(), dependent_test()) -> forall_b_clause().
-forall_b(Module, BuiltinType, DTest) ->
-    {forall_b, {Module,BuiltinType}, DTest}.
-
 -spec implies(boolean(), delayed_test()) -> implies_clause().
 implies(Pre, DTest) ->
     {implies, Pre, DTest}.
@@ -549,11 +542,6 @@ run({forall,RawType,Prop},
 		    Error
 	    end
     end;
-run({forall_b,ImmType,Prop}, Ctx) ->
-    case proper_typeserver:translate_type(ImmType) of
-	{ok, Type}      -> run({forall,Type,Prop}, Ctx);
-	{error, Reason} -> {error, {typeserver,Reason}}
-    end;
 run({implies,true,Prop}, Ctx) ->
     force(Prop, Ctx);
 run({implies,false,_Prop}, _Ctx) ->
@@ -694,11 +682,6 @@ skip_to_next(false) ->
 skip_to_next({forall,RawType,Prop}) ->
     Type = proper_types:cook_outer(RawType),
     {Type,Prop};
-skip_to_next({forall_b,ImmType,Prop}) ->
-    case proper_typeserver:translate_type(ImmType) of
-	{ok, Type}       -> skip_to_next({forall,Type,Prop});
-	{error, _Reason} -> error
-    end;
 skip_to_next({implies,true,Prop}) ->
     force_skip(Prop);
 skip_to_next({implies,false,_Prop}) ->
@@ -753,7 +736,7 @@ report_imm_result({failed,Performed,_CExm,_Actions},
 report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
 		   Actions},
 		  #opts{expect_fail = false, output_fun = Print}) ->
-    Print("Failed, after ~b tests.~nReason: ", [Performed]),
+    Print("Failed, after ~b tests.~n", [Performed]),
     report_fail_reason(Reason, Print, false),
     print_bound(Bound, Print),
     execute_actions(Actions),

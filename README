@@ -28,9 +28,10 @@ Quickstart guide
      -include_lib("proper/include/proper.hrl").
   By including this header, all the macros, types and functions described in
   this file are automatically imported, so you can use them without a module
-  identifier.
-* Compile your source files - remember to export all properties you wish to
-  test.
+  identifier. Also, all functions of arity 0 whose name starts with "prop_" are
+  automatically exported from the module - if you wish to disable this
+  behaviour, compile the file with -DPROPER_NOAUTO.
+* Compile your source files.
 * For each property, run:
      proper:check(your_module:some_property()).
        or

@@ -47,7 +47,6 @@
 %% Types
 %%------------------------------------------------------------------------------
 
--type mod_name() :: atom().
 -type type_name() :: atom().
 -type var_name() :: atom(). %% TODO: also integers?
 -type field_name() :: atom().
@@ -217,9 +216,17 @@ get_module_code(Mod) ->
 		    end;
 		{error,beam_lib,Reason} ->
 		    {error, Reason}
+		    %%   {unknown_chunk, Filename, atom()}
+		    %% | {key_missing_or_invalid, Filename, abstract_code}
+		    %% | {chunk_too_big, Filename, ChunkId, ChunkSize, FileSize}
+		    %% | {invalid_beam_file, Filename, Pos}
+		    %% | {invalid_chunk, Filename, ChunkId}
+		    %% | {missing_chunk, Filename, ChunkId}
+		    %% | {not_a_beam_file, Filename}
+		    %% | {file_error, Filename, Posix}
 	    end;
 	ErrAtom when is_atom(ErrAtom) ->
-	    {error, ErrAtom}
+	    {error, ErrAtom} %% preloaded | cover_compiled | non_existing
     end.
 
 -spec get_type_info([abs_form()]) -> {mod_exported(),mod_types()}.
@@ -363,7 +370,7 @@ convert(Mod, {type,_,'fun',[{type,_,product,Domain},Range]}, State, Stack,
 	    %% We bind the generated value by size.
 	    case at_toplevel(RecArgs, Stack) of
 		true ->
-		    {error, no_base_case};
+		    base_case_error(Stack);
 		false ->
 		    NewRecFun =
 			fun(GenFuns,Size) ->
@@ -414,7 +421,7 @@ convert_list(Mod, NonEmpty, ElemForm, State, Stack, VarDict) ->
 	    NewRecArgs = clean_rec_args(RecArgs),
 	    case {NonEmpty, at_toplevel(RecArgs,Stack)} of
 		{true,true} ->
-		    {error, no_base_case};
+		    base_case_error(Stack);
 		{true,false} ->
 		    FinalRecFun = fun(G,S) ->
 				      proper_types:non_empty(NewRecFun(G,S))
@@ -437,7 +444,7 @@ convert_tuple(Mod, ElemForms, State, Stack, VarDict) ->
 		    {ok, RetType, NewState};
 		{rec,_RecFun,RecArgs} = RetType ->
 		    case at_toplevel(RecArgs, Stack) of
-			true  -> {error, no_base_case};
+			true  -> base_case_error(Stack);
 			false -> {ok, RetType, NewState}
 		    end
 	    end;
@@ -456,7 +463,7 @@ convert_union(Mod, ChoiceForms, State, Stack, VarDict) ->
 	    case {lists:reverse(RevSelfRecs),lists:reverse(RevNonSelfRecs),
 		  lists:reverse(RevNonRecs)} of
 		{_SelfRecs,[],[]} ->
-		    {error, no_base_case};
+		    base_case_error(Stack);
 		{[],NonSelfRecs,NonRecs} ->
 		    {ok, combine_ret_types(NonRecs ++ NonSelfRecs, union),
 		     NewState};
@@ -581,7 +588,7 @@ convert_type(TypeRef, {Mod,_Kind,_Name,_Spec} = FullTypeRef, State, Stack) ->
 		error         -> {error, {missing_type,Mod,TypeRef}}
 	    end;
 	1 ->
-	    {error, no_base_case};
+	    base_case_error(Stack);
 	_Pos ->
 	    {ok, {rec,fun([Gen],Size) -> Gen(Size) end,[{true,FullTypeRef}]},
 	     State}
@@ -633,7 +640,7 @@ convert_new_type(_TypeRef, {Mod,record,Name,SubstsDict} = FullTypeRef,
 			stack()) -> rich_result2(ret_type(),state()).
 convert_maybe_rec(FullTypeRef, RecFun, RecArgs, State, Stack) ->
     case at_toplevel(RecArgs, Stack) of
-	true  -> {error, no_base_case};
+	true  -> base_case_error(Stack);
 	false -> safe_convert_maybe_rec(FullTypeRef, RecFun, RecArgs, State)
     end.
 
@@ -740,6 +747,15 @@ expr_error(Reason, Expr1, Expr2) ->
     Str1 = lists:flatten(erl_pp:expr(Expr1)),
     Str2 = lists:flatten(erl_pp:expr(Expr2)),
     {error, {Reason,Str1,Str2}}.
+
+-spec base_case_error(stack()) -> {'error',term()}.
+%% TODO: This might confuse, since it doesn't record the arguments to parametric
+%%	 types or the type subsitutions of a record.
+base_case_error([{Mod,type,Name,Args} | _Upper]) ->
+    Arity = length(Args),
+    {error, {no_base_case,{Mod,type,Name,Arity}}};
+base_case_error([{Mod,record,Name,_SubstsDict} | _Upper]) ->
+    {error, {no_base_case,{Mod,record,Name}}}.
 
 
 %%------------------------------------------------------------------------------

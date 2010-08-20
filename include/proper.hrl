@@ -69,3 +69,12 @@
 
 -import(proper_symb, [eval/1, eval/2, defined/1, well_defined/1, pretty_print/1,
 		      pretty_print/2]).
+
+
+%%------------------------------------------------------------------------------
+%% Enable the PropEr parse transformer
+%%------------------------------------------------------------------------------
+
+-ifndef(PROPER_NOAUTO).
+-compile({parse_transform, proper_transformer}).
+-endif.
