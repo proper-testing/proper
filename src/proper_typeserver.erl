@@ -30,7 +30,7 @@
 	 code_change/3]).
 -export([get_mod_code/1, get_mod_info/2]).
 
--export_type([imm_type/0]).
+-export_type([imm_type/0, mod_exp_types/0, mod_exp_funs/0]).
 
 -include("proper_internal.hrl").
 
@@ -39,6 +39,7 @@
 %% Macros
 %%------------------------------------------------------------------------------
 
+-define(SRC_FILE_EXT, ".erl").
 -define(STD_TYPES, [any,atom,binary,bitstring,bool,boolean,byte,char,float,
 		    integer,list,neg_integer,non_neg_integer,number,pos_integer,
 		    string,term,timeout,tuple]).
@@ -206,21 +207,37 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
 get_mod_code(Mod) ->
     case code:which(Mod) of
 	ObjFileName when is_list(ObjFileName) ->
-	    case beam_lib:chunks(ObjFileName, [abstract_code]) of
-		{ok,{Mod,[{abstract_code,AbsCodeChunk}]}} ->
-		    case AbsCodeChunk of
-			{raw_abstract_v1,AbsCode} ->
-			    {ok, AbsCode};
-			no_abstract_code ->
-			    {error, no_abstract_code};
-			_ ->
-			    {error, abstract_code_format}
+	    get_abs_code_chunk(ObjFileName);
+	_ErrAtom when is_atom(_ErrAtom) ->
+	    SrcFileName = atom_to_list(Mod) ++ ?SRC_FILE_EXT,
+	    case code:where_is_file(SrcFileName) of
+		FullSrcFileName when is_list(FullSrcFileName) ->
+		    CompilerOpts = [binary,debug_info,{d,'PROPER_NOTRANS'}],
+		    case compile:file(FullSrcFileName, CompilerOpts) of
+			{ok,Mod,Binary} ->
+			    get_abs_code_chunk(Binary);
+			error ->
+			    {error, cant_compile_source_file}
 		    end;
-		{error,beam_lib,Reason} ->
-		    {error, Reason}
+		non_existing ->
+		    {error, cant_find_object_or_source_file}
+	    end
+    end.
+
+-spec get_abs_code_chunk(string() | binary()) -> rich_result([abs_form()]).
+get_abs_code_chunk(ObjFile) ->
+    case beam_lib:chunks(ObjFile, [abstract_code]) of
+	{ok,{_Mod,[{abstract_code,AbsCodeChunk}]}} ->
+	    case AbsCodeChunk of
+		{raw_abstract_v1,AbsCode} ->
+		    {ok, AbsCode};
+		no_abstract_code ->
+		    {error, no_abstract_code};
+		_ ->
+		    {error, unsupported_abstract_code_format}
 	    end;
-	ErrAtom when is_atom(ErrAtom) ->
-	    {error, ErrAtom}
+	{error,beam_lib,Reason} ->
+	    {error, Reason}
     end.
 
 -spec get_mod_info([abs_form()], boolean()) -> mod_info().
