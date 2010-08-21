@@ -28,6 +28,7 @@
 -export([start/0, stop/0, translate_type/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
+-export([get_mod_code/1, get_mod_info/2]).
 
 -export_type([imm_type/0]).
 
@@ -63,14 +64,18 @@
 -type rec_fun() :: fun(([gen_fun()],size()) -> fin_type()).
 -type rec_args() :: [{boolean(),full_type_ref()}].
 -type ret_type() :: {'simple',fin_type()} | {'rec',rec_fun(),rec_args()}.
+%% -type fun_ref() :: {fun_name(),arity()}.
 
 -type mod_exp_types() :: set(). %% set({type_name(),arity()})
 -type mod_types() :: dict(). %% dict(type_ref(),type_repr())
+-type mod_exp_funs() :: set(). %% set(fun_ref())
 -record(state,
 	{cached    = dict:new() :: dict(),   %% dict(imm_type(),fin_type())
 	 exp_types = dict:new() :: dict(),   %% dict(mod_name(),mod_exp_types())
-	 types     = dict:new() :: dict()}). %% dict(mod_name(),mod_types())
+	 types     = dict:new() :: dict(),   %% dict(mod_name(),mod_types())
+	 exp_funs  = dict:new() :: dict()}). %% dict(mod_name(),mod_exp_funs())
 -type state() :: #state{}.
+-type mod_info() :: {mod_exp_types(),mod_types(),mod_exp_funs()}.
 
 -type stack() :: [full_type_ref() | 'tuple' | 'list' | 'union' | 'fun'].
 -type var_dict() :: dict(). %% dict(var_name(),ret_type())
@@ -183,24 +188,22 @@ parse_type(Str) ->
     end.
 
 -spec add_module(mod_name(), state()) -> rich_result(state()).
-add_module(Mod, #state{exp_types = ExpTypes, types = Types} = State) ->
-    case dict:is_key(Mod, Types) of
+add_module(Mod, #state{exp_types = ExpTypes} = State) ->
+    case dict:is_key(Mod, ExpTypes) of
 	true ->
 	    {ok, State};
 	false ->
-	    case get_module_code(Mod) of
+	    case get_mod_code(Mod) of
 		{ok,AbsCode} ->
-		    {ModExpTypes,ModTypes} = get_type_info(AbsCode),
-		    NewExpTypes = dict:store(Mod, ModExpTypes, ExpTypes),
-		    NewTypes = dict:store(Mod, ModTypes, Types),
-		    {ok, State#state{exp_types = NewExpTypes,types = NewTypes}};
+		    ModInfo = get_mod_info(AbsCode, false),
+		    {ok, store_mod_info(Mod,ModInfo,State)};
 		{error,Reason} ->
 		    {error, {cant_load_code,Mod,Reason}}
 	    end
     end.
 
--spec get_module_code(mod_name()) -> rich_result([abs_form()]).
-get_module_code(Mod) ->
+-spec get_mod_code(mod_name()) -> rich_result([abs_form()]).
+get_mod_code(Mod) ->
     case code:which(Mod) of
 	ObjFileName when is_list(ObjFileName) ->
 	    case beam_lib:chunks(ObjFileName, [abstract_code]) of
@@ -220,30 +223,35 @@ get_module_code(Mod) ->
 	    {error, ErrAtom}
     end.
 
--spec get_type_info([abs_form()]) -> {mod_exp_types(),mod_types()}.
-get_type_info(AbsCode) ->
-    lists:foldl(fun add_type_info/2, {sets:new(),dict:new()}, AbsCode).
+-spec get_mod_info([abs_form()], boolean()) -> mod_info().
+get_mod_info(AbsCode, GetFunsToo) ->
+    lists:foldl(fun(Form,Acc) -> add_mod_info(Form,Acc,GetFunsToo) end,
+		{sets:new(),dict:new(),sets:new()}, AbsCode).
 
--spec add_type_info(abs_form(), {mod_exp_types(),mod_types()}) ->
-	  {mod_exp_types(),mod_types()}.
-add_type_info({attribute,_Line,export_type,TypesList},
-	      {ModExpTypes,ModTypes}) ->
+-spec add_mod_info(abs_form(), mod_info(), boolean()) -> mod_info().
+add_mod_info({attribute,_Line,export_type,TypesList},
+	     {ModExpTypes,ModTypes,ModExpFuns}, _GetFunsToo) ->
     NewModExpTypes = sets:union(sets:from_list(TypesList), ModExpTypes),
-    {NewModExpTypes, ModTypes};
-add_type_info({attribute,_Line,type,{{record,RecName},Fields,[]}},
-	      {ModExpTypes,ModTypes}) ->
+    {NewModExpTypes, ModTypes, ModExpFuns};
+add_mod_info({attribute,_Line,type,{{record,RecName},Fields,[]}},
+	     {ModExpTypes,ModTypes,ModExpFuns}, _GetFunsToo) ->
     FieldInfo = [process_rec_field(F) || F <- Fields],
-    NewModTypes = dict:store({record,RecName,0}, {abs_record,FieldInfo},
-			     ModTypes),
-    {ModExpTypes, NewModTypes};
-add_type_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
-	      {ModExpTypes,ModTypes}) when Kind =:= type; Kind =:= opaque ->
+    NewModTypes =
+	dict:store({record,RecName,0}, {abs_record,FieldInfo}, ModTypes),
+    {ModExpTypes, NewModTypes, ModExpFuns};
+add_mod_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
+	     {ModExpTypes,ModTypes,ModExpFuns}, _GetFunsToo)
+	when Kind =:= type; Kind =:= opaque ->
     Arity = length(VarForms),
     VarNames = [V || {var,_,V} <- VarForms],
     NewModTypes = dict:store({type,Name,Arity}, {abs_type,TypeForm,VarNames},
 			     ModTypes),
-    {ModExpTypes, NewModTypes};
-add_type_info(_Form, Acc) ->
+    {ModExpTypes, NewModTypes, ModExpFuns};
+add_mod_info({attribute,_Line,export,FunsList},
+	     {ModExpTypes,ModTypes,ModExpFuns}, true) ->
+    NewModExpFuns = sets:union(sets:from_list(FunsList), ModExpFuns),
+    {ModExpTypes, ModTypes, NewModExpFuns};
+add_mod_info(_Form, Acc, _GetFunsToo) ->
     Acc.
 
 -spec process_rec_field(abs_rec_field()) -> {field_name(),abs_type()}.
@@ -254,6 +262,16 @@ process_rec_field({record_field,_,{atom,_,FieldName},_Initialization}) ->
 process_rec_field({typed_record_field,RecField,FieldType}) ->
     {FieldName,_} = process_rec_field(RecField),
     {FieldName, FieldType}.
+
+-spec store_mod_info(mod_name(), mod_info(), state()) -> state().
+store_mod_info(Mod, {ModExpTypes,ModTypes,ModExpFuns},
+	       #state{exp_types = ExpTypes, types = Types,
+		      exp_funs = ExpFuns} = State) ->
+    NewExpTypes = dict:store(Mod, ModExpTypes, ExpTypes),
+    NewTypes = dict:store(Mod, ModTypes, Types),
+    NewExpFuns = dict:store(Mod, ModExpFuns, ExpFuns),
+    State#state{exp_types = NewExpTypes, types = NewTypes,
+		exp_funs = NewExpFuns}.
 
 
 %%------------------------------------------------------------------------------
@@ -594,17 +612,13 @@ convert_new_type(TypeRef, {Mod,type,_Name,Args} = FullTypeRef,
 		 {abs_type,TypeForm,Vars}, State, Stack) ->
     VarDict = dict:from_list(lists:zip(Vars, Args)),
     case convert(Mod, TypeForm, State, [FullTypeRef | Stack], VarDict) of
-	{ok, {simple,FinType} = RetType, #state{types = Types} = NewState} ->
-	    case Vars of
-		[] ->
-		    ModTypes = dict:fetch(Mod, Types),
-		    NewModTypes = dict:store(TypeRef, {cached,FinType},
-					     ModTypes),
-		    NewTypes = dict:store(Mod, NewModTypes, Types),
-		    {ok, RetType, NewState#state{types = NewTypes}};
-		_ ->
-		    {ok, RetType, NewState}
-	    end;
+	{ok, {simple,FinType} = RetType, NewState} ->
+	    FinalState =
+		case Vars of
+		    [] -> cache_simple_type(Mod, TypeRef, FinType, NewState);
+		    _  -> NewState
+		end,
+	    {ok, RetType, FinalState};
 	{ok, {rec,RecFun,RecArgs}, NewState} ->
 	    convert_maybe_rec(FullTypeRef, RecFun, RecArgs, NewState, Stack);
 	{error,_Reason} = Error ->
@@ -626,6 +640,13 @@ convert_new_type(_TypeRef, {Mod,record,Name,SubstsDict} = FullTypeRef,
 	{error,_Reason} = Error ->
 	    Error
     end.
+
+-spec cache_simple_type(mod_name(), type_ref(), fin_type(), state()) -> state().
+cache_simple_type(Mod, TypeRef, FinType, #state{types = Types} = State) ->
+    ModTypes = dict:fetch(Mod, Types),
+    NewModTypes = dict:store(TypeRef, {cached,FinType}, ModTypes),
+    NewTypes = dict:store(Mod, NewModTypes, Types),
+    State#state{types = NewTypes}.
 
 -spec convert_maybe_rec(full_type_ref(), rec_fun(), rec_args(), state(),
 			stack()) -> rich_result2(ret_type(),state()).
