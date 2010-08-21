@@ -75,6 +75,6 @@
 %% Enable the PropEr parse transformer
 %%------------------------------------------------------------------------------
 
--ifndef(PROPER_NOAUTO).
+-ifndef(PROPER_NOTRANS).
 -compile({parse_transform, proper_transformer}).
 -endif.

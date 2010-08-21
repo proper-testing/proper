@@ -64,12 +64,12 @@
 -type rec_args() :: [{boolean(),full_type_ref()}].
 -type ret_type() :: {'simple',fin_type()} | {'rec',rec_fun(),rec_args()}.
 
--type mod_exported() :: set(). %% set({type_name(),arity()})
+-type mod_exp_types() :: set(). %% set({type_name(),arity()})
 -type mod_types() :: dict(). %% dict(type_ref(),type_repr())
 -record(state,
-	{cached   = dict:new() :: dict(),   %% dict(imm_type(),fin_type())
-	 exported = dict:new() :: dict(),   %% dict(mod_name(),mod_exported())
-	 types    = dict:new() :: dict()}). %% dict(mod_name(),mod_types())
+	{cached    = dict:new() :: dict(),   %% dict(imm_type(),fin_type())
+	 exp_types = dict:new() :: dict(),   %% dict(mod_name(),mod_exp_types())
+	 types     = dict:new() :: dict()}). %% dict(mod_name(),mod_types())
 -type state() :: #state{}.
 
 -type stack() :: [full_type_ref() | 'tuple' | 'list' | 'union' | 'fun'].
@@ -183,18 +183,17 @@ parse_type(Str) ->
     end.
 
 -spec add_module(mod_name(), state()) -> rich_result(state()).
-add_module(Mod, #state{exported = ExpDict, types = TypesDict} = State) ->
-    case dict:is_key(Mod, TypesDict) of
+add_module(Mod, #state{exp_types = ExpTypes, types = Types} = State) ->
+    case dict:is_key(Mod, Types) of
 	true ->
 	    {ok, State};
 	false ->
 	    case get_module_code(Mod) of
 		{ok,AbsCode} ->
-		    {ModExported,ModTypes} = get_type_info(AbsCode),
-		    NewExpDict = dict:store(Mod, ModExported, ExpDict),
-		    NewTypesDict = dict:store(Mod, ModTypes, TypesDict),
-		    {ok, State#state{exported = NewExpDict,
-				     types = NewTypesDict}};
+		    {ModExpTypes,ModTypes} = get_type_info(AbsCode),
+		    NewExpTypes = dict:store(Mod, ModExpTypes, ExpTypes),
+		    NewTypes = dict:store(Mod, ModTypes, Types),
+		    {ok, State#state{exp_types = NewExpTypes,types = NewTypes}};
 		{error,Reason} ->
 		    {error, {cant_load_code,Mod,Reason}}
 	    end
@@ -216,42 +215,34 @@ get_module_code(Mod) ->
 		    end;
 		{error,beam_lib,Reason} ->
 		    {error, Reason}
-		    %%   {unknown_chunk, Filename, atom()}
-		    %% | {key_missing_or_invalid, Filename, abstract_code}
-		    %% | {chunk_too_big, Filename, ChunkId, ChunkSize, FileSize}
-		    %% | {invalid_beam_file, Filename, Pos}
-		    %% | {invalid_chunk, Filename, ChunkId}
-		    %% | {missing_chunk, Filename, ChunkId}
-		    %% | {not_a_beam_file, Filename}
-		    %% | {file_error, Filename, Posix}
 	    end;
 	ErrAtom when is_atom(ErrAtom) ->
-	    {error, ErrAtom} %% preloaded | cover_compiled | non_existing
+	    {error, ErrAtom}
     end.
 
--spec get_type_info([abs_form()]) -> {mod_exported(),mod_types()}.
+-spec get_type_info([abs_form()]) -> {mod_exp_types(),mod_types()}.
 get_type_info(AbsCode) ->
     lists:foldl(fun add_type_info/2, {sets:new(),dict:new()}, AbsCode).
 
--spec add_type_info(abs_form(), {mod_exported(),mod_types()}) ->
-	  {mod_exported(),mod_types()}.
+-spec add_type_info(abs_form(), {mod_exp_types(),mod_types()}) ->
+	  {mod_exp_types(),mod_types()}.
 add_type_info({attribute,_Line,export_type,TypesList},
-	      {ModExported,ModTypes}) ->
-    NewModExported = sets:union(sets:from_list(TypesList), ModExported),
-    {NewModExported, ModTypes};
+	      {ModExpTypes,ModTypes}) ->
+    NewModExpTypes = sets:union(sets:from_list(TypesList), ModExpTypes),
+    {NewModExpTypes, ModTypes};
 add_type_info({attribute,_Line,type,{{record,RecName},Fields,[]}},
-	      {ModExported,ModTypes}) ->
+	      {ModExpTypes,ModTypes}) ->
     FieldInfo = [process_rec_field(F) || F <- Fields],
     NewModTypes = dict:store({record,RecName,0}, {abs_record,FieldInfo},
 			     ModTypes),
-    {ModExported, NewModTypes};
+    {ModExpTypes, NewModTypes};
 add_type_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
-	      {ModExported,ModTypes}) when Kind =:= type; Kind =:= opaque ->
+	      {ModExpTypes,ModTypes}) when Kind =:= type; Kind =:= opaque ->
     Arity = length(VarForms),
     VarNames = [V || {var,_,V} <- VarForms],
     NewModTypes = dict:store({type,Name,Arity}, {abs_type,TypeForm,VarNames},
 			     ModTypes),
-    {ModExported, NewModTypes};
+    {ModExpTypes, NewModTypes};
 add_type_info(_Form, Acc) ->
     Acc.
 
@@ -298,10 +289,10 @@ convert(_Mod, {var,_,VarName}, State, _Stack, VarDict) ->
 convert(Mod, {remote_type,_,[{atom,_,RemMod},{atom,_,Name},ArgForms]}, State,
 	Stack, VarDict) ->
     case add_module(RemMod, State) of
-	{ok,#state{exported = Exported} = NewState} ->
-	    RemModExported = dict:fetch(RemMod, Exported),
+	{ok,#state{exp_types = ExpTypes} = NewState} ->
+	    RemModExpTypes = dict:fetch(RemMod, ExpTypes),
 	    Arity = length(ArgForms),
-	    case sets:is_element({Name,Arity}, RemModExported) of
+	    case sets:is_element({Name,Arity}, RemModExpTypes) of
 		true  -> convert_custom(Mod, RemMod, Name, ArgForms, NewState,
 					Stack, VarDict);
 		false -> {error, {type_not_exported,{RemMod,Name,Arity}}}

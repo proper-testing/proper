@@ -87,7 +87,8 @@ state_is_clean() ->
 
 -define(_builtinShrinksTo(ExpShrunkInstance, TypeStr),
 	?_failRun(false_prop, _, [ExpShrunkInstance], none,
-		  ?FORALL_B(_X,TypeStr,false), ?SHRINK_TEST_OPTS)).
+		  ?FORALL(_X,assert_can_translate(proper, TypeStr),false),
+		  ?SHRINK_TEST_OPTS)).
 
 -define(_shrinksToOneOf(AllShrunkInstances, Type),
 	?_failRun(false_prop, _, _, [[X] || X <- AllShrunkInstances],
@@ -428,13 +429,6 @@ undefined_symb_calls() ->
 %% TODO: typeserver: check that the same type is returned for consecutive calls,
 %%	 even with no caching (no_caching option?)
 %% TODO: typeserver: recursive types containing functions
-%% TODO: typeserver: adding a module: to a type doesn't make it separate
-%% TODO: check all sorts of mixing proper and built-in types
-%% TODO: check retesting,is_instance,picking with a valid and an invalid
-%%	 built-in type
-%% TODO: check auto-exporting, translation of generators to types in ?FORALLs
-%%	 (probably in another module), plus things that can go wrong
-%% TODO: try remote-generator calling (as opposed to remote-type)
 
 simple_types_test_() ->
     [?_test(assert_simple_type_works(TD)) || TD <- simple_types_with_data()].
@@ -475,11 +469,13 @@ random_functions_test_() ->
       ?_test(assert_function_type_works(assert_can_translate(proper,TypeStr)))]
      || {FunType,TypeStr} <- function_types()].
 
+types_test_() ->
+    [].
+
 true_props_test_() ->
     [?_perfectRun(?FORALL(X,integer(),X < X + 1)),
      ?_perfectRun(?FORALL(X,atom(),list_to_atom(atom_to_list(X)) =:= X)),
      ?_perfectRun(?FORALL(L,list(integer()),is_sorted(L,quicksort(L)))),
-     ?_perfectRun(?FORALL_B(L,"[integer()]",is_sorted(L,lists:sort(L)))),
      ?_perfectRun(?FORALL(L,ulist(integer()),is_sorted(L,lists:usort(L)))),
      ?_perfectRun(?FORALL(L,non_empty(list(integer())),L =/= [])),
      ?_assertRun(true, {passed,_,[]},

@@ -30,7 +30,7 @@ Quickstart guide
   this file are automatically imported, so you can use them without a module
   identifier. Also, all functions of arity 0 whose name starts with "prop_" are
   automatically exported from the module - if you wish to disable this
-  behaviour, compile the file with -DPROPER_NOAUTO.
+  behaviour, compile the file with -DPROPER_NOTRANS.
 * Compile your source files.
 * For each property, run:
      proper:check(your_module:some_property()).

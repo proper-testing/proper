@@ -21,7 +21,7 @@
 %%% @version {@version}
 %%% @doc This module contains PropEr's main parse transformer. It is
 %%%	 automatically applied to modules when including the main PropEr header,
-%%%	 unless PROPER_NOAUTO is defined. Applying this transform has the
+%%%	 unless PROPER_NOTRANS is defined. Applying this transform has the
 %%%	 following effects:
 %%%	 <ul>
 %%%	 <li>All prop_* functions of arity 0 in the module are automatically
@@ -175,7 +175,7 @@ add_module(Mod, ExpDict) ->
 		    case code:where_is_file(SrcFilename) of
 			FullSrcFilename when is_list(FullSrcFilename) ->
 			    case compile:file(FullSrcFilename,
-					      [binary,{d,'PROPER_NOAUTO'}]) of
+					      [binary,{d,'PROPER_NOTRANS'}]) of
 				{ok,Mod,Binary} ->
 				    read_exports(Mod, Binary, ExpDict);
 				error ->
@@ -190,7 +190,7 @@ add_module(Mod, ExpDict) ->
 -spec read_exports(mod_name(), string() | binary(), exp_dict()) -> exp_dict().
 read_exports(Mod, ObjFile, ExpDict) ->
     case beam_lib:chunks(ObjFile, [exports]) of
-	{ok,{Mod,[ModExported]}} ->
+	{ok,{Mod,[{exports,ModExported}]}} ->
 	    dict:store(Mod, {data,sets:from_list(ModExported)}, ExpDict);
 	{error,beam_lib,_Reason} ->
 	    dict:store(Mod, nodata, ExpDict)
@@ -222,8 +222,9 @@ rewrite_clause({clause,Line,Pattern,Guards,Body}, ModInfo) ->
     NewBody = [rewrite_expr(E,ModInfo) || E <- Body],
     {clause,Line,Pattern,Guards,NewBody}.
 
-%% We haven't covered some constructs that are not expected to contain property
-%% declarations.
+%% This also covers some other constructs that don't clash with expressions:
+%% binary element specifications, list and binary comprehension generators and
+%% filters.
 -spec rewrite_expr(abs_expr(), mod_info()) -> abs_expr().
 rewrite_expr({match,Line,Pattern,Expr}, ModInfo) ->
     {match,Line,Pattern,rewrite_expr(Expr,ModInfo)};
@@ -234,6 +235,11 @@ rewrite_expr({cons,Line,HeadExpr,TailExpr}, ModInfo) ->
     NewHeadExpr = rewrite_expr(HeadExpr, ModInfo),
     NewTailExpr = rewrite_expr(TailExpr, ModInfo),
     {cons,Line,NewHeadExpr,NewTailExpr};
+rewrite_expr({bin,Line,BinElems}, ModInfo) ->
+    NewBinElems = [rewrite_expr(B,ModInfo) || B <- BinElems],
+    {bin,Line,NewBinElems};
+rewrite_expr({bin_element,Line,ValueExpr,Size,TSL}, ModInfo) ->
+    {bin_element,Line,rewrite_expr(ValueExpr,ModInfo),Size,TSL};
 rewrite_expr({op,Line,Op,LeftExpr,RightExpr}, ModInfo) ->
     NewLeftExpr = rewrite_expr(LeftExpr, ModInfo),
     NewRightExpr = rewrite_expr(RightExpr, ModInfo),
@@ -264,8 +270,14 @@ rewrite_expr({lc,Line,Expr,GensAndFilters}, ModInfo) ->
     NewExpr = rewrite_expr(Expr, ModInfo),
     NewGensAndFilters = [rewrite_expr(W,ModInfo) || W <- GensAndFilters],
     {lc,Line,NewExpr,NewGensAndFilters};
+rewrite_expr({bc,Line,Expr,GensAndFilters}, ModInfo) ->
+    NewExpr = rewrite_expr(Expr, ModInfo),
+    NewGensAndFilters = [rewrite_expr(W,ModInfo) || W <- GensAndFilters],
+    {bc,Line,NewExpr,NewGensAndFilters};
 rewrite_expr({generate,Line,Pattern,Expr}, ModInfo) ->
     {generate,Line,Pattern,rewrite_expr(Expr,ModInfo)};
+rewrite_expr({b_generate,Line,Pattern,Expr}, ModInfo) ->
+    {b_generate,Line,Pattern,rewrite_expr(Expr,ModInfo)};
 rewrite_expr({block,Line,Body}, ModInfo) ->
     NewBody = [rewrite_expr(E,ModInfo) || E <- Body],
     {block,Line,NewBody};
@@ -282,9 +294,21 @@ rewrite_expr({'try',Line,Body1,Clauses1,Clauses2,Body2}, ModInfo) ->
     NewClauses2 = [rewrite_clause(C,ModInfo) || C <- Clauses2],
     NewBody2 = [rewrite_expr(E,ModInfo) || E <- Body2],
     {'try',Line,NewBody1,NewClauses1,NewClauses2,NewBody2};
+rewrite_expr({'receive',Line,Clauses}, ModInfo) ->
+    NewClauses = [rewrite_clause(C,ModInfo) || C <- Clauses],
+    {'receive',Line,NewClauses};
+rewrite_expr({'receive',Line,Clauses,AfterExpr,AfterBody}, ModInfo) ->
+    NewClauses = [rewrite_clause(C,ModInfo) || C <- Clauses],
+    NewAfterExpr = rewrite_expr(AfterExpr, ModInfo),
+    NewAfterBody = [rewrite_expr(E,ModInfo) || E <- AfterBody],
+    {'receive',Line,NewClauses,NewAfterExpr,NewAfterBody};
 rewrite_expr({'fun',Line,{clauses,Clauses}}, ModInfo) ->
     NewClauses = [rewrite_clause(C,ModInfo) || C <- Clauses],
     {'fun',Line,{clauses,NewClauses}};
+rewrite_expr({'query',Line,ListCompr}, ModInfo) ->
+    {'query',Line,rewrite_expr(ListCompr,ModInfo)};
+rewrite_expr({record_field,Line,Expr,FieldName}, ModInfo) ->
+    {record_field,Line,rewrite_expr(Expr,ModInfo),FieldName};
 rewrite_expr(Expr, _ModInfo) ->
     Expr.
 
