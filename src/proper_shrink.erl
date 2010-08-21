@@ -175,7 +175,7 @@ get_shrinkers(Type) ->
 %% Wrapper type shrinkers
 %%------------------------------------------------------------------------------
 
-%% Since shrinking only happens for generated values, any built-in types have
+%% Since shrinking only happens for generated values, any native types have
 %% already been produced by the typeserver, thus we are sure we won't get a
 %% typeserver exception.
 -spec alternate_shrinker(proper_gen:imm_instance(), proper_types:type(),

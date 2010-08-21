@@ -40,7 +40,7 @@
 	 find_prop/2, new_type/2, subtype/2, safe_is_instance/2, is_instance/2,
 	 unwrap/1, weakly/1, strongly/1, satisfies_all/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
-	 builtin_type/2]).
+	 native_type/2]).
 
 -export_type([type/0, raw_type/0]).
 
@@ -368,10 +368,10 @@ add_constraint(RawType, Condition, IsStrict) ->
     Type = cook_outer(RawType),
     append_to_prop(constraints, {Condition,IsStrict}, Type).
 
--spec builtin_type(mod_name(), string()) -> type().
-builtin_type(Mod, TypeStr) ->
+-spec native_type(mod_name(), string()) -> type().
+native_type(Mod, TypeStr) ->
     ?WRAPPER([
-	{generator, fun() ->  proper_gen:builtin_type_gen(Mod,TypeStr) end}
+	{generator, fun() ->  proper_gen:native_type_gen(Mod,TypeStr) end}
     ]).
 
 

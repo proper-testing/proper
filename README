@@ -29,8 +29,8 @@ Quickstart guide
   By including this header, all the macros, types and functions described in
   this file are automatically imported, so you can use them without a module
   identifier. Also, all functions of arity 0 whose name starts with "prop_" are
-  automatically exported from the module - if you wish to disable this
-  behaviour, compile the file with -DPROPER_NOTRANS.
+  automatically exported from the module. If you wish to disable the automatic
+  exporting of properties, compile your module with -DPROPER_NOTRANS.
 * Compile your source files.
 * For each property, run:
      proper:check(your_module:some_property()).
@@ -46,7 +46,7 @@ Note to users of Erlang r13b03 or older:
 PropEr makes heavy use of recursive types, which are unsupported in versions of
 the Erlang/OTP distribution prior to r13b04. To compile PropEr under such a
 system, run 'make' like so:
-  make NOTYPES=1
+   make NOTYPES=1
 This enables the spec+type-stripping parse transform included in PropEr, which
 fixes the problem by stripping all type information from PropEr's source files
 while compiling.
@@ -87,7 +87,8 @@ in the Erlang programming language. Its focus is on testing the behaviour of
 pure functions. The input domain of functions is specified through the use of
 a type system, modeled closely after the type system of the language itself
 (see the following sections for details). Properties are written using Erlang
-expressions, with the help of a few predefined macros.
+expressions, with the help of a few predefined macros. Work is currently under
+way to provide tighter integration with Erlang's built-in type system.
 
 
 --------------------------------------------------------------------------------
@@ -96,23 +97,25 @@ How to write properties (test case generators)
 
 The simplest properties that PropEr can test consist of a single boolean
 expression (or a statement block that returns a boolean), which is expected to
-evaluate to 'true'. More complex (and useful) properties can be written by
+evaluate to 'true'. Thus, the test 'true' always succeeds, while the test
+'false' always fails. More complex (and useful) properties can be written by
 wrapping such a boolean expression with one or more of the following wrappers:
 
 ?FORALL(<Xs>, <Xs_type>, <Prop>)
     The <Xs> field can either be a single variable, a tuple of variables or a
     list of variables. The <Xs_type> field must then be a single type, a tuple
     of types of the same length as the tuple of variables or a list of types of
-    the same length as the list of variables, respectively. Tuples and lists
-    can be combined in any way, as long as <Xs> and <Xs_type> are compatible.
-    All the variables inside <Xs> can (and should) be present as free variables
-    inside the wrapped property <Prop>. When a ?FORALL wrapper is encountered, a
-    random instance of <Xs_type> is produced and each variable in <Xs> is
-    replaced inside <Prop> by its corresponding instance.
-?FORALL_B(<Xs>, <Xs_built-in_type_in_a_string>, <Prop>),
-    Equivalent to a normal ?FORALL, but the type of <Xs> is provided using the
-    built-in type language of Erlang. See the 'Reading built-in types' section
-    for more details.
+    the same length as the list of variables, respectively. Tuples and lists can
+    be combined in any way, as long as <Xs> and <Xs_type> are compatible. Both
+    PropEr-provided types (as listed in the 'Basic types' and 'How to construct
+    types' sections) and types declared in Erlang's built-in typesystem (we
+    refer to such types in this README as 'native types') may be used in the
+    <Xs_type> field. The use of native types in ?FORALLs is subject to some
+    limitations, as described in the 'Native types support' section. All the
+    variables inside <Xs> can (and should) be present as free variables inside
+    the wrapped property <Prop>. When a ?FORALL wrapper is encountered, a random
+    instance of <Xs_type> is produced and each variable in <Xs> is replaced
+    inside <Prop> by its corresponding instance.
 ?IMPLIES(<Precondition>, <Prop>)
     This wrapper only makes sense when in the scope of at least one ?FORALL. The
     <Precondition> field must be a boolean expression or a statement block that
@@ -159,12 +162,12 @@ measure(<Title>, <Number> | <List_of_numbers>, <Prop>)
     Signifies that the code comprising <Prop> may report failure by exiting
     abnormally, e.g. if it spawns and links to a worker thread, the worker
     thread crashes and the parent thread was not trapping exits itself. The
-    <Prop> field cannot contain any ?FORALL or ?FORALL_B macros.
+    <Prop> field cannot contain any ?FORALL macros.
 ?TIMEOUT(<Time_limit>, <Prop>)
     Signifies that <Prop> should be considered failing if it takes more than
     <Time_limit> milliseconds to return. The purpose of this wrapper is to test
     code that may hang if something goes wrong. The <Prop> field cannot contain
-    any ?FORALL, ?FORALL_B or ?TIMEOUT macros.
+    any ?FORALL or ?TIMEOUT macros.
 
 The following predefined properties may be used in place of a simple boolean
 expression as the innermost property:
@@ -537,48 +540,106 @@ resize(<New_size>, <Type>)
 
 
 --------------------------------------------------------------------------------
-Reading built-in types
+Native types support
 --------------------------------------------------------------------------------
 
-PropEr can parse types expressed in Erlang's built-in type format and convert
-them to its native type format. Such expressions can be provided in string form
-as the second argument of a ?FORALL_B macro, in place of the PropEr type-style
-argument of normal ?FORALLs, and are subject to the following usage rules:
+PropEr can parse types expressed in Erlang's native type format and convert them
+to its own type format. Such expressions can be used instead of regular PropEr
+type constructors in the second argument of ?FORALL macros. No extra notation is
+required when using native types in ?FORALLs - PropEr will detect which calls
+correspond to native types. A parse transform is used to enable this
+functionality - this parse transform is automatically applied to any module that
+includes the proper.hrl header file. You can disable this feature by compiling
+your modules with -DPROPER_NOTRANS. Note that this will currently also disable
+the automatic exporting of properties.
 
-* They may contain any Erlang type construct, such as '[...]', '{...}' or '|'.
-* They may reference types declared in -type attributes, so long as these types
-  are exported from their respective modules, or they are declared in the same
-  module as the ?FORALL_B macro which contains the type expression.
-* They may contain references to self-recursive or mutually recursive types, as
-  long as each type in the hierarchy has a clear base case. Currently, PropEr
-  requires that the toplevel of any recursive type declaration is either a
-  (maybe empty) list or a union containing at least one choice that doesn't
+The use of native types in properties is subject to the following usage rules:
+
+* Native types cannot be used outside of ?FORALLs.
+* Inside ?FORALLs, native types can be combined with other native types or even
+  with PropEr types inside tuples and lists (the constructs '[...]', '{...}' and
+  '++' are all allowed).
+* All other constructs of Erlang's built-in type system (e.g. '|' for union, '_'
+  as an alias of 'any()', '<<_:_>>' binary type syntax or 'fun((...) -> ...)'
+  function type syntax) are not allowed in ?FORALLs, since they are rejected by
+  the Erlang parser.
+* Anything other than a tuple constructor, list constructor, '++' application,
+  local or remote call will automatically be considered a PropEr type
+  constructor and not be processed further by the parse transform.
+* Parametric native types are fully supported - of course, they can only appear
+  instantiated in a ?FORALL. The arguments of parametric native types are always
+  interpreted as native types.
+* Parametric PropEr types, on the other hand, can take any kind of argument. You
+  can even mix native and PropEr types in the arguments of a PropEr type. For
+  example, assuming that the following declarations are present:
+     my_proper_type() -> ?LET(...).
+     -type my_native_type() :: ... .
+  Then the following expressions are all legal:
+     vector(2, my_native_type())
+     function(0, my_native_type())
+     union([my_proper_type(), my_native_type()])
+* Some type constructors can take native types as arguments (but only inside
+  ?FORALLs):
+  - ?SUCHTHAT, ?SUCHTHATMAYBE, non_empty and noshrink: these work with native
+    types too
+  - ?LAZY, ?SHRINK, resize and ?SIZED: these don't work with native types
+  - ?LET and ?LETSHRINK: only the top-level base type can be a native type
+* Native type declarations in the ?FORALLs of a module can reference any custom
+  type declared in a -type or -opaque attribute of the same module, as long as
+  no module identifier is used in the declaration.
+* Typed records cannot be referenced inside ?FORALLs using the '#rec_name{}'
+  syntax. To use a typed record in a ?FORALL, enclose the record in a custom
+  type like so:
+     -type rec_name() :: #rec_name{}.
+  and use the custom type instead.
+* ?FORALLs may contain references to self-recursive or mutually recursive native
+  types, so long as each type in the hierarchy has a clear base case. Currently,
+  PropEr requires that the toplevel of any recursive type declaration is either
+  a (maybe empty) list or a union containing at least one choice that doesn't
   reference the type (it may, however, reference any of the types that are
-  mutually recursive with this one). This means, for example, that some valid
+  mutually recursive with it). This means, for example, that some valid
   recursive type declarations, such as this one:
-    ?FORALL_B(..., "a()", ...) where:
-    -type a() :: {'a','none' | a()}.
+     ?FORALL(..., a(), ...) where:
+     -type a() :: {'a','none' | a()}.
   are not accepted by PropEr. However, such types can be rewritten in a way that
   allows PropEr to parse them:
-    ?FORALL_B(..., "a()", ...) where:
-    -type a() :: {'a','none'} | {'a',a()}.
+     ?FORALL(..., a(), ...) where:
+     -type a() :: {'a','none'} | {'a',a()}.
   This also means that recursive record declarations are not allowed:
-    ?FORALL_B(..., "#rec{}", ...) where:
-    -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
+    ?FORALL(..., rec(), ...) where:
+     -type rec() :: #rec{}.
+     -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
   A little rewritting can usually remedy this problem as well:
-    ?FORALL_B(..., "rec()", ...) where:
-    -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
-    -type rec() :: #rec{b :: 'nil'} | #rec{b :: rec()}.
-* For a ?FORALL_B macro to function properly, both the module that contains it,
-  as well as any module that contains the declaration of a type referenced
-  (directly or indirectly) from inside the type expression of the ?FORALL_B
-  must have been compiled with debug_info enabled and must be present in the
-  codepath at the time of testing.
-* Parametric types are fully supported. Of course, they can only appear
-  instantiated inside the type expression of a ?FORALL_B.
-* Inline record-field type declarations that reference non-existent field and
-  type variables that are not present in the RHS of a -type declaration are
-  silently ignored.
+     ?FORALL(..., rec(), ...) where:
+     -type rec() :: #rec{b :: 'nil'} | #rec{b :: rec()}.
+     -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
+* Remote types may be referenced in a ?FORALL, as long as they are exported from
+  the remote module. Currently, PropEr requires that any modules whose types are
+  remotely referenced from within properties are present in the code path at
+  compile time, either compiled with debug_info enabled, or only in source form.
+  If PropEr cannot find a remote module, cannot get the abstract code from the
+  compiled object file or fails to compile the source file, all calls to that
+  module will automatically be considered calls to PropEr type constructors.
+* For native types to be translated correctly, both the module that contains the
+  ?FORALL declaration as well as any module that contains the declaration of a
+  type referenced (directly or indirectly) from inside a ?FORALL must be present
+  in the code path at runtime, either compiled with debug_info enabled or only
+  in source form.
+* When an expression can be interpreted both as a PropEr type and as a native
+  type, the former takes precedence. This means that a function foo() will
+  shadow a type foo() if they are both present in the module. The same rule
+  applies to remote functions and types as well.
+* The above may cause some confusion when list syntax is used:
+  - The expression '[integer()]' can be interpreted both ways, so the PropEr way
+    applies. Therefore, instances of this type will always be lists of length 1,
+    not arbitrary integer lists, as would be expected when interpreting the
+    expression as a native type.
+  - Assuming that a custom type foo/1 has been declared, the expression
+    foo([integer()]) can only be interpreted as a native type declaration,
+    which means that the generic type of integer lists will be passed to foo/1.
+* Inline record-field type declarations that reference non-existent fields and
+  type variables that are not present in the RHS of a '-type' declaration are
+  silently ignored by PropEr.
 
 
 --------------------------------------------------------------------------------
@@ -605,8 +666,8 @@ occurs. Normaly, a message is also printed on screen describing the error.
   constraint(s). This error should only be encountered during normal operation.
 * 'type_mismatch': The variables' and types' structures inside a ?FORALL don't
   match. Please check your properties.
-* {'typeserver', <SubError>}: The typeserver couldn't process a built-in type
-  inside a ?FORALL_B. The <SubError> field contains specific information
+* {'typeserver', <SubError>}: The typeserver couldn't process a native type
+  inside a ?FORALL. The <SubError> field contains specific information
   regarding the error.
 * {'unexpected', <Result>}: A test returned an unexpected result during normal
   operation. If you ever get this error, it means that you have found a bug in

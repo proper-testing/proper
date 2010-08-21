@@ -85,7 +85,7 @@ state_is_clean() ->
 	?_failRun(false_prop, _, [ExpShrunkInstance], none,
 		  ?FORALL(_X,Type,false), ?SHRINK_TEST_OPTS)).
 
--define(_builtinShrinksTo(ExpShrunkInstance, TypeStr),
+-define(_nativeShrinksTo(ExpShrunkInstance, TypeStr),
 	?_failRun(false_prop, _, [ExpShrunkInstance], none,
 		  ?FORALL(_X,assert_can_translate(proper, TypeStr),false),
 		  ?SHRINK_TEST_OPTS)).
@@ -186,7 +186,7 @@ try_generate(Type, Size, CheckIsInstance) ->
 	false -> ok
     end.
 
-assert_builtin_can_generate(Mod, TypeStr, CheckIsInstance) ->
+assert_native_can_generate(Mod, TypeStr, CheckIsInstance) ->
     assert_can_generate(assert_can_translate(Mod,TypeStr), CheckIsInstance).
 
 assert_cant_generate(Type) ->
@@ -354,7 +354,7 @@ function_types() ->
      {function(0,function(1,integer())),
       "fun(() -> fun((_) -> integer()))"}].
 
-remote_builtin_types() ->
+remote_native_types() ->
     [{types_test1,["#rec1{}","rec1()","exp1()","type1()","type2(atom())",
 		   "rem1()","rem2()","types_test1:exp1()",
 		   "types_test2:exp1(float())","types_test2:exp2()"]},
@@ -371,17 +371,17 @@ impossible_types() ->
      ?SUCHTHAT(B, binary(), lists:member(256,binary_to_list(B))),
      ?SUCHTHAT(X, exactly('Lelouch'), X =:= 'vi Brittania')].
 
-impossible_builtin_types() ->
+impossible_native_types() ->
     [{types_test1, ["1.1","no_such_module:type1()","no_such_type()"]},
      {types_test2, ["types_test1:type1()","function()","fun((...) -> atom())",
 		    "pid()","port()","ref()"]}].
 
-recursive_builtin_types() ->
+recursive_native_types() ->
     [{rec_test1, ["a()","b()","a()|b()","d()","f()","deeplist()",
 		  "mylist(float())","aa()","bb()"]},
      {rec_test2, ["a()","expa()","rec()"]}].
 
-impossible_recursive_builtin_types() ->
+impossible_recursive_native_types() ->
     [{rec_test1, ["c()","e()","cc()","#rec{}","expb()"]},
      {rec_test2, ["b()","#rec{}","aa()"]}].
 
@@ -439,29 +439,29 @@ shrinks_to_test_() ->
     [?_shrinksTo(Target, Type)
      || {Type,_Xs,Target,_Ys,_TypeStr} <- simple_types_with_data()].
 
-builtin_shrinks_to_test_() ->
-    [?_builtinShrinksTo(Target, TypeStr)
+native_shrinks_to_test_() ->
+    [?_nativeShrinksTo(Target, TypeStr)
      || {_Type,_Xs,Target,_Ys,TypeStr} <- simple_types_with_data(),
 	TypeStr =/= none].
 
 cant_generate_test_() ->
     [?_test(assert_cant_generate(Type)) || Type <- impossible_types()].
 
-builtin_cant_translate_test_() ->
+native_cant_translate_test_() ->
     [?_test(assert_cant_translate(Mod,TypeStr))
-     || {Mod,Strings} <- impossible_builtin_types(), TypeStr <- Strings].
+     || {Mod,Strings} <- impossible_native_types(), TypeStr <- Strings].
 
-remote_builtin_types_test_() ->
+remote_native_types_test_() ->
     [?_test(assert_can_translate(Mod,TypeStr))
-     || {Mod,Strings} <- remote_builtin_types(), TypeStr <- Strings].
+     || {Mod,Strings} <- remote_native_types(), TypeStr <- Strings].
 
-recursive_builtin_types_test_() ->
-    [?_test(assert_builtin_can_generate(Mod,TypeStr,false))
-     || {Mod,Strings} <- recursive_builtin_types(), TypeStr <- Strings].
+recursive_native_types_test_() ->
+    [?_test(assert_native_can_generate(Mod,TypeStr,false))
+     || {Mod,Strings} <- recursive_native_types(), TypeStr <- Strings].
 
-recursive_builtin_cant_translate_test_() ->
+recursive_native_cant_translate_test_() ->
     [?_test(assert_cant_translate(Mod,TypeStr))
-     || {Mod,Strings} <- impossible_recursive_builtin_types(),
+     || {Mod,Strings} <- impossible_recursive_native_types(),
 	TypeStr <- Strings].
 
 random_functions_test_() ->

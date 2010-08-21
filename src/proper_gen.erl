@@ -34,7 +34,7 @@
 	 bitstring_gen/1, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
 	 vector_gen/2, union_gen/1, weighted_union_gen/1, tuple_gen/1,
 	 loose_tuple_gen/2, loose_tuple_rev/2, exactly_gen/1, fixed_list_gen/1,
-	 function_gen/2, any_gen/1, builtin_type_gen/2]).
+	 function_gen/2, any_gen/1, native_type_gen/2]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
@@ -520,8 +520,8 @@ any_gen(Size) ->
 	    end
     end.
 
--spec builtin_type_gen(mod_name(), string()) -> proper_types:type().
-builtin_type_gen(Mod, TypeStr) ->
+-spec native_type_gen(mod_name(), string()) -> proper_types:type().
+native_type_gen(Mod, TypeStr) ->
     case proper_typeserver:translate_type({Mod,TypeStr}) of
 	{ok,Type}      -> Type;
 	{error,Reason} -> throw({'$typeserver',Reason})

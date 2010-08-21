@@ -785,7 +785,7 @@ report_error(type_mismatch, Print) ->
     Print("Error: the variables' and types' structures inside a ?FORALL don't "
 	  "match.~n", []);
 report_error({typeserver,SubReason}, Print) ->
-    Print("Error: couldn't translate a built-in type.~nThe typeserver "
+    Print("Error: couldn't translate a native type.~nThe typeserver "
 	  "responded: ~w~n", [SubReason]);
 report_error(wrong_type, Print) ->
     Print(?MISMATCH_MSG ++ "the instances don't match the types.~n", []);

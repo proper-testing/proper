@@ -26,9 +26,9 @@
 %%%	 <ul>
 %%%	 <li>All prop_* functions of arity 0 in the module are automatically
 %%%	     exported.</li>
-%%%	 <li>Type declarations in ?FORALLs that correspond to built-in types
-%%%	     are properly substituted (with some limitations, see the README
-%%%	     for details).</li>
+%%%	 <li>Type declarations in ?FORALLs that correspond to native types are
+%%%	     properly substituted (with some limitations, see the README for
+%%%	     details).</li>
 %%%	 </ul>
 
 -module(proper_transformer).
@@ -323,7 +323,7 @@ rewrite_type({call,Line,{remote,_,{atom,_,Mod},{atom,_,Call}} = FunRef,
 	      #mod_info{name = ModName, helper_pid = HelperPid} = ModInfo) ->
     case is_exported_type(Mod, Call, length(Args), HelperPid) of
 	true ->
-	    builtin_type_call(ModName, Expr);
+	    native_type_call(ModName, Expr);
 	false ->
 	    NewArgs = [rewrite_type(A,ModInfo) || A <- Args],
 	    {call,Line,FunRef,NewArgs}
@@ -335,14 +335,14 @@ rewrite_type({call,Line,{atom,_,Fun} = FunRef,Args} = Expr,
 	    NewArgs = [rewrite_type(A,ModInfo) || A <- Args],
 	    {call,Line,FunRef,NewArgs};
 	false ->
-	    builtin_type_call(ModName, Expr)
+	    native_type_call(ModName, Expr)
     end;
 rewrite_type(Expr, _ModInfo) ->
     Expr.
 
--spec builtin_type_call(mod_name(), abs_expr()) -> abs_expr().
-builtin_type_call(ModName, Expr) ->
+-spec native_type_call(mod_name(), abs_expr()) -> abs_expr().
+native_type_call(ModName, Expr) ->
     AbsModName = {atom,0,ModName},
     AbsTypeStr = {string,0,lists:flatten(erl_pp:expr(Expr))},
-    FunRef = {remote,0,{atom,0,proper_types},{atom,0,builtin_type}},
+    FunRef = {remote,0,{atom,0,proper_types},{atom,0,native_type}},
     {call,0,FunRef,[AbsModName,AbsTypeStr]}.
