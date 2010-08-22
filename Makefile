@@ -90,7 +90,7 @@ tests: compile $(TST_BIN_FILES)
 $(TST_BIN_FILES): $(HDR_FILES) $(MAKE_FILES)
 
 $(TST_BIN_DIR)/%.beam: $(TST_SRC_DIR)/%.erl
-	$(ERLC) $(ERLC_FLAGS) $(TST_ERLC_FLAGS) $<
+	ERL_LIBS=`pwd` $(ERLC) $(ERLC_FLAGS) $(TST_ERLC_FLAGS) $<
 
 util: $(UTIL_BIN_FILES)
 
