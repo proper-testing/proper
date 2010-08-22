@@ -21,6 +21,7 @@
 %%% @version {@version}
 %%% @doc This module contains the subsystem responsible for integration with
 %%%	 Erlang's built-in type system.
+%%% @private
 
 -module(proper_typeserver).
 -behaviour(gen_server).

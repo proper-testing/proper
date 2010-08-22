@@ -21,6 +21,7 @@
 %%% @version {@version}
 %%% @doc This module contains helper arithmetic, list handling and random
 %%%	 functions.
+%%% @private
 
 -module(proper_arith).
 
