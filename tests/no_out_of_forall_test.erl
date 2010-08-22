@@ -19,15 +19,13 @@
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
-%%% @doc This module contains types for testing the typeserver.
+%%% @doc This module tests whether native types are parsed outside of ?FORALLs.
 
--module(types_test1).
--export_type([exp1/0]).
+-module(no_out_of_forall_test).
+-export([]).
 
--record(rec1, {a = 42 :: integer(), b :: float(), c = this_atom}).
--type rec1() :: #rec1{}.
--opaque exp1() :: rec1() | atom().
--type type1() :: {exp1(), [float() | boolean()]}.
--type type2(T) :: {T,T} | [T].
--type rem1() :: types_test2:exp1(integer()) | integer().
--type rem2() :: {bitstring(), types_test2:exp2()}.
+-include_lib("proper/include/proper.hrl").
+
+foo() -> ?LET(X, types_test1:exp1(), {42,X}).
+
+prop_1() -> ?FORALL(_, foo(), true).

@@ -19,7 +19,7 @@
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
-%%% @doc This modules contains types for testing the typeserver.
+%%% @doc This module contains types for testing the typeserver.
 
 -module(types_test2).
 -export_type([exp1/1, exp2/0]).

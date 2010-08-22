@@ -19,15 +19,14 @@
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
-%%% @doc This module contains types for testing the typeserver.
+%%% @doc This module tests whether the parse transform can read module
+%%%	 information from source.
 
--module(types_test1).
+-module(rec_props_test1).
 -export_type([exp1/0]).
 
--record(rec1, {a = 42 :: integer(), b :: float(), c = this_atom}).
--type rec1() :: #rec1{}.
--opaque exp1() :: rec1() | atom().
--type type1() :: {exp1(), [float() | boolean()]}.
--type type2(T) :: {T,T} | [T].
--type rem1() :: types_test2:exp1(integer()) | integer().
--type rem2() :: {bitstring(), types_test2:exp2()}.
+-include_lib("proper/include/proper.hrl").
+
+-type exp1() :: integer().
+
+prop_1() -> ?FORALL(_, rec_props_test2:exp2(), true).

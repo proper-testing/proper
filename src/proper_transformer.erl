@@ -207,16 +207,19 @@ rewrite_field_init({record_field,Line,FieldName,InitExpr}, ModInfo) ->
     {record_field,Line,FieldName,rewrite_expr(InitExpr,ModInfo)}.
 
 -spec rewrite_clause(abs_clause(), mod_info()) -> abs_clause().
-rewrite_clause({clause,Line,Pattern,Guards,Body}, ModInfo) ->
+rewrite_clause({clause,Line,PatSeq,Guards,Body}, ModInfo) ->
+    NewPatSeq = [rewrite_expr(P,ModInfo) || P <- PatSeq],
     NewBody = [rewrite_expr(E,ModInfo) || E <- Body],
-    {clause,Line,Pattern,Guards,NewBody}.
+    {clause,Line,NewPatSeq,Guards,NewBody}.
 
 %% This also covers some other constructs that don't clash with expressions:
 %% binary element specifications, list and binary comprehension generators and
-%% filters.
+%% filters, remote function references. It also covers patterns.
 -spec rewrite_expr(abs_expr(), mod_info()) -> abs_expr().
 rewrite_expr({match,Line,Pattern,Expr}, ModInfo) ->
-    {match,Line,Pattern,rewrite_expr(Expr,ModInfo)};
+    NewPattern = rewrite_expr(Pattern, ModInfo),
+    NewExpr = rewrite_expr(Expr, ModInfo),
+    {match,Line,NewPattern,NewExpr};
 rewrite_expr({tuple,Line,FieldExprs}, ModInfo) ->
     NewFieldExprs = [rewrite_expr(F,ModInfo) || F <- FieldExprs],
     {tuple,Line,NewFieldExprs};
@@ -253,8 +256,13 @@ rewrite_expr({call,Line,
     NewProp = rewrite_expr(Prop, ModInfo),
     {call,Line,FunRef,[NewRawType,NewProp]};
 rewrite_expr({call,Line,FunRef,Args}, ModInfo) ->
+    NewFunRef = rewrite_expr(FunRef, ModInfo),
     NewArgs = [rewrite_expr(A,ModInfo) || A <- Args],
-    {call,Line,FunRef,NewArgs};
+    {call,Line,NewFunRef,NewArgs};
+rewrite_expr({remote,ModExpr,FunExpr}, ModInfo) ->
+    NewModExpr = rewrite_expr(ModExpr, ModInfo),
+    NewFunExpr = rewrite_expr(FunExpr, ModInfo),
+    {remote,NewModExpr,NewFunExpr};
 rewrite_expr({lc,Line,Expr,GensAndFilters}, ModInfo) ->
     NewExpr = rewrite_expr(Expr, ModInfo),
     NewGensAndFilters = [rewrite_expr(W,ModInfo) || W <- GensAndFilters],
@@ -264,9 +272,13 @@ rewrite_expr({bc,Line,Expr,GensAndFilters}, ModInfo) ->
     NewGensAndFilters = [rewrite_expr(W,ModInfo) || W <- GensAndFilters],
     {bc,Line,NewExpr,NewGensAndFilters};
 rewrite_expr({generate,Line,Pattern,Expr}, ModInfo) ->
-    {generate,Line,Pattern,rewrite_expr(Expr,ModInfo)};
+    NewPattern = rewrite_expr(Pattern, ModInfo),
+    NewExpr = rewrite_expr(Expr, ModInfo),
+    {generate,Line,NewPattern,NewExpr};
 rewrite_expr({b_generate,Line,Pattern,Expr}, ModInfo) ->
-    {b_generate,Line,Pattern,rewrite_expr(Expr,ModInfo)};
+    NewPattern = rewrite_expr(Pattern, ModInfo),
+    NewExpr = rewrite_expr(Expr, ModInfo),
+    {b_generate,Line,NewPattern,NewExpr};
 rewrite_expr({block,Line,Body}, ModInfo) ->
     NewBody = [rewrite_expr(E,ModInfo) || E <- Body],
     {block,Line,NewBody};

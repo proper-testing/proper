@@ -49,7 +49,7 @@ APP_ERLC_FLAGS=-W2 -pa $(UTIL_BIN_DIR) '+{parse_transform,strip_types}' -o $(APP
 else
 APP_ERLC_FLAGS=-W2 +warn_missing_spec +warn_untyped_record -o $(APP_BIN_DIR)
 endif
-TST_ERLC_FLAGS=-W0 -DPROPER_REGISTERED='[$(PROPER_REGISTERED)]' -o $(TST_BIN_DIR)
+TST_ERLC_FLAGS=-W0 -pa $(TST_BIN_DIR) -DPROPER_REGISTERED='[$(PROPER_REGISTERED)]' -o $(TST_BIN_DIR)
 UTIL_ERLC_FLAGS=-W2 -o $(UTIL_BIN_DIR)
 EDOC_OPTIONS=[{dialyzer_specs,all}, {report_missing_type,true}, {report_type_mismatch,true}, {pretty_print,erl_pp}, {preprocess,true}]
 EUNIT_OPTIONS=[]
@@ -118,6 +118,10 @@ distclean: clean
 rebuild:
 	@$(MAKE) $(SUB_MAKE_FLAGS) distclean
 	@$(MAKE) $(SUB_MAKE_FLAGS) compile
+
+retest:
+	$(RM) $(TST_BIN_FILES)
+	@$(MAKE) $(SUB_MAKE_FLAGS) tests
 
 package:
 	@$(MAKE) $(SUB_MAKE_FLAGS) all

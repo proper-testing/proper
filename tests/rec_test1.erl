@@ -19,10 +19,10 @@
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
-%%% @doc This modules contains types for testing the typeserver.
+%%% @doc This module contains types for testing the typeserver.
 
 -module(rec_test1).
--export_type([expb/0]).
+-export_type([expb/0, expc/0]).
 
 -type a() :: 'aleaf' | b() | [{'rec',a()}] | c() | d().
 -type b() :: 'bleaf' | {'bnode',b(),b()}.
@@ -41,3 +41,5 @@
 -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
 
 -opaque expb() :: {'a',rec_test2:expa()}.
+
+-type expc() :: 'c' | {'node',?MODULE:expc()}.

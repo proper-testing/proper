@@ -580,10 +580,10 @@ The use of native types in properties is subject to the following usage rules:
      union([my_proper_type(), my_native_type()])
 * Some type constructors can take native types as arguments (but only inside
   ?FORALLs):
-  - ?SUCHTHAT, ?SUCHTHATMAYBE, non_empty and noshrink: these work with native
+  - ?SUCHTHAT, ?SUCHTHATMAYBE, non_empty, noshrink: these work with native
     types too
-  - ?LAZY, ?SHRINK, resize and ?SIZED: these don't work with native types
-  - ?LET and ?LETSHRINK: only the top-level base type can be a native type
+  - ?LAZY, ?SHRINK, resize, ?SIZED: these don't work with native types
+  - ?LET, ?LETSHRINK: only the top-level base type can be a native type
 * Native type declarations in the ?FORALLs of a module can reference any custom
   type declared in a -type or -opaque attribute of the same module, as long as
   no module identifier is used in the declaration.

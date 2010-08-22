@@ -378,7 +378,7 @@ impossible_native_types() ->
 
 recursive_native_types() ->
     [{rec_test1, ["a()","b()","a()|b()","d()","f()","deeplist()",
-		  "mylist(float())","aa()","bb()"]},
+		  "mylist(float())","aa()","bb()","expc()"]},
      {rec_test2, ["a()","expa()","rec()"]}].
 
 impossible_recursive_native_types() ->
@@ -429,6 +429,14 @@ undefined_symb_calls() ->
 %% TODO: typeserver: check that the same type is returned for consecutive calls,
 %%	 even with no caching (no_caching option?)
 %% TODO: typeserver: recursive types containing functions
+%% TODO: ?LET, ?LETSHRINK: only the top-level base type can be a native type
+%% TODO: Test with native types: ?SUCHTHATMAYBE, noshrink, ?LAZY, ?SHRINK,
+%%	 resize, ?SIZED
+%% TODO: no debug_info at compile time => call, not type
+%%	 no debug_info at runtime => won't find type
+%%	 no module in code path at runtime => won't find type
+%% TODO: try some more expressions with a ?FORALL underneath
+%% TODO: various constructors like '|' (+ record notation) are parser-rejected
 
 simple_types_test_() ->
     [?_test(assert_simple_type_works(TD)) || TD <- simple_types_with_data()].
@@ -469,8 +477,70 @@ random_functions_test_() ->
       ?_test(assert_function_type_works(assert_can_translate(proper,TypeStr)))]
      || {FunType,TypeStr} <- function_types()].
 
-types_test_() ->
-    [].
+parse_transform_test_() ->
+    [?_perfectRun(auto_export_test1:prop_1()),
+     ?_assertError(undef, auto_export_test2:prop_1()),
+     ?_assertError(undef, no_native_parse_test:prop_1()),
+     ?_assertError(undef, no_out_of_forall_test:prop_1())].
+
+-type my_native_type() :: integer().
+my_proper_type() -> atom().
+-type type_and_fun() :: integer().
+type_and_fun() -> atom().
+-type type_only() :: integer().
+-type id(X) :: X.
+-type lof() :: [float()].
+
+native_type_props_test_() ->
+    [?_perfectRun(?FORALL({X,Y},
+			  {my_native_type(),my_proper_type()},
+			  is_integer(X) andalso is_atom(Y))),
+     ?_perfectRun(?FORALL([X,Y,Z],
+			  [my_native_type(),my_proper_type(),my_native_type()],
+			  is_integer(X) andalso is_atom(Y)
+			  andalso is_integer(Z))),
+     ?_perfectRun(?FORALL([Y,X,{Z,W}],
+			  [my_proper_type() | [my_native_type()]] ++
+			  [{my_native_type(),my_proper_type()}],
+			  is_integer(X) andalso is_atom(Y)
+			  andalso is_integer(Z) andalso is_atom(W))),
+     ?_perfectRun(?FORALL([X|Y], [my_native_type()|my_native_type()],
+			  is_integer(X) andalso is_integer(Y))),
+     ?_perfectRun(?FORALL(X, type_and_fun(), is_atom(X))),
+     ?_perfectRun(?FORALL(X, type_only(), is_integer(X))),
+     ?_perfectRun(?FORALL(L, [integer()], length(L) =:= 1)),
+     ?_failsWithReason(false_prop, ?FORALL(L,id([integer()]),length(L) =:= 1)),
+     ?_perfectRun(?FORALL(_, types_test1:exp1(), true)),
+     ?_assertError(undef, ?FORALL(_,types_test1:rec1(),true)),
+     ?_assertError(undef, ?FORALL(_,no_such_module:some_call(),true)),
+     {setup, fun() -> code:purge(to_remove),
+		      code:delete(to_remove),
+		      code:purge(to_remove),
+		      file:rename("tests/to_remove.beam",
+				  "tests/to_remove.bak") end,
+	     fun(_) -> file:rename("tests/to_remove.bak",
+				   "tests/to_remove.beam") end,
+	     ?_perfectRun(?FORALL(_, to_remove:exp1(), true))},
+      ?_perfectRun(rec_props_test1:prop_1()),
+      ?_perfectRun(rec_props_test2:prop_2()),
+      ?_perfectRun(?FORALL(L, vector(2,my_native_type()),
+			   length(L) =:= 2 andalso
+			   lists:all(fun erlang:is_integer/1, L))),
+      ?_perfectRun(?FORALL(F, function(0,my_native_type()),
+			   is_integer(F()))),
+      ?_perfectRun(?FORALL(X, union([my_proper_type(),my_native_type()]),
+			   is_integer(X) orelse is_atom(X))),
+      ?_assertError(undef, begin
+			       Vector5 = fun(T) -> vector(5,T) end,
+			       ?FORALL(V, Vector5(types_test1:exp1()),
+				       length(V) =:= 5)
+			   end),
+      ?_perfectRun(?FORALL(X, ?SUCHTHAT(Y,types_test1:exp1(),is_atom(Y)),
+			   is_atom(X))),
+      ?_perfectRun(?FORALL(L,non_empty(lof()),length(L) > 0)),
+      ?_perfectRun(?FORALL(X, ?LET(L,lof(),lists:min([99999.9|L])),
+			   is_float(X))),
+      ?_shrinksTo(0, ?LETSHRINK([X],[my_native_type()],{'tag',X}))].
 
 true_props_test_() ->
     [?_perfectRun(?FORALL(X,integer(),X < X + 1)),
