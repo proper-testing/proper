@@ -40,7 +40,7 @@
 	 find_prop/2, new_type/2, subtype/2, safe_is_instance/2, is_instance/2,
 	 unwrap/1, weakly/1, strongly/1, satisfies_all/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
-	 native_type/2]).
+	 native_type/2, distlist/3]).
 
 -export_type([type/0, raw_type/0]).
 
@@ -506,6 +506,21 @@ list_remove(Index, List) ->
 list_update(Index, NewElem, List) ->
     {H,[_OldElem | T]} = lists:split(Index - 1, List),
     H ++ [NewElem] ++ T.
+
+%% TODO: This assumes that:
+%%	 - instances of size S are always valid instances of size >S
+%%	 - any recursive calls inside Gen are lazy
+%%	 - the generator is responsible for handling the case of singleton lists
+%%	   (we don't subtract 1 for that case)
+-spec distlist(size(), proper_gen:sized_generator(), boolean()) -> type().
+distlist(Size, Gen, NonEmpty) ->
+    ParentType = case NonEmpty of
+		     true  -> non_empty(list(Gen(Size)));
+		     false -> list(Gen(Size))
+		 end,
+    ?SUBTYPE(ParentType, [
+	{generator, fun() -> proper_gen:distlist_gen(Size, Gen, NonEmpty) end}
+    ]).
 
 -spec vector(length(), raw_type()) -> type().
 vector(Len, RawElemType) ->

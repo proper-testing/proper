@@ -32,9 +32,9 @@
 -export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
 	 binary_str_gen/1, binary_rev/1, binary_len_gen/1, binary_len_str_gen/1,
 	 bitstring_gen/1, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
-	 vector_gen/2, union_gen/1, weighted_union_gen/1, tuple_gen/1,
-	 loose_tuple_gen/2, loose_tuple_rev/2, exactly_gen/1, fixed_list_gen/1,
-	 function_gen/2, any_gen/1, native_type_gen/2]).
+	 distlist_gen/3, vector_gen/2, union_gen/1, weighted_union_gen/1,
+	 tuple_gen/1, loose_tuple_gen/2, loose_tuple_rev/2, exactly_gen/1,
+	 fixed_list_gen/1, function_gen/2, any_gen/1, native_type_gen/2]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
@@ -423,6 +423,18 @@ bitstring_len_gen(Len) ->
 list_gen(Size, ElemType) ->
     Len = proper_arith:rand_int(0, Size),
     vector_gen(Len, ElemType).
+
+%% @private
+-spec distlist_gen(size(), sized_generator(), boolean()) -> [imm_instance()].
+distlist_gen(Size, Gen, NonEmpty) ->
+    Len = case NonEmpty of
+	      true  -> proper_arith:rand_int(1, erlang:max(1,Size));
+	      false -> proper_arith:rand_int(0, Size)
+	  end,
+    %% TODO: this produces a lot of types: maybe a simple 'div' is sufficient?
+    Sizes = proper_arith:distribute(Size, Len),
+    InnerTypes = [Gen(S) || S <- Sizes],
+    fixed_list_gen(InnerTypes).
 
 %% @private
 -spec vector_gen(length(), proper_types:type()) -> [imm_instance()].
