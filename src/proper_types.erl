@@ -287,18 +287,20 @@ constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
 	RawInnerType = Combine(proper_gen:clean_instance(ImmParts)),
 	is_instance(ImmInstance, RawInnerType)
     end;
-constructed_test({'$to_part',Part,NumParts,ImmInstance}, Type) ->
+constructed_test({'$to_part',ImmInstance}, Type) ->
+    PartsType = get_prop(parts_type, Type),
     get_prop(shrink_to_parts, Type) =:= true andalso
-    begin
-	%% This is a ?LETSHRINK, thus the parts are in a fixed list.
-	PartsType = get_prop(parts_type, Type),
-	PartTypesList = get_prop(internal_types, PartsType),
-	length(PartTypesList) =:= NumParts andalso
-	begin
-	    %% TODO: this isn't very clean
-	    PartType = lists:nth(Part, PartTypesList),
-	    is_instance(ImmInstance, PartType)
-	end
+    %% TODO: we reject non-container types
+    get_prop(kind, PartsType) =:= container andalso
+    case {find_prop(internal_type,PartsType),
+	  find_prop(internal_types,PartsType)} of
+	{{ok,EachPartType},error} ->
+	    %% The parts are in a list or a vector.
+	    is_instance(ImmInstance, EachPartType);
+	{error,{ok,PartTypesList}} ->
+	    %% The parts are in a fixed list.
+	    %% TODO: It should always be a proper list.
+	    lists:any(fun(T) -> is_instance(ImmInstance,T) end, PartTypesList)
     end;
 constructed_test(_CleanInstance, _Type) ->
     %% TODO: can we do anything better?

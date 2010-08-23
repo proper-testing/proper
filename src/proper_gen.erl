@@ -53,8 +53,7 @@
 -type imm_instance() :: proper_types:raw_type()
 		      | instance()
 		      | {'$used', imm_instance(), imm_instance()}
-		      | {'$to_part', pos_integer(), pos_integer(),
-			 imm_instance()}.
+		      | {'$to_part', imm_instance()}.
 
 -type sized_generator() :: fun((size()) -> imm_instance()).
 -type nosize_generator() :: fun(() -> imm_instance()).
@@ -269,7 +268,7 @@ alt_gens(Type) ->
 -spec clean_instance(imm_instance()) -> instance().
 clean_instance({'$used',_ImmParts,ImmInstance}) ->
     clean_instance(ImmInstance);
-clean_instance({'$to_part',_Part,_NumParts,ImmInstance}) ->
+clean_instance({'$to_part',ImmInstance}) ->
     clean_instance(ImmInstance);
 clean_instance(ImmInstance) ->
     if

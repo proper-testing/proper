@@ -437,7 +437,7 @@ undefined_symb_calls() ->
 %%	 no module in code path at runtime => won't find type
 %% TODO: try some more expressions with a ?FORALL underneath
 %% TODO: various constructors like '|' (+ record notation) are parser-rejected
-%% TODO: nonempty recursive lists
+%% TODO: test nonempty recursive lists
 
 simple_types_test_() ->
     [?_test(assert_simple_type_works(TD)) || TD <- simple_types_with_data()].

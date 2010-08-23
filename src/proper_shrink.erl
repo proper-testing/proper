@@ -204,10 +204,7 @@ unwrap_shrinker(Instance, _Type, State) ->
 -spec to_part_shrinker(proper_gen:imm_instance(), proper_types:type(),
 		       state()) -> {[proper_gen:imm_instance()],state()}.
 to_part_shrinker({'$used',ImmParts,_ImmInstance}, _Type, init) ->
-    NumParts = length(ImmParts),
-    NumberedImmParts = lists:zip(lists:seq(1,NumParts), ImmParts),
-    NewInstances = [{'$to_part',N,NumParts,P} || {N,P} <- NumberedImmParts],
-    {NewInstances, done};
+    {[{'$to_part',P} || P <- ImmParts], done};
 to_part_shrinker(_Instance, _Type, _State) ->
     {[], done}.
 
@@ -279,13 +276,18 @@ in_shrinker(Instance = {'$used',ImmParts,_ImmInstance}, Type, init) ->
 	false ->
 	    {[], done}
     end;
-in_shrinker(Instance = {'$to_part',Part,_NumParts,_ImmInstance}, Type, init) ->
+in_shrinker(Instance = {'$to_part',ImmInstance}, Type, init) ->
     %% TODO: move this to proper_types
     PartsType = proper_types:get_prop(parts_type, Type),
-    PartTypesList = proper_types:get_prop(internal_types, PartsType),
-    %% TODO: this isn't very clean
-    PartType = lists:nth(Part, PartTypesList),
-    in_shrinker(Instance, Type, {part_rec,PartType,init});
+    case {proper_types:find_prop(internal_type,PartsType),
+	  proper_types:find_prop(internal_types,PartsType)} of
+	{{ok,EachPartType},error} ->
+	    in_shrinker(Instance, Type, {part_rec,EachPartType,init});
+	{error,{ok,PartTypesList}} ->
+	    IsInst = fun(T) -> proper_types:is_instance(ImmInstance,T) end,
+	    {_Pos,PartType} = proper_arith:find_first(IsInst, PartTypesList),
+	    in_shrinker(Instance, Type, {part_rec,PartType,init})
+    end;
 in_shrinker(_CleanInstance, _Type, init) ->
     {[], done};
 in_shrinker(_Instance, _Type, {_Decl,_RecType,done}) ->
@@ -296,11 +298,10 @@ in_shrinker({'$used',ImmParts,ImmInstance}, _Type,
 	shrink_one(ImmInstance, InnerType, InnerState),
     NewInstances = [{'$used',ImmParts,I} || I <- NewImmInstances],
     {NewInstances, {inner,InnerType,NewInnerState}};
-in_shrinker({'$to_part',Part,NumParts,ImmInstance}, _Type,
-	    {part_rec,PartType,PartState}) ->
+in_shrinker({'$to_part',ImmInstance}, _Type, {part_rec,PartType,PartState}) ->
     {NewImmInstances,NewPartState} =
 	shrink_one(ImmInstance, PartType, PartState),
-    NewInstances = [{'$to_part',Part,NumParts,I} || I <- NewImmInstances],
+    NewInstances = [{'$to_part',I} || I <- NewImmInstances],
     {NewInstances, {part_rec,PartType,NewPartState}};
 in_shrinker(Instance, Type, {shrunk,N,{Decl,RecType,InnerState}}) ->
     in_shrinker(Instance, Type, {Decl,RecType,{shrunk,N,InnerState}}).
