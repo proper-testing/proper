@@ -433,28 +433,37 @@ convert_list(Mod, NonEmpty, ElemForm, State, Stack, VarDict) ->
 		      end,
 	    {ok, {simple,FinType}, NewState};
 	{ok,{rec,RecFun,RecArgs},NewState} ->
-	    NewRecFun =
-		fun(GenFuns,Size) ->
-		    ?LET(Len,
-			 %% TODO: instead go up to Size div 2?
-			 proper_types:integer(0,Size),
-			 case Len of
-			     0 -> [];
-			     %% TODO: inner type needs to be lazy?
-			     _ -> InnerType = RecFun(GenFuns,Size div Len),
-				  proper_types:vector(Len, InnerType)
-			 end)
-		end,
-	    NewRecArgs = clean_rec_args(RecArgs),
 	    case {NonEmpty, at_toplevel(RecArgs,Stack)} of
 		{true,true} ->
 		    base_case_error(Stack);
 		{true,false} ->
-		    FinalRecFun = fun(G,S) ->
-				      proper_types:non_empty(NewRecFun(G,S))
-				  end,
-		    {ok, {rec,FinalRecFun,NewRecArgs}, NewState};
+		    NewRecFun =
+			fun(GenFuns,RawSize) ->
+			    Size = erlang:max(1, RawSize),
+			    ?LET(Len,
+				 proper_types:integer(1, Size),
+				 begin
+				     InnerType = RecFun(GenFuns, Size div Len),
+				     proper_types:vector(Len, InnerType)
+				 end)
+			end,
+		    NewRecArgs = clean_rec_args(RecArgs),
+		    {ok, {rec,NewRecFun,NewRecArgs}, NewState};
 		{false,_} ->
+		    NewRecFun =
+			fun(GenFuns,Size) ->
+			    ?LET(Len,
+				 %% TODO: instead go up to Size div 2?
+				 proper_types:integer(0,Size),
+				 case Len of
+				     0 -> [];
+				     %% TODO: inner type needs to be lazy?
+				     _ -> InnerSize = Size div Len,
+					  InnerType = RecFun(GenFuns,InnerSize),
+					  proper_types:vector(Len,InnerType)
+				 end)
+			end,
+		    NewRecArgs = clean_rec_args(RecArgs),
 		    {ok, {rec,NewRecFun,NewRecArgs}, NewState}
 	    end;
 	{error,_Reason} = Error ->

@@ -56,7 +56,7 @@ shrink(TestCase, Test, Reason, Shrinks, Print) ->
 		 proper:fail_reason(), non_neg_integer(), non_neg_integer(),
 		 proper:output_fun()) ->
 	  {non_neg_integer(),proper:imm_testcase()}.
-%% TODO: is it too much that we try to reach an equilibrium by repeaing all the
+%% TODO: is it too much that we try to reach an equilibrium by repeating all the
 %%	 shrinkers?
 %% TODO: is it possible to get stuck in an infinite loop (unions are the most
 %%	 dangerous)? should we check if the returned values have been
