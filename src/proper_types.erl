@@ -145,6 +145,7 @@
 %% Type manipulation functions
 %%------------------------------------------------------------------------------
 
+%% @private
 -spec cook_outer(raw_type()) -> type().
 cook_outer(Type = {'$type',_Props}) ->
     Type;
@@ -157,18 +158,21 @@ cook_outer(RawType) ->
 	true              -> exactly(RawType)
     end.
 
+%% @private
 -spec is_type(term()) -> boolean().
 is_type({'$type',_Props}) ->
     true;
 is_type(_) ->
     false.
 
+%% @private
 -spec equal_types(type(), type()) -> boolean().
 equal_types(_Type, _Type) ->
     true;
 equal_types(_, _) ->
     false.
 
+%% @private
 -spec is_raw_type(term()) -> boolean().
 is_raw_type({'$type',_TypeProps}) ->
     true;
@@ -205,19 +209,23 @@ add_props(PropList, {'$type',OldProps}) ->
 append_to_prop(PropName, Value, {'$type',Props}) ->
     {'$type',orddict:append(PropName, Value, Props)}.
 
+%% @private
 -spec get_prop(type_prop_name(), type()) -> type_prop_value().
 get_prop(PropName, {'$type',Props}) ->
     orddict:fetch(PropName, Props).
 
+%% @private
 -spec find_prop(type_prop_name(), type()) -> {'ok',type_prop_value()} | 'error'.
 find_prop(PropName, {'$type',Props}) ->
     orddict:find(PropName, Props).
 
+%% @private
 -spec new_type([type_prop()], type_kind()) -> type().
 new_type(PropList, Kind) ->
     Type = type_from_list(PropList),
     add_prop(kind, Kind, Type).
 
+%% @private
 -spec subtype([type_prop()], type()) -> type().
 %% TODO: should the 'is_instance' function etc. be reset for subtypes?
 subtype(PropList, Type) ->
@@ -236,15 +244,15 @@ is_inst(Instance, RawType, Size) ->
     proper:global_state_erase(),
     Result.
 
+%% @private
 -spec safe_is_instance(proper_gen:imm_instance(), raw_type()) ->
 	  boolean() | {'error',{'typeserver',term()}}.
 safe_is_instance(ImmInstance, RawType) ->
-    try is_instance(ImmInstance, RawType) of
-	Result -> Result
-    catch
+    try is_instance(ImmInstance, RawType) catch
 	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
     end.
 
+%% @private
 -spec is_instance(proper_gen:imm_instance(), raw_type()) -> boolean().
 %% TODO: If the second argument is not a type, let it pass (don't even check for
 %%	 term equality?) - if it's a raw type, don't cook it, instead recurse
@@ -269,6 +277,7 @@ wrapper_test(ImmInstance, Type) ->
     %% TODO: check if it's actually a raw type that's returned?
     lists:any(fun(T) -> is_instance(ImmInstance, T) end, unwrap(Type)).
 
+%% @private
 -spec unwrap(type()) -> [type()].
 %% TODO: check if it's actually a raw type that's returned?
 unwrap(Type) ->
@@ -306,9 +315,11 @@ constructed_test(_CleanInstance, _Type) ->
     %% TODO: can we do anything better?
     false.
 
+%% @private
 -spec weakly({boolean(),boolean()}) -> boolean().
 weakly({B1,_B2}) -> B1.
 
+%% @private
 -spec strongly({boolean(),boolean()}) -> boolean().
 strongly({_B1,B2}) -> B2.
 
@@ -320,6 +331,7 @@ satisfies(Instance, {Test,true}) ->
     Result = Test(Instance),
     {Result,Result}.
 
+%% @private
 -spec satisfies_all(proper_gen:instance(), type()) -> {boolean(),boolean()}.
 satisfies_all(Instance, Type) ->
     case find_prop(constraints, Type) of
@@ -336,18 +348,21 @@ satisfies_all(Instance, Type) ->
 %% Type definition functions
 %%------------------------------------------------------------------------------
 
+%% @private
 -spec lazy(proper_gen:nosize_generator()) -> type().
 lazy(Gen) ->
     ?WRAPPER([
 	{generator, Gen}
     ]).
 
+%% @private
 -spec sized(proper_gen:sized_generator()) -> type().
 sized(Gen) ->
     ?WRAPPER([
 	{generator, Gen}
     ]).
 
+%% @private
 -spec bind(raw_type(), proper_gen:combine_fun(), boolean()) -> type().
 bind(RawPartsType, Combine, ShrinkToParts) ->
     PartsType = cook_outer(RawPartsType),
@@ -357,6 +372,7 @@ bind(RawPartsType, Combine, ShrinkToParts) ->
 	{shrink_to_parts, ShrinkToParts}
     ]).
 
+%% @private
 -spec shrinkwith(proper_gen:nosize_generator(), proper_gen:alt_gens()) ->
 	  type().
 shrinkwith(Gen, DelaydAltGens) ->
@@ -365,11 +381,13 @@ shrinkwith(Gen, DelaydAltGens) ->
 	{alt_gens, DelaydAltGens}
     ]).
 
+%% @private
 -spec add_constraint(raw_type(), constraint_fun(), boolean()) -> type().
 add_constraint(RawType, Condition, IsStrict) ->
     Type = cook_outer(RawType),
     append_to_prop(constraints, {Condition,IsStrict}, Type).
 
+%% @private
 -spec native_type(mod_name(), string()) -> type().
 native_type(Mod, TypeStr) ->
     ?WRAPPER([
@@ -507,6 +525,7 @@ list_update(Index, NewElem, List) ->
     {H,[_OldElem | T]} = lists:split(Index - 1, List),
     H ++ [NewElem] ++ T.
 
+%% @private
 %% TODO: This assumes that:
 %%	 - instances of size S are always valid instances of size >S
 %%	 - any recursive calls inside Gen are lazy

@@ -251,9 +251,9 @@ which case counterexamples are also returned as part of the return tuple.
 
 You can re-check a specific counterexample <CExm> against the property <Prop>
 that it previously falsified by running:
-   proper:check(<Prop>, <CExm>)
+   proper:retest(<Prop>, <CExm>)
      or
-   proper:check(<Prop>, <CExm>, <option/options>)
+   proper:retest(<Prop>, <CExm>, <option/options>)
 This will return one of the following:
   * 'true': The property now holds for this test case.
   * 'false': The test case still fails (although not necessarily for the same

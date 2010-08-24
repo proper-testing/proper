@@ -2,7 +2,7 @@ APP_SRC_DIR=src
 APP_BIN_DIR=ebin
 HDR_DIR=include
 DOC_DIR=doc
-DOC_PATTERN=index.html overview-summary.html modules-frame.html packages-frame.html stylesheet.css erlang.png edoc-info
+DOC_PATTERN=*.html stylesheet.css erlang.png edoc-info
 TST_SRC_DIR=tests
 TST_BIN_DIR=tests
 EXM_DIR=examples
@@ -29,7 +29,7 @@ APP_MODULES=$(APP_SRC_FILES:$(APP_SRC_DIR)/%.erl=%)
 PROPER_MODULES=$(subst $(SPACE),$(COMMA),$(APP_MODULES))
 APP_BIN_FILES=$(APP_MODULES:%=$(APP_BIN_DIR)/%.beam) $(APP_BIN_DIR)/proper.app
 HDR_FILES=$(wildcard $(HDR_DIR)/*.hrl)
-DOC_FILES=$(addprefix $(DOC_DIR)/, $(DOC_PATTERN) $(addsuffix .html, $(APP_MODULES)))
+DOC_FILES=$(addprefix $(DOC_DIR)/, $(DOC_PATTERN))
 TST_SRC_FILES=$(wildcard $(TST_SRC_DIR)/*.erl)
 TST_MODULES=$(TST_SRC_FILES:$(TST_SRC_DIR)/%.erl=%)
 TST_BIN_FILES=$(TST_MODULES:%=$(TST_BIN_DIR)/%.beam)
@@ -58,6 +58,7 @@ DIALYZER_FLAGS=-Wunmatched_returns
 RM=rm -f
 TAR=tar -czf
 SUB_MAKE_FLAGS=--no-print-directory
+SUB_MAKE=$(MAKE) $(SUB_MAKE_FLAGS)
 
 
 # TODO: separate debug and optimization options
@@ -116,16 +117,16 @@ distclean: clean
 	@echo done
 
 rebuild:
-	@$(MAKE) $(SUB_MAKE_FLAGS) distclean
-	@$(MAKE) $(SUB_MAKE_FLAGS) compile
+	@$(SUB_MAKE) distclean
+	@$(SUB_MAKE) compile
 
 retest:
 	$(RM) $(TST_BIN_FILES)
-	@$(MAKE) $(SUB_MAKE_FLAGS) tests
+	@$(SUB_MAKE) tests
 
 package:
-	@$(MAKE) $(SUB_MAKE_FLAGS) all
-	@$(MAKE) $(SUB_MAKE_FLAGS) clean
+	@$(SUB_MAKE) all
+	@$(SUB_MAKE) clean
 	@echo -n packaging...
 	@$(TAR) $(PACKAGE_FILE) $(APP_SRC_FILES) $(APP_BIN_FILES) $(HDR_FILES) $(DOC_SRC_FILES) $(DOC_FILES) $(TST_SRC_FILES) $(UTIL_SRC_FILES) $(UTIL_BIN_FILES) $(EXM_FILES) $(TXT_FILES) $(MAKE_FILES)
 	@echo done

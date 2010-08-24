@@ -55,17 +55,25 @@
 		      | {'$used', imm_instance(), imm_instance()}
 		      | {'$to_part', imm_instance()}.
 
+%% @private_type
 -type sized_generator() :: fun((size()) -> imm_instance()).
+%% @private_type
 -type nosize_generator() :: fun(() -> imm_instance()).
+%% @private_type
 -type generator() :: sized_generator() | nosize_generator().
 -type sized_straight_gen() :: fun((size()) -> {'ok',instance()} | 'error').
 -type nosize_straight_gen() :: fun(() -> {'ok',instance()} | 'error').
+%% @private_type
 -type straight_gen() :: sized_straight_gen() | nosize_straight_gen().
+%% @private_type
 -type reverse_gen() :: fun((instance()) -> imm_instance()).
+%% @private_type
 -type combine_fun() :: fun((instance()) -> imm_instance()).
+%% @private_type
 -type alt_gens() :: fun(() -> [imm_instance()]).
 -type fun_num() :: pos_integer().
 
+%% @private_type
 -opaque gen_state() :: {[abs_form()] | 'undefined',fun_num() | 'undefined'}.
 
 

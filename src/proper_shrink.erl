@@ -21,6 +21,7 @@
 %%% @version {@version}
 %%% @doc The shrinking subsystem and all predefined shrinkers are contained in
 %%%	 this module.
+%%% @private
 
 -module(proper_shrink).
 

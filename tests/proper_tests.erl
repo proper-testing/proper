@@ -54,7 +54,7 @@
 
 -define(_assertReRun(ExpShortResult, Test, CExm, Opts),
 	?_test(begin
-		   ?assertEqual(ExpShortResult, proper:check(Test,CExm,Opts)),
+		   ?assertEqual(ExpShortResult, proper:retest(Test,CExm,Opts)),
 		   ?assert(state_is_clean())
 		end)).
 
@@ -110,12 +110,11 @@ assertEqualsOneOf(X, List) ->
 	?_test(begin
 		   ?assertEqual(exp_short_result(Opts),
 				proper:check(Test, Opts)),
-		   CExm1 = proper:get_counterexample(),
-		   ?assert(CExm1 =/= undefined),
+		   {ok,CExm1} = proper:get_counterexample(),
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean()),
 		   ?assertEqual(exp_short_result(Opts),
-				proper:check(Test, CExm1, Opts)),
+				proper:retest(Test, CExm1, Opts)),
 		   ?assert(state_is_clean()),
 		   case proper:check(Test, [long_result | Opts]) of
 		       {failed,_,CExm2,_,CExm3} ->

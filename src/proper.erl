@@ -22,7 +22,7 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([check/1, check/2, check/3]).
+-export([check/1, check/2, retest/2, retest/3]).
 -export([numtests/2, fails/1, on_output/2]).
 -export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
 	 with_title/1, equals/2]).
@@ -33,6 +33,7 @@
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
 -export([still_fails/4, force_skip/2]).
 
+-export_type([test/0, outer_test/0, counterexample/0]).
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
 
 -include("proper_internal.hrl").
@@ -49,6 +50,7 @@
 %% Test types
 %%------------------------------------------------------------------------------
 
+%% @private_type
 -type imm_testcase() :: [proper_gen:imm_instance()].
 -type clean_testcase() :: [proper_gen:instance()].
 -type sample() :: [term()].
@@ -64,11 +66,11 @@
 -type numeric_stats() :: {numeric_stat(),numeric_stat(),numeric_stat()}.
 -type time_period() :: non_neg_integer().
 
--type outer_test() :: test()
+-type outer_test() :: test() %% TODO: This should be opaque.
 		    | numtests_clause()
 		    | fails_clause()
 		    | on_output_clause().
--type test() :: boolean()
+-type test() :: boolean() %% TODO: This should be opaque.
 	      | forall_clause()
 	      | implies_clause()
 	      | sample_clause()
@@ -80,6 +82,7 @@
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
+%% @private_type
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
 -type stripped_forall()	:: {proper_types:type(), dependent_test()}.
 
@@ -125,7 +128,6 @@
 -type opts() :: #opts{}.
 %% TODO: other ways for the user to define the extra exceptions to catch?
 %% TODO: should they contain specific reasons (or '$any' for all reasons)?
-%% TODO: allow errors to be caught?
 -record(ctx, {catch_exits  = false :: boolean(),
 	      try_shrunk   = false :: boolean(),
 	      bound        = []    :: imm_testcase(),
@@ -145,8 +147,8 @@
 			   | {'failed', counterexample(), fail_actions()}
 			   | {'error', single_run_error_reason()}.
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
--opaque fail_reason() :: 'false_prop' | 'time_out'
-		       | {'exception',exc_kind(),exc_reason(),stacktrace()}.
+-type fail_reason() :: 'false_prop' | 'time_out'
+		     | {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
@@ -175,13 +177,14 @@
 	       bound       :: imm_testcase(),
 	       size        :: size(),
 	       gen_state   :: proper_gen:gen_state()}).
--type counterexample() :: #cexm{}.
+-opaque counterexample() :: #cexm{}.
 
 
 %%------------------------------------------------------------------------------
 %% State handling functions
 %%------------------------------------------------------------------------------
 
+%% @private
 -spec get_size() -> size() | 'undefined'.
 get_size() ->
     get('$size').
@@ -204,6 +207,7 @@ get_size(Type) ->
 	    end
     end.
 
+%% @private
 -spec global_state_init_size(size()) -> 'ok'.
 global_state_init_size(Size) ->
     global_state_init(#opts{start_size = Size}).
@@ -239,9 +243,12 @@ save_counterexample(CExm) ->
     put('$counterexample', CExm),
     ok.
 
--spec get_counterexample() -> counterexample() | 'undefined'.
+-spec get_counterexample() -> {'ok',counterexample()} | 'error'.
 get_counterexample() ->
-    get('$counterexample').
+    case get('$counterexample') of
+	undefined -> error;
+	CExm      -> {ok, CExm}
+    end.
 
 -spec clean_garbage() -> 'ok'.
 clean_garbage() ->
@@ -265,21 +272,23 @@ get_bound(#cexm{bound = ImmTestCase}) ->
 check(OuterTest) ->
     check(OuterTest, []).
 
--spec check(outer_test(), [user_opt()] | user_opt() | counterexample()) ->
-	  long_result() | short_result() | rerun_result().
-check(OuterTest, #cexm{} = CExm) ->
-    check(OuterTest, CExm, []);
+-spec check(outer_test(), [user_opt()] | user_opt()) ->
+	  long_result() | short_result().
 check(OuterTest, UserOpts) ->
     ImmOpts = parse_opts(UserOpts),
     {Test,Opts} = peel_test(OuterTest, ImmOpts),
     test(Test, Opts).
 
--spec check(outer_test(), counterexample(), [user_opt()] | user_opt()) ->
+-spec retest(outer_test(), counterexample()) -> rerun_result().
+retest(OuterTest, CExm) ->
+    retest(OuterTest, CExm, []).
+
+-spec retest(outer_test(), counterexample(), [user_opt()] | user_opt()) ->
 	  rerun_result().
-check(OuterTest, CExm, UserOpts) ->
+retest(OuterTest, CExm, UserOpts) ->
     ImmOpts = parse_opts(UserOpts),
     {Test,Opts} = peel_test(OuterTest, ImmOpts),
-    retest(Test, CExm, Opts).
+    retry(Test, CExm, Opts).
 
 -spec parse_opts([user_opt()] | user_opt()) -> opts().
 parse_opts(OptsList) ->
@@ -330,6 +339,7 @@ peel_test(Test, Opts) ->
 %% Test declaration functions
 %%------------------------------------------------------------------------------
 
+%% TODO: All of these should have a test() or outer_test() return type.
 -spec numtests(pos_integer(), outer_test()) -> numtests_clause().
 numtests(N, Test) ->
     {numtests, N, Test}.
@@ -342,10 +352,12 @@ fails(Test) ->
 on_output(Print, Test) ->
     {on_output, Print, Test}.
 
+%% @private
 -spec forall(proper_types:raw_type(), dependent_test()) -> forall_clause().
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
 
+%% @private
 -spec implies(boolean(), delayed_test()) -> implies_clause().
 implies(Pre, DTest) ->
     {implies, Pre, DTest}.
@@ -372,14 +384,17 @@ measure(Title, Sample, Test) when is_number(Sample) ->
 measure(Title, Sample, Test) when is_list(Sample) ->
     aggregate(numeric_with_title(Title), Sample, Test).
 
+%% @private
 -spec whenfail(side_effects_fun(), delayed_test()) -> whenfail_clause().
 whenfail(Action, DTest) ->
     {whenfail, Action, DTest}.
 
+%% @private
 -spec trapexit(delayed_test()) -> trapexit_clause().
 trapexit(DTest) ->
     {trapexit, DTest}.
 
+%% @private
 -spec timeout(time_period(), delayed_test()) -> timeout_clause().
 timeout(Limit, DTest) ->
     {timeout, Limit, DTest}.
@@ -408,8 +423,8 @@ test(Test, #opts{numtests = NumTests, output_fun = Print,
 	false -> ShortResult
     end.
 
--spec retest(test(), counterexample(), opts()) -> rerun_result().
-retest(Test, #cexm{bound = ImmTestCase} = CExm, Opts) ->
+-spec retry(test(), counterexample(), opts()) -> rerun_result().
+retry(Test, #cexm{bound = ImmTestCase} = CExm, Opts) ->
     global_state_restore(CExm, Opts),
     SingleRunResult = rerun(Test, ImmTestCase),
     RerunResult = get_rerun_result(SingleRunResult, CExm, Opts),
@@ -650,6 +665,7 @@ clean_testcase(ImmTestCase) ->
 %% Shrinking callback functions
 %%------------------------------------------------------------------------------
 
+%% @private
 -spec still_fails(proper_gen:imm_instance(), imm_testcase(), dependent_test(),
 		  fail_reason()) -> boolean().
 still_fails(ImmInstance, TestTail, Prop, OldReason) ->
@@ -699,6 +715,7 @@ skip_to_next({timeout,_Limit,_Prop}) ->
 force_skip(Prop) ->
     apply_skip([], Prop).
 
+%% @private
 -spec force_skip(proper_gen:instance(), dependent_test()) -> stripped_test().
 force_skip(Arg, Prop) ->
     apply_skip([Arg], Prop).
@@ -777,6 +794,7 @@ get_rerun_result({error,Reason} = Error, _CExm, #opts{output_fun = Print}) ->
     report_error(Reason, Print),
     Error.
 
+%% @private
 -spec report_error(rerun_error_reason() | error_reason(), output_fun()) -> 'ok'.
 report_error(cant_generate, Print) ->
     Print("Error: couldn't produce an instance that satisfies all strict "

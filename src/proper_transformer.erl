@@ -66,6 +66,7 @@
 %% Top-level functions
 %%------------------------------------------------------------------------------
 
+%% @private
 -spec parse_transform([abs_form()], _) -> [abs_form()].
 parse_transform(Forms, _Options) ->
     RawModInfo = collect_info(Forms),
@@ -160,8 +161,9 @@ helper_loop(ExpDict) ->
 	    NewExpDict = add_module(Mod, ExpDict),
 	    Answer = case dict:fetch(Mod, NewExpDict) of
 			 {data,ModExpTypes,ModExpFuns} ->
-			     not sets:is_element({Call,Arity}, ModExpFuns)
-			     andalso sets:is_element({Call,Arity}, ModExpTypes);
+			     CallRef = {Call,Arity},
+			     not sets:is_element(CallRef, ModExpFuns)
+			     andalso sets:is_element(CallRef, ModExpTypes);
 			 nodata ->
 			     false
 		     end,
