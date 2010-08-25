@@ -50,7 +50,7 @@
 %% Test types
 %%------------------------------------------------------------------------------
 
-%% @private_type
+%% @private_type imm_testcase
 -type imm_testcase() :: [proper_gen:imm_instance()].
 -type clean_testcase() :: [proper_gen:instance()].
 -type sample() :: [term()].
@@ -82,7 +82,7 @@
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
-%% @private_type
+%% @private_type stripped_test
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
 -type stripped_forall()	:: {proper_types:type(), dependent_test()}.
 

@@ -87,7 +87,7 @@ state_is_clean() ->
 
 -define(_nativeShrinksTo(ExpShrunkInstance, TypeStr),
 	?_failRun(false_prop, _, [ExpShrunkInstance], none,
-		  ?FORALL(_X,assert_can_translate(proper, TypeStr),false),
+		  ?FORALL(_X,assert_can_translate(?MODULE, TypeStr),false),
 		  ?SHRINK_TEST_OPTS)).
 
 -define(_shrinksToOneOf(AllShrunkInstances, Type),
@@ -136,17 +136,17 @@ assertEqualsOneOf(X, List) ->
 exp_short_result(Opts) ->
     lists:member(fails, Opts).
 
-assert_simple_type_works({Type,Are,_Target,Arent,TypeStr}) ->
+assert_type_works({Type,Are,_Target,Arent,TypeStr}, IsSimple) ->
     lists:foreach(fun(X) -> assert_is_instance(X,Type) end, Are),
-    assert_can_generate(Type, true),
+    assert_can_generate(Type, IsSimple),
     lists:foreach(fun(X) -> assert_not_is_instance(X,Type) end, Arent),
     case TypeStr of
 	none ->
 	    ok;
 	_ ->
-	    TransType = assert_can_translate(types_test1, TypeStr),
+	    TransType = assert_can_translate(?MODULE, TypeStr),
 	    lists:foreach(fun(X) -> assert_is_instance(X,TransType) end, Are),
-	    assert_can_generate(TransType, true),
+	    assert_can_generate(TransType, IsSimple),
 	    lists:foreach(fun(X) -> assert_not_is_instance(X,TransType) end,
 			  Arent)
     end.
@@ -343,7 +343,48 @@ simple_types_with_data() ->
      {any(), [1,-12,0,99.9,-42.2,0.0,an_atom,'',<<>>,<<1,2>>,<<1,2,3:5>>,[],
 	      [42,<<>>],{},{tag,12},{tag,[vals,12,12.2],[],<<>>}],
 	     0, [], "any()"},
-     {list(any()), [[<<>>,a,1,-42.0,{11.8,[]}]], [], [{1,aa},<<>>], "[any()]"}].
+     {list(any()), [[<<>>,a,1,-42.0,{11.8,[]}]], [], [{1,aa},<<>>], "[any()]"},
+     {deeplist(), [[[],[]], [[[]],[]]], [], [[a]], "deeplist()"}].
+
+%% TODO: These rely on the intermediate form of the instances.
+constructed_types_with_data() ->
+    [{?LET(X,range(1,5),X*X), [{'$used',1,1},{'$used',5,25}], 1,
+      [4,{'$used',3,8},{'$used',0,0}], none},
+     {?LET(L,non_empty(list(atom())),oneof(L)),
+      [{'$used',[aa],aa},{'$used',[aa,bb],aa},{'$used',[aa,bb],bb}], '',
+      [{'$used',[],''},{'$used',[aa,bb],cc}], none},
+     {?LET(X,pos_integer(),?LET(Y,range(0,X),X-Y)),
+      [{'$used',3,{'$used',2,1}},{'$used',9,{'$used',9,0}},
+       {'$used',5,{'$used',0,5}}], 1,
+      [{'$used',0,{'$used',0,0}},{'$used',3,{'$used',4,-1}},
+       {'$used',7,{'$used',6,2}}], none},
+     {?LET(Y,?LET(X,integer(),X*X),-Y),
+      [{'$used',{'$used',-9,81},-81},{'$used',{'$used',2,4},-4}], 0,
+      [{'$used',{'$used',1,2},-2},{'$used',{'$used',3,9},9}], none},
+     {?SUCHTHAT(Y,?LET(X,oneof([1,2,3]),X+X),Y>3),
+      [{'$used',2,4},{'$used',3,6}], 4, [{'$used',1,2}], none},
+     {?LET(X,?SUCHTHAT(Y,pos_integer(),Y=/=0),X*X),
+      [{'$used',3,9},{'$used',1,1},{'$used',11,121}], 1,
+      [{'$used',-1,1},{'$used',0,0}], none},
+     {tree(integer()), [{'$used',[null,null],{node,42,null,null}},
+			{'$used',[{'$used',[null,null],{node,2,null,null}},
+				  {'$used',[null,null],{node,3,null,null}}],
+			 {node,-1,{node,2,null,null},{node,3,null,null}}},
+			 {'$to_part',null},
+			 {'$to_part',{'$used',[null,null],{node,7,null,null}}}],
+      null, [{'$used',[null,null],{node,1.1,null,null}}], "tree(integer())"},
+     {?LETSHRINK(L,[],{tag,L}), [{'$used',[],{tag,[]}}], {tag,[]}, [], none},
+     {?LETSHRINK(L,non_empty(list(atom())),{tag,L}),
+      [{'$used',[aa],{tag,[aa]}},{'$to_part',aa}], '', [], none},
+     {a(), [aleaf, {'$used',[aleaf],{anode,aleaf,bleaf}},
+	    {'$used',[aleaf],{anode,aleaf,{'$to_part',bleaf}}}],
+      aleaf, [], "a()"},
+     {b(), [bleaf, {'$used',[bleaf],{bnode,aleaf,bleaf}},
+	    {'$used',[bleaf],{bnode,{'$to_part',aleaf},bleaf}}],
+      bleaf, [], "b()"},
+     {gen_tree(integer()),
+      [{'$used',[null,null],{12,[null,null]}},{'$to_part',null}],
+      null, [{'$used',[],{42,[]}}], "gen_tree(integer())"}].
 
 function_types() ->
     [{function([],atom()), "fun(() -> atom())"},
@@ -423,7 +464,7 @@ undefined_symb_calls() ->
 %% TODO: LET and LETSHRINK testing (these need their intermediate form for
 %%	 standalone instance testing and shrinking) - update needed after
 %%	 fixing the internal shrinking in LETs, use recursive datatypes, like
-%%	 trees, for testing
+%%	 trees, for testing, also test with noshrink and LAZY
 %% TODO: use size=100 for is_instance testing?
 %% TODO: typeserver: check that the same type is returned for consecutive calls,
 %%	 even with no caching (no_caching option?)
@@ -439,17 +480,23 @@ undefined_symb_calls() ->
 %% TODO: test nonempty recursive lists
 
 simple_types_test_() ->
-    [?_test(assert_simple_type_works(TD)) || TD <- simple_types_with_data()].
+    [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].
+
+constructed_types_test_() ->
+    [?_test(assert_type_works(TD, false))
+     || TD <- constructed_types_with_data()].
 
 %% TODO: specific test-starting instances would be useful here
 %%	 (start from valid Xs)
 shrinks_to_test_() ->
     [?_shrinksTo(Target, Type)
-     || {Type,_Xs,Target,_Ys,_TypeStr} <- simple_types_with_data()].
+     || {Type,_Xs,Target,_Ys,_TypeStr} <- simple_types_with_data()
+					  ++ constructed_types_with_data()].
 
 native_shrinks_to_test_() ->
     [?_nativeShrinksTo(Target, TypeStr)
-     || {_Type,_Xs,Target,_Ys,TypeStr} <- simple_types_with_data(),
+     || {_Type,_Xs,Target,_Ys,TypeStr} <- simple_types_with_data()
+					  ++ constructed_types_with_data(),
 	TypeStr =/= none].
 
 cant_generate_test_() ->
@@ -775,6 +822,71 @@ zerostream(ExpectedMeanLen) ->
 	{ExpectedMeanLen, [0 | zerostream(ExpectedMeanLen)]}
     ])).
 
+-type deeplist() :: [deeplist()].
+
+deeplist() ->
+    ?SIZED(Size, deeplist(Size)).
+
+deeplist(0) ->
+    [];
+deeplist(Size) ->
+    ?LAZY(proper_types:distlist(Size, fun deeplist/1, false)).
+
+-type tree(T) :: 'null' | {'node',T,tree(T),tree(T)}.
+
+tree(ElemType) ->
+    ?SIZED(Size, tree(ElemType,Size)).
+
+tree(_ElemType, 0) ->
+    null;
+tree(ElemType, Size) ->
+    LeftTree = tree(ElemType, Size div 2),
+    RightTree = tree(ElemType, Size div 2),
+    frequency([
+	{1, tree(ElemType,0)},
+	{5, ?LETSHRINK([L,R], [LeftTree,RightTree], {node,ElemType,L,R})}
+    ]).
+
+-type a() :: 'aleaf' | {'anode',a(),b()}.
+-type b() :: 'bleaf' | {'bnode',a(),b()}.
+
+a() ->
+    ?SIZED(Size, a(Size)).
+
+a(0) ->
+    aleaf;
+a(Size) ->
+    union([
+	?LAZY(a(0)),
+	?LAZY(?LETSHRINK([A], [a(Size div 2)], {anode,A,b(Size)}))
+    ]).
+
+b() ->
+    ?SIZED(Size, b(Size)).
+
+b(0) ->
+    bleaf;
+b(Size) ->
+    union([
+	?LAZY(b(0)),
+	?LAZY(?LETSHRINK([B], [b(Size div 2)], {bnode,a(Size),B}))
+    ]).
+
+-type gen_tree(T) :: 'null' | {T,[gen_tree(T),...]}.
+
+gen_tree(ElemType) ->
+    ?SIZED(Size, gen_tree(ElemType,Size)).
+
+gen_tree(_ElemType, 0) ->
+    null;
+gen_tree(ElemType, Size) ->
+    SubGen = fun(S) -> gen_tree(ElemType,S) end,
+    oneof([
+	?LAZY(gen_tree(ElemType,0)),
+	?LAZY(?LETSHRINK(Children, proper_types:distlist(Size, SubGen, true),
+			 {ElemType,Children}))
+    ]).
+
 
 %%------------------------------------------------------------------------------
 %% Old Tests and datatypes
@@ -797,7 +909,6 @@ zerostream(ExpectedMeanLen) ->
 % 	 [{boolean(),G} || G <- Generators],
 % 	 [G || {true,G} <- Keep]).
 %
-%
 % unique(ElemTypes) ->
 %     ?LET(Values,
 % 	 list(ElemTypes),
@@ -810,19 +921,6 @@ zerostream(ExpectedMeanLen) ->
 %     ?LET(Keys,
 % 	 list(KeyType),
 % 	 [{K,ValueType} || K <- Keys]).
-%
-% tree(ElemType) ->
-%     ?SIZED(Size, tree(ElemType,Size)).
-%
-% tree(_ElemType, 0) ->
-%     {empty};
-% tree(ElemType, Size) ->
-%     Left = tree(ElemType, Size div 2),
-%     Right = tree(ElemType, Size div 2 - 1 + Size rem 2),
-%     frequency([
-% 	{1, tree(ElemType,0)},
-% 	{5, ?LETSHRINK([L,R], [Left,Right], {node,ElemType,L,R})}
-%     ]).
 %
 % tree_member(_X, {node,_X,_L,_R}) -> true;
 % tree_member(X, {node,_Y,L,R}) -> tree_member(X, L) orelse tree_member(X, R);

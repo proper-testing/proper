@@ -55,25 +55,25 @@
 		      | {'$used', imm_instance(), imm_instance()}
 		      | {'$to_part', imm_instance()}.
 
-%% @private_type
+%% @private_type sized_generator
 -type sized_generator() :: fun((size()) -> imm_instance()).
-%% @private_type
+%% @private_type nosize_generator
 -type nosize_generator() :: fun(() -> imm_instance()).
-%% @private_type
+%% @private_type generator
 -type generator() :: sized_generator() | nosize_generator().
 -type sized_straight_gen() :: fun((size()) -> {'ok',instance()} | 'error').
 -type nosize_straight_gen() :: fun(() -> {'ok',instance()} | 'error').
-%% @private_type
+%% @private_type straight_gen
 -type straight_gen() :: sized_straight_gen() | nosize_straight_gen().
-%% @private_type
+%% @private_type reverse_gen
 -type reverse_gen() :: fun((instance()) -> imm_instance()).
-%% @private_type
+%% @private_type combine_fun
 -type combine_fun() :: fun((instance()) -> imm_instance()).
-%% @private_type
+%% @private_type alt_gens
 -type alt_gens() :: fun(() -> [imm_instance()]).
 -type fun_num() :: pos_integer().
 
-%% @private_type
+%% @private_type gen_state
 -opaque gen_state() :: {[abs_form()] | 'undefined',fun_num() | 'undefined'}.
 
 
@@ -434,11 +434,15 @@ list_gen(Size, ElemType) ->
 
 %% @private
 -spec distlist_gen(size(), sized_generator(), boolean()) -> [imm_instance()].
-distlist_gen(Size, Gen, NonEmpty) ->
+distlist_gen(RawSize, Gen, NonEmpty) ->
     Len = case NonEmpty of
-	      true  -> proper_arith:rand_int(1, erlang:max(1,Size));
-	      false -> proper_arith:rand_int(0, Size)
+	      true  -> proper_arith:rand_int(1, erlang:max(1,RawSize));
+	      false -> proper_arith:rand_int(0, RawSize)
 	  end,
+    Size = case Len of
+	       1 -> RawSize - 1;
+	       _ -> RawSize
+	   end,
     %% TODO: this produces a lot of types: maybe a simple 'div' is sufficient?
     Sizes = proper_arith:distribute(Size, Len),
     InnerTypes = [Gen(S) || S <- Sizes],

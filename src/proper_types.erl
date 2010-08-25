@@ -526,11 +526,9 @@ list_update(Index, NewElem, List) ->
     H ++ [NewElem] ++ T.
 
 %% @private
-%% TODO: This assumes that:
-%%	 - instances of size S are always valid instances of size >S
-%%	 - any recursive calls inside Gen are lazy
-%%	 - the generator is responsible for handling the case of singleton lists
-%%	   (we don't subtract 1 for that case)
+%% This assumes that:
+%% - instances of size S are always valid instances of size >S
+%% - any recursive calls inside Gen are lazy
 -spec distlist(size(), proper_gen:sized_generator(), boolean()) -> type().
 distlist(Size, Gen, NonEmpty) ->
     ParentType = case NonEmpty of
