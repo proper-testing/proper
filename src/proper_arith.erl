@@ -26,8 +26,9 @@
 -module(proper_arith).
 
 -export([le/2]).
--export([safemap/2, tuplemap/2, cut_improper_tail/1, head_length/1,
-	 find_first/2, filter/2, partition/2, remove/2, insert/3, unflatten/2]).
+-export([list_remove/2, list_update/3, list_insert/3, safemap/2, tuplemap/2,
+	 cut_improper_tail/1, head_length/1, find_first/2, filter/2,
+	 partition/2, remove/2, insert/3, unflatten/2]).
 -export([rand_start/1, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
@@ -59,6 +60,21 @@ le(A, B)    -> A =< B.
 %%------------------------------------------------------------------------------
 %% List handling functions
 %%------------------------------------------------------------------------------
+
+-spec list_remove(position(), [T]) -> [T].
+list_remove(Index, List) ->
+    {H,[_Elem | T]} = lists:split(Index - 1, List),
+    H ++ T.
+
+-spec list_update(position(), T, [T]) -> [T].
+list_update(Index, NewElem, List) ->
+    {H,[_OldElem | T]} = lists:split(Index - 1, List),
+    H ++ [NewElem] ++ T.
+
+-spec list_insert(position(), T, [T]) -> [T].
+list_insert(Index, Elem, List) ->
+    {H,T} = lists:split(Index - 1, List),
+    H ++ [Elem] ++ T.
 
 -spec safemap(fun((T) -> S), maybe_improper_list(T,term())) ->
 	  maybe_improper_list(S,term()).

@@ -500,10 +500,10 @@ list(RawElemType) ->
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
-	{get_indices, fun(X) -> list_get_indices(X) end},
-	{remove, fun(I,X) -> list_remove(I, X) end},
+	{get_indices, fun list_get_indices/1},
+	{remove, fun proper_arith:list_remove/2},
 	{retrieve, fun lists:nth/2},
-	{update, fun(I,V,X) -> list_update(I, V, X) end}
+	{update, fun proper_arith:list_update/3}
     ]).
 
 -spec list_test(proper_gen:imm_instance(), type()) -> boolean().
@@ -514,16 +514,6 @@ list_test(X, ElemType) ->
 -spec list_get_indices(list()) -> [position()].
 list_get_indices(List) ->
     lists:seq(1, length(List)).
-
--spec list_remove(position(), [T]) -> [T].
-list_remove(Index, List) ->
-    {H,[_Elem | T]} = lists:split(Index - 1, List),
-    H ++ T.
-
--spec list_update(position(), T, [T]) -> [T].
-list_update(Index, NewElem, List) ->
-    {H,[_OldElem | T]} = lists:split(Index - 1, List),
-    H ++ [NewElem] ++ T.
 
 %% @private
 %% This assumes that:
@@ -549,7 +539,7 @@ vector(Len, RawElemType) ->
 	{internal_type, ElemType},
 	{get_indices, fun(_X) -> Indices end},
 	{retrieve, fun lists:nth/2},
-	{update, fun(I,V,X) -> list_update(I, V, X) end}
+	{update, fun proper_arith:list_update/3}
     ]).
 
 -spec vector_test(proper_gen:imm_instance(), length(), type()) -> boolean().
@@ -596,7 +586,7 @@ tuple(RawFields) ->
 	{internal_types, list_to_tuple(Fields)},
 	{get_indices, fun(_X) -> Indices end},
 	{retrieve, fun erlang:element/2},
-	{update, fun(I,V,X) -> tuple_update(I, V, X) end}
+	{update, fun tuple_update/3}
     ]).
 
 -spec tuple_test(proper_gen:imm_instance(), [type()]) -> boolean().
@@ -648,7 +638,7 @@ fixed_list(MaybeImproperRawFields) ->
 		 LocalFields,
 		 lists:seq(1, length(ProperRawFields)),
 		 fun lists:nth/2,
-		 fun(I,V,X) -> list_update(I, V, X) end}
+		 fun proper_arith:list_update/3}
 	end,
     ?CONTAINER([
 	{generator, fun() -> proper_gen:fixed_list_gen(Fields) end},
@@ -686,7 +676,7 @@ improper_list_retrieve(Index, List, HeadLen) ->
 
 improper_list_update(Index, Value, List, HeadLen) ->
     case Index =< HeadLen of
-	true  -> list_update(Index, Value, List);
+	true  -> proper_arith:list_update(Index, Value, List);
 	false -> lists:sublist(List, HeadLen) ++ Value
     end.
 

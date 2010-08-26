@@ -64,9 +64,12 @@
 		   | {'cached',fin_type()}.
 -type gen_fun() :: fun((size()) -> fin_type()).
 -type rec_fun() :: fun(([gen_fun()],size()) -> fin_type()).
--type rec_args() :: [{boolean(),full_type_ref()}].
+-type rec_arg() :: {boolean() | {'list',boolean(),rec_fun()},full_type_ref()}.
+-type rec_args() :: [rec_arg()].
 -type ret_type() :: {'simple',fin_type()} | {'rec',rec_fun(),rec_args()}.
 %% -type fun_ref() :: {fun_name(),arity()}.
+-type rec_fun_info() :: {pos_integer(),pos_integer(),[arity(),...],
+			 [rec_fun(),...]}.
 
 -type mod_exp_types() :: set(). %% set({type_name(),arity()})
 -type mod_types() :: dict(). %% dict(type_ref(),type_repr())
@@ -433,30 +436,52 @@ convert_list(Mod, NonEmpty, ElemForm, State, Stack, VarDict) ->
 		      end,
 	    {ok, {simple,FinType}, NewState};
 	{ok,{rec,RecFun,RecArgs},NewState} ->
-	    case {NonEmpty, at_toplevel(RecArgs,Stack)} of
+	    case {at_toplevel(RecArgs,Stack), NonEmpty} of
 		{true,true} ->
 		    base_case_error(Stack);
-		{_,false} ->
+		{true,false} ->
 		    NewRecFun =
 			fun(GenFuns,Size) ->
-			    ElemGen = fun(S) -> RecFun(GenFuns, S) end,
-			    proper_types:distlist(Size, ElemGen, NonEmpty)
+			    ElemGen = fun(S) -> ?LAZY(RecFun(GenFuns,S)) end,
+			    proper_types:distlist(Size, ElemGen, false)
 			end,
 		    NewRecArgs = clean_rec_args(RecArgs),
 		    {ok, {rec,NewRecFun,NewRecArgs}, NewState};
-		{_,true} ->
-		    NewRecFun =
-			fun(GenFuns,Size) ->
-			    ElemGen =
-				fun(S) -> ?LAZY(RecFun(GenFuns,S)) end,
-			    proper_types:distlist(Size, ElemGen, NonEmpty)
-			end,
-		    NewRecArgs = clean_rec_args(RecArgs),
+		{false,_} ->
+		    {NewRecFun,NewRecArgs} =
+			convert_rec_list(RecFun, RecArgs, NonEmpty),
 		    {ok, {rec,NewRecFun,NewRecArgs}, NewState}
 	    end;
 	{error,_Reason} = Error ->
 	    Error
     end.
+
+-spec convert_rec_list(rec_fun(), rec_args(), boolean()) ->
+	  {rec_fun(),rec_args()}.
+convert_rec_list(RecFun, [{true,FullTypeRef}] = RecArgs, NonEmpty) ->
+    {NewRecFun,_NormalRecArgs} =
+	convert_normal_rec_list(RecFun, RecArgs, NonEmpty),
+    AltRecFun =
+	fun([InstListGen],Size) ->
+	    InstTypesList =
+		proper_types:get_prop(internal_types, InstListGen(Size)),
+	    proper_types:fixed_list([RecFun([fun(_Size) -> I end],0)
+				     || I <- InstTypesList])
+	end,
+    NewRecArgs = [{{list,NonEmpty,AltRecFun},FullTypeRef}],
+    {NewRecFun, NewRecArgs};
+convert_rec_list(RecFun, RecArgs, NonEmpty) ->
+    convert_normal_rec_list(RecFun, RecArgs, NonEmpty).
+
+-spec convert_normal_rec_list(rec_fun(), rec_args(), boolean()) ->
+	  {rec_fun(),rec_args()}.
+convert_normal_rec_list(RecFun, RecArgs, NonEmpty) ->
+    NewRecFun = fun(GenFuns,Size) ->
+		    ElemGen = fun(S) -> RecFun(GenFuns, S) end,
+		    proper_types:distlist(Size, ElemGen, NonEmpty)
+		end,
+    NewRecArgs = clean_rec_args(RecArgs),
+    {NewRecFun, NewRecArgs}.
 
 -spec convert_tuple(mod_name(), [abs_type()], state(), stack(), var_dict()) ->
 	  rich_result2(ret_type(),state()).
@@ -525,11 +550,9 @@ convert_union(Mod, ChoiceForms, State, Stack, VarDict) ->
 
 -spec process_choice(ret_type(), {[ret_type()],[ret_type()],[ret_type()]},
 		     stack()) -> {[ret_type()],[ret_type()],[ret_type()]}.
-process_choice({simple,_FinType} = RetType, {SelfRecs,NonSelfRecs,NonRecs},
-	       _Stack) ->
+process_choice({simple,_} = RetType, {SelfRecs,NonSelfRecs,NonRecs}, _Stack) ->
     {SelfRecs, NonSelfRecs, [RetType | NonRecs]};
-process_choice({rec,RecFun,RecArgs}, {SelfRecs,NonSelfRecs,NonRecs} = Acc,
-	       Stack) ->
+process_choice({rec,RecFun,RecArgs}, {SelfRecs,NonSelfRecs,NonRecs}, Stack) ->
     case at_toplevel(RecArgs, Stack) of
 	true ->
 	    case partition_by_toplevel(RecArgs, Stack, true) of
@@ -538,39 +561,67 @@ process_choice({rec,RecFun,RecArgs}, {SelfRecs,NonSelfRecs,NonRecs} = Acc,
 		    {[{rec,RecFun,NewRecArgs} | SelfRecs], NonSelfRecs,
 		     NonRecs};
 		{SelfRecArgs,SelfPos,OtherRecArgs,_OtherPos} ->
-		    process_true_choice(RecFun, SelfRecArgs, SelfPos,
-					OtherRecArgs, Acc)
+		    NumInstances = length(SelfRecArgs),
+		    IsListInst = fun({true,_FTRef})                  -> false
+				  ; ({{list,_NE,_AltRecFun},_FTRef}) -> true
+				 end,
+		    NewRecFun =
+			case proper_arith:filter(IsListInst,SelfRecArgs) of
+			    {[],[]} ->
+				no_list_inst_rec_fun(RecFun,NumInstances,
+						     SelfPos);
+			    {[{{list,NonEmpty,AltRecFun},_}],[ListInstPos]} ->
+				list_inst_rec_fun(AltRecFun,NumInstances,
+						  SelfPos,NonEmpty,ListInstPos)
+			end,
+		    [{_B,SelfRef} | _] = SelfRecArgs,
+		    NewRecArgs =
+			[{false,SelfRef} | clean_rec_args(OtherRecArgs)],
+		    {[{rec,NewRecFun,NewRecArgs} | SelfRecs], NonSelfRecs,
+		     NonRecs}
 	    end;
 	false ->
 	    NewRecArgs = clean_rec_args(RecArgs),
 	    {SelfRecs, [{rec,RecFun,NewRecArgs} | NonSelfRecs], NonRecs}
     end.
 
--spec process_true_choice(rec_fun(), rec_args(), [position()], rec_args(),
-			  {[ret_type()],[ret_type()],[ret_type()]}) ->
-	  {[ret_type()],[ret_type()],[ret_type()]}.
-process_true_choice(RecFun, SelfRecArgs, SelfPos, OtherRecArgs,
-		    {SelfRecs,NonSelfRecs,NonRecs}) ->
-    NumInstances = length(SelfRecArgs),
-    NewRecFun =
-	fun([SelfGen|OtherGens], Size) ->
-	    ?LETSHRINK(
-		Instances,
-		%% Size distribution will be a little off if both normal and
-		%% instance-accepting generators are present.
-		%% TODO: these need to be lazy?
-		lists:duplicate(NumInstances, SelfGen(Size div NumInstances)),
-		begin
-		    InstGens = [fun(_Size) -> proper_types:exactly(I) end
-				|| I <- Instances],
-		    AllGens = proper_arith:insert(InstGens, SelfPos, OtherGens),
-		    RecFun(AllGens, Size)
-		end
-	    )
-	end,
-    [{true,SelfRef} | _] = SelfRecArgs,
-    NewRecArgs = [{false,SelfRef} | clean_rec_args(OtherRecArgs)],
-    {[{rec,NewRecFun,NewRecArgs} | SelfRecs], NonSelfRecs, NonRecs}.
+-spec no_list_inst_rec_fun(rec_fun(), pos_integer(), [position()]) -> rec_fun().
+no_list_inst_rec_fun(RecFun, NumInstances, SelfPos) ->
+    fun([SelfGen|OtherGens], Size) ->
+	?LETSHRINK(
+	    Instances,
+	    %% Size distribution will be a little off if both normal and
+	    %% instance-accepting generators are present.
+	    lists:duplicate(NumInstances, SelfGen(Size div NumInstances)),
+	    begin
+		InstGens = [fun(_Size) -> proper_types:exactly(I) end
+			    || I <- Instances],
+		AllGens = proper_arith:insert(InstGens, SelfPos, OtherGens),
+		RecFun(AllGens, Size)
+	    end)
+    end.
+
+-spec list_inst_rec_fun(rec_fun(), pos_integer(), [position()], boolean(),
+			position()) -> rec_fun().
+list_inst_rec_fun(AltRecFun, NumInstances, SelfPos, NonEmpty, ListInstPos) ->
+    fun([SelfGen|OtherGens], Size) ->
+	?LETSHRINK(
+	    AllInsts,
+	    lists:duplicate(NumInstances - 1, SelfGen(Size div NumInstances))
+	    ++ proper_types:distlist(Size div NumInstances, SelfGen, NonEmpty),
+	    begin
+		{Instances,InstList} = lists:split(NumInstances - 1, AllInsts),
+		InstGens = [fun(_Size) -> proper_types:exactly(I) end
+			    || I <- Instances],
+		InstTypesList = [proper_types:exactly(I) || I <- InstList],
+		InstListGen =
+		    fun(_Size) -> proper_types:fixed_list(InstTypesList) end,
+		AllInstGens = proper_arith:list_insert(ListInstPos, InstListGen,
+						       InstGens),
+		AllGens = proper_arith:insert(AllInstGens, SelfPos, OtherGens),
+		AltRecFun(AllGens, Size)
+	    end)
+    end.
 
 -spec convert_custom(mod_name(), mod_name(), type_name(), [abs_type()], state(),
 		     stack(), var_dict()) -> rich_result2(ret_type(),state()).
@@ -678,7 +729,7 @@ safe_convert_maybe_rec(FullTypeRef, RecFun, RecArgs, State) ->
 	{[],[],_,_} ->
 	    {ok, {rec,RecFun,RecArgs}, State};
 	{MyRecArgs,MyPos,OtherRecArgs,_OtherPos} ->
-	    case lists:all(fun({B,_T}) -> not B end, MyRecArgs) of
+	    case lists:all(fun({B,_T}) -> B =:= false end, MyRecArgs) of
 		true ->
 		    convert_rec_type(RecFun, MyPos, OtherRecArgs, State);
 		false ->
@@ -802,7 +853,7 @@ stack_position(FullTypeRef, Stack) ->
 partition_by_toplevel(RecArgs, [], _OnlyInstanceAccepting) ->
     {[],[],RecArgs,lists:seq(1,length(RecArgs))};
 partition_by_toplevel(RecArgs, [_Parent | _Upper], _OnlyInstanceAccepting)
-    when is_atom(_Parent) ->
+	when is_atom(_Parent) ->
     {[],[],RecArgs,lists:seq(1,length(RecArgs))};
 partition_by_toplevel(RecArgs, [Parent | _Upper], OnlyInstanceAccepting) ->
     partition_rec_args(Parent, RecArgs, OnlyInstanceAccepting).
@@ -819,68 +870,78 @@ at_toplevel(RecArgs, Stack) ->
 partition_rec_args(FullTypeRef, RecArgs, OnlyInstanceAccepting) ->
     SameType =
 	case OnlyInstanceAccepting of
-	    true  -> fun({true,T})   -> same_full_type_ref(T,FullTypeRef)
-		      ; ({false,_T}) -> false end;
+	    true  -> fun({false,_T}) -> false
+		      ; ({_B,T})     -> same_full_type_ref(T,FullTypeRef) end;
 	    false -> fun({_B,T}) -> same_full_type_ref(T,FullTypeRef) end
 	end,
     proper_arith:partition(SameType, RecArgs).
 
+%% Tuples can be of 0 arity, unions of 1 and wunions at least of 2.
 -spec combine_ret_types([ret_type()], 'tuple' | 'union' | 'wunion') ->
 	  ret_type().
 combine_ret_types(RetTypes, EnclosingType) ->
-    Combine = case EnclosingType of
-		  tuple  -> fun proper_types:tuple/1;
-		  union  -> fun proper_types:union/1;
-		  wunion -> fun proper_types:wunion/1
-	      end,
     case lists:all(fun is_simple_ret_type/1, RetTypes) of
 	true ->
+	    %% This should never happen for wunion.
+	    Combine = case EnclosingType of
+			  tuple -> fun proper_types:tuple/1;
+			  union -> fun proper_types:union/1
+		      end,
 	    FinTypes = [T || {simple,T} <- RetTypes],
 	    {simple, Combine(FinTypes)};
 	false ->
-	    NumTypes = erlang:max(1, length(RetTypes)),
+	    NumTypes = length(RetTypes),
 	    {RevRecFuns,RevRecArgsList,NumRecs} =
 		lists:foldl(fun add_ret_type/2, {[],[],0}, RetTypes),
 	    RecFuns = lists:reverse(RevRecFuns),
 	    RecArgsList = lists:reverse(RevRecArgsList),
 	    RecArgLens = [length(RecArgs) || RecArgs <- RecArgsList],
+	    RecFunInfo = {NumTypes,NumRecs,RecArgLens,RecFuns},
 	    FlatRecArgs = lists:flatten(RecArgsList),
+	    NewRecFun =
+		case EnclosingType of
+		    tuple  -> tuple_rec_fun(RecFunInfo);
+		    union  -> union_rec_fun(RecFunInfo);
+		    wunion -> wunion_rec_fun(RecFunInfo)
+		end,
 	    NewRecArgs =
 		case EnclosingType of
-		    tuple  -> FlatRecArgs;
+		    tuple  -> soft_clean_rec_args(FlatRecArgs, RecFunInfo);
 		    union  -> clean_rec_args(FlatRecArgs);
 		    wunion -> clean_rec_args(FlatRecArgs)
 		end,
-	    NewRecFun =
-		case EnclosingType of
-		    tuple ->
-			fun(AllGFs,TopSize) ->
-			    Size = TopSize div NumRecs,
-			    GFsList = proper_arith:unflatten(AllGFs,RecArgLens),
-			    ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
-			    ZipFun = fun(F,A) -> apply(F,A) end,
-			    Combine(lists:zipwith(ZipFun, RecFuns, ArgsList))
-			end;
-		    union ->
-			fun(AllGFs,Size) ->
-			    GFsList = proper_arith:unflatten(AllGFs,RecArgLens),
-			    ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
-			    ZipFun = fun(F,A) -> ?LAZY(apply(F,A)) end,
-			    Combine(lists:zipwith(ZipFun, RecFuns, ArgsList))
-			end;
-		    wunion ->
-			fun(AllGFs,Size) ->
-			    GFsList = proper_arith:unflatten(AllGFs,RecArgLens),
-			    ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
-			    ZipFun = fun(W,F,A) -> {W,?LAZY(apply(F,A))} end,
-			    RecWeight = Size div (NumTypes - 1) + 1,
-			    Weights =
-				[1 | lists:duplicate(NumTypes - 1, RecWeight)],
-			    Combine(lists:zipwith3(ZipFun, Weights, RecFuns,
-						    ArgsList))
-			end
-		end,
 	    {rec, NewRecFun, NewRecArgs}
+    end.
+
+-spec tuple_rec_fun(rec_fun_info()) -> rec_fun().
+tuple_rec_fun({_NumTypes,NumRecs,RecArgLens,RecFuns}) ->
+    fun(AllGFs,TopSize) ->
+	Size = TopSize div NumRecs,
+	GFsList = proper_arith:unflatten(AllGFs, RecArgLens),
+	ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
+	ZipFun = fun erlang:apply/2,
+	proper_types:tuple(lists:zipwith(ZipFun, RecFuns, ArgsList))
+    end.
+
+-spec union_rec_fun(rec_fun_info()) -> rec_fun().
+union_rec_fun({_NumTypes,_NumRecs,RecArgLens,RecFuns}) ->
+    fun(AllGFs,Size) ->
+	GFsList = proper_arith:unflatten(AllGFs, RecArgLens),
+	ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
+	ZipFun = fun(F,A) -> ?LAZY(apply(F,A)) end,
+	proper_types:union(lists:zipwith(ZipFun, RecFuns, ArgsList))
+    end.
+
+-spec wunion_rec_fun(rec_fun_info()) -> rec_fun().
+wunion_rec_fun({NumTypes,_NumRecs,RecArgLens,RecFuns}) ->
+    fun(AllGFs,Size) ->
+	GFsList = proper_arith:unflatten(AllGFs, RecArgLens),
+	ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
+	ZipFun = fun(W,F,A) -> {W,?LAZY(apply(F,A))} end,
+	RecWeight = Size div (NumTypes - 1) + 1,
+	Weights = [1 | lists:duplicate(NumTypes - 1, RecWeight)],
+	WeightedChoices = lists:zipwith3(ZipFun, Weights, RecFuns, ArgsList),
+	proper_types:wunion(WeightedChoices)
     end.
 
 -spec add_ret_type(ret_type(), {[rec_fun()],[rec_args()],non_neg_integer()}) ->
@@ -900,6 +961,41 @@ is_simple_ret_type({rec,_RecFun,_RecArgs}) ->
 clean_rec_args(RecArgs) ->
     [{false,F} || {_B,F} <- RecArgs].
 
+-spec soft_clean_rec_args(rec_args(), rec_fun_info()) -> rec_args().
+soft_clean_rec_args(RecArgs, RecFunInfo) ->
+    soft_clean_rec_args_tr(RecArgs, [], RecFunInfo, false, 1).
+
+-spec soft_clean_rec_args_tr(rec_args(), rec_args(), rec_fun_info(),
+			     boolean(), position()) -> rec_args().
+soft_clean_rec_args_tr([], Acc, _RecFunInfo, _FoundListInst, _Pos) ->
+    lists:reverse(Acc);
+soft_clean_rec_args_tr([{{list,_NonEmpty,_AltRecFun},FTRef} | Rest], Acc,
+		       RecFunInfo, true, Pos) ->
+    NewArg = {false,FTRef},
+    soft_clean_rec_args_tr(Rest, [NewArg | Acc], RecFunInfo, true, Pos+1);
+soft_clean_rec_args_tr([{{list,NonEmpty,AltRecFun},FTRef} | Rest], Acc,
+		       RecFunInfo, false, Pos) ->
+    {NumTypes,NumRecs,RecArgLens,RecFuns} = RecFunInfo,
+    AltRecFunPos = get_group(Pos, RecArgLens),
+    AltRecFuns = proper_arith:list_update(AltRecFunPos, AltRecFun, RecFuns),
+    AltRecFunInfo = {NumTypes,NumRecs,RecArgLens,AltRecFuns},
+    NewArg = {{list,NonEmpty,tuple_rec_fun(AltRecFunInfo)},FTRef},
+    soft_clean_rec_args_tr(Rest, [NewArg | Acc], RecFunInfo, true, Pos+1);
+soft_clean_rec_args_tr([Arg | Rest], Acc, RecFunInfo, FoundListInst, Pos) ->
+    soft_clean_rec_args_tr(Rest, [Arg | Acc], RecFunInfo, FoundListInst, Pos+1).
+
+-spec get_group(pos_integer(), [non_neg_integer()]) -> pos_integer().
+get_group(Pos, AllMembers) ->
+    get_group_tr(Pos, AllMembers, 1).
+
+-spec get_group_tr(pos_integer(), [non_neg_integer()], pos_integer()) ->
+	  pos_integer().
+get_group_tr(Pos, [Members | Rest], GroupNum) ->
+    case Pos =< Members of
+	true  -> GroupNum;
+	false -> get_group_tr(Pos - Members, Rest, GroupNum + 1)
+    end.
+
 -spec same_full_type_ref(full_type_ref(), term()) -> boolean().
 same_full_type_ref({_Mod,type,_Name,Args1}, {_Mod,type,_Name,Args2}) ->
     length(Args1) =:= length(Args2)
@@ -915,14 +1011,25 @@ same_full_type_ref(_, _) ->
 same_ret_type({simple,FinType1}, {simple,FinType2}) ->
     same_fin_type(FinType1, FinType2);
 same_ret_type({rec,RecFun1,RecArgs1}, {rec,RecFun2,RecArgs2}) ->
-    SameRecArg = fun({{_B,T1},{_B,T2}}) -> same_full_type_ref(T1,T2);
-		    (_)                 -> false
-		 end,
     NumRecArgs = length(RecArgs1),
     length(RecArgs2) =:= NumRecArgs
-    andalso lists:all(SameRecArg, lists:zip(RecArgs1,RecArgs2))
+    andalso lists:all(fun({A1,A2}) -> same_rec_arg(A1,A2,NumRecArgs) end,
+		      lists:zip(RecArgs1,RecArgs2))
     andalso same_rec_fun(RecFun1, RecFun2, NumRecArgs);
 same_ret_type(_, _) ->
+    false.
+
+%% TODO: Is this too strict?
+-spec same_rec_arg(rec_arg(), rec_arg(), arity()) -> boolean().
+same_rec_arg({{list,_SameBool,AltRecFun1},FTRef1},
+	     {{list,_SameBool,AltRecFun2},FTRef2}, NumRecArgs) ->
+    same_rec_fun(AltRecFun1, AltRecFun2, NumRecArgs)
+    andalso same_full_type_ref(FTRef1, FTRef2);
+same_rec_arg({true,FTRef1}, {true,FTRef2}, _NumRecArgs) ->
+    same_full_type_ref(FTRef1, FTRef2);
+same_rec_arg({false,FTRef1}, {false,FTRef2}, _NumRecArgs) ->
+    same_full_type_ref(FTRef1, FTRef2);
+same_rec_arg(_, _, _NumRecArgs) ->
     false.
 
 -spec same_substs_dict(substs_dict(), substs_dict()) -> boolean().
@@ -939,7 +1046,7 @@ same_substs_dict(SubstsDict1, SubstsDict2) ->
 same_fin_type(Type1, Type2) ->
     proper_types:equal_types(Type1, Type2).
 
--spec same_rec_fun(rec_fun(), rec_fun(), non_neg_integer()) -> boolean().
+-spec same_rec_fun(rec_fun(), rec_fun(), arity()) -> boolean().
 same_rec_fun(RecFun1, RecFun2, NumRecArgs) ->
     %% It's ok that we return a type, even if there's a 'true' for use of
     %% an instance.

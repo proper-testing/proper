@@ -478,6 +478,10 @@ undefined_symb_calls() ->
 %% TODO: try some more expressions with a ?FORALL underneath
 %% TODO: various constructors like '|' (+ record notation) are parser-rejected
 %% TODO: test nonempty recursive lists
+%% TODO: test rec type with 2 instance-accepting + 2 list-accepting
+%% TODO: + simpler
+%% TODO: something like [{tag,T}]
+%% TODO: test list-recursive with instances
 
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].
@@ -529,14 +533,6 @@ parse_transform_test_() ->
      ?_assertError(undef, auto_export_test2:prop_1()),
      ?_assertError(undef, no_native_parse_test:prop_1()),
      ?_assertError(undef, no_out_of_forall_test:prop_1())].
-
--type my_native_type() :: integer().
-my_proper_type() -> atom().
--type type_and_fun() :: integer().
-type_and_fun() -> atom().
--type type_only() :: integer().
--type id(X) :: X.
--type lof() :: [float()].
 
 native_type_props_test_() ->
     [?_perfectRun(?FORALL({X,Y},
@@ -821,6 +817,14 @@ zerostream(ExpectedMeanLen) ->
 	{1, []},
 	{ExpectedMeanLen, [0 | zerostream(ExpectedMeanLen)]}
     ])).
+
+-type my_native_type() :: integer().
+my_proper_type() -> atom().
+-type type_and_fun() :: integer().
+type_and_fun() -> atom().
+-type type_only() :: integer().
+-type id(X) :: X.
+-type lof() :: [float()].
 
 -type deeplist() :: [deeplist()].
 
