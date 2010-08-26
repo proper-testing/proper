@@ -137,9 +137,14 @@ exp_short_result(Opts) ->
     lists:member(fails, Opts).
 
 assert_type_works({Type,Are,_Target,Arent,TypeStr}, IsSimple) ->
-    lists:foreach(fun(X) -> assert_is_instance(X,Type) end, Are),
-    assert_can_generate(Type, IsSimple),
-    lists:foreach(fun(X) -> assert_not_is_instance(X,Type) end, Arent),
+    case Type of
+	none ->
+	    ok;
+	_ ->
+	    lists:foreach(fun(X) -> assert_is_instance(X,Type) end, Are),
+	    assert_can_generate(Type, IsSimple),
+	    lists:foreach(fun(X) -> assert_not_is_instance(X,Type) end, Arent)
+    end,
     case TypeStr of
 	none ->
 	    ok;
@@ -384,7 +389,25 @@ constructed_types_with_data() ->
       bleaf, [], "b()"},
      {gen_tree(integer()),
       [{'$used',[null,null],{12,[null,null]}},{'$to_part',null}],
-      null, [{'$used',[],{42,[]}}], "gen_tree(integer())"}].
+      null, [{'$used',[],{42,[]}}], "gen_tree(integer())"},
+     {none, [{'$used',[],{tag,[]}}, {'$used',[null,null],{tag,[null,null]}},
+	     {'$used',[{'$used',[],{tag,[]}},{'$to_part',null}],
+	      {tag,[{tag,[]},null]}}, {'$to_part',{'$used',[],{tag,[]}}}],
+      null, [], "g()"},
+     {none, [{'$used',[null],{tag,[{ok,null}]}}, {'$to_part',null},
+	     {'$used',[null,null],{tag,[{ok,null},{ok,null}]}}],
+      null, [], "h()"},
+     {none, [{'$used',[null,null,{'$used',[null],{tag,null,[]}}],
+	      {tag,null,[null,{tag,null,[]}]}}, {'$to_part',null}],
+      null, [], "i()"},
+     {none, [{'$used',[{'$to_part',null},{'$used',[null],{one,null}},null,null],
+	      {tag,null,{one,null},[null,null],[null]}}], null, [], "j()"},
+     {none, [{tag,[]}, {tag,[{null,null}]},
+	     {tag,[{{tag,[]},null},{null,{tag,[]}}]}],
+      null, [{'$to_part',null}], "k()"},
+     {none, [{'$used',[null,null,{'$used',[null,null],{tag,null,[null]}}],
+	      {tag,null,[null,{tag,null,[null]}]}}, {'$to_part',null}],
+      null, [{'$used',[null],{tag,null,[]}}], "l()"}].
 
 function_types() ->
     [{function([],atom()), "fun(() -> atom())"},
@@ -478,9 +501,6 @@ undefined_symb_calls() ->
 %% TODO: try some more expressions with a ?FORALL underneath
 %% TODO: various constructors like '|' (+ record notation) are parser-rejected
 %% TODO: test nonempty recursive lists
-%% TODO: test rec type with 2 instance-accepting + 2 list-accepting
-%% TODO: + simpler
-%% TODO: something like [{tag,T}]
 %% TODO: test list-recursive with instances
 
 simple_types_test_() ->
@@ -495,7 +515,8 @@ constructed_types_test_() ->
 shrinks_to_test_() ->
     [?_shrinksTo(Target, Type)
      || {Type,_Xs,Target,_Ys,_TypeStr} <- simple_types_with_data()
-					  ++ constructed_types_with_data()].
+					  ++ constructed_types_with_data(),
+	Type =/= none].
 
 native_shrinks_to_test_() ->
     [?_nativeShrinksTo(Target, TypeStr)
@@ -890,6 +911,13 @@ gen_tree(ElemType, Size) ->
 	?LAZY(?LETSHRINK(Children, proper_types:distlist(Size, SubGen, true),
 			 {ElemType,Children}))
     ]).
+
+-type g() :: 'null' | {'tag',[g()]}.
+-type h() :: 'null' | {'tag',[{'ok',h()}]}.
+-type i() :: 'null' | {'tag',i(),[i()]}.
+-type j() :: 'null' | {'one',j()} | {'tag',j(),j(),[j()],[j()]}.
+-type k() :: 'null' | {'tag',[{k(),k()}]}.
+-type l() :: 'null' | {'tag',l(),[l(),...]}.
 
 
 %%------------------------------------------------------------------------------
