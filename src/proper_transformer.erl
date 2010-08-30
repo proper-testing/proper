@@ -177,10 +177,8 @@ add_module(Mod, ExpDict) ->
 	true ->
 	    ExpDict;
 	false ->
-	    case proper_typeserver:get_mod_code(Mod) of
-		{ok,AbsCode} ->
-		    {ModExpTypes,_ModTypes,ModExpFuns} =
-			proper_typeserver:get_mod_info(AbsCode, true),
+	    case proper_typeserver:get_exp_info(Mod) of
+		{ok,ModExpTypes,ModExpFuns} ->
 		    dict:store(Mod, {data,ModExpTypes,ModExpFuns}, ExpDict);
 		{error,_Reason} ->
 		    dict:store(Mod, nodata, ExpDict)
@@ -344,7 +342,9 @@ rewrite_type({call,Line,{remote,_,{atom,_,Mod},{atom,_,Call}} = FunRef,
     end;
 rewrite_type({call,Line,{atom,_,Fun} = FunRef,Args} = Expr,
 	     #mod_info{name = ModName, in_scope = InScope} = ModInfo) ->
-    case sets:is_element({Fun,length(Args)}, InScope) of
+    Arity = length(Args),
+    case sets:is_element({Fun,Arity}, InScope)
+	 orelse erl_internal:bif(Fun, Arity) of
 	true ->
 	    NewArgs = [rewrite_type(A,ModInfo) || A <- Args],
 	    {call,Line,FunRef,NewArgs};

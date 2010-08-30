@@ -627,6 +627,8 @@ The use of native types in properties is subject to the following usage rules:
   type referenced (directly or indirectly) from inside a ?FORALL must be present
   in the code path at runtime, either compiled with debug_info enabled or only
   in source form.
+* Local types with the same name as an auto-imported BIF are not accepted by
+  PropEr, even if the compiler has been called with a no_auto_import option.
 * When an expression can be interpreted both as a PropEr type and as a native
   type, the former takes precedence. This means that a function foo() will
   shadow a type foo() if they are both present in the module. The same rule
@@ -641,7 +643,8 @@ The use of native types in properties is subject to the following usage rules:
     which means that the generic type of integer lists will be passed to foo/1.
 * Inline record-field type declarations that reference non-existent fields and
   type variables that are not present in the RHS of a '-type' declaration are
-  silently ignored by PropEr.
+  silently ignored by PropEr. Duplicate type variables in the LHS of a '-type'
+  declaration are not detected.
 
 
 --------------------------------------------------------------------------------

@@ -29,7 +29,7 @@
 -export([start/0, stop/0, translate_type/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
--export([get_mod_code/1, get_mod_info/2]).
+-export([get_exp_info/1]).
 
 -export_type([imm_type/0, mod_exp_types/0, mod_exp_funs/0]).
 
@@ -41,9 +41,18 @@
 %%------------------------------------------------------------------------------
 
 -define(SRC_FILE_EXT, ".erl").
--define(STD_TYPES, [any,atom,binary,bitstring,bool,boolean,byte,char,float,
-		    integer,list,neg_integer,non_neg_integer,number,pos_integer,
-		    string,term,timeout,tuple]).
+
+%% CAUTION: all these must be sorted
+-define(STD_TYPES_0, [any,atom,binary,bitstring,bool,boolean,byte,char,float,
+		      integer,list,neg_integer,non_neg_integer,number,
+		      pos_integer,string,term,timeout,tuple]).
+-define(HARD_ADTS, [{{array,0},array},{{dict,0},dict},{{digraph,0},digraph},
+		    {{gb_set,0},gb_sets},{{gb_tree,0},gb_trees},
+		    {{queue,0},queue},{{set,0},sets}]).
+-define(HARD_ADT_MODS, [{array,[{array,0}]},{dict,[{dict,0}]},
+			{digraph,[{digraph,0}]},{gb_sets,[{gb_set,0}]},
+			{gb_trees,[{gb_tree,0}]},{queue,[{queue,0}]},
+			{sets,[{set,0}]}]).
 
 
 %%------------------------------------------------------------------------------
@@ -59,7 +68,7 @@
 -type substs_dict() :: dict(). %% dict(field_name(),ret_type())
 -type full_type_ref() :: {mod_name(),type_kind(),type_name(),
 			  [ret_type()] | substs_dict()}.
--type type_repr() :: {'abs_type',abs_type(),[var_name()]}
+-type type_repr() :: {'abs_type',abs_type(),[var_name()],boolean()}
 		   | {'abs_record',[{field_name(),abs_type()}]}
 		   | {'cached',fin_type()}.
 -type gen_fun() :: fun((size()) -> fin_type()).
@@ -67,26 +76,39 @@
 -type rec_arg() :: {boolean() | {'list',boolean(),rec_fun()},full_type_ref()}.
 -type rec_args() :: [rec_arg()].
 -type ret_type() :: {'simple',fin_type()} | {'rec',rec_fun(),rec_args()}.
-%% -type fun_ref() :: {fun_name(),arity()}.
 -type rec_fun_info() :: {pos_integer(),pos_integer(),[arity(),...],
 			 [rec_fun(),...]}.
 
--type mod_exp_types() :: set(). %% set({type_name(),arity()})
+-type imm_type_ref() :: {type_name(),arity()}.
+%% -type fun_ref() :: {fun_name(),arity()}.
+%% -type fun_repr() :: fun_clause_repr().
+-type fun_clause_repr() :: {[abs_type()],abs_type()}.
+-type proc_fun_ref() :: {fun_name(),[abs_type()],abs_type()}.
+-type full_imm_type_ref() :: {mod_name(),type_name(),arity()}.
+
+-type mod_exp_types() :: set(). %% set(imm_type_ref())
 -type mod_types() :: dict(). %% dict(type_ref(),type_repr())
 -type mod_exp_funs() :: set(). %% set(fun_ref())
+-type mod_specs() :: dict(). %% dict(fun_ref(),fun_repr())
 -record(state,
 	{cached    = dict:new() :: dict(),   %% dict(imm_type(),fin_type())
 	 exp_types = dict:new() :: dict(),   %% dict(mod_name(),mod_exp_types())
-	 types     = dict:new() :: dict(),   %% dict(mod_name(),mod_types())
-	 exp_funs  = dict:new() :: dict()}). %% dict(mod_name(),mod_exp_funs())
+	 types     = dict:new() :: dict()}). %% dict(mod_name(),mod_types())
 -type state() :: #state{}.
--type mod_info() :: {mod_exp_types(),mod_types(),mod_exp_funs()}.
+-record(mod_info,
+	{mod_exp_types = sets:new() :: mod_exp_types(),
+	 mod_types     = dict:new() :: mod_types(),
+	 mod_opaques   = sets:new() :: mod_exp_types(),
+	 mod_exp_funs  = sets:new() :: mod_exp_funs(),
+	 mod_specs     = dict:new() :: mod_specs()}).
+-type mod_info() :: #mod_info{}.
 
 -type stack() :: [full_type_ref() | 'tuple' | 'list' | 'union' | 'fun'].
 -type var_dict() :: dict(). %% dict(var_name(),ret_type())
 -type imm_type() :: {mod_name(),string()}.
 -type fin_type() :: proper_types:type().
 -type tagged_result(T) :: {'ok',T} | 'error'.
+-type tagged_result2(T,S) :: {'ok',T,S} | 'error'.
 -type rich_result(T) :: {'ok',T} | {'error',term()}.
 -type rich_result2(T,S) :: {'ok',T,S} | {'error',term()}.
 
@@ -200,11 +222,23 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
 	false ->
 	    case get_mod_code(Mod) of
 		{ok,AbsCode} ->
-		    ModInfo = get_mod_info(AbsCode, false),
+		    RawModInfo = get_mod_info(Mod, AbsCode),
+		    ModInfo = process_adts(Mod, RawModInfo),
 		    {ok, store_mod_info(Mod,ModInfo,State)};
 		{error,Reason} ->
 		    {error, {cant_load_code,Mod,Reason}}
 	    end
+    end.
+
+-spec get_exp_info(mod_name()) -> rich_result2(mod_exp_types(),mod_exp_funs()).
+get_exp_info(Mod) ->
+    case get_mod_code(Mod) of
+	{ok,AbsCode} ->
+	    #mod_info{mod_exp_types = ModExpTypes, mod_exp_funs = ModExpFuns} =
+		get_mod_info(Mod, AbsCode),
+	    {ok, ModExpTypes, ModExpFuns};
+	{error,_Reason} = Error ->
+	    Error
     end.
 
 -spec get_mod_code(mod_name()) -> rich_result([abs_form()]).
@@ -244,36 +278,76 @@ get_abs_code_chunk(ObjFile) ->
 	    {error, Reason}
     end.
 
--spec get_mod_info([abs_form()], boolean()) -> mod_info().
-get_mod_info(AbsCode, GetFunsToo) ->
-    lists:foldl(fun(Form,Acc) -> add_mod_info(Form,Acc,GetFunsToo) end,
-		{sets:new(),dict:new(),sets:new()}, AbsCode).
+-spec get_mod_info(mod_name(), [abs_form()]) -> mod_info().
+get_mod_info(Mod, AbsCode) ->
+    ModInfo = lists:foldl(fun add_mod_info/2, #mod_info{}, AbsCode),
+    case orddict:find(Mod, ?HARD_ADT_MODS) of
+	{ok,ModADTs} ->
+	    #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes,
+		      mod_opaques = ModOpaques} = ModInfo,
+	    ModADTsSet = sets:from_list(ModADTs),
+	    NewModExpTypes = sets:union(ModExpTypes, ModADTsSet),
+	    NewModTypes = lists:foldl(fun store_adt/2, ModTypes, ModADTs),
+	    NewModOpaques = sets:union(ModOpaques, ModADTsSet),
+	    ModInfo#mod_info{mod_exp_types = NewModExpTypes,
+			     mod_types = NewModTypes,
+			     mod_opaques = NewModOpaques};
+	error ->
+	    ModInfo
+    end.
 
--spec add_mod_info(abs_form(), mod_info(), boolean()) -> mod_info().
+-spec store_adt(imm_type_ref(), mod_types()) -> mod_types().
+store_adt({Name,Arity}, ModTypes) ->
+    TypeRef = {type,Name,Arity},
+    TypeRepr = {abs_type,{type,0,any,[]},create_var_names(Arity),false},
+    dict:store(TypeRef, TypeRepr, ModTypes).
+
+-spec create_var_names(0..26) -> [var_name()].
+create_var_names(Arity) when Arity >= 0, Arity =< 26 ->
+    lists:seq($A, $A - 1 + Arity).
+
+-spec add_mod_info(abs_form(), mod_info()) -> mod_info().
 add_mod_info({attribute,_Line,export_type,TypesList},
-	     {ModExpTypes,ModTypes,ModExpFuns}, _GetFunsToo) ->
+	     #mod_info{mod_exp_types = ModExpTypes} = ModInfo) ->
     NewModExpTypes = sets:union(sets:from_list(TypesList), ModExpTypes),
-    {NewModExpTypes, ModTypes, ModExpFuns};
+    ModInfo#mod_info{mod_exp_types = NewModExpTypes};
 add_mod_info({attribute,_Line,type,{{record,RecName},Fields,[]}},
-	     {ModExpTypes,ModTypes,ModExpFuns}, _GetFunsToo) ->
+	     #mod_info{mod_types = ModTypes} = ModInfo) ->
     FieldInfo = [process_rec_field(F) || F <- Fields],
-    NewModTypes =
-	dict:store({record,RecName,0}, {abs_record,FieldInfo}, ModTypes),
-    {ModExpTypes, NewModTypes, ModExpFuns};
+    NewModTypes = dict:store({record,RecName,0}, {abs_record,FieldInfo},
+			     ModTypes),
+    ModInfo#mod_info{mod_types = NewModTypes};
 add_mod_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
-	     {ModExpTypes,ModTypes,ModExpFuns}, _GetFunsToo)
+	     #mod_info{mod_types = ModTypes,
+		       mod_opaques = ModOpaques} = ModInfo)
 	when Kind =:= type; Kind =:= opaque ->
     Arity = length(VarForms),
     VarNames = [V || {var,_,V} <- VarForms],
-    NewModTypes = dict:store({type,Name,Arity}, {abs_type,TypeForm,VarNames},
-			     ModTypes),
-    {ModExpTypes, NewModTypes, ModExpFuns};
+    %% TODO: No check whether variables are different.
+    NewModTypes = dict:store({type,Name,Arity},
+			     {abs_type,TypeForm,VarNames,false}, ModTypes),
+    NewModOpaques =
+	case Kind of
+	    type   -> ModOpaques;
+	    opaque -> sets:add_element({Name,Arity}, ModOpaques)
+	end,
+    ModInfo#mod_info{mod_types = NewModTypes, mod_opaques = NewModOpaques};
 add_mod_info({attribute,_Line,export,FunsList},
-	     {ModExpTypes,ModTypes,ModExpFuns}, true) ->
+	     #mod_info{mod_exp_funs = ModExpFuns} = ModInfo) ->
     NewModExpFuns = sets:union(sets:from_list(FunsList), ModExpFuns),
-    {ModExpTypes, ModTypes, NewModExpFuns};
-add_mod_info(_Form, Acc, _GetFunsToo) ->
-    Acc.
+    ModInfo#mod_info{mod_exp_funs = NewModExpFuns};
+add_mod_info({attribute,_Line,spec,{RawFunRef,[RawFirstClause | _Rest]}},
+	     #mod_info{mod_specs = ModSpecs} = ModInfo) ->
+    FunRef = case RawFunRef of
+		 {_Mod,Name,Arity}  -> {Name,Arity};
+		 {_Name,_Arity} = F -> F
+	     end,
+    %% TODO: We just take the first function clause.
+    FirstClause = process_fun_clause(RawFirstClause),
+    NewModSpecs = dict:store(FunRef, FirstClause, ModSpecs),
+    ModInfo#mod_info{mod_specs = NewModSpecs};
+add_mod_info(_Form, ModInfo) ->
+    ModInfo.
 
 -spec process_rec_field(abs_rec_field()) -> {field_name(),abs_type()}.
 process_rec_field({record_field,_,{atom,_,FieldName}}) ->
@@ -284,15 +358,193 @@ process_rec_field({typed_record_field,RecField,FieldType}) ->
     {FieldName,_} = process_rec_field(RecField),
     {FieldName, FieldType}.
 
+-spec process_fun_clause(abs_type()) -> fun_clause_repr().
+process_fun_clause({type,_,'fun',[{type,_,product,Domain},Range]}) ->
+    {Domain, Range};
+process_fun_clause({type,_,bounded_fun,[MainClause,_Constraints]}) ->
+    %% TODO: Spec constraints are ignored.
+    process_fun_clause(MainClause).
+
+-spec process_adts(mod_name(), mod_info()) -> mod_info().
+process_adts(Mod, #mod_info{mod_exp_types = ModExpTypes,
+			    mod_opaques = ModOpaques, mod_exp_funs = ModExpFuns,
+			    mod_specs = ModSpecs} = ModInfo) ->
+    %% TODO: No warning on unexported opaques.
+    case sets:to_list(sets:intersection(ModExpTypes,ModOpaques)) of
+	[] ->
+	    ModInfo;
+	ModADTs ->
+	    ModSpecsList = dict:to_list(ModSpecs),
+	    %% TODO: No warning on unexported API functions.
+	    ModExpFunSpecs =
+		[{Name,Domain,Range}
+		 || {{Name,_Arity} = FunRef,{Domain,Range}} <- ModSpecsList,
+		    sets:is_element(FunRef,ModExpFuns)],
+	    AddADT = fun(ADT,Acc) -> add_adt(Mod,ADT,Acc,ModExpFunSpecs) end,
+	    lists:foldl(AddADT, ModInfo, ModADTs)
+    end.
+
+-spec add_adt(mod_name(), imm_type_ref(), mod_info(), [proc_fun_ref()]) ->
+	  mod_info().
+add_adt(Mod, {Name,Arity}, #mod_info{mod_types = ModTypes} = ModInfo,
+	ModExpFunSpecs) ->
+    ADTRef = {type,Name,Arity},
+    {abs_type,_InternalRepr,VarNames,false} = dict:fetch(ADTRef, ModTypes),
+    FullADTRef = {Mod,Name,Arity},
+    %% TODO: No warning on unsuitable range.
+    SymbCalls1 = [get_symb_call(FullADTRef,Spec) || Spec <- ModExpFunSpecs],
+    %% TODO: No warning on bad use of variables.
+    SymbCalls2 = [fix_vars(FullADTRef,Call,RangeVars,VarNames)
+		  || {ok,Call,RangeVars} <- SymbCalls1],
+    case [Call || {ok,Call} <- SymbCalls2] of
+	[] ->
+	    %% TODO: No warning on no acceptable spec.
+	    ModInfo;
+	SymbCalls3 ->
+	    NewADTRepr = {abs_type,{type,0,union,SymbCalls3},VarNames,true},
+	    NewModTypes = dict:store(ADTRef, NewADTRepr, ModTypes),
+	    ModInfo#mod_info{mod_types = NewModTypes}
+    end.
+
+-spec get_symb_call(full_imm_type_ref(), proc_fun_ref()) ->
+	  tagged_result2(abs_type(),[var_name()]).
+get_symb_call({Mod,_TypeName,_Arity} = FullADTRef, {FunName,Domain,Range}) ->
+    BaseCall = {type,0,tuple,[{atom,0,call},{atom,0,Mod},{atom,0,FunName},
+			      {type,0,tuple,Domain}]},
+    unwrap_range(FullADTRef, BaseCall, Range).
+
+%% TODO: We only recurse into tuples and nonempty lists.
+-spec unwrap_range(full_imm_type_ref(), abs_type() | 'dummy', abs_type()) ->
+	  tagged_result2(abs_type(),[var_name()]).
+unwrap_range(FullADTRef, Call, {paren_type,_,[Type]}) ->
+    unwrap_range(FullADTRef, Call, Type);
+unwrap_range(FullADTRef, Call, {ann_type,_,[_Var,Type]}) ->
+    unwrap_range(FullADTRef, Call, Type);
+unwrap_range(FullADTRef, Call, {type,_,nonempty_list,[ElemForm]}) ->
+    NewCall = {type,0,tuple,[{atom,0,call},{atom,0,erlang},{atom,0,hd},
+			     {type,0,tuple,[Call]}]},
+    unwrap_range(FullADTRef, NewCall, ElemForm);
+unwrap_range(FullADTRef, Call, {type,_,tuple,ElemForms}) ->
+    Translates = fun(T) -> unwrap_range(FullADTRef,dummy,T) =/= error end,
+    case proper_arith:find_first(Translates, ElemForms) of
+	none ->
+	    error;
+	{Pos,GoodElem} ->
+	    NewCall = {type,0,tuple,[{atom,0,call},{atom,0,erlang},
+				     {atom,0,element},
+				     {type,0,tuple,[{integer,0,Pos},Call]}]},
+	    unwrap_range(FullADTRef, NewCall, GoodElem)
+    end;
+unwrap_range({_Mod,_SameName,Arity}, Call, {type,_,_SameName,ArgForms}) ->
+    RangeVars = [V || {var,_,V} <- ArgForms],
+    case length(ArgForms) =:= Arity andalso length(RangeVars) =:= Arity of
+	true  -> {ok, Call, RangeVars};
+	false -> error
+    end;
+unwrap_range({_SameMod,SameName,_Arity} = FullADTRef, Call,
+	     {remote_type,_,[{atom,_,_SameMod},{atom,_,SameName},ArgForms]}) ->
+    unwrap_range(FullADTRef, Call, {type,0,SameName,ArgForms});
+unwrap_range(_FullADTRef, _Call, _Range) ->
+    error.
+
+-spec fix_vars(full_imm_type_ref(), abs_type(), [var_name()], [var_name()]) ->
+	  tagged_result(abs_type()).
+fix_vars(FullADTRef, Call, RangeVars, VarNames) ->
+    case no_duplicates(VarNames) of
+	true ->
+	    RawUsedVars = collect_vars(FullADTRef, Call, RangeVars),
+	    UsedVars = [lists:usort(L) || L <- RawUsedVars],
+	    case correct_var_use(UsedVars) of
+		true ->
+		    PairAll = fun(L,Y) -> [{X,Y} || X <- L] end,
+		    VarSubsts =
+			lists:flatten(lists:zipwith(PairAll,UsedVars,VarNames)),
+		    VarSubstsDict = dict:from_list(VarSubsts),
+		    {ok, update_vars(Call,VarSubstsDict)};
+		false ->
+		    error
+	    end;
+	false ->
+	    error
+    end.
+
+-spec no_duplicates(list()) -> boolean().
+no_duplicates(L) ->
+    length(lists:usort(L)) =:= length(L).
+
+-spec correct_var_use([[var_name() | 0]]) -> boolean().
+correct_var_use(UsedVars) ->
+    NoNonVarArgs = fun([0|_]) -> false; (_) -> true end,
+    lists:all(NoNonVarArgs, UsedVars)
+    andalso no_duplicates(lists:flatten(UsedVars)).
+
+-spec collect_vars(full_imm_type_ref(), abs_type(), [[var_name() | 0]]) ->
+	  [[var_name() | 0]].
+collect_vars(FullADTRef, {paren_type,_,[Type]}, UsedVars) ->
+    collect_vars(FullADTRef, Type, UsedVars);
+collect_vars(FullADTRef, {ann_type,_,[_Var,Type]}, UsedVars) ->
+    collect_vars(FullADTRef, Type, UsedVars);
+collect_vars({_Mod,_SameName,Arity} = FullADTRef, {type,_,_SameName,ArgForms},
+	     UsedVars) ->
+    case length(ArgForms) =:= Arity of
+	true ->
+	    VarArgs = [V || {var,_,V} <- ArgForms],
+	    case length(VarArgs) =:= Arity of
+		true ->
+		    AddToList = fun(X,L) -> [X | L] end,
+		    lists:zipwith(AddToList, VarArgs, UsedVars);
+		false ->
+		    [[0|L] || L <- UsedVars]
+	    end;
+	false ->
+	    multi_collect_vars(FullADTRef, ArgForms, UsedVars)
+    end;
+collect_vars(FullADTRef, {type,_,_Name,ArgForms}, UsedVars) ->
+    multi_collect_vars(FullADTRef, ArgForms, UsedVars);
+collect_vars({_SameMod,SameName,_Arity} = FullADTRef,
+	     {remote_type,_,[{atom,_,_SameMod},{atom,_,SameName},ArgForms]},
+	     UsedVars) ->
+    collect_vars(FullADTRef, {type,0,SameName,ArgForms}, UsedVars);
+collect_vars(FullADTRef, {remote_type,_,ArgForms}, UsedVars) ->
+    multi_collect_vars(FullADTRef, ArgForms, UsedVars);
+collect_vars(_FullADTRef, _Call, UsedVars) ->
+    UsedVars.
+
+-spec multi_collect_vars(full_imm_type_ref(), [abs_type()],
+			 [[var_name() | 0]]) -> [[var_name() | 0]].
+multi_collect_vars({_Mod,_Name,Arity} = FullADTRef, Forms, UsedVars) ->
+    NoUsedVars = lists:duplicate(Arity, []),
+    MoreUsedVars = [collect_vars(FullADTRef,T,NoUsedVars) || T <- Forms],
+    CombineVars = fun(L1,L2) -> lists:zipwith(fun erlang:'++'/2, L1, L2) end,
+    lists:foldl(CombineVars, UsedVars, MoreUsedVars).
+
+-spec update_vars(abs_type(), dict()) -> abs_type().
+%% dict(var_name(),var_name())
+update_vars({paren_type,Line,[Type]}, VarSubstsDict) ->
+    {paren_type, Line, [update_vars(Type,VarSubstsDict)]};
+update_vars({ann_type,Line,[Var,Type]}, VarSubstsDict) ->
+    {ann_type, Line, [Var,update_vars(Type,VarSubstsDict)]};
+update_vars({var,Line,VarName} = Call, VarSubstsDict) ->
+    case dict:find(VarName, VarSubstsDict) of
+	{ok,SubstVar} ->
+	    {var, Line, SubstVar};
+	error ->
+	    Call
+    end;
+update_vars({remote_type,Line,ArgForms}, VarSubstsDict) ->
+    {remote_type, Line, [update_vars(A,VarSubstsDict) || A <- ArgForms]};
+update_vars({type,Line,Name,ArgForms}, VarSubstsDict) ->
+    {type, Line, Name, [update_vars(A,VarSubstsDict) || A <- ArgForms]};
+update_vars(Call, _VarSubstsDict) ->
+    Call.
+
 -spec store_mod_info(mod_name(), mod_info(), state()) -> state().
-store_mod_info(Mod, {ModExpTypes,ModTypes,ModExpFuns},
-	       #state{exp_types = ExpTypes, types = Types,
-		      exp_funs = ExpFuns} = State) ->
+store_mod_info(Mod,
+	       #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes},
+	       #state{exp_types = ExpTypes, types = Types} = State) ->
     NewExpTypes = dict:store(Mod, ModExpTypes, ExpTypes),
     NewTypes = dict:store(Mod, ModTypes, Types),
-    NewExpFuns = dict:store(Mod, ModExpFuns, ExpFuns),
-    State#state{exp_types = NewExpTypes, types = NewTypes,
-		exp_funs = NewExpFuns}.
+    State#state{exp_types = NewExpTypes, types = NewTypes}.
 
 
 %%------------------------------------------------------------------------------
@@ -413,14 +665,14 @@ convert(Mod, {type,_,'fun',[{type,_,product,Domain},Range]}, State, Stack,
 	    Error
     end;
 convert(Mod, {type,_,Name,[]}, State, Stack, VarDict) ->
-    case lists:member(Name, ?STD_TYPES) of
+    case ordsets:is_element(Name, ?STD_TYPES_0) of
 	true ->
 	    {ok, {simple,apply(proper_types,Name,[])}, State};
 	false ->
-	    convert_custom(Mod, Mod, Name, [], State, Stack, VarDict)
+	    convert_maybe_hard_adt(Mod, Name, [], State, Stack, VarDict)
     end;
 convert(Mod, {type,_,Name,ArgForms}, State, Stack, VarDict) ->
-    convert_custom(Mod, Mod, Name, ArgForms, State, Stack, VarDict);
+    convert_maybe_hard_adt(Mod, Name, ArgForms, State, Stack, VarDict);
 convert(_Mod, TypeForm, _State, _Stack, _VarDict) ->
     {error, {unsupported_type,TypeForm}}.
 
@@ -623,6 +875,21 @@ list_inst_rec_fun(AltRecFun, NumInstances, SelfPos, NonEmpty, ListInstPos) ->
 	    end)
     end.
 
+-spec convert_maybe_hard_adt(mod_name(), type_name(), [abs_type()], state(),
+			     stack(), var_dict()) ->
+	  rich_result2(ret_type(),state()).
+convert_maybe_hard_adt(Mod, Name, ArgForms, State, Stack, VarDict) ->
+    Arity = length(ArgForms),
+    case orddict:find({Name,Arity}, ?HARD_ADTS) of
+	{ok,Mod} ->
+	    convert_custom(Mod, Mod, Name, ArgForms, State, Stack, VarDict);
+	{ok,ADTMod} ->
+	    ADT = {remote_type,0,[{atom,0,ADTMod},{atom,0,Name},ArgForms]},
+	    convert(Mod, ADT, State, Stack, VarDict);
+	error ->
+	    convert_custom(Mod, Mod, Name, ArgForms, State, Stack, VarDict)
+    end.
+
 -spec convert_custom(mod_name(), mod_name(), type_name(), [abs_type()], state(),
 		     stack(), var_dict()) -> rich_result2(ret_type(),state()).
 convert_custom(Mod, RemMod, Name, ArgForms, State, Stack, VarDict) ->
@@ -675,18 +942,23 @@ convert_new_type(_TypeRef, {_Mod,type,_Name,[]}, {cached,FinType}, State,
 		 _Stack) ->
     {ok, {simple,FinType}, State};
 convert_new_type(TypeRef, {Mod,type,_Name,Args} = FullTypeRef,
-		 {abs_type,TypeForm,Vars}, State, Stack) ->
+		 {abs_type,TypeForm,Vars,Symbolic}, State, Stack) ->
     VarDict = dict:from_list(lists:zip(Vars, Args)),
     case convert(Mod, TypeForm, State, [FullTypeRef | Stack], VarDict) of
-	{ok, {simple,FinType} = RetType, NewState} ->
+	{ok, {simple,ImmFinType}, NewState} ->
+	    FinType = case Symbolic of
+			  true  -> proper_symb:well_defined(ImmFinType);
+			  false -> ImmFinType
+		      end,
 	    FinalState =
 		case Vars of
 		    [] -> cache_simple_type(Mod, TypeRef, FinType, NewState);
 		    _  -> NewState
 		end,
-	    {ok, RetType, FinalState};
+	    {ok, {simple,FinType}, FinalState};
 	{ok, {rec,RecFun,RecArgs}, NewState} ->
-	    convert_maybe_rec(FullTypeRef, RecFun, RecArgs, NewState, Stack);
+	    convert_maybe_rec(FullTypeRef, Symbolic, RecFun, RecArgs, NewState,
+			      Stack);
 	{error,_Reason} = Error ->
 	    Error
     end;
@@ -702,7 +974,8 @@ convert_new_type(_TypeRef, {Mod,record,Name,SubstsDict} = FullTypeRef,
 	{ok, {simple,_FinType}, _NewState} = Result ->
 	    Result;
 	{ok, {rec,RecFun,RecArgs}, NewState} ->
-	    convert_maybe_rec(FullTypeRef, RecFun, RecArgs, NewState, Stack);
+	    convert_maybe_rec(FullTypeRef, false, RecFun, RecArgs, NewState,
+			      Stack);
 	{error,_Reason} = Error ->
 	    Error
     end.
@@ -714,32 +987,32 @@ cache_simple_type(Mod, TypeRef, FinType, #state{types = Types} = State) ->
     NewTypes = dict:store(Mod, NewModTypes, Types),
     State#state{types = NewTypes}.
 
--spec convert_maybe_rec(full_type_ref(), rec_fun(), rec_args(), state(),
-			stack()) -> rich_result2(ret_type(),state()).
-convert_maybe_rec(FullTypeRef, RecFun, RecArgs, State, Stack) ->
+-spec convert_maybe_rec(full_type_ref(), boolean(), rec_fun(), rec_args(),
+			state(), stack()) -> rich_result2(ret_type(),state()).
+convert_maybe_rec(FullTypeRef, Symbolic, RecFun, RecArgs, State, Stack) ->
     case at_toplevel(RecArgs, Stack) of
 	true  -> base_case_error(Stack);
-	false -> safe_convert_maybe_rec(FullTypeRef, RecFun, RecArgs, State)
+	false -> safe_convert_maybe_rec(FullTypeRef, Symbolic, RecFun, RecArgs,
+					State)
     end.
 
--spec safe_convert_maybe_rec(full_type_ref(), rec_fun(), rec_args(), state()) ->
-	  rich_result2(ret_type(),state()).
-safe_convert_maybe_rec(FullTypeRef, RecFun, RecArgs, State) ->
+-spec safe_convert_maybe_rec(full_type_ref(), boolean(), rec_fun(), rec_args(),
+			     state()) -> rich_result2(ret_type(),state()).
+safe_convert_maybe_rec(FullTypeRef, Symbolic, RecFun, RecArgs, State) ->
     case partition_rec_args(FullTypeRef, RecArgs, false) of
 	{[],[],_,_} ->
 	    {ok, {rec,RecFun,RecArgs}, State};
 	{MyRecArgs,MyPos,OtherRecArgs,_OtherPos} ->
 	    case lists:all(fun({B,_T}) -> B =:= false end, MyRecArgs) of
-		true ->
-		    convert_rec_type(RecFun, MyPos, OtherRecArgs, State);
-		false ->
-		    {error, {internal,true_rec_arg_reached_type}}
+		true  -> convert_rec_type(Symbolic, RecFun, MyPos, OtherRecArgs,
+					  State);
+		false -> {error, {internal,true_rec_arg_reached_type}}
 	    end
     end.
 
--spec convert_rec_type(rec_fun(), [position()], rec_args(), state()) ->
-	  {ok, ret_type(), state()}.
-convert_rec_type(RecFun, MyPos, [], State) ->
+-spec convert_rec_type(boolean(), rec_fun(), [position()], rec_args(),
+		       state()) -> {ok, ret_type(), state()}.
+convert_rec_type(Symbolic, RecFun, MyPos, [], State) ->
     NumRecArgs = length(MyPos),
     M = fun(GenFun) ->
 	    fun(Size) ->
@@ -748,8 +1021,13 @@ convert_rec_type(RecFun, MyPos, [], State) ->
 	    end
 	end,
     SizedGen = y(M),
-    {ok, {simple,?SIZED(Size,SizedGen(Size + 1))}, State};
-convert_rec_type(RecFun, MyPos, OtherRecArgs, State) ->
+    ImmFinType = ?SIZED(Size,SizedGen(Size + 1)),
+    FinType = case Symbolic of
+		  true  -> proper_symb:well_defined(ImmFinType);
+		  false -> ImmFinType
+	      end,
+    {ok, {simple,FinType}, State};
+convert_rec_type(_Symbolic, RecFun, MyPos, OtherRecArgs, State) ->
     NumRecArgs = length(MyPos),
     NewRecFun =
 	fun(OtherGens,TopSize) ->

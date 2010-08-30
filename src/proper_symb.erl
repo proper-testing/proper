@@ -35,7 +35,7 @@
 %% Types
 %%------------------------------------------------------------------------------
 
-%% -type symb_call()  :: {'call',mod_name(),fun_name(),[symb_term()]}.
+%% -type symb_call()  :: {'call',mod_name(),fun_name(),[symb_term()] | tuple()}.
 -type var_id() :: atom().
 %% -type symb_var() :: {'var',var_id()}.
 -type var_values_list() :: [{var_id(),term()}].
@@ -103,16 +103,20 @@ parse_term(Term) ->
 		term_handler()) -> handled_term().
 %% TODO: should this handle improper lists?
 %% TODO: only atoms are allowed as variable identifiers?
-symb_walk(VarValues, {call,Module,Function,Args}, HandleCall, HandleTerm) ->
+symb_walk(VarValues, {call,Mod,Fun,RawArgs}, HandleCall, HandleTerm) ->
+    Args = if
+	       is_tuple(RawArgs) -> tuple_to_list(RawArgs);
+	       is_list(RawArgs)  -> RawArgs
+	   end,
     HandledArgs = [symb_walk(VarValues,A,HandleCall,HandleTerm) || A <- Args],
-    HandleCall(Module, Function, HandledArgs);
+    HandleCall(Mod, Fun, HandledArgs);
 symb_walk(VarValues, {var,VarId}, HandleCall, HandleTerm) ->
     SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleCall, HandleTerm) end,
     case lists:keyfind(VarId, 1, VarValues) of
 	{VarId,VarValue} ->
 	    %% TODO: this allows symbolic calls and vars inside var values,
 	    %%       which may result in an infinite loop, as in:
-	    %%       [{aZz,{call,m,f,[{var,a}]}}], {var,a}
+	    %%       [{a,{call,m,f,[{var,a}]}}], {var,a}
 	    SymbWalk(VarValue);
 	false ->
 	    HandleTerm({HandleTerm(var),SymbWalk(VarId)})
