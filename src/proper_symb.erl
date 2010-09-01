@@ -25,6 +25,7 @@
 -module(proper_symb).
 -export([eval/1, eval/2, defined/1, well_defined/1, pretty_print/1,
 	 pretty_print/2]).
+-export([internal_eval/1, internal_well_defined/1]).
 
 -export_type([]).
 
@@ -35,50 +36,80 @@
 %% Types
 %%------------------------------------------------------------------------------
 
-%% -type symb_call()  :: {'call',mod_name(),fun_name(),[symb_term()] | tuple()}.
+%% -type symb_call()  :: {'call' | '$call',mod_name(),fun_name(),[symb_term()]}.
+%% TODO: only atoms are allowed as variable identifiers?
 -type var_id() :: atom().
 %% -type symb_var() :: {'var',var_id()}.
--type var_values_list() :: [{var_id(),term()}].
+-type var_values() :: [{var_id(),term()}].
 -type symb_term() :: term().
 -type handled_term() :: term().
+-type caller() :: 'user' | 'system'.
 -type call_handler() :: fun((mod_name(),fun_name(),[handled_term()]) ->
 				handled_term()).
 -type term_handler() :: fun((term()) -> handled_term()).
+-type handle_info() :: {caller(),call_handler(),term_handler()}.
 
 
 %%------------------------------------------------------------------------------
-%% Symbolic generation functions
+%% Evaluation functions
 %%------------------------------------------------------------------------------
 
 -spec eval(symb_term()) -> term().
 eval(SymbTerm) ->
     eval([], SymbTerm).
 
--spec eval(var_values_list(), symb_term()) -> term().
+-spec eval(var_values(), symb_term()) -> term().
 eval(VarValues, SymbTerm) ->
-    Identity = fun(X) -> X end,
-    symb_walk(VarValues, SymbTerm, fun erlang:apply/3, Identity).
+    eval(VarValues, SymbTerm, user).
+
+-spec eval(var_values(), symb_term(), caller()) -> term().
+eval(VarValues, SymbTerm, Caller) ->
+    HandleInfo = {Caller, fun erlang:apply/3, fun(X) -> X end},
+    symb_walk(VarValues, SymbTerm, HandleInfo).
+
+%% @private
+-spec internal_eval(symb_term()) -> term().
+internal_eval(SymbTerm) ->
+    eval([], SymbTerm, system).
 
 -spec defined(symb_term()) -> boolean().
 defined(SymbTerm) ->
-    try eval(SymbTerm) of
+    defined(SymbTerm, user).
+
+-spec defined(symb_term(), caller()) -> boolean().
+defined(SymbTerm, Caller) ->
+    try eval([], SymbTerm, Caller) of
 	_Term -> true
     catch
 	_Exception:_Reason -> false
     end.
 
--spec well_defined(proper_types:type()) -> proper_types:type().
+-spec well_defined(proper_types:raw_type()) -> proper_types:type().
 well_defined(SymbType) ->
-    ?SUCHTHAT(X, SymbType, defined(X)).
+    well_defined(SymbType, user).
+
+-spec well_defined(proper_types:raw_type(), caller()) -> proper_types:type().
+well_defined(SymbType, Caller) ->
+    ?SUCHTHAT(X, SymbType, defined(X,Caller)).
+
+%% @private
+-spec internal_well_defined(proper_types:type()) -> proper_types:type().
+internal_well_defined(SymbType) ->
+    well_defined(SymbType, system).
+
+
+%%------------------------------------------------------------------------------
+%% Pretty-printing functions
+%%------------------------------------------------------------------------------
 
 -spec pretty_print(symb_term()) -> string().
 pretty_print(SymbTerm) ->
     pretty_print([], SymbTerm).
 
--spec pretty_print(var_values_list(), symb_term()) -> string().
+-spec pretty_print(var_values(), symb_term()) -> string().
 pretty_print(VarValues, SymbTerm) ->
-    ExprTree =
-	symb_walk(VarValues, SymbTerm, fun parse_fun/3, fun parse_term/1),
+    HandleInfo = {user, fun parse_fun/3, fun parse_term/1},
+    ExprTree = symb_walk(VarValues, SymbTerm, HandleInfo),
     lists:flatten(erl_pp:expr(ExprTree)).
 
 -spec parse_fun(mod_name(), fun_name(), [abs_expr()]) -> abs_expr().
@@ -89,7 +120,7 @@ parse_fun(Module, Function, ArgTreeList) ->
 parse_term(TreeList) when is_list(TreeList) ->
     {RestOfList, Acc0} =
 	case proper_arith:cut_improper_tail(TreeList) of
-	    X = {_ProperHead,_ImproperTail} -> X;
+	    {_ProperHead,_ImproperTail} = X -> X;
 	    ProperList                      -> {ProperList,{nil,0}}
 	end,
     lists:foldr(fun(X,Acc) -> {cons,0,X,Acc} end, Acc0, RestOfList);
@@ -99,19 +130,20 @@ parse_term(Term) ->
     %% TODO: pid, port, reference, function value?
     erl_parse:abstract(Term).
 
--spec symb_walk(var_values_list(), symb_term(), call_handler(),
-		term_handler()) -> handled_term().
-%% TODO: should this handle improper lists?
-%% TODO: only atoms are allowed as variable identifiers?
-symb_walk(VarValues, {call,Mod,Fun,RawArgs}, HandleCall, HandleTerm) ->
-    Args = if
-	       is_tuple(RawArgs) -> tuple_to_list(RawArgs);
-	       is_list(RawArgs)  -> RawArgs
-	   end,
-    HandledArgs = [symb_walk(VarValues,A,HandleCall,HandleTerm) || A <- Args],
-    HandleCall(Mod, Fun, HandledArgs);
-symb_walk(VarValues, {var,VarId}, HandleCall, HandleTerm) ->
-    SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleCall, HandleTerm) end,
+
+%%------------------------------------------------------------------------------
+%% Generic symbolic handler function
+%%------------------------------------------------------------------------------
+
+-spec symb_walk(var_values(), symb_term(), handle_info()) -> handled_term().
+symb_walk(VarValues, {call,Mod,Fun,Args},
+	  {user,_HandleCall,_HandleTerm} = HandleInfo) ->
+    symb_walk_call(VarValues, Mod, Fun, Args, HandleInfo);
+symb_walk(VarValues, {'$call',Mod,Fun,Args}, HandleInfo) ->
+    symb_walk_call(VarValues, Mod, Fun, Args, HandleInfo);
+symb_walk(VarValues, {var,VarId},
+	  {user,_HandleCall,HandleTerm} = HandleInfo) ->
+    SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleInfo) end,
     case lists:keyfind(VarId, 1, VarValues) of
 	{VarId,VarValue} ->
 	    %% TODO: this allows symbolic calls and vars inside var values,
@@ -121,8 +153,21 @@ symb_walk(VarValues, {var,VarId}, HandleCall, HandleTerm) ->
 	false ->
 	    HandleTerm({HandleTerm(var),SymbWalk(VarId)})
     end;
-symb_walk(VarValues, SymbTerm, HandleCall, HandleTerm) ->
-    SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleCall, HandleTerm) end,
+symb_walk(VarValues, SymbTerm, HandleInfo) ->
+    symb_walk_gen(VarValues, SymbTerm, HandleInfo).
+
+-spec symb_walk_call(var_values(), mod_name(), fun_name(), [symb_term()],
+		     handle_info()) -> handled_term().
+symb_walk_call(VarValues, Mod, Fun, Args,
+	       {_Caller,HandleCall,_HandleTerm} = HandleInfo) ->
+    SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleInfo) end,
+    HandledArgs = [SymbWalk(A) || A <- Args],
+    HandleCall(Mod, Fun, HandledArgs).
+
+-spec symb_walk_gen(var_values(), symb_term(), handle_info()) -> handled_term().
+symb_walk_gen(VarValues, SymbTerm,
+	      {_Caller,_HandleCall,HandleTerm} = HandleInfo) ->
+    SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleInfo) end,
     Term =
 	if
 	    is_list(SymbTerm)  -> proper_arith:safemap(SymbWalk, SymbTerm);

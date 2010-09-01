@@ -278,6 +278,10 @@ clean_instance({'$used',_ImmParts,ImmInstance}) ->
     clean_instance(ImmInstance);
 clean_instance({'$to_part',ImmInstance}) ->
     clean_instance(ImmInstance);
+clean_instance({'$call',Mod,Fun,ArgsTuple}) when is_tuple(ArgsTuple) ->
+    Args = tuple_to_list(ArgsTuple),
+    CleanArgs = [clean_instance(A) || A <- Args],
+    {'$call', Mod, Fun, CleanArgs};
 clean_instance(ImmInstance) ->
     if
 	is_list(ImmInstance) ->

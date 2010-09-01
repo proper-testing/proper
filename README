@@ -641,14 +641,23 @@ The use of native types in properties is subject to the following usage rules:
   - Assuming that a custom type foo/1 has been declared, the expression
     foo([integer()]) can only be interpreted as a native type declaration,
     which means that the generic type of integer lists will be passed to foo/1.
-* Inline record-field type declarations that reference non-existent fields and
-  type variables that are not present in the RHS of a '-type' declaration are
-  silently ignored by PropEr. Duplicate type variables in the LHS of a '-type'
-  declaration are not detected.
+* Currently, PropEr does not detect the following mistakes:
+  - inline record-field specializations that reference non-existent fields
+  - type parameters that are not present in the RHS of a '-type' declaration
+  - using '_' as a type variable in the LHS of a '-type' declaration
+  - using the same variable in more than one position in the LHS of a '-type'
+    declaration
 
 
 --------------------------------------------------------------------------------
 Symbolic datatypes
+--------------------------------------------------------------------------------
+
+Coming soon.
+
+
+--------------------------------------------------------------------------------
+Auto-ADT
 --------------------------------------------------------------------------------
 
 Coming soon.

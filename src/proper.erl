@@ -591,7 +591,7 @@ force(Prop, Ctx) ->
 -spec force(proper_gen:instance(), dependent_test(), ctx()) ->
 	  single_run_result().
 force(Arg, Prop, Ctx) ->
-    apply_args([Arg], Prop, Ctx).
+    apply_args([proper_symb:internal_eval(Arg)], Prop, Ctx).
 
 -spec apply_args([proper_gen:instance()], lazy_test(), ctx()) ->
 	  single_run_result().
@@ -718,7 +718,7 @@ force_skip(Prop) ->
 %% @private
 -spec force_skip(proper_gen:instance(), dependent_test()) -> stripped_test().
 force_skip(Arg, Prop) ->
-    apply_skip([Arg], Prop).
+    apply_skip([proper_symb:internal_eval(Arg)], Prop).
 
 -spec apply_skip([proper_gen:instance()], lazy_test()) -> stripped_test().
 apply_skip(Args, Prop) ->

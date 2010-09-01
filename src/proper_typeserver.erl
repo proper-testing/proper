@@ -323,7 +323,7 @@ add_mod_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
 	when Kind =:= type; Kind =:= opaque ->
     Arity = length(VarForms),
     VarNames = [V || {var,_,V} <- VarForms],
-    %% TODO: No check whether variables are different.
+    %% TODO: No check whether variables are different, or non-'_'.
     NewModTypes = dict:store({type,Name,Arity},
 			     {abs_type,TypeForm,VarNames,false}, ModTypes),
     NewModOpaques =
@@ -409,7 +409,7 @@ add_adt(Mod, {Name,Arity}, #mod_info{mod_types = ModTypes} = ModInfo,
 -spec get_symb_call(full_imm_type_ref(), proc_fun_ref()) ->
 	  tagged_result2(abs_type(),[var_name()]).
 get_symb_call({Mod,_TypeName,_Arity} = FullADTRef, {FunName,Domain,Range}) ->
-    BaseCall = {type,0,tuple,[{atom,0,call},{atom,0,Mod},{atom,0,FunName},
+    BaseCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,Mod},{atom,0,FunName},
 			      {type,0,tuple,Domain}]},
     unwrap_range(FullADTRef, BaseCall, Range).
 
@@ -421,7 +421,7 @@ unwrap_range(FullADTRef, Call, {paren_type,_,[Type]}) ->
 unwrap_range(FullADTRef, Call, {ann_type,_,[_Var,Type]}) ->
     unwrap_range(FullADTRef, Call, Type);
 unwrap_range(FullADTRef, Call, {type,_,nonempty_list,[ElemForm]}) ->
-    NewCall = {type,0,tuple,[{atom,0,call},{atom,0,erlang},{atom,0,hd},
+    NewCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},{atom,0,hd},
 			     {type,0,tuple,[Call]}]},
     unwrap_range(FullADTRef, NewCall, ElemForm);
 unwrap_range(FullADTRef, Call, {type,_,tuple,ElemForms}) ->
@@ -430,13 +430,13 @@ unwrap_range(FullADTRef, Call, {type,_,tuple,ElemForms}) ->
 	none ->
 	    error;
 	{Pos,GoodElem} ->
-	    NewCall = {type,0,tuple,[{atom,0,call},{atom,0,erlang},
+	    NewCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},
 				     {atom,0,element},
 				     {type,0,tuple,[{integer,0,Pos},Call]}]},
 	    unwrap_range(FullADTRef, NewCall, GoodElem)
     end;
 unwrap_range({_Mod,_SameName,Arity}, Call, {type,_,_SameName,ArgForms}) ->
-    RangeVars = [V || {var,_,V} <- ArgForms],
+    RangeVars = [V || {var,_,V} <- ArgForms, V =/= '_'],
     case length(ArgForms) =:= Arity andalso length(RangeVars) =:= Arity of
 	true  -> {ok, Call, RangeVars};
 	false -> error
@@ -450,9 +450,11 @@ unwrap_range(_FullADTRef, _Call, _Range) ->
 -spec fix_vars(full_imm_type_ref(), abs_type(), [var_name()], [var_name()]) ->
 	  tagged_result(abs_type()).
 fix_vars(FullADTRef, Call, RangeVars, VarNames) ->
-    case no_duplicates(VarNames) of
+    NotAnyVar = fun(V) -> V =/= '_' end,
+    case no_duplicates(VarNames) andalso lists:all(NotAnyVar,VarNames) of
 	true ->
-	    RawUsedVars = collect_vars(FullADTRef, Call, RangeVars),
+	    RawUsedVars =
+		collect_vars(FullADTRef, Call, [[V] || V <- RangeVars]),
 	    UsedVars = [lists:usort(L) || L <- RawUsedVars],
 	    case correct_var_use(UsedVars) of
 		true ->
@@ -488,7 +490,7 @@ collect_vars({_Mod,_SameName,Arity} = FullADTRef, {type,_,_SameName,ArgForms},
 	     UsedVars) ->
     case length(ArgForms) =:= Arity of
 	true ->
-	    VarArgs = [V || {var,_,V} <- ArgForms],
+	    VarArgs = [V || {var,_,V} <- ArgForms, V =/= '_'],
 	    case length(VarArgs) =:= Arity of
 		true ->
 		    AddToList = fun(X,L) -> [X | L] end,
@@ -946,10 +948,11 @@ convert_new_type(TypeRef, {Mod,type,_Name,Args} = FullTypeRef,
     VarDict = dict:from_list(lists:zip(Vars, Args)),
     case convert(Mod, TypeForm, State, [FullTypeRef | Stack], VarDict) of
 	{ok, {simple,ImmFinType}, NewState} ->
-	    FinType = case Symbolic of
-			  true  -> proper_symb:well_defined(ImmFinType);
-			  false -> ImmFinType
-		      end,
+	    FinType =
+		case Symbolic of
+		    true  -> proper_symb:internal_well_defined(ImmFinType);
+		    false -> ImmFinType
+		end,
 	    FinalState =
 		case Vars of
 		    [] -> cache_simple_type(Mod, TypeRef, FinType, NewState);
@@ -1023,7 +1026,7 @@ convert_rec_type(Symbolic, RecFun, MyPos, [], State) ->
     SizedGen = y(M),
     ImmFinType = ?SIZED(Size,SizedGen(Size + 1)),
     FinType = case Symbolic of
-		  true  -> proper_symb:well_defined(ImmFinType);
+		  true  -> proper_symb:internal_well_defined(ImmFinType);
 		  false -> ImmFinType
 	      end,
     {ok, {simple,FinType}, State};

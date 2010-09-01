@@ -67,7 +67,7 @@ state_is_clean() ->
 			    lists:member(Proc, ?PROPER_REGISTERED)].
 
 -define(_failsWithReason(ExpReason, Test),
-	?_failsWith(ExpReason, _, Test)).
+	?_failRun(ExpReason, _, _, none, Test, [noshrink])).
 
 -define(_failsWith(ExpShrunk, Test),
 	?_failsWith(_, ExpShrunk, Test)).
@@ -502,6 +502,7 @@ undefined_symb_calls() ->
 %% TODO: various constructors like '|' (+ record notation) are parser-rejected
 %% TODO: test nonempty recursive lists
 %% TODO: test list-recursive with instances
+%% TODO: more ADT tests
 
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].
@@ -750,6 +751,21 @@ options_test_() ->
      ?_failRun(false_prop, [12], _, none,
 	       ?FORALL(_,?SIZED(Size,integer(Size,Size)),false),
 	       [{start_size,12}])].
+
+adts_test_() ->
+    [?_assertRun(true, _,
+		 ?FORALL({X,S},{integer(),set()},
+			 sets:is_element(X,sets:add_element(X,S))),
+		 20),
+     ?_assertRun(true, _,
+		 ?FORALL({X,Y,D},
+			 {integer(),float(),ddict:ddict(integer(),float())},
+			 dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y),
+		 30),
+     ?_failsWithReason(false_prop,
+		       ?FORALL({X,D},
+			       {boolean(),ddict:ddict(boolean(),integer())},
+			       dict:erase(X, dict:store(X,42,D)) =:= D))].
 
 
 %%------------------------------------------------------------------------------
