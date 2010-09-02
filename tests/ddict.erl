@@ -38,6 +38,17 @@
 %% unless they begin with an underscore.
 -opaque ddict(_K,_V) :: dict().
 
+%% Here are some valid symbolic calls that could be automatically produced using
+%% this module's exported functions, for the type ddict(atom(),integer()):
+%% * {'$call',ddict,store,[aa,12,{'$call',ddict,new,[]}]}
+%% * {'$call',ddict,filter,[<fun>,{'$call',ddict,from_list,[[{a,1},{b,2}]]}]}
+%% * {'$call',ddict,merge,[<fun>, {'$call',ddict,from_list,[[]]},
+%%			   {'$call',ddict,update,
+%%			    [aa,<fun>,3,{'$call',ddict,new,[]}]}]}
+
+%% Notice that PropEr will never produce a call like this one:
+%%   {'$call',ddict,update,[aa,<fun>,{'$call',ddict,new,[]}]}
+%% which would raise an exception if we tried to evaluate it.
 
 -spec new() -> ddict(_K,_V).
 new() -> dict:new().

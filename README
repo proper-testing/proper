@@ -653,14 +653,108 @@ The use of native types in properties is subject to the following usage rules:
 Symbolic datatypes
 --------------------------------------------------------------------------------
 
-Coming soon.
+When writing properties that involve abstract data types, such as dicts or sets,
+it is usually best to avoid dealing with the ADTs' internal representations
+directly. Working, instead, with a symbolic representation of an ADT's
+construction process (series of API calls) has several benefits:
+
+* Failing testcases are easier to read and understand. Compare:
+     {call,sets,from_list,[[1,2,3]]}
+  with:
+     {set,3,16,16,8,80,48,
+	  {[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},
+	  {{[],[3],[],[],[],[],[2],[],[],[],[],[1],[],[],[],[]}}}
+* Failing testcases are easier to shrink.
+* It is especially useful when testing the datatype itself: Certain
+  implementation errors may depend on some particular selection and ordering of
+  API calls, thus it is important to cover the entire ADT construction API.
+
+PropEr supports the symbolic representation of datatypes, using the following
+syntax:
+
+* {call,<Module>,<Function>,<Arguments>}: This represents a call to the API
+  function <Module>:<Function> with arguments <Arguments>. Each of the arguments
+  may be a symbolic call itself or contain other symbolic calls in lists or
+  tuples of arbitrary depth.
+* {'$call',<Module>,<Function>,<Arguments>}: Identical to the above, but gets
+  evaluated automatically before being applied to a property.
+* {var,<Atom>}: This contruct serves as a placeholder for values that are not
+  known at type construction time. It will be replaced by the actual value of
+  the variable during evaluation.
+
+The following functions, automatically imported from the proper_symb module, can
+be used when working with symbolic instances:
+
+* eval(<Symbolic_instance>): Intended for use inside the property-testing code,
+  this function evaluates a symbolic instance.
+* eval(<VarValues>, <Symbolic_instance>): Same as above, but accepts a proplist
+  of variable names and values, to be replaced anywhere inside the symbolic
+  instance before proceeding with the evaluation.
+* defined(<Symbolic_instance>): Returns true if the symbolic instance can be
+  successfully evaluated (its evaluation doesn't raise an error or exception).
+* well_defined(<Symbolic_instance>): An attribute which can be applied to
+  symbolic generators that may produce invalid sequences of operations when
+  called. The resulting type is guaranteed to only produce well-defined symbolic
+  instances.
+* pretty_print/1,2: Similar in calling convention to eval/1,2, but returns a
+  string representation of the call sequence instead of evaluating it.
 
 
 --------------------------------------------------------------------------------
 Auto-ADT
 --------------------------------------------------------------------------------
 
-Coming soon.
+To simplify the symbolic testing of ADTs, PropEr comes with the Auto-ADT
+subsystem: An opaque native type, if exported from its module, is assumed to be
+an abstract data type, causing PropEr to ignore its internal representation and
+instead construct symbolic instances of the type. The API functions used in
+these symbolic instances are extracted from the ADT's definition module, which
+is expected to contain one or more '-spec'ed exported functions that can be used
+to construct instances of the ADT. Specifically, PropEr will use all functions
+that return at least one instance of the ADT. As with recursive native types,
+the base case is automatically detected (in the case of ADTs, calls to functions
+like new/0 and from_list/1 would be considered the base case). The produced
+symbolic calls will be '$call' tuples, which are automatically evaluated, thus
+no call to eval/1 is required inside the property. Produced instances are
+guaranteed to evaluate successfully. Parametric ADTs are fully supported, as
+long as they appear instantiated inside ?FORALLs. ADTs hard-coded in the Erlang
+type system (array, dict, digraph, gb_set, gb_tree, queue, and set) are
+automatically detected and handled as such.
+
+The use of Auto-ADT is currently subject to the following limitations:
+
+* In the ADT's '-opaque' declaration, as in all types' declarations, only
+  type variables should be used as parameters in the LHS. None of these
+  variables can be the special '_' variable and no variable should appear more
+  than once in the parameters.
+* ADTs inside specs can only have simple variables as parameters. The special
+  '_' variable is not allowed in ADT parameters. If this would result in
+  singleton variables, as in the specs of functions like new/0, use variables
+  that begin with an underscore.
+* In API function specs, only type variables that also appear as parameters of
+  some ADT can be used outside of ADTs.
+* Specs that introduce an implicit binding among the parameters of an ADT are
+  rejected, e.g.:
+     -spec foo(dict(T,S),dict(S,T)) -> dict(T,S).
+  This includes using the same type variable twice in the parameters of an ADT.
+* While parsing the return type of specs in search of ADT references, PropEr
+  only recurses into tuples and non-empty lists - all other constructs are
+  ignored. This prohibits, among others, indirect references to the ADT through
+  other custom types. Another notable rejected construct is the union: return
+  values like this one:
+     {'ok',ADT} | 'error'
+  are not accepted. The only way for an API function to report failure while
+  remaining Auto-ADT-compatible is through exceptions.
+* When parsing multi-clause specs, only the first clause is considered.
+* Spec constraints are ignored.
+* Unexported opaques and opaques with no suitable specs to serve as API calls
+  are silently discarded. Those will be treated like ordinary types.
+* Unexported or unspecced functions are silently rejected.
+* Functions with unsuitable return values are silently rejected.
+* Specs that make bad use of variables are silently rejected.
+
+For an example on how to write Auto-ADT-compatible parametric specs, see the
+tests/ddict module, which wraps the STDLIB dict ADT.
 
 
 --------------------------------------------------------------------------------
