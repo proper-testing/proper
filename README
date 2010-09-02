@@ -628,7 +628,8 @@ The use of native types in properties is subject to the following usage rules:
   in the code path at runtime, either compiled with debug_info enabled or only
   in source form.
 * Local types with the same name as an auto-imported BIF are not accepted by
-  PropEr, even if the compiler has been called with a no_auto_import option.
+  PropEr, unless the BIF in question has been declared in a no_auto_import
+  option.
 * When an expression can be interpreted both as a PropEr type and as a native
   type, the former takes precedence. This means that a function foo() will
   shadow a type foo() if they are both present in the module. The same rule

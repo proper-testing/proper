@@ -220,9 +220,9 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
 	true ->
 	    {ok, State};
 	false ->
-	    case get_mod_code(Mod) of
-		{ok,AbsCode} ->
-		    RawModInfo = get_mod_info(Mod, AbsCode),
+	    case get_mod_code_and_exports(Mod) of
+		{ok,AbsCode,ModExpFuns} ->
+		    RawModInfo = get_mod_info(Mod, AbsCode, ModExpFuns),
 		    ModInfo = process_adts(Mod, RawModInfo),
 		    {ok, store_mod_info(Mod,ModInfo,State)};
 		{error,Reason} ->
@@ -232,20 +232,20 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
 
 -spec get_exp_info(mod_name()) -> rich_result2(mod_exp_types(),mod_exp_funs()).
 get_exp_info(Mod) ->
-    case get_mod_code(Mod) of
-	{ok,AbsCode} ->
-	    #mod_info{mod_exp_types = ModExpTypes, mod_exp_funs = ModExpFuns} =
-		get_mod_info(Mod, AbsCode),
-	    {ok, ModExpTypes, ModExpFuns};
+    case get_mod_code_and_exports(Mod) of
+	{ok,AbsCode,ModExpFuns} ->
+	    ModInfo = get_mod_info(Mod, AbsCode, ModExpFuns),
+	    {ok, ModInfo#mod_info.mod_exp_types, ModExpFuns};
 	{error,_Reason} = Error ->
 	    Error
     end.
 
--spec get_mod_code(mod_name()) -> rich_result([abs_form()]).
-get_mod_code(Mod) ->
+-spec get_mod_code_and_exports(mod_name()) ->
+	  rich_result2([abs_form()],mod_exp_funs()).
+get_mod_code_and_exports(Mod) ->
     case code:which(Mod) of
 	ObjFileName when is_list(ObjFileName) ->
-	    get_abs_code_chunk(ObjFileName);
+	    get_chunks(ObjFileName);
 	_ErrAtom when is_atom(_ErrAtom) ->
 	    SrcFileName = atom_to_list(Mod) ++ ?SRC_FILE_EXT,
 	    case code:where_is_file(SrcFileName) of
@@ -253,7 +253,7 @@ get_mod_code(Mod) ->
 		    CompilerOpts = [binary,debug_info,{d,'PROPER_NOTRANS'}],
 		    case compile:file(FullSrcFileName, CompilerOpts) of
 			{ok,Mod,Binary} ->
-			    get_abs_code_chunk(Binary);
+			    get_chunks(Binary);
 			error ->
 			    {error, cant_compile_source_file}
 		    end;
@@ -262,13 +262,14 @@ get_mod_code(Mod) ->
 	    end
     end.
 
--spec get_abs_code_chunk(string() | binary()) -> rich_result([abs_form()]).
-get_abs_code_chunk(ObjFile) ->
-    case beam_lib:chunks(ObjFile, [abstract_code]) of
-	{ok,{_Mod,[{abstract_code,AbsCodeChunk}]}} ->
+-spec get_chunks(string() | binary()) ->
+	  rich_result2([abs_form()],mod_exp_funs()).
+get_chunks(ObjFile) ->
+    case beam_lib:chunks(ObjFile, [abstract_code,exports]) of
+	{ok,{_Mod,[{abstract_code,AbsCodeChunk},{exports,ExpFunsList}]}} ->
 	    case AbsCodeChunk of
 		{raw_abstract_v1,AbsCode} ->
-		    {ok, AbsCode};
+		    {ok, AbsCode, sets:from_list(ExpFunsList)};
 		no_abstract_code ->
 		    {error, no_abstract_code};
 		_ ->
@@ -278,9 +279,10 @@ get_abs_code_chunk(ObjFile) ->
 	    {error, Reason}
     end.
 
--spec get_mod_info(mod_name(), [abs_form()]) -> mod_info().
-get_mod_info(Mod, AbsCode) ->
-    ModInfo = lists:foldl(fun add_mod_info/2, #mod_info{}, AbsCode),
+-spec get_mod_info(mod_name(), [abs_form()], mod_exp_funs()) -> mod_info().
+get_mod_info(Mod, AbsCode, ModExpFuns) ->
+    ModInfo = lists:foldl(fun add_mod_info/2,
+			  #mod_info{mod_exp_funs = ModExpFuns}, AbsCode),
     case orddict:find(Mod, ?HARD_ADT_MODS) of
 	{ok,ModADTs} ->
 	    #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes,
@@ -332,10 +334,6 @@ add_mod_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
 	    opaque -> sets:add_element({Name,Arity}, ModOpaques)
 	end,
     ModInfo#mod_info{mod_types = NewModTypes, mod_opaques = NewModOpaques};
-add_mod_info({attribute,_Line,export,FunsList},
-	     #mod_info{mod_exp_funs = ModExpFuns} = ModInfo) ->
-    NewModExpFuns = sets:union(sets:from_list(FunsList), ModExpFuns),
-    ModInfo#mod_info{mod_exp_funs = NewModExpFuns};
 add_mod_info({attribute,_Line,spec,{RawFunRef,[RawFirstClause | _Rest]}},
 	     #mod_info{mod_specs = ModSpecs} = ModInfo) ->
     FunRef = case RawFunRef of
@@ -364,6 +362,19 @@ process_fun_clause({type,_,'fun',[{type,_,product,Domain},Range]}) ->
 process_fun_clause({type,_,bounded_fun,[MainClause,_Constraints]}) ->
     %% TODO: Spec constraints are ignored.
     process_fun_clause(MainClause).
+
+-spec store_mod_info(mod_name(), mod_info(), state()) -> state().
+store_mod_info(Mod,
+	       #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes},
+	       #state{exp_types = ExpTypes, types = Types} = State) ->
+    NewExpTypes = dict:store(Mod, ModExpTypes, ExpTypes),
+    NewTypes = dict:store(Mod, ModTypes, Types),
+    State#state{exp_types = NewExpTypes, types = NewTypes}.
+
+
+%%------------------------------------------------------------------------------
+%% ADT translation functions
+%%------------------------------------------------------------------------------
 
 -spec process_adts(mod_name(), mod_info()) -> mod_info().
 process_adts(Mod, #mod_info{mod_exp_types = ModExpTypes,
@@ -539,14 +550,6 @@ update_vars({type,Line,Name,ArgForms}, VarSubstsDict) ->
     {type, Line, Name, [update_vars(A,VarSubstsDict) || A <- ArgForms]};
 update_vars(Call, _VarSubstsDict) ->
     Call.
-
--spec store_mod_info(mod_name(), mod_info(), state()) -> state().
-store_mod_info(Mod,
-	       #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes},
-	       #state{exp_types = ExpTypes, types = Types} = State) ->
-    NewExpTypes = dict:store(Mod, ModExpTypes, ExpTypes),
-    NewTypes = dict:store(Mod, ModTypes, Types),
-    State#state{exp_types = NewExpTypes, types = NewTypes}.
 
 
 %%------------------------------------------------------------------------------

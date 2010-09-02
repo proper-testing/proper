@@ -51,8 +51,10 @@
 %%------------------------------------------------------------------------------
 
 -record(mod_info, {name                    :: mod_name(),
-		   props      = sets:new() :: proper_typeserver:mod_exp_funs(),
-		   in_scope   = sets:new() :: proper_typeserver:mod_exp_funs(),
+		   export_all = false      :: boolean(),
+		   funs       = sets:new() :: proper_typeserver:mod_exp_funs(),
+		   imports    = sets:new() :: proper_typeserver:mod_exp_funs(),
+		   no_autos   = sets:new() :: proper_typeserver:mod_exp_funs(),
 		   exp_types  = sets:new() :: proper_typeserver:mod_exp_types(),
 		   exp_funs   = sets:new() :: proper_typeserver:mod_exp_funs(),
 		   helper_pid              :: pid()}).
@@ -67,34 +69,56 @@
 %%------------------------------------------------------------------------------
 
 %% @private
--spec parse_transform([abs_form()], _) -> [abs_form()].
-parse_transform(Forms, _Options) ->
-    RawModInfo = collect_info(Forms),
-    #mod_info{name = ModName, props = AllProps, exp_types = ExpTypes,
-	      exp_funs = ExpFuns} = RawModInfo,
+-spec parse_transform([abs_form()], [compile:option()]) -> [abs_form()].
+parse_transform(Forms, Options) ->
+    RawModInfo = collect_info(Forms, Options),
+    #mod_info{name = ModName, export_all = ExportAll, funs = AllFuns,
+	      exp_types = ExpTypes, exp_funs = RawExpFuns} = RawModInfo,
+    {ExpFuns,PropsToExport} =
+	case ExportAll of
+	    true ->
+		{AllFuns, []};
+	    false ->
+		AllProps = sets:filter(fun is_prop/1, AllFuns),
+		{RawExpFuns, sets:to_list(sets:subtract(AllProps,RawExpFuns))}
+	end,
     HelperPid = helper_start(ModName, ExpTypes, ExpFuns),
     ModInfo = RawModInfo#mod_info{helper_pid = HelperPid},
-    PropsToExport = sets:to_list(sets:subtract(AllProps, ExpFuns)),
     NewForms = [rewrite_form(F,ModInfo) || F <- Forms],
     helper_stop(HelperPid),
     add_exports(NewForms, PropsToExport).
 
--spec collect_info([abs_form()]) -> mod_info().
-collect_info(Forms) ->
-    lists:foldl(fun add_info/2, #mod_info{}, Forms).
+-spec collect_info([abs_form()], [compile:option()]) -> mod_info().
+collect_info(Forms, Options) ->
+    StartModInfo = add_options(#mod_info{}, Options),
+    lists:foldl(fun add_info/2, StartModInfo, Forms).
+
+-spec add_options(mod_info(), compile:option() | [compile:option()]) ->
+	  mod_info().
+add_options(ModInfo, []) ->
+    ModInfo;
+add_options(ModInfo, [export_all | Rest]) ->
+    add_options(ModInfo#mod_info{export_all = true}, Rest);
+add_options(#mod_info{no_autos = NoAutos} = ModInfo,
+	    [{no_auto_import,FunsList} | Rest]) ->
+    NewNoAutos = sets:union(sets:from_list(FunsList), NoAutos),
+    add_options(ModInfo#mod_info{no_autos = NewNoAutos}, Rest);
+add_options(ModInfo, [_OtherOption | Rest]) ->
+    add_options(ModInfo, Rest);
+add_options(ModInfo, SingleOption) ->
+    add_options(ModInfo, [SingleOption]).
 
 -spec add_info(abs_form(), mod_info()) -> mod_info().
 add_info({attribute,_Line,module,ModName}, ModInfo) ->
     ModInfo#mod_info{name = ModName};
 add_info({function,_Line,Name,Arity,_Clauses},
-	 #mod_info{props = Props, in_scope = InScope} = ModInfo) ->
-    NewProps = case Arity =:= 0 andalso
-		    lists:prefix(?PROPERTY_PREFIX, atom_to_list(Name)) of
-		   true  -> sets:add_element({Name,Arity}, Props);
-		   false -> Props
-	       end,
-    NewInScope = sets:add_element({Name,Arity}, InScope),
-    ModInfo#mod_info{props = NewProps, in_scope = NewInScope};
+	 #mod_info{funs = Funs} = ModInfo) ->
+    NewFuns = sets:add_element({Name,Arity}, Funs),
+    ModInfo#mod_info{funs = NewFuns};
+add_info({attribute,_Line,import,{_FromMod,MoreImports}},
+	 #mod_info{imports = Imports} = ModInfo) ->
+    NewImports = sets:union(sets:from_list(MoreImports), Imports),
+    ModInfo#mod_info{imports = NewImports};
 add_info({attribute,_Line,export_type,MoreExpTypes},
 	 #mod_info{exp_types = ExpTypes} = ModInfo) ->
     NewExpTypes = sets:union(sets:from_list(MoreExpTypes), ExpTypes),
@@ -103,12 +127,16 @@ add_info({attribute,_Line,export,MoreExpFuns},
 	 #mod_info{exp_funs = ExpFuns} = ModInfo) ->
     NewExpFuns = sets:union(sets:from_list(MoreExpFuns), ExpFuns),
     ModInfo#mod_info{exp_funs = NewExpFuns};
-add_info({attribute,_Line,import,{_FromMod,MoreImported}},
-	 #mod_info{in_scope = InScope} = ModInfo) ->
-    NewInScope = sets:union(sets:from_list(MoreImported), InScope),
-    ModInfo#mod_info{in_scope = NewInScope};
+add_info({attribute,_Line,compile,Options}, ModInfo) ->
+    add_options(ModInfo, Options);
 add_info(_Form, ModInfo) ->
     ModInfo.
+
+-spec is_prop({fun_name(),arity()}) -> boolean().
+is_prop({Name,0}) ->
+    lists:prefix(?PROPERTY_PREFIX, atom_to_list(Name));
+is_prop(_) ->
+    false.
 
 -spec add_exports([abs_form()], [{fun_name(),arity()}]) -> [abs_form()].
 add_exports(Forms, ToExport) ->
@@ -341,10 +369,13 @@ rewrite_type({call,Line,{remote,_,{atom,_,Mod},{atom,_,Call}} = FunRef,
 	    {call,Line,FunRef,NewArgs}
     end;
 rewrite_type({call,Line,{atom,_,Fun} = FunRef,Args} = Expr,
-	     #mod_info{name = ModName, in_scope = InScope} = ModInfo) ->
+	     #mod_info{name = ModName, funs = Funs, imports = Imports,
+		       no_autos = NoAutos} = ModInfo) ->
     Arity = length(Args),
-    case sets:is_element({Fun,Arity}, InScope)
-	 orelse erl_internal:bif(Fun, Arity) of
+    CallRef = {Fun,Arity},
+    case sets:is_element(CallRef,Funs) orelse sets:is_element(CallRef,Imports)
+	 orelse erl_internal:bif(Fun,Arity)
+		andalso not sets:is_element(CallRef,NoAutos) of
 	true ->
 	    NewArgs = [rewrite_type(A,ModInfo) || A <- Args],
 	    {call,Line,FunRef,NewArgs};

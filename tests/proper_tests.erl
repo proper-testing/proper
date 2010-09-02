@@ -605,7 +605,9 @@ native_type_props_test_() ->
       ?_perfectRun(?FORALL(L,non_empty(lof()),length(L) > 0)),
       ?_perfectRun(?FORALL(X, ?LET(L,lof(),lists:min([99999.9|L])),
 			   is_float(X))),
-      ?_shrinksTo(0, ?LETSHRINK([X],[my_native_type()],{'tag',X}))].
+      ?_shrinksTo(0, ?LETSHRINK([X],[my_native_type()],{'tag',X})),
+      ?_perfectRun(weird_types:prop_export_all_works()),
+      ?_perfectRun(weird_types:prop_no_auto_import_works())].
 
 true_props_test_() ->
     [?_perfectRun(?FORALL(X,integer(),X < X + 1)),
