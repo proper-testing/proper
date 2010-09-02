@@ -359,9 +359,15 @@ process_rec_field({typed_record_field,RecField,FieldType}) ->
 -spec process_fun_clause(abs_type()) -> fun_clause_repr().
 process_fun_clause({type,_,'fun',[{type,_,product,Domain},Range]}) ->
     {Domain, Range};
-process_fun_clause({type,_,bounded_fun,[MainClause,_Constraints]}) ->
-    %% TODO: Spec constraints are ignored.
-    process_fun_clause(MainClause).
+process_fun_clause({type,_,bounded_fun,[MainClause,Constraints]}) ->
+    {RawDomain,RawRange} = process_fun_clause(MainClause),
+    VarSubsts = [{V,T} || {type,_,constraint,
+			   [{atom,_,is_subtype},[{var,_,V},T]]} <- Constraints,
+			  V =/= '_'],
+    VarSubstsDict = dict:from_list(VarSubsts),
+    Domain = update_vars(RawDomain, VarSubstsDict, false),
+    Range = update_vars(RawRange, VarSubstsDict, false),
+    {Domain, Range}.
 
 -spec store_mod_info(mod_name(), mod_info(), state()) -> state().
 store_mod_info(Mod,
@@ -469,11 +475,11 @@ fix_vars(FullADTRef, Call, RangeVars, VarNames) ->
 	    UsedVars = [lists:usort(L) || L <- RawUsedVars],
 	    case correct_var_use(UsedVars) of
 		true ->
-		    PairAll = fun(L,Y) -> [{X,Y} || X <- L] end,
+		    PairAll = fun(L,Y) -> [{X,{var,0,Y}} || X <- L] end,
 		    VarSubsts =
 			lists:flatten(lists:zipwith(PairAll,UsedVars,VarNames)),
 		    VarSubstsDict = dict:from_list(VarSubsts),
-		    {ok, update_vars(Call,VarSubstsDict)};
+		    {ok, update_vars(Call,VarSubstsDict,true)};
 		false ->
 		    error
 	    end;
@@ -531,24 +537,28 @@ multi_collect_vars({_Mod,_Name,Arity} = FullADTRef, Forms, UsedVars) ->
     CombineVars = fun(L1,L2) -> lists:zipwith(fun erlang:'++'/2, L1, L2) end,
     lists:foldl(CombineVars, UsedVars, MoreUsedVars).
 
--spec update_vars(abs_type(), dict()) -> abs_type().
-%% dict(var_name(),var_name())
-update_vars({paren_type,Line,[Type]}, VarSubstsDict) ->
-    {paren_type, Line, [update_vars(Type,VarSubstsDict)]};
-update_vars({ann_type,Line,[Var,Type]}, VarSubstsDict) ->
-    {ann_type, Line, [Var,update_vars(Type,VarSubstsDict)]};
-update_vars({var,Line,VarName} = Call, VarSubstsDict) ->
+-spec update_vars(abs_type(), dict(), boolean()) -> abs_type().
+%% dict(var_name(),abs_type())
+update_vars({paren_type,Line,[Type]}, VarSubstsDict, UnboundToAny) ->
+    {paren_type, Line, [update_vars(Type,VarSubstsDict,UnboundToAny)]};
+update_vars({ann_type,Line,[Var,Type]}, VarSubstsDict, UnboundToAny) ->
+    {ann_type, Line, [Var,update_vars(Type,VarSubstsDict,UnboundToAny)]};
+update_vars({var,Line,VarName} = Call, VarSubstsDict, UnboundToAny) ->
     case dict:find(VarName, VarSubstsDict) of
-	{ok,SubstVar} ->
-	    {var, Line, SubstVar};
-	error ->
-	    Call
+	{ok,SubstType} ->
+	    SubstType;
+	error when UnboundToAny =:= false ->
+	    Call;
+	error when UnboundToAny =:= true ->
+	    {type,Line,any,[]}
     end;
-update_vars({remote_type,Line,ArgForms}, VarSubstsDict) ->
-    {remote_type, Line, [update_vars(A,VarSubstsDict) || A <- ArgForms]};
-update_vars({type,Line,Name,ArgForms}, VarSubstsDict) ->
-    {type, Line, Name, [update_vars(A,VarSubstsDict) || A <- ArgForms]};
-update_vars(Call, _VarSubstsDict) ->
+update_vars({remote_type,Line,ArgForms}, VarSubstsDict, UnboundToAny) ->
+    {remote_type, Line, [update_vars(A,VarSubstsDict,UnboundToAny)
+			 || A <- ArgForms]};
+update_vars({type,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) ->
+    {type, Line, Name, [update_vars(A,VarSubstsDict,UnboundToAny)
+			|| A <- ArgForms]};
+update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
     Call.
 
 

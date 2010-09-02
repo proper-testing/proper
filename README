@@ -728,12 +728,11 @@ The use of Auto-ADT is currently subject to the following limitations:
   type variables should be used as parameters in the LHS. None of these
   variables can be the special '_' variable and no variable should appear more
   than once in the parameters.
-* ADTs inside specs can only have simple variables as parameters. The special
-  '_' variable is not allowed in ADT parameters. If this would result in
-  singleton variables, as in the specs of functions like new/0, use variables
-  that begin with an underscore.
-* In API function specs, only type variables that also appear as parameters of
-  some ADT can be used outside of ADTs.
+* ADTs inside specs can only have simple variables as parameters. These
+  variables cannot be bound by any is_subtype constraint. Also, the special '_'
+  variable is not allowed in ADT parameters. If this would result in singleton
+  variables, as in the specs of functions like new/0, use variable names that
+  begin with an underscore.
 * Specs that introduce an implicit binding among the parameters of an ADT are
   rejected, e.g.:
      -spec foo(dict(T,S),dict(S,T)) -> dict(T,S).
@@ -747,7 +746,11 @@ The use of Auto-ADT is currently subject to the following limitations:
   are not accepted. The only way for an API function to report failure while
   remaining Auto-ADT-compatible is through exceptions.
 * When parsing multi-clause specs, only the first clause is considered.
-* Spec constraints are ignored.
+* The only spec constraints that are accepted are 'is_subtype' constraints whose
+  first argument is a simple, non-'_' variable. It is not checked whether or not
+  these variables actually appear in the spec. The second argument of an
+  'is_subtype' constraint cannot contain any non-'_' variables. Multiple
+  constraints for the same variable are not supported.
 * Unexported opaques and opaques with no suitable specs to serve as API calls
   are silently discarded. Those will be treated like ordinary types.
 * Unexported or unspecced functions are silently rejected.

@@ -502,7 +502,9 @@ undefined_symb_calls() ->
 %% TODO: various constructors like '|' (+ record notation) are parser-rejected
 %% TODO: test nonempty recursive lists
 %% TODO: test list-recursive with instances
-%% TODO: more ADT tests
+%% TODO: more ADT tests: check bad declarations, bad variable use, multi-clause,
+%%	 is_subtype, unacceptable range, unexported opaque, no-specs opaque,
+%%	 unexported/unspecced functions, wild variables
 
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].

@@ -104,11 +104,6 @@ update(Key, Value, Initial, Dict) -> dict:update(Key, Value, Initial, Dict).
 update_counter(Key, Number, Dict) -> dict:update_counter(Key, Number, Dict).
 
 
-%% We cannot use this spec to produce instances of ddict/2, but even if we
-%% could, it would be rejected, since type variable 'A' does not appear as a
-%% parameter in any instance of ddict/2 inside the spec's domain.
-%% TODO: We could convert such variables to 'any()'.
-%% TODO: We could allow such variables to be bound by 'is_subtype' constraints.
 -spec fold(fun((K,V,A) -> A), A, ddict(K,V)) -> A.
 fold(Fun, Acc0, Dict) -> dict:fold(Fun, Acc0, Dict).
 
