@@ -674,11 +674,10 @@ false_props_test_() ->
 		       ?FORALL(_,1,lists:min([]) > 0)),
      ?_failsWith({exception,exit,you_got_it,_}, [[12,42]],
 		 ?FORALL(L, [12,42|list(integer())],
-			 ?TRAPEXIT(
-			     case lists:member(42, L) of
-				 true  -> erlang:exit(you_got_it);
-				 false -> true
-			     end))),
+			 case lists:member(42, L) of
+			     true  -> erlang:exit(you_got_it);
+			     false -> true
+			 end)),
      ?_failsWith(time_out, _,
 		  ?FORALL(_, integer(),
 			  ?TIMEOUT(100,timer:sleep(150) =:= ok))),

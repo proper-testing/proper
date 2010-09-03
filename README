@@ -158,11 +158,6 @@ measure(<Title>, <Number> | <List_of_numbers>, <Prop>)
     produces some side-effect (e.g. prints something to the screen). In case
     this test fails, <Action> will be executed. Note that the output of such
     actions is not affected by the verbosity setting of the main application.
-?TRAPEXIT(<Prop>)
-    Signifies that the code comprising <Prop> may report failure by exiting
-    abnormally, e.g. if it spawns and links to a worker thread, the worker
-    thread crashes and the parent thread was not trapping exits itself. The
-    <Prop> field cannot contain any ?FORALL macros.
 ?TIMEOUT(<Time_limit>, <Prop>)
     Signifies that <Prop> should be considered failing if it takes more than
     <Time_limit> milliseconds to return. The purpose of this wrapper is to test
@@ -189,8 +184,8 @@ on_output(<Output_function>, <Prop>)
     This wrapper is equivalent to the 'on_output' option (see the 'Options'
     section for details).
 
-Note that failure of a property may also be signified by throwing an exception
-or an error.
+Note that failure of a property may also be signified by throwing an exception,
+error or exit.
 
 For some actual usage examples, see the code in the examples directory. The
 testing modules in the tests directory may also be of interest.
@@ -813,5 +808,7 @@ provide a nonexhaustive list of known incompatibilities:
   instances of the failing test case itself. That required extra bit of
   information is the reason for encapsulating the failing test case in an opaque
   'counterexample' datatype.
+* The naming of functions in the main proper module differs slightly from the
+  naming of functions in the main eqc module.
 * proper_gen:pick differs from eqc_gen:pick in return value format.
 * PropEr handles 'size' differently from QuickCheck.

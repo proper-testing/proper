@@ -30,7 +30,7 @@
 	 get_fail_reason/1, get_bound/1]).
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
--export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
+-export([forall/2, implies/2, whenfail/2, timeout/2]).
 -export([still_fails/4, force_skip/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0]).
@@ -75,7 +75,6 @@
 	      | implies_clause()
 	      | sample_clause()
 	      | whenfail_clause()
-	      | trapexit_clause()
 	      | timeout_clause().
 	      %%| always_clause()
 	      %%| sometimes_clause()
@@ -94,7 +93,6 @@
 -type implies_clause() :: {'implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
--type trapexit_clause() :: {'trapexit', delayed_test()}.
 -type timeout_clause() :: {timeout, time_period(), delayed_test()}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
@@ -126,10 +124,9 @@
 	       constraint_tries = 50              :: pos_integer(),
 	       expect_fail      = false           :: boolean()}).
 -type opts() :: #opts{}.
-%% TODO: other ways for the user to define the extra exceptions to catch?
+%% TODO: ways for the user to define exceptions to not consider as errors??
 %% TODO: should they contain specific reasons (or '$any' for all reasons)?
--record(ctx, {catch_exits  = false :: boolean(),
-	      try_shrunk   = false :: boolean(),
+-record(ctx, {try_shrunk   = false :: boolean(),
 	      bound        = []    :: imm_testcase(),
 	      to_try       = []    :: imm_testcase(),
 	      fail_actions = []    :: fail_actions(),
@@ -184,7 +181,6 @@
 %% State handling functions
 %%------------------------------------------------------------------------------
 
-%% @private
 -spec get_size() -> size() | 'undefined'.
 get_size() ->
     get('$size').
@@ -195,6 +191,7 @@ grow_size() ->
     put('$size', Size + 1),
     ok.
 
+%% @private
 -spec get_size(proper_types:type()) -> size() | 'undefined'.
 get_size(Type) ->
     case get('$size') of
@@ -390,11 +387,6 @@ whenfail(Action, DTest) ->
     {whenfail, Action, DTest}.
 
 %% @private
--spec trapexit(delayed_test()) -> trapexit_clause().
-trapexit(DTest) ->
-    {trapexit, DTest}.
-
-%% @private
 -spec timeout(time_period(), delayed_test()) -> timeout_clause().
 timeout(Limit, DTest) ->
     {timeout, Limit, DTest}.
@@ -569,9 +561,6 @@ run({sample,NewSample,NewPrinter,Prop},
 run({whenfail,NewAction,Prop}, #ctx{fail_actions = Actions} = Ctx)->
     NewCtx = Ctx#ctx{fail_actions = [NewAction | Actions]},
     force(Prop, NewCtx);
-run({trapexit,Prop}, Ctx) ->
-    NewCtx = Ctx#ctx{catch_exits = true},
-    force(Prop, NewCtx);
 run({timeout,Limit,Prop}, Ctx) ->
     Self = self(),
     Child = spawn_link(fun() -> child(Self,Prop,Ctx) end),
@@ -597,9 +586,6 @@ force(Arg, Prop, Ctx) ->
 	  single_run_result().
 apply_args(Args, Prop, Ctx) ->
     try apply(Prop, Args) of
-	%% TODO: should we care if the code returns true when trapping exits?
-	%%       If we are doing that, we are probably testing code that will
-	%%       run as a separate process against crashes.
 	InnerProp ->
 	    run(InnerProp, Ctx)
     catch
@@ -615,11 +601,8 @@ apply_args(Args, Prop, Ctx) ->
 	throw:'$cant_generate' ->
 	    {error, cant_generate};
 	%% TODO: Do we need to guard against typeserver exceptions too?
-	throw:ExcReason ->
-	    create_failed_result(Ctx, {exception,throw,ExcReason,
-				       erlang:get_stacktrace()});
-	exit:ExitReason when Ctx#ctx.catch_exits ->
-	    create_failed_result(Ctx, {exception,exit,ExitReason,
+	ExcKind:ExcReason ->
+	    create_failed_result(Ctx, {exception,ExcKind,ExcReason,
 				       erlang:get_stacktrace()})
     end.
 
@@ -705,8 +688,6 @@ skip_to_next({implies,false,_Prop}) ->
 skip_to_next({sample,_Sample,_Printer,Prop}) ->
     skip_to_next(Prop);
 skip_to_next({whenfail,_Action,Prop}) ->
-    force_skip(Prop);
-skip_to_next({trapexit,Prop}) ->
     force_skip(Prop);
 skip_to_next({timeout,_Limit,_Prop}) ->
     false. % This is OK, since timeout cannot contain any ?FORALLs.
