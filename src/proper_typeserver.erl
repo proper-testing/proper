@@ -69,8 +69,8 @@
 -type full_type_ref() :: {mod_name(),type_kind(),type_name(),
 			  [ret_type()] | substs_dict()}.
 -type type_repr() :: {'abs_type',abs_type(),[var_name()],boolean()}
-		   | {'abs_record',[{field_name(),abs_type()}]}
-		   | {'cached',fin_type()}.
+		   | {'cached',fin_type(),abs_type()}
+		   | {'abs_record',[{field_name(),abs_type()}]}.
 -type gen_fun() :: fun((size()) -> fin_type()).
 -type rec_fun() :: fun(([gen_fun()],size()) -> fin_type()).
 -type rec_arg() :: {boolean() | {'list',boolean(),rec_fun()},full_type_ref()}.
@@ -93,7 +93,8 @@
 -record(state,
 	{cached    = dict:new() :: dict(),   %% dict(imm_type(),fin_type())
 	 exp_types = dict:new() :: dict(),   %% dict(mod_name(),mod_exp_types())
-	 types     = dict:new() :: dict()}). %% dict(mod_name(),mod_types())
+	 types     = dict:new() :: dict(),   %% dict(mod_name(),mod_types())
+	 exp_specs = dict:new() :: dict()}). %% dict(mod_name(),mod_specs())
 -type state() :: #state{}.
 -record(mod_info,
 	{mod_exp_types = sets:new() :: mod_exp_types(),
@@ -234,8 +235,8 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
 get_exp_info(Mod) ->
     case get_mod_code_and_exports(Mod) of
 	{ok,AbsCode,ModExpFuns} ->
-	    ModInfo = get_mod_info(Mod, AbsCode, ModExpFuns),
-	    {ok, ModInfo#mod_info.mod_exp_types, ModExpFuns};
+	    RawModInfo = get_mod_info(Mod, AbsCode, ModExpFuns),
+	    {ok, RawModInfo#mod_info.mod_exp_types, ModExpFuns};
 	{error,_Reason} = Error ->
 	    Error
     end.
@@ -281,8 +282,12 @@ get_chunks(ObjFile) ->
 
 -spec get_mod_info(mod_name(), [abs_form()], mod_exp_funs()) -> mod_info().
 get_mod_info(Mod, AbsCode, ModExpFuns) ->
-    ModInfo = lists:foldl(fun add_mod_info/2,
-			  #mod_info{mod_exp_funs = ModExpFuns}, AbsCode),
+    StartModInfo = #mod_info{mod_exp_funs = ModExpFuns},
+    ImmModInfo = lists:foldl(fun add_mod_info/2, StartModInfo, AbsCode),
+    #mod_info{mod_specs = AllModSpecs} = ImmModInfo,
+    IsExported = fun(FunRef,_FunRepr) -> sets:is_element(FunRef,ModExpFuns) end,
+    ModExpSpecs = dict:filter(IsExported, AllModSpecs),
+    ModInfo = ImmModInfo#mod_info{mod_specs = ModExpSpecs},
     case orddict:find(Mod, ?HARD_ADT_MODS) of
 	{ok,ModADTs} ->
 	    #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes,
@@ -370,12 +375,15 @@ process_fun_clause({type,_,bounded_fun,[MainClause,Constraints]}) ->
     {Domain, Range}.
 
 -spec store_mod_info(mod_name(), mod_info(), state()) -> state().
-store_mod_info(Mod,
-	       #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes},
-	       #state{exp_types = ExpTypes, types = Types} = State) ->
+store_mod_info(Mod, #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes,
+			      mod_specs = ModExpSpecs},
+	       #state{exp_types = ExpTypes, types = Types,
+		      exp_specs = ExpSpecs} = State) ->
     NewExpTypes = dict:store(Mod, ModExpTypes, ExpTypes),
     NewTypes = dict:store(Mod, ModTypes, Types),
-    State#state{exp_types = NewExpTypes, types = NewTypes}.
+    NewExpSpecs = dict:store(Mod, ModExpSpecs, ExpSpecs),
+    State#state{exp_types = NewExpTypes, types = NewTypes,
+		exp_specs = NewExpSpecs}.
 
 
 %%------------------------------------------------------------------------------
@@ -383,21 +391,19 @@ store_mod_info(Mod,
 %%------------------------------------------------------------------------------
 
 -spec process_adts(mod_name(), mod_info()) -> mod_info().
-process_adts(Mod, #mod_info{mod_exp_types = ModExpTypes,
-			    mod_opaques = ModOpaques, mod_exp_funs = ModExpFuns,
-			    mod_specs = ModSpecs} = ModInfo) ->
+process_adts(Mod,
+	     #mod_info{mod_exp_types = ModExpTypes, mod_opaques = ModOpaques,
+		       mod_specs = ModExpSpecs} = ModInfo) ->
     %% TODO: No warning on unexported opaques.
     case sets:to_list(sets:intersection(ModExpTypes,ModOpaques)) of
 	[] ->
 	    ModInfo;
 	ModADTs ->
-	    ModSpecsList = dict:to_list(ModSpecs),
 	    %% TODO: No warning on unexported API functions.
-	    ModExpFunSpecs =
-		[{Name,Domain,Range}
-		 || {{Name,_Arity} = FunRef,{Domain,Range}} <- ModSpecsList,
-		    sets:is_element(FunRef,ModExpFuns)],
-	    AddADT = fun(ADT,Acc) -> add_adt(Mod,ADT,Acc,ModExpFunSpecs) end,
+	    ModExpSpecsList = [{Name,Domain,Range}
+				|| {{Name,_Arity},{Domain,Range}}
+				    <- dict:to_list(ModExpSpecs)],
+	    AddADT = fun(ADT,Acc) -> add_adt(Mod,ADT,Acc,ModExpSpecsList) end,
 	    lists:foldl(AddADT, ModInfo, ModADTs)
     end.
 
@@ -953,8 +959,8 @@ convert_type(TypeRef, {Mod,_Kind,_Name,_Spec} = FullTypeRef, State, Stack) ->
 
 -spec convert_new_type(type_ref(), full_type_ref(), type_repr(), state(),
 		       stack()) -> rich_result2(ret_type(),state()).
-convert_new_type(_TypeRef, {_Mod,type,_Name,[]}, {cached,FinType}, State,
-		 _Stack) ->
+convert_new_type(_TypeRef, {_Mod,type,_Name,[]}, {cached,FinType,_TypeForm},
+		 State, _Stack) ->
     {ok, {simple,FinType}, State};
 convert_new_type(TypeRef, {Mod,type,_Name,Args} = FullTypeRef,
 		 {abs_type,TypeForm,Vars,Symbolic}, State, Stack) ->
@@ -968,7 +974,7 @@ convert_new_type(TypeRef, {Mod,type,_Name,Args} = FullTypeRef,
 		end,
 	    FinalState =
 		case Vars of
-		    [] -> cache_simple_type(Mod, TypeRef, FinType, NewState);
+		    [] -> cache_type(Mod, TypeRef, FinType, TypeForm, NewState);
 		    _  -> NewState
 		end,
 	    {ok, {simple,FinType}, FinalState};
@@ -996,10 +1002,11 @@ convert_new_type(_TypeRef, {Mod,record,Name,SubstsDict} = FullTypeRef,
 	    Error
     end.
 
--spec cache_simple_type(mod_name(), type_ref(), fin_type(), state()) -> state().
-cache_simple_type(Mod, TypeRef, FinType, #state{types = Types} = State) ->
+-spec cache_type(mod_name(), type_ref(), fin_type(), abs_type(), state()) ->
+	  state().
+cache_type(Mod, TypeRef, FinType, TypeForm, #state{types = Types} = State) ->
     ModTypes = dict:fetch(Mod, Types),
-    NewModTypes = dict:store(TypeRef, {cached,FinType}, ModTypes),
+    NewModTypes = dict:store(TypeRef, {cached,FinType,TypeForm}, ModTypes),
     NewTypes = dict:store(Mod, NewModTypes, Types),
     State#state{types = NewTypes}.
 
