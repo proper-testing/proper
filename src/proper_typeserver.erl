@@ -80,8 +80,8 @@
 			 [rec_fun(),...]}.
 
 -type imm_type_ref() :: {type_name(),arity()}.
-%% -type fun_ref() :: {fun_name(),arity()}.
-%% -type fun_repr() :: fun_clause_repr().
+-type fun_ref() :: {fun_name(),arity()}.
+-type fun_repr() :: fun_clause_repr().
 -type fun_clause_repr() :: {[abs_type()],abs_type()}.
 -type proc_fun_ref() :: {fun_name(),[abs_type()],abs_type()}.
 -type full_imm_type_ref() :: {mod_name(),type_name(),arity()}.
@@ -376,14 +376,22 @@ process_fun_clause({type,_,bounded_fun,[MainClause,Constraints]}) ->
 
 -spec store_mod_info(mod_name(), mod_info(), state()) -> state().
 store_mod_info(Mod, #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes,
-			      mod_specs = ModExpSpecs},
+			      mod_specs = ImmModExpSpecs},
 	       #state{exp_types = ExpTypes, types = Types,
 		      exp_specs = ExpSpecs} = State) ->
     NewExpTypes = dict:store(Mod, ModExpTypes, ExpTypes),
     NewTypes = dict:store(Mod, ModTypes, Types),
+    ModExpSpecs = dict:map(fun unbound_to_any/2, ImmModExpSpecs),
     NewExpSpecs = dict:store(Mod, ModExpSpecs, ExpSpecs),
     State#state{exp_types = NewExpTypes, types = NewTypes,
 		exp_specs = NewExpSpecs}.
+
+-spec unbound_to_any(fun_ref(), fun_repr()) -> fun_repr().
+unbound_to_any(_FunRef, {Domain,Range}) ->
+    EmptySubstsDict = dict:new(),
+    NewDomain = [update_vars(A,EmptySubstsDict,true) || A <- Domain],
+    NewRange = update_vars(Range, EmptySubstsDict, true),
+    {NewDomain, NewRange}.
 
 
 %%------------------------------------------------------------------------------
