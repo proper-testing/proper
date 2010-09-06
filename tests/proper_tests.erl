@@ -504,7 +504,12 @@ undefined_symb_calls() ->
 %% TODO: test list-recursive with instances
 %% TODO: more ADT tests: check bad declarations, bad variable use, multi-clause,
 %%	 is_subtype, unacceptable range, unexported opaque, no-specs opaque,
-%%	 unexported/unspecced functions, wild variables, check as constructed
+%%	 unexported/unspecced functions, unbound variables, check as constructed
+%% TODO: module, check_spec, check_module_specs
+%% TODO: proper_typeserver:is_instance (with existing types too, plus types we
+%%	 can't produce, such as impropers) (also check that everything we
+%%	 produce based on a type is an instance)
+%% TODO: check that functions that throw exceptions pass
 
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].

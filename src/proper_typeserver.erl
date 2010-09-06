@@ -26,7 +26,7 @@
 -module(proper_typeserver).
 -behaviour(gen_server).
 
--export([start/0, stop/0, translate_type/1]).
+-export([start/0, stop/0, create_spec_test/1, is_instance/3, translate_type/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
 -export([get_exp_info/1]).
@@ -43,16 +43,16 @@
 -define(SRC_FILE_EXT, ".erl").
 
 %% CAUTION: all these must be sorted
--define(STD_TYPES_0, [any,atom,binary,bitstring,bool,boolean,byte,char,float,
-		      integer,list,neg_integer,non_neg_integer,number,
-		      pos_integer,string,term,timeout,tuple]).
+-define(STD_TYPES_0, [any,arity,atom,binary,bitstring,bool,boolean,byte,char,
+		      float,integer,list,neg_integer,non_neg_integer,number,
+		      pos_integer,string,term,timeout]).
 -define(HARD_ADTS, [{{array,0},array},{{dict,0},dict},{{digraph,0},digraph},
 		    {{gb_set,0},gb_sets},{{gb_tree,0},gb_trees},
-		    {{queue,0},queue},{{set,0},sets}]).
+		    {{queue,0},queue},{{set,0},sets},{{tid,0},ets}]).
 -define(HARD_ADT_MODS, [{array,[{array,0}]},{dict,[{dict,0}]},
 			{digraph,[{digraph,0}]},{gb_sets,[{gb_set,0}]},
 			{gb_trees,[{gb_tree,0}]},{queue,[{queue,0}]},
-			{sets,[{set,0}]}]).
+			{sets,[{set,0}]}]). %% ets:tid/0 is already exported
 
 
 %%------------------------------------------------------------------------------
@@ -68,8 +68,9 @@
 -type substs_dict() :: dict(). %% dict(field_name(),ret_type())
 -type full_type_ref() :: {mod_name(),type_kind(),type_name(),
 			  [ret_type()] | substs_dict()}.
--type type_repr() :: {'abs_type',abs_type(),[var_name()],boolean()}
-		   | {'cached',fin_type(),abs_type()}
+-type symb_info() :: 'not_symb' | {'orig_abs',abs_type()}.
+-type type_repr() :: {'abs_type',abs_type(),[var_name()],symb_info()}
+		   | {'cached',fin_type(),abs_type(),symb_info()}
 		   | {'abs_record',[{field_name(),abs_type()}]}.
 -type gen_fun() :: fun((size()) -> fin_type()).
 -type rec_fun() :: fun(([gen_fun()],size()) -> fin_type()).
@@ -85,6 +86,8 @@
 -type fun_clause_repr() :: {[abs_type()],abs_type()}.
 -type proc_fun_ref() :: {fun_name(),[abs_type()],abs_type()}.
 -type full_imm_type_ref() :: {mod_name(),type_name(),arity()}.
+-type abs_full_type_ref() :: {mod_name(),type_name(),[abs_type()]}.
+-type abs_stack() :: [abs_full_type_ref()].
 
 -type mod_exp_types() :: set(). %% set(imm_type_ref())
 -type mod_types() :: dict(). %% dict(type_ref(),type_repr())
@@ -113,6 +116,13 @@
 -type rich_result(T) :: {'ok',T} | {'error',term()}.
 -type rich_result2(T,S) :: {'ok',T,S} | {'error',term()}.
 
+-type server_call() :: {'create_spec_test',mfa()}
+		     | {'get_type_repr',mod_name(),type_ref(),boolean()}
+		     | {'translate_type',imm_type()}.
+-type server_response() :: rich_result(proper:test())
+			 | rich_result(type_repr())
+			 | rich_result(fin_type()).
+
 
 %%------------------------------------------------------------------------------
 %% Server interface functions
@@ -133,6 +143,15 @@ stop() ->
 	{'DOWN',MonitorRef,process,_,_} -> ok
     end.
 
+-spec create_spec_test(mfa()) -> rich_result(proper:test()).
+create_spec_test(MFA) ->
+    gen_server:call(proper_typeserver, {create_spec_test,MFA}).
+
+-spec get_type_repr(mod_name(), type_ref(), boolean()) ->
+	  rich_result(type_repr()).
+get_type_repr(Mod, TypeRef, IsRemote) ->
+    gen_server:call(proper_typeserver, {get_type_repr,Mod,TypeRef,IsRemote}).
+
 -spec translate_type(imm_type()) -> rich_result(fin_type()).
 translate_type(ImmType) ->
     gen_server:call(proper_typeserver, {translate_type,ImmType}).
@@ -141,8 +160,22 @@ translate_type(ImmType) ->
 init(_) ->
     {ok, #state{}}.
 
--spec handle_call({'translate_type',imm_type()}, _, state()) ->
-	  {'reply',rich_result(fin_type()),state()}.
+-spec handle_call(server_call(), _, state()) ->
+	  {'reply',server_response(),state()}.
+handle_call({create_spec_test,MFA}, _From, State) ->
+    case create_spec_test(MFA, State) of
+	{ok,Test,NewState} ->
+	    {reply, {ok,Test}, NewState};
+	{error,_Reason} = Error ->
+	    {reply, Error, State}
+    end;
+handle_call({get_type_repr,Mod,TypeRef,IsRemote}, _From, State) ->
+    case get_type_repr(Mod, TypeRef, IsRemote, State) of
+	{ok,TypeRepr,NewState} ->
+	    {reply, {ok,TypeRepr}, NewState};
+	{error,_Reason} = Error ->
+	    {reply, Error, State}
+    end;
 handle_call({translate_type,ImmType}, _From, State) ->
     case translate_type(ImmType, State) of
 	{ok,FinType,NewState} ->
@@ -171,6 +204,78 @@ code_change(_OldVsn, State, _) ->
 %%------------------------------------------------------------------------------
 %% Top-level interface
 %%------------------------------------------------------------------------------
+
+-spec create_spec_test(mfa(), state()) -> rich_result2(proper:test(),state()).
+create_spec_test({Mod,Fun,_Arity} = MFA, State) ->
+    case get_exp_spec(MFA, State) of
+	{ok,{Domain,Range},NewState} ->
+	    case convert(Mod, {type,0,tuple,Domain}, NewState) of
+		{ok,FinType,FinalState} ->
+		    %% TODO: We just catch all exceptions.
+		    Test =
+			?FORALL(ArgsTuple, FinType,
+				begin
+				    Args = tuple_to_list(ArgsTuple),
+				    try apply(Mod,Fun,Args) of
+					X -> ?MODULE:is_instance(X,Mod,Range)
+				    catch
+					throw:_ -> true
+				    end
+				end),
+		    {ok, Test, FinalState};
+		{error,_Reason} = Error ->
+		    Error
+	    end;
+	{error,_Reason} = Error ->
+	    Error
+    end.
+
+-spec get_exp_spec(mfa(), state()) -> rich_result2(fun_repr(),state()).
+get_exp_spec({Mod,Fun,Arity} = MFA, State) ->
+    case add_module(Mod, State) of
+	{ok,#state{exp_specs = ExpSpecs} = NewState} ->
+	    ModExpSpecs = dict:fetch(Mod, ExpSpecs),
+	    case dict:find({Fun,Arity}, ModExpSpecs) of
+		{ok,FunRepr} ->
+		    {ok, FunRepr, NewState};
+		error ->
+		    {error, {function_not_exported_or_specced,MFA}}
+	    end;
+	{error,_Reason} = Error ->
+	    Error
+    end.
+
+-spec get_type_repr(mod_name(), type_ref(), boolean(), state()) ->
+	  rich_result2(type_repr(),state()).
+get_type_repr(Mod, {type,Name,Arity} = TypeRef, true, State) ->
+    case prepare_for_remote(Mod, Name, Arity, State) of
+	{ok,NewState} ->
+	    get_type_repr(Mod, TypeRef, false, NewState);
+	{error,_Reason} = Error ->
+	    Error
+    end;
+get_type_repr(Mod, TypeRef, false, #state{types = Types} = State) ->
+    ModTypes = dict:fetch(Mod, Types),
+    case dict:find(TypeRef, ModTypes) of
+	{ok,TypeRepr} ->
+	    {ok, TypeRepr, State};
+	error ->
+	    {error, {missing_type,Mod,TypeRef}}
+    end.
+
+-spec prepare_for_remote(mod_name(), type_name(), arity(), state()) ->
+	  rich_result(state()).
+prepare_for_remote(RemMod, Name, Arity, State) ->
+    case add_module(RemMod, State) of
+	{ok,#state{exp_types = ExpTypes} = NewState} ->
+	    RemModExpTypes = dict:fetch(RemMod, ExpTypes),
+	    case sets:is_element({Name,Arity}, RemModExpTypes) of
+		true  -> {ok, NewState};
+		false -> {error, {type_not_exported,{RemMod,Name,Arity}}}
+	    end;
+	{error,_Reason} = Error ->
+	    Error
+    end.
 
 -spec translate_type(imm_type(), state()) -> rich_result2(fin_type(),state()).
 translate_type({Mod,Str} = ImmType, #state{cached = Cached} = State) ->
@@ -306,7 +411,7 @@ get_mod_info(Mod, AbsCode, ModExpFuns) ->
 -spec store_adt(imm_type_ref(), mod_types()) -> mod_types().
 store_adt({Name,Arity}, ModTypes) ->
     TypeRef = {type,Name,Arity},
-    TypeRepr = {abs_type,{type,0,any,[]},create_var_names(Arity),false},
+    TypeRepr = {abs_type,{type,0,any,[]},create_var_names(Arity),not_symb},
     dict:store(TypeRef, TypeRepr, ModTypes).
 
 -spec create_var_names(0..26) -> [var_name()].
@@ -332,7 +437,7 @@ add_mod_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
     VarNames = [V || {var,_,V} <- VarForms],
     %% TODO: No check whether variables are different, or non-'_'.
     NewModTypes = dict:store({type,Name,Arity},
-			     {abs_type,TypeForm,VarNames,false}, ModTypes),
+			     {abs_type,TypeForm,VarNames,not_symb}, ModTypes),
     NewModOpaques =
 	case Kind of
 	    type   -> ModOpaques;
@@ -409,8 +514,8 @@ process_adts(Mod,
 	ModADTs ->
 	    %% TODO: No warning on unexported API functions.
 	    ModExpSpecsList = [{Name,Domain,Range}
-				|| {{Name,_Arity},{Domain,Range}}
-				    <- dict:to_list(ModExpSpecs)],
+			       || {{Name,_Arity},{Domain,Range}}
+				  <- dict:to_list(ModExpSpecs)],
 	    AddADT = fun(ADT,Acc) -> add_adt(Mod,ADT,Acc,ModExpSpecsList) end,
 	    lists:foldl(AddADT, ModInfo, ModADTs)
     end.
@@ -420,7 +525,7 @@ process_adts(Mod,
 add_adt(Mod, {Name,Arity}, #mod_info{mod_types = ModTypes} = ModInfo,
 	ModExpFunSpecs) ->
     ADTRef = {type,Name,Arity},
-    {abs_type,_InternalRepr,VarNames,false} = dict:fetch(ADTRef, ModTypes),
+    {abs_type,InternalRepr,VarNames,not_symb} = dict:fetch(ADTRef, ModTypes),
     FullADTRef = {Mod,Name,Arity},
     %% TODO: No warning on unsuitable range.
     SymbCalls1 = [get_symb_call(FullADTRef,Spec) || Spec <- ModExpFunSpecs],
@@ -432,7 +537,8 @@ add_adt(Mod, {Name,Arity}, #mod_info{mod_types = ModTypes} = ModInfo,
 	    %% TODO: No warning on no acceptable spec.
 	    ModInfo;
 	SymbCalls3 ->
-	    NewADTRepr = {abs_type,{type,0,union,SymbCalls3},VarNames,true},
+	    NewADTRepr = {abs_type,{type,0,union,SymbCalls3},VarNames,
+			  {orig_abs,InternalRepr}},
 	    NewModTypes = dict:store(ADTRef, NewADTRepr, ModTypes),
 	    ModInfo#mod_info{mod_types = NewModTypes}
     end.
@@ -455,6 +561,8 @@ unwrap_range(FullADTRef, Call, {type,_,nonempty_list,[ElemForm]}) ->
     NewCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},{atom,0,hd},
 			     {type,0,tuple,[Call]}]},
     unwrap_range(FullADTRef, NewCall, ElemForm);
+unwrap_range(_FullADTRef, _Call, {type,_,tuple,any}) ->
+    error;
 unwrap_range(FullADTRef, Call, {type,_,tuple,ElemForms}) ->
     Translates = fun(T) -> unwrap_range(FullADTRef,dummy,T) =/= error end,
     case proper_arith:find_first(Translates, ElemForms) of
@@ -466,14 +574,14 @@ unwrap_range(FullADTRef, Call, {type,_,tuple,ElemForms}) ->
 				     {type,0,tuple,[{integer,0,Pos},Call]}]},
 	    unwrap_range(FullADTRef, NewCall, GoodElem)
     end;
-unwrap_range({_Mod,_SameName,Arity}, Call, {type,_,_SameName,ArgForms}) ->
+unwrap_range({_Mod,SameName,Arity}, Call, {type,_,SameName,ArgForms}) ->
     RangeVars = [V || {var,_,V} <- ArgForms, V =/= '_'],
     case length(ArgForms) =:= Arity andalso length(RangeVars) =:= Arity of
 	true  -> {ok, Call, RangeVars};
 	false -> error
     end;
-unwrap_range({_SameMod,SameName,_Arity} = FullADTRef, Call,
-	     {remote_type,_,[{atom,_,_SameMod},{atom,_,SameName},ArgForms]}) ->
+unwrap_range({SameMod,SameName,_Arity} = FullADTRef, Call,
+	     {remote_type,_,[{atom,_,SameMod},{atom,_,SameName},ArgForms]}) ->
     unwrap_range(FullADTRef, Call, {type,0,SameName,ArgForms});
 unwrap_range(_FullADTRef, _Call, _Range) ->
     error.
@@ -517,7 +625,9 @@ collect_vars(FullADTRef, {paren_type,_,[Type]}, UsedVars) ->
     collect_vars(FullADTRef, Type, UsedVars);
 collect_vars(FullADTRef, {ann_type,_,[_Var,Type]}, UsedVars) ->
     collect_vars(FullADTRef, Type, UsedVars);
-collect_vars({_Mod,_SameName,Arity} = FullADTRef, {type,_,_SameName,ArgForms},
+collect_vars(_FullADTRef, {type,_,tuple,any}, UsedVars) ->
+    UsedVars;
+collect_vars({_Mod,SameName,Arity} = FullADTRef, {type,_,SameName,ArgForms},
 	     UsedVars) ->
     case length(ArgForms) =:= Arity of
 	true ->
@@ -534,8 +644,8 @@ collect_vars({_Mod,_SameName,Arity} = FullADTRef, {type,_,_SameName,ArgForms},
     end;
 collect_vars(FullADTRef, {type,_,_Name,ArgForms}, UsedVars) ->
     multi_collect_vars(FullADTRef, ArgForms, UsedVars);
-collect_vars({_SameMod,SameName,_Arity} = FullADTRef,
-	     {remote_type,_,[{atom,_,_SameMod},{atom,_,SameName},ArgForms]},
+collect_vars({SameMod,SameName,_Arity} = FullADTRef,
+	     {remote_type,_,[{atom,_,SameMod},{atom,_,SameName},ArgForms]},
 	     UsedVars) ->
     collect_vars(FullADTRef, {type,0,SameName,ArgForms}, UsedVars);
 collect_vars(FullADTRef, {remote_type,_,ArgForms}, UsedVars) ->
@@ -569,11 +679,334 @@ update_vars({var,Line,VarName} = Call, VarSubstsDict, UnboundToAny) ->
 update_vars({remote_type,Line,ArgForms}, VarSubstsDict, UnboundToAny) ->
     {remote_type, Line, [update_vars(A,VarSubstsDict,UnboundToAny)
 			 || A <- ArgForms]};
+update_vars({type,_,tuple,any} = Call, _VarSubstsDict, _UnboundToAny) ->
+    Call;
 update_vars({type,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) ->
     {type, Line, Name, [update_vars(A,VarSubstsDict,UnboundToAny)
 			|| A <- ArgForms]};
 update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
     Call.
+
+
+%%------------------------------------------------------------------------------
+%% Instance testing functions
+%%------------------------------------------------------------------------------
+
+%% CAUTION: this must be sorted
+-define(EQUIV_TYPES,
+	[{arity, {type,0,range,[{integer,0,0},{integer,0,255}]}},
+	 {bool, {type,0,boolean,[]}},
+	 {byte, {type,0,range,[{integer,0,0},{integer,0,255}]}},
+	 {char, {type,0,range,[{integer,0,0},{integer,0,16#10ffff}]}},
+	 {function, {type,0,'fun',[]}},
+	 {identifier, {type,0,union,[{type,0,pid,[]},{type,0,port,[]},
+				     {type,0,reference,[]}]}},
+	 {iodata, {type,0,union,[{type,0,binary,[]},{type,0,iolist,[]}]}},
+	 {iolist, {type,0,maybe_improper_list,
+		   [{type,0,union,[{type,0,byte,[]},{type,0,binary,[]},
+				   {type,0,iolist,[]}]},
+		    {type,0,binary,[]}]}},
+	 {list, {type,0,list,[{type,0,any,[]}]}},
+	 {maybe_improper_list, {type,0,maybe_improper_list,[{type,0,any,[]},
+							    {type,0,any,[]}]}},
+	 {mfa, {type,0,tuple,[{type,0,atom,[]},{type,0,atom,[]},
+			      {type,0,arity,[]}]}},
+	 {node, {type,0,atom,[]}},
+	 {nonempty_list, {type,0,nonempty_list,[{type,0,any,[]}]}},
+	 {nonempty_maybe_improper_list, {type,0,nonempty_maybe_improper_list,
+					 [{type,0,any,[]},{type,0,any,[]}]}},
+	 {nonempty_string, {type,0,nonempty_list,[{type,0,char,[]}]}},
+	 {string, {type,0,list,[{type,0,char,[]}]}},
+	 {term, {type,0,any,[]}},
+	 {timeout, {type,0,union,[{atom,0,infinity},
+				  {type,0,non_neg_integer,[]}]}}]).
+
+%% TODO: Most of these functions accept an extended form of abs_type(), namely
+%%	 the addition of a custom wrapper: {'from_mod',mod_name(),...}
+-spec is_instance(term(), mod_name(), abs_type()) -> boolean().
+is_instance(X, Mod, TypeForm) ->
+    is_instance(X, Mod, TypeForm, []).
+
+-spec is_instance(term(), mod_name(), abs_type(), abs_stack()) -> boolean().
+is_instance(X, _Mod, {from_mod,OrigMod,Type}, Stack) ->
+    is_instance(X, OrigMod, Type, Stack);
+is_instance(_X, _Mod, {var,_,_Name}, _Stack) ->
+    %% All unconstrained spec vars have been replaced by 'any()' and we always
+    %% replace the variables on the RHS of types before recursing into them.
+    throw({'$typeserver',{internal,var_in_is_instance}});
+is_instance(X, Mod, {ann_type,_,[_Var,Type]}, Stack) ->
+    is_instance(X, Mod, Type, Stack);
+is_instance(X, Mod, {paren_type,_,[Type]}, Stack) ->
+    is_instance(X, Mod, Type, Stack);
+is_instance(X, Mod, {remote_type,_,[{atom,_,RemMod},{atom,_,Name},ArgForms]},
+	    Stack) ->
+    is_custom_instance(X, Mod, RemMod, Name, ArgForms, Stack);
+is_instance(SameAtom, _Mod, {atom,_,SameAtom}, _Stack) ->
+    true;
+is_instance(SameInt, _Mod, {integer,_,SameInt}, _Stack) ->
+    true;
+is_instance(X, _Mod, {op,_,_Op,_Arg} = Expr, _Stack) ->
+    is_int_const(X, Expr);
+is_instance(X, _Mod, {op,_,_Op,_Arg1,_Arg2} = Expr, _Stack) ->
+    is_int_const(X, Expr);
+is_instance(_X, _Mod, {type,_,any,[]}, _Stack) ->
+    true;
+is_instance(X, _Mod, {type,_,atom,[]}, _Stack) ->
+    is_atom(X);
+is_instance(X, _Mod, {type,_,binary,[]}, _Stack) ->
+    is_binary(X);
+is_instance(X, _Mod, {type,_,binary,[BaseExpr,UnitExpr]}, _Stack) ->
+    case eval_int(BaseExpr) of
+	{ok,0} ->
+	    case eval_int(UnitExpr) of
+		{ok,0} ->
+		    X =:= <<>>;
+		{ok,Unit} when Unit > 0 ->
+		    is_bitstring(X) andalso bit_size(X) rem Unit =:= 0;
+		_ ->
+		    abs_expr_error(invalid_unit, UnitExpr)
+	    end;
+	{ok,Len} when Len > 0 ->
+	    case eval_int(UnitExpr) of
+		{ok,0} ->
+		    %% TODO: Unspecified unit means 1-byte units?
+		    is_binary(X) andalso byte_size(X) =:= Len;
+		{ok,Unit} when Unit > 0 ->
+		    is_bitstring(X) andalso bit_size(X) =:= Len * Unit;
+		_ ->
+		    abs_expr_error(invalid_unit, UnitExpr)
+	    end;
+	_ ->
+	    abs_expr_error(invalid_base, BaseExpr)
+    end;
+is_instance(X, _Mod, {type,_,bitstring,[]}, _Stack) ->
+    is_bitstring(X);
+is_instance(X, _Mod, {type,_,boolean,[]}, _Stack) ->
+    is_boolean(X);
+is_instance(X, _Mod, {type,_,float,[]}, _Stack) ->
+    is_float(X);
+is_instance(X, _Mod, {type,_,'fun',[]}, _Stack) ->
+    is_function(X);
+%% TODO: how to check range type? random inputs? special case for 0-arity?
+is_instance(X, _Mod, {type,_,'fun',[{type,_,any,[]},_Range]}, _Stack) ->
+    is_function(X);
+is_instance(X, _Mod, {type,_,'fun',[{type,_,product,Domain},_Range]}, _Stack) ->
+    is_function(X, length(Domain));
+is_instance(X, _Mod, {type,_,integer,[]}, _Stack) ->
+    is_integer(X);
+is_instance(X, Mod, {type,_,list,[Type]}, _Stack) ->
+    list_test(X, Mod, Type, dummy, true, true, false);
+is_instance(X, Mod, {type,_,maybe_improper_list,[Cont,Term]}, _Stack) ->
+    list_test(X, Mod, Cont, Term, true, true, true);
+is_instance(X, _Mod, {type,_,module,[]}, _Stack) ->
+    is_atom(X) orelse
+    is_tuple(X) andalso X =/= {} andalso is_atom(element(1,X));
+is_instance([], _Mod, {type,_,nil,[]}, _Stack) ->
+    true;
+is_instance(X, _Mod, {type,_,neg_integer,[]}, _Stack) ->
+    is_integer(X) andalso X < 0;
+is_instance(X, _Mod, {type,_,non_neg_integer,[]}, _Stack) ->
+    is_integer(X) andalso X >= 0;
+is_instance(X, Mod, {type,_,nonempty_list,[Type]}, _Stack) ->
+    list_test(X, Mod, Type, dummy, false, true, false);
+is_instance(X, Mod, {type,_,nonempty_improper_list,[Cont,Term]}, _Stack) ->
+    list_test(X, Mod, Cont, Term, false, false, true);
+is_instance(X, Mod, {type,_,nonempty_maybe_improper_list,[Cont,Term]},
+	    _Stack) ->
+    list_test(X, Mod, Cont, Term, false, true, true);
+is_instance(X, _Mod, {type,_,number,[]}, _Stack) ->
+    is_number(X);
+is_instance(X, _Mod, {type,_,pid,[]}, _Stack) ->
+    is_pid(X);
+is_instance(X, _Mod, {type,_,port,[]}, _Stack) ->
+    is_port(X);
+is_instance(X, _Mod, {type,_,pos_integer,[]}, _Stack) ->
+    is_integer(X) andalso X > 0;
+is_instance(_X, _Mod, {type,_,product,_Elements}, _Stack) ->
+    throw({'$typeserver',{internal,product_in_is_instance}});
+is_instance(X, _Mod, {type,_,range,[LowExpr,HighExpr]}, _Stack) ->
+    case {eval_int(LowExpr),eval_int(HighExpr)} of
+	{{ok,Low},{ok,High}} when Low =< High ->
+	    X >= Low andalso X =< High;
+	_ ->
+	    abs_expr_error(invalid_range, LowExpr, HighExpr)
+    end;
+is_instance(X, Mod, {type,_,record,[{atom,_,Name} = NameForm | RawSubsts]},
+	    Stack) ->
+    Substs = [{N,T} || {type,_,field_type,[{atom,_,N},T]} <- RawSubsts],
+    SubstsDict = dict:from_list(Substs),
+    case get_type_repr(Mod, {record,Name,0}, false) of
+	{ok,{abs_record,OrigFields}} ->
+	    Fields = [case dict:find(FieldName, SubstsDict) of
+			  {ok,NewFieldType} -> NewFieldType;
+			  error             -> OrigFieldType
+		      end
+		      || {FieldName,OrigFieldType} <- OrigFields],
+	    is_instance(X, Mod, {type,0,tuple,[NameForm|Fields]}, Stack);
+	{error,Reason} ->
+	    throw({'$typeserver',Reason})
+    end;
+is_instance(X, _Mod, {type,_,reference,[]}, _Stack) ->
+    is_reference(X);
+is_instance(X, _Mod, {type,_,tuple,any}, _Stack) ->
+    is_tuple(X);
+is_instance(X, Mod, {type,_,tuple,Fields}, _Stack) ->
+    is_tuple(X) andalso tuple_test(tuple_to_list(X), Mod, Fields);
+is_instance(X, Mod, {type,_,union,Choices}, Stack) ->
+    IsInstance = fun(Choice) -> is_instance(X,Mod,Choice,Stack) end,
+    lists:any(IsInstance, Choices);
+is_instance(X, Mod, {type,_,Name,[]}, Stack) ->
+    case orddict:find(Name, ?EQUIV_TYPES) of
+	{ok,EquivType} ->
+	    is_instance(X, Mod, EquivType, Stack);
+	error ->
+	    is_maybe_hard_adt(X, Mod, Name, [], Stack)
+    end;
+is_instance(X, Mod, {type,_,Name,ArgForms}, Stack) ->
+    is_maybe_hard_adt(X, Mod, Name, ArgForms, Stack);
+is_instance(_X, _Mod, _Type, _Stack) ->
+    false.
+
+-spec is_int_const(term(), abs_expr()) -> boolean().
+is_int_const(X, Expr) ->
+    case eval_int(Expr) of
+	{ok,Int} ->
+	    X =:= Int;
+	error ->
+	    abs_expr_error(invalid_int_const, Expr)
+    end.
+
+%% TODO: We implicitly add the '| []' at the termination of maybe_improper_list.
+%% TODO: We ignore a '[]' termination in improper_list.
+-spec list_test(term(), mod_name(), abs_type(), 'dummy' | abs_type(), boolean(),
+		boolean(), boolean()) -> boolean().
+list_test(X, Mod, Content, Termination, CanEmpty, CanProper, CanImproper) ->
+    is_list(X) andalso
+    list_rec(X, Mod, Content, Termination, CanEmpty, CanProper, CanImproper).
+
+-spec list_rec(term(), mod_name(), abs_type(), 'dummy' | abs_type(), boolean(),
+	       boolean(), boolean()) -> boolean().
+list_rec([], _Mod, _Content, _Termination, CanEmpty, CanProper, _CanImproper) ->
+    CanEmpty andalso CanProper;
+list_rec([X | Rest], Mod, Content, Termination, _CanEmpty, CanProper,
+	 CanImproper) ->
+    is_instance(X, Mod, Content, []) andalso
+    list_rec(Rest, Mod, Content, Termination, true, CanProper, CanImproper);
+list_rec(X, Mod, _Content, Termination, _CanEmpty, _CanProper, CanImproper) ->
+    CanImproper andalso is_instance(X, Mod, Termination, []).
+
+-spec tuple_test([term()], mod_name(), [abs_type()]) -> boolean().
+tuple_test([], _Mod, []) ->
+    true;
+tuple_test([X | XTail], Mod, [T | TTail]) ->
+    is_instance(X, Mod, T, []) andalso tuple_test(XTail, Mod, TTail);
+tuple_test(_, _Mod, _) ->
+    false.
+
+-spec is_maybe_hard_adt(term(), mod_name(), type_name(), [abs_type()],
+			abs_stack()) -> boolean().
+is_maybe_hard_adt(X, Mod, Name, ArgForms, Stack) ->
+    case orddict:find({Name,length(ArgForms)}, ?HARD_ADTS) of
+	{ok,ADTMod} ->
+	    is_custom_instance(X, Mod, ADTMod, Name, ArgForms, Stack);
+	error ->
+	    is_custom_instance(X, Mod, Mod, Name, ArgForms, Stack)
+    end.
+
+-spec is_custom_instance(term(), mod_name(), mod_name(), type_name(),
+			 [abs_type()], abs_stack()) -> boolean().
+is_custom_instance(X, Mod, RemMod, Name, ArgForms, Stack) ->
+    FullTypeRef = {RemMod,Name,ArgForms},
+    TypeRef = {type,Name,length(ArgForms)},
+    not abs_stack_member(FullTypeRef, Stack) andalso
+    is_instance(X, RemMod, get_abs_type(Mod,RemMod,TypeRef,ArgForms),
+		[FullTypeRef|Stack]).
+
+-spec get_abs_type(mod_name(), mod_name(), type_ref(), [abs_type()]) ->
+	  abs_type().
+get_abs_type(Mod, RemMod, TypeRef, RawArgForms) ->
+    IsRemote = Mod =/= RemMod,
+    case get_type_repr(RemMod, TypeRef, IsRemote) of
+	{ok,{cached,_FinType,AbsType,SymbInfo}} ->
+	    [] = RawArgForms,
+	    case SymbInfo of
+		not_symb ->
+		    AbsType;
+		{orig_abs,OrigAbsType} ->
+		    OrigAbsType
+	    end;
+	{ok,{abs_type,AbsType,VarNames,SymbInfo}} ->
+	    ArgForms = case IsRemote of
+			   true  -> [{from_mod,Mod,A} || A <- RawArgForms];
+			   false -> RawArgForms
+		       end,
+	    VarSubstsDict = dict:from_list(lists:zip(VarNames,ArgForms)),
+	    case SymbInfo of
+		not_symb ->
+		    update_vars(AbsType, VarSubstsDict, false);
+		{orig_abs,OrigAbsType} ->
+		    update_vars(OrigAbsType, VarSubstsDict, false)
+	    end;
+	{error,Reason} ->
+	    throw({'$typeserver',Reason})
+    end.
+
+-spec abs_stack_member(abs_full_type_ref(), abs_stack()) -> boolean().
+abs_stack_member(FullTypeRef, Stack) ->
+    IsSame = fun(R) -> same_abs_full_type_ref(R,FullTypeRef) end,
+    lists:any(IsSame, Stack).
+
+-spec same_abs_full_type_ref(abs_full_type_ref(), abs_full_type_ref()) ->
+	  boolean().
+same_abs_full_type_ref({SameMod,SameName,ArgForms1},
+		       {SameMod,SameName,ArgForms2}) ->
+    same_abs_type_list(ArgForms1, ArgForms2);
+same_abs_full_type_ref(_, _) ->
+    false.
+
+-spec same_abs_type_list([abs_type()], [abs_type()]) -> boolean().
+same_abs_type_list([], []) ->
+    true;
+same_abs_type_list([X | XTail], [Y | YTail]) ->
+    same_abs_type(X, Y) andalso same_abs_type_list(XTail, YTail);
+same_abs_type_list(_, _) ->
+    false.
+
+-spec same_abs_type(abs_type(), abs_type()) -> boolean().
+same_abs_type({from_mod,SameMod,Type1}, {from_mod,SameMod,Type2}) ->
+    same_abs_type(Type1, Type2);
+same_abs_type({var,_,SameName}, {var,_,SameName}) ->
+    true;
+same_abs_type({ann_type,_,[_Var1,Type1]}, {ann_type,_,[_Var2,Type2]}) ->
+    same_abs_type(Type1, Type2);
+same_abs_type({paren_type,_,[Type1]}, {paren_type,_,[Type2]}) ->
+    same_abs_type(Type1, Type2);
+same_abs_type({remote_type,_,Details1}, {remote_type,_,Details2}) ->
+    same_abs_type_list(Details1, Details2);
+same_abs_type({atom,_,SameAtom}, {atom,_,SameAtom}) ->
+    true;
+same_abs_type({integer,_,SameInt}, {integer,_,SameInt}) ->
+    true;
+same_abs_type({op,_,SameOp,Arg1}, {op,_,SameOp,Arg2}) ->
+    same_abs_type(Arg1, Arg2);
+same_abs_type({op,_,SameOp,Arg1a,Arg1b}, {op,_,SameOp,Arg2a,Arg2b}) ->
+    same_abs_type(Arg1a, Arg2a) andalso same_abs_type(Arg1b, Arg2b);
+same_abs_type({type,_,tuple,any}, {type,_,tuple,any}) ->
+    true;
+same_abs_type({type,_,SameName,Args1}, {type,_,SameName,Args2}) ->
+    same_abs_type_list(Args1, Args2);
+same_abs_type(_, _) ->
+    false.
+
+-spec abs_expr_error(atom(), abs_expr()) -> no_return().
+abs_expr_error(ImmReason, Expr) ->
+    {error,Reason} = expr_error(ImmReason, Expr),
+    throw({'$typeserver',Reason}).
+
+-spec abs_expr_error(atom(), abs_expr(), abs_expr()) -> no_return().
+abs_expr_error(ImmReason, Expr1, Expr2) ->
+    {error,Reason} = expr_error(ImmReason, Expr1, Expr2),
+    throw({'$typeserver',Reason}).
 
 
 %%------------------------------------------------------------------------------
@@ -608,15 +1041,9 @@ convert(_Mod, {var,_,VarName}, State, _Stack, VarDict) ->
     end;
 convert(Mod, {remote_type,_,[{atom,_,RemMod},{atom,_,Name},ArgForms]}, State,
 	Stack, VarDict) ->
-    case add_module(RemMod, State) of
-	{ok,#state{exp_types = ExpTypes} = NewState} ->
-	    RemModExpTypes = dict:fetch(RemMod, ExpTypes),
-	    Arity = length(ArgForms),
-	    case sets:is_element({Name,Arity}, RemModExpTypes) of
-		true  -> convert_custom(Mod, RemMod, Name, ArgForms, NewState,
-					Stack, VarDict);
-		false -> {error, {type_not_exported,{RemMod,Name,Arity}}}
-	    end;
+    case prepare_for_remote(RemMod, Name, length(ArgForms), State) of
+	{ok,NewState} ->
+	    convert_custom(Mod,RemMod,Name,ArgForms,NewState,Stack,VarDict);
 	{error,_Reason} = Error ->
 	    Error
     end;
@@ -635,21 +1062,21 @@ convert(_Mod, {type,_,binary,[BaseExpr,UnitExpr]}, State, _Stack, _VarDict) ->
 		{ok,0} -> {ok, {simple,proper_types:exactly(<<>>)}, State};
 		{ok,1} -> {ok, {simple,proper_types:bitstring()}, State};
 		{ok,8} -> {ok, {simple,proper_types:binary()}, State};
-		error  -> expr_error(invalid_unit, UnitExpr)
+		_      -> expr_error(invalid_unit, UnitExpr)
 	    end;
 	{ok,Len} when Len > 0 ->
 	    case eval_int(UnitExpr) of
 		{ok,0} -> {ok, {simple,proper_types:binary(Len)}, State};
 		{ok,1} -> {ok, {simple,proper_types:bitstring(Len)}, State};
 		{ok,8} -> {ok, {simple,proper_types:binary(Len)}, State};
-		error  -> expr_error(invalid_unit, UnitExpr)
+		_      -> expr_error(invalid_unit, UnitExpr)
 	    end;
-	error ->
+	_ ->
 	    expr_error(invalid_base, BaseExpr)
     end;
 convert(_Mod, {type,_,range,[LowExpr,HighExpr]}, State, _Stack, _VarDict) ->
     case {eval_int(LowExpr),eval_int(HighExpr)} of
-	{{ok,Low},{ok,High}} ->
+	{{ok,Low},{ok,High}} when Low =< High ->
 	    {ok, {simple,proper_types:integer(Low,High)}, State};
 	_ ->
 	    expr_error(invalid_range, LowExpr, HighExpr)
@@ -664,6 +1091,8 @@ convert(_Mod, {type,_,nonempty_list,[]}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:non_empty(proper_types:list())}, State};
 convert(_Mod, {type,_,nonempty_string,[]}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:non_empty(proper_types:string())}, State};
+convert(_Mod, {type,_,tuple,any}, State, _Stack, _VarDict) ->
+    {ok, {simple,proper_types:tuple()}, State};
 convert(Mod, {type,_,tuple,ElemForms}, State, Stack, VarDict) ->
     convert_tuple(Mod, ElemForms, State, Stack, VarDict);
 convert(Mod, {type,_,record,[{atom,_,Name}|FieldForms]}, State, Stack,
@@ -952,11 +1381,12 @@ convert_record(Mod, Name, RawSubsts, State, Stack, VarDict) ->
 convert_type(TypeRef, {Mod,_Kind,_Name,_Spec} = FullTypeRef, State, Stack) ->
     case stack_position(FullTypeRef, Stack) of
 	none ->
-	    ModTypes = dict:fetch(Mod, State#state.types),
-	    case dict:find(TypeRef, ModTypes) of
-		{ok,TypeRepr} -> convert_new_type(TypeRef, FullTypeRef,
-						  TypeRepr, State, Stack);
-		error         -> {error, {missing_type,Mod,TypeRef}}
+	    case get_type_repr(Mod, TypeRef, false, State) of
+		{ok,TypeRepr,NewState} ->
+		    convert_new_type(TypeRef, FullTypeRef, TypeRepr, NewState,
+				     Stack);
+		{error,_Reason} = Error ->
+		    Error
 	    end;
 	1 ->
 	    base_case_error(Stack);
@@ -967,27 +1397,28 @@ convert_type(TypeRef, {Mod,_Kind,_Name,_Spec} = FullTypeRef, State, Stack) ->
 
 -spec convert_new_type(type_ref(), full_type_ref(), type_repr(), state(),
 		       stack()) -> rich_result2(ret_type(),state()).
-convert_new_type(_TypeRef, {_Mod,type,_Name,[]}, {cached,FinType,_TypeForm},
-		 State, _Stack) ->
+convert_new_type(_TypeRef, {_Mod,type,_Name,[]},
+		 {cached,FinType,_TypeForm,_SymbInfo}, State, _Stack) ->
     {ok, {simple,FinType}, State};
 convert_new_type(TypeRef, {Mod,type,_Name,Args} = FullTypeRef,
-		 {abs_type,TypeForm,Vars,Symbolic}, State, Stack) ->
+		 {abs_type,TypeForm,Vars,SymbInfo}, State, Stack) ->
     VarDict = dict:from_list(lists:zip(Vars, Args)),
     case convert(Mod, TypeForm, State, [FullTypeRef | Stack], VarDict) of
 	{ok, {simple,ImmFinType}, NewState} ->
-	    FinType =
-		case Symbolic of
-		    true  -> proper_symb:internal_well_defined(ImmFinType);
-		    false -> ImmFinType
-		end,
-	    FinalState =
-		case Vars of
-		    [] -> cache_type(Mod, TypeRef, FinType, TypeForm, NewState);
-		    _  -> NewState
-		end,
+	    FinType = case SymbInfo of
+			  not_symb ->
+			      ImmFinType;
+			  {orig_abs,_OrigAbsType} ->
+			      proper_symb:internal_well_defined(ImmFinType)
+		      end,
+	    FinalState = case Vars of
+			     [] -> cache_type(Mod, TypeRef, FinType, TypeForm,
+					      SymbInfo, NewState);
+			     _  -> NewState
+			 end,
 	    {ok, {simple,FinType}, FinalState};
 	{ok, {rec,RecFun,RecArgs}, NewState} ->
-	    convert_maybe_rec(FullTypeRef, Symbolic, RecFun, RecArgs, NewState,
+	    convert_maybe_rec(FullTypeRef, SymbInfo, RecFun, RecArgs, NewState,
 			      Stack);
 	{error,_Reason} = Error ->
 	    Error
@@ -1004,46 +1435,48 @@ convert_new_type(_TypeRef, {Mod,record,Name,SubstsDict} = FullTypeRef,
 	{ok, {simple,_FinType}, _NewState} = Result ->
 	    Result;
 	{ok, {rec,RecFun,RecArgs}, NewState} ->
-	    convert_maybe_rec(FullTypeRef, false, RecFun, RecArgs, NewState,
+	    convert_maybe_rec(FullTypeRef, not_symb, RecFun, RecArgs, NewState,
 			      Stack);
 	{error,_Reason} = Error ->
 	    Error
     end.
 
--spec cache_type(mod_name(), type_ref(), fin_type(), abs_type(), state()) ->
-	  state().
-cache_type(Mod, TypeRef, FinType, TypeForm, #state{types = Types} = State) ->
+-spec cache_type(mod_name(), type_ref(), fin_type(), abs_type(), symb_info(),
+		 state()) -> state().
+cache_type(Mod, TypeRef, FinType, TypeForm, SymbInfo,
+	   #state{types = Types} = State) ->
+    TypeRepr = {cached,FinType,TypeForm,SymbInfo},
     ModTypes = dict:fetch(Mod, Types),
-    NewModTypes = dict:store(TypeRef, {cached,FinType,TypeForm}, ModTypes),
+    NewModTypes = dict:store(TypeRef, TypeRepr, ModTypes),
     NewTypes = dict:store(Mod, NewModTypes, Types),
     State#state{types = NewTypes}.
 
--spec convert_maybe_rec(full_type_ref(), boolean(), rec_fun(), rec_args(),
+-spec convert_maybe_rec(full_type_ref(), symb_info(), rec_fun(), rec_args(),
 			state(), stack()) -> rich_result2(ret_type(),state()).
-convert_maybe_rec(FullTypeRef, Symbolic, RecFun, RecArgs, State, Stack) ->
+convert_maybe_rec(FullTypeRef, SymbInfo, RecFun, RecArgs, State, Stack) ->
     case at_toplevel(RecArgs, Stack) of
 	true  -> base_case_error(Stack);
-	false -> safe_convert_maybe_rec(FullTypeRef, Symbolic, RecFun, RecArgs,
+	false -> safe_convert_maybe_rec(FullTypeRef, SymbInfo, RecFun, RecArgs,
 					State)
     end.
 
--spec safe_convert_maybe_rec(full_type_ref(), boolean(), rec_fun(), rec_args(),
+-spec safe_convert_maybe_rec(full_type_ref(),symb_info(),rec_fun(),rec_args(),
 			     state()) -> rich_result2(ret_type(),state()).
-safe_convert_maybe_rec(FullTypeRef, Symbolic, RecFun, RecArgs, State) ->
+safe_convert_maybe_rec(FullTypeRef, SymbInfo, RecFun, RecArgs, State) ->
     case partition_rec_args(FullTypeRef, RecArgs, false) of
 	{[],[],_,_} ->
 	    {ok, {rec,RecFun,RecArgs}, State};
 	{MyRecArgs,MyPos,OtherRecArgs,_OtherPos} ->
 	    case lists:all(fun({B,_T}) -> B =:= false end, MyRecArgs) of
-		true  -> convert_rec_type(Symbolic, RecFun, MyPos, OtherRecArgs,
+		true  -> convert_rec_type(SymbInfo, RecFun, MyPos, OtherRecArgs,
 					  State);
 		false -> {error, {internal,true_rec_arg_reached_type}}
 	    end
     end.
 
--spec convert_rec_type(boolean(), rec_fun(), [position()], rec_args(),
+-spec convert_rec_type(symb_info(), rec_fun(), [position()], rec_args(),
 		       state()) -> {ok, ret_type(), state()}.
-convert_rec_type(Symbolic, RecFun, MyPos, [], State) ->
+convert_rec_type(SymbInfo, RecFun, MyPos, [], State) ->
     NumRecArgs = length(MyPos),
     M = fun(GenFun) ->
 	    fun(Size) ->
@@ -1053,12 +1486,14 @@ convert_rec_type(Symbolic, RecFun, MyPos, [], State) ->
 	end,
     SizedGen = y(M),
     ImmFinType = ?SIZED(Size,SizedGen(Size + 1)),
-    FinType = case Symbolic of
-		  true  -> proper_symb:internal_well_defined(ImmFinType);
-		  false -> ImmFinType
+    FinType = case SymbInfo of
+		  not_symb ->
+		      ImmFinType;
+		  {orig_abs,_OrigAbsType} ->
+		      proper_symb:internal_well_defined(ImmFinType)
 	      end,
     {ok, {simple,FinType}, State};
-convert_rec_type(_Symbolic, RecFun, MyPos, OtherRecArgs, State) ->
+convert_rec_type(_SymbInfo, RecFun, MyPos, OtherRecArgs, State) ->
     NumRecArgs = length(MyPos),
     NewRecFun =
 	fun(OtherGens,TopSize) ->
@@ -1306,12 +1741,13 @@ get_group_tr(Pos, [Members | Rest], GroupNum) ->
     end.
 
 -spec same_full_type_ref(full_type_ref(), term()) -> boolean().
-same_full_type_ref({_Mod,type,_Name,Args1}, {_Mod,type,_Name,Args2}) ->
+same_full_type_ref({SameMod,type,SameName,Args1},
+		   {SameMod,type,SameName,Args2}) ->
     length(Args1) =:= length(Args2)
     andalso lists:all(fun({A,B}) -> same_ret_type(A,B) end,
 		      lists:zip(Args1, Args2));
-same_full_type_ref({_Mod,record,_Name,SubstsDict1},
-		   {_Mod,record,_Name,SubstsDict2}) ->
+same_full_type_ref({SameMod,record,SameName,SubstsDict1},
+		   {SameMod,record,SameName,SubstsDict2}) ->
     same_substs_dict(SubstsDict1, SubstsDict2);
 same_full_type_ref(_, _) ->
     false.
@@ -1330,8 +1766,8 @@ same_ret_type(_, _) ->
 
 %% TODO: Is this too strict?
 -spec same_rec_arg(rec_arg(), rec_arg(), arity()) -> boolean().
-same_rec_arg({{list,_SameBool,AltRecFun1},FTRef1},
-	     {{list,_SameBool,AltRecFun2},FTRef2}, NumRecArgs) ->
+same_rec_arg({{list,SameBool,AltRecFun1},FTRef1},
+	     {{list,SameBool,AltRecFun2},FTRef2}, NumRecArgs) ->
     same_rec_fun(AltRecFun1, AltRecFun2, NumRecArgs)
     andalso same_full_type_ref(FTRef1, FTRef2);
 same_rec_arg({true,FTRef1}, {true,FTRef2}, _NumRecArgs) ->

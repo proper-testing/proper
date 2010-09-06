@@ -22,7 +22,7 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([check/1, check/2, retest/2, retest/3]).
+-export([check/1, check/2, check_spec/1, check_spec/2, retest/2, retest/3]).
 -export([numtests/2, fails/1, on_output/2]).
 -export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
 	 with_title/1, equals/2]).
@@ -81,6 +81,7 @@
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
+-type raw_test() :: {'test',test()} | {'spec',mfa()}.
 %% @private_type stripped_test
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
 -type stripped_forall()	:: {proper_types:type(), dependent_test()}.
@@ -274,7 +275,17 @@ check(OuterTest) ->
 check(OuterTest, UserOpts) ->
     ImmOpts = parse_opts(UserOpts),
     {Test,Opts} = peel_test(OuterTest, ImmOpts),
-    test(Test, Opts).
+    test({test,Test}, Opts).
+
+-spec check_spec(mfa()) -> long_result() | short_result().
+check_spec(MFA) ->
+    check_spec(MFA, []).
+
+-spec check_spec(mfa(), [user_opt()] | user_opt()) ->
+	  long_result() | short_result().
+check_spec(MFA, UserOpts) ->
+    Opts = parse_opts(UserOpts),
+    test({spec,MFA}, Opts).
 
 -spec retest(outer_test(), counterexample()) -> rerun_result().
 retest(OuterTest, CExm) ->
@@ -400,10 +411,21 @@ equals(A, B) ->
 %% Main testing functions
 %%------------------------------------------------------------------------------
 
--spec test(test(), opts()) -> long_result() | short_result().
-test(Test, #opts{numtests = NumTests, output_fun = Print,
-		 long_result = ReturnLong} = Opts) ->
+-spec test(raw_test(), opts()) -> long_result() | short_result().
+test(RawTest, #opts{numtests = NumTests, output_fun = Print,
+		    long_result = ReturnLong} = Opts) ->
     global_state_init(Opts),
+    Test = case RawTest of
+	       {test,NormalTest} ->
+		   NormalTest;
+	       {spec,MFA} ->
+		   case proper_typeserver:create_spec_test(MFA) of
+		       {ok,NormalTest} ->
+			   NormalTest;
+		       {error,Reason}  ->
+			   ?FORALL(_, dummy, throw({'$typeserver',Reason}))
+		   end
+	   end,
     ImmResult = perform(NumTests, Test, Print),
     Print("~n", []),
     report_imm_result(ImmResult, Opts),
@@ -600,7 +622,8 @@ apply_args(Args, Prop, Ctx) ->
 	    end;
 	throw:'$cant_generate' ->
 	    {error, cant_generate};
-	%% TODO: Do we need to guard against typeserver exceptions too?
+	throw:{'$typeserver',SubReason} ->
+	    {error, {typeserver,SubReason}};
 	ExcKind:ExcReason ->
 	    create_failed_result(Ctx, {exception,ExcKind,ExcReason,
 				       erlang:get_stacktrace()})
@@ -665,10 +688,10 @@ still_fails(ImmInstance, TestTail, Prop, OldReason) ->
 %% We don't consider two exceptions different if they have a different
 %% stacktrace.
 -spec same_fail_reason(fail_reason(), fail_reason()) -> boolean().
-same_fail_reason({exception,_SameExcKind,_SameExcReason,_StackTrace1},
-		 {exception,_SameExcKind,_SameExcReason,_StackTrace2}) ->
+same_fail_reason({exception,SameExcKind,SameExcReason,_StackTrace1},
+		 {exception,SameExcKind,SameExcReason,_StackTrace2}) ->
     true;
-same_fail_reason(_SameReason, _SameReason) ->
+same_fail_reason(SameReason, SameReason) ->
     true;
 same_fail_reason(_, _) ->
     false.

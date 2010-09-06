@@ -36,6 +36,10 @@ Quickstart guide
      proper:check(your_module:some_property()).
        or
      proper:check(your_module:some_property(), <option/options>).
+  You can test the accuracy of an exported function's spec by running:
+     proper:check_spec(mfa()).
+       or
+     proper:check_spec(mfa(), <option/options>).
   You can also try out the random instance generation subsystem by running:
      proper_gen:pick(some_type()).
        or
@@ -437,6 +441,8 @@ In addition, the following types are provided:
 * function[0-4](RetType) : equivalent to function([0-4], RetType), provided for
     compatibility with QuickCheck
 * timeout() : equivalent to union([non_neg_integer() | 'timeout']),
+    instances shrink towards 0
+* arity() : equivalent to range(0,255),
     instances shrink towards 0
 
 As you can see from the above descriptions, types can be combined in tuples or

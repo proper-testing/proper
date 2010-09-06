@@ -30,7 +30,7 @@
 	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
-	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0]).
+	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
 	 function1/1, function2/1, function3/1, function4/1]).
@@ -56,13 +56,11 @@
 %% will do:
 %%	records, maybe_improper_list(T,S), improper_list(T,S)?
 %%	maybe_improper_list(), maybe_improper_list(T), iolist, iodata
-%% badly documented:
-%%	tid
 %% don't need:
 %%	nonempty_{list,string,improper_list,maybe_improper_list}
 %% won't do:
-%%	pid, port, ref, identifier, none, no_return, module, mfa, node, arity
-%%	array, dict, digraph, set, gb_tree, gb_set, queue
+%%	pid, port, ref, identifier, none, no_return, module, mfa, node
+%%	array, dict, digraph, set, gb_tree, gb_set, queue, tid
 
 %% Missing type information
 %% ------------------------
@@ -759,6 +757,9 @@ term() -> any().
 
 -spec timeout() -> type().
 timeout() -> union([non_neg_integer(), 'infinity']).
+
+-spec arity() -> type().
+arity() -> integer(0, 255).
 
 
 %%------------------------------------------------------------------------------
