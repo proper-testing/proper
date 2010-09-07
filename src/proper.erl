@@ -94,7 +94,7 @@
 -type implies_clause() :: {'implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
--type timeout_clause() :: {timeout, time_period(), delayed_test()}.
+-type timeout_clause() :: {timeout, time_period(), fun(() -> boolean())}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
@@ -713,7 +713,7 @@ skip_to_next({sample,_Sample,_Printer,Prop}) ->
 skip_to_next({whenfail,_Action,Prop}) ->
     force_skip(Prop);
 skip_to_next({timeout,_Limit,_Prop}) ->
-    false. % This is OK, since timeout cannot contain any ?FORALLs.
+    false. % This is OK, since ?TIMEOUT cannot contain any other wrappers.
 
 -spec force_skip(delayed_test()) -> stripped_test().
 force_skip(Prop) ->

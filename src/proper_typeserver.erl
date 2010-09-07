@@ -86,8 +86,7 @@
 -type fun_clause_repr() :: {[abs_type()],abs_type()}.
 -type proc_fun_ref() :: {fun_name(),[abs_type()],abs_type()}.
 -type full_imm_type_ref() :: {mod_name(),type_name(),arity()}.
--type abs_full_type_ref() :: {mod_name(),type_name(),[abs_type()]}.
--type abs_stack() :: [abs_full_type_ref()].
+-type imm_stack() :: [full_imm_type_ref()].
 
 -type mod_exp_types() :: set(). %% set(imm_type_ref())
 -type mod_types() :: dict(). %% dict(type_ref(),type_repr())
@@ -211,7 +210,7 @@ create_spec_test({Mod,Fun,_Arity} = MFA, State) ->
 	{ok,{Domain,Range},NewState} ->
 	    case convert(Mod, {type,0,tuple,Domain}, NewState) of
 		{ok,FinType,FinalState} ->
-		    %% TODO: We just catch all exceptions.
+		    %% TODO: We just catch all exceptions, plus error:badarg.
 		    Test =
 			?FORALL(ArgsTuple, FinType,
 				begin
@@ -219,7 +218,8 @@ create_spec_test({Mod,Fun,_Arity} = MFA, State) ->
 				    try apply(Mod,Fun,Args) of
 					X -> ?MODULE:is_instance(X,Mod,Range)
 				    catch
-					throw:_ -> true
+					throw:_      -> true;
+					error:badarg -> true
 				    end
 				end),
 		    {ok, Test, FinalState};
@@ -648,7 +648,8 @@ collect_vars({SameMod,SameName,_Arity} = FullADTRef,
 	     {remote_type,_,[{atom,_,SameMod},{atom,_,SameName},ArgForms]},
 	     UsedVars) ->
     collect_vars(FullADTRef, {type,0,SameName,ArgForms}, UsedVars);
-collect_vars(FullADTRef, {remote_type,_,ArgForms}, UsedVars) ->
+collect_vars(FullADTRef, {remote_type,_,[_RemModForm,_NameForm,ArgForms]},
+	     UsedVars) ->
     multi_collect_vars(FullADTRef, ArgForms, UsedVars);
 collect_vars(_FullADTRef, _Call, UsedVars) ->
     UsedVars.
@@ -676,9 +677,10 @@ update_vars({var,Line,VarName} = Call, VarSubstsDict, UnboundToAny) ->
 	error when UnboundToAny =:= true ->
 	    {type,Line,any,[]}
     end;
-update_vars({remote_type,Line,ArgForms}, VarSubstsDict, UnboundToAny) ->
-    {remote_type, Line, [update_vars(A,VarSubstsDict,UnboundToAny)
-			 || A <- ArgForms]};
+update_vars({remote_type,Line,[RemModForm,NameForm,ArgForms]}, VarSubstsDict,
+	    UnboundToAny) ->
+    NewArgForms = [update_vars(A,VarSubstsDict,UnboundToAny) || A <- ArgForms],
+    {remote_type, Line, [RemModForm,NameForm,NewArgForms]};
 update_vars({type,_,tuple,any} = Call, _VarSubstsDict, _UnboundToAny) ->
     Call;
 update_vars({type,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) ->
@@ -727,20 +729,24 @@ update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
 is_instance(X, Mod, TypeForm) ->
     is_instance(X, Mod, TypeForm, []).
 
--spec is_instance(term(), mod_name(), abs_type(), abs_stack()) -> boolean().
+-spec is_instance(term(), mod_name(), abs_type(), imm_stack()) -> boolean().
 is_instance(X, _Mod, {from_mod,OrigMod,Type}, Stack) ->
     is_instance(X, OrigMod, Type, Stack);
-is_instance(_X, _Mod, {var,_,_Name}, _Stack) ->
+is_instance(_X, _Mod, {var,_,'_'}, _Stack) ->
+    true;
+is_instance(_X, _Mod, {var,_,Name}, _Stack) ->
     %% All unconstrained spec vars have been replaced by 'any()' and we always
     %% replace the variables on the RHS of types before recursing into them.
-    throw({'$typeserver',{internal,var_in_is_instance}});
+    %% Provided that '-type' declarations contain no unbound variables, we
+    %% don't expect to find any non-'_' variables while recursing.
+    throw({'$typeserver',{unbound_var_in_type_declaration,Name}});
 is_instance(X, Mod, {ann_type,_,[_Var,Type]}, Stack) ->
     is_instance(X, Mod, Type, Stack);
 is_instance(X, Mod, {paren_type,_,[Type]}, Stack) ->
     is_instance(X, Mod, Type, Stack);
 is_instance(X, Mod, {remote_type,_,[{atom,_,RemMod},{atom,_,Name},ArgForms]},
 	    Stack) ->
-    is_custom_instance(X, Mod, RemMod, Name, ArgForms, Stack);
+    is_custom_instance(X, Mod, RemMod, Name, ArgForms, true, Stack);
 is_instance(SameAtom, _Mod, {atom,_,SameAtom}, _Stack) ->
     true;
 is_instance(SameInt, _Mod, {integer,_,SameInt}, _Stack) ->
@@ -904,99 +910,53 @@ tuple_test(_, _Mod, _) ->
     false.
 
 -spec is_maybe_hard_adt(term(), mod_name(), type_name(), [abs_type()],
-			abs_stack()) -> boolean().
+			imm_stack()) -> boolean().
 is_maybe_hard_adt(X, Mod, Name, ArgForms, Stack) ->
     case orddict:find({Name,length(ArgForms)}, ?HARD_ADTS) of
 	{ok,ADTMod} ->
-	    is_custom_instance(X, Mod, ADTMod, Name, ArgForms, Stack);
+	    is_custom_instance(X, Mod, ADTMod, Name, ArgForms, true, Stack);
 	error ->
-	    is_custom_instance(X, Mod, Mod, Name, ArgForms, Stack)
+	    is_custom_instance(X, Mod, Mod, Name, ArgForms, false, Stack)
     end.
 
 -spec is_custom_instance(term(), mod_name(), mod_name(), type_name(),
-			 [abs_type()], abs_stack()) -> boolean().
-is_custom_instance(X, Mod, RemMod, Name, ArgForms, Stack) ->
-    FullTypeRef = {RemMod,Name,ArgForms},
-    TypeRef = {type,Name,length(ArgForms)},
-    not abs_stack_member(FullTypeRef, Stack) andalso
-    is_instance(X, RemMod, get_abs_type(Mod,RemMod,TypeRef,ArgForms),
-		[FullTypeRef|Stack]).
+			 [abs_type()], boolean(), imm_stack()) -> boolean().
+is_custom_instance(X, Mod, RemMod, Name, RawArgForms, IsRemote, Stack) ->
+    ArgForms = case Mod =/= RemMod of
+		   true  -> [{from_mod,Mod,A} || A <- RawArgForms];
+		   false -> RawArgForms
+	       end,
+    Arity = length(ArgForms),
+    FullTypeRef = {RemMod,Name,Arity},
+    case lists:member(FullTypeRef, Stack) of
+	true ->
+	    throw({'$typeserver',{self_reference,FullTypeRef}});
+	false ->
+	    TypeRef = {type,Name,Arity},
+	    AbsType = get_abs_type(RemMod, TypeRef, ArgForms, IsRemote),
+	    is_instance(X, RemMod, AbsType, [FullTypeRef|Stack])
+    end.
 
--spec get_abs_type(mod_name(), mod_name(), type_ref(), [abs_type()]) ->
+-spec get_abs_type(mod_name(), type_ref(), [abs_type()], boolean()) ->
 	  abs_type().
-get_abs_type(Mod, RemMod, TypeRef, RawArgForms) ->
-    IsRemote = Mod =/= RemMod,
+get_abs_type(RemMod, TypeRef, ArgForms, IsRemote) ->
     case get_type_repr(RemMod, TypeRef, IsRemote) of
-	{ok,{cached,_FinType,AbsType,SymbInfo}} ->
-	    [] = RawArgForms,
-	    case SymbInfo of
-		not_symb ->
-		    AbsType;
-		{orig_abs,OrigAbsType} ->
-		    OrigAbsType
-	    end;
-	{ok,{abs_type,AbsType,VarNames,SymbInfo}} ->
-	    ArgForms = case IsRemote of
-			   true  -> [{from_mod,Mod,A} || A <- RawArgForms];
-			   false -> RawArgForms
-		       end,
+	{ok,TypeRepr} ->
+	    {FinalAbsType,SymbInfo,VarNames} =
+		case TypeRepr of
+		    {cached,_FinType,FAT,SI} -> {FAT,SI,[]};
+		    {abs_type,FAT,VN,SI}     -> {FAT,SI,VN}
+		end,
+	    AbsType =
+		case SymbInfo of
+		    not_symb               -> FinalAbsType;
+		    {orig_abs,OrigAbsType} -> OrigAbsType
+		end,
 	    VarSubstsDict = dict:from_list(lists:zip(VarNames,ArgForms)),
-	    case SymbInfo of
-		not_symb ->
-		    update_vars(AbsType, VarSubstsDict, false);
-		{orig_abs,OrigAbsType} ->
-		    update_vars(OrigAbsType, VarSubstsDict, false)
-	    end;
+	    update_vars(AbsType, VarSubstsDict, false);
 	{error,Reason} ->
 	    throw({'$typeserver',Reason})
     end.
-
--spec abs_stack_member(abs_full_type_ref(), abs_stack()) -> boolean().
-abs_stack_member(FullTypeRef, Stack) ->
-    IsSame = fun(R) -> same_abs_full_type_ref(R,FullTypeRef) end,
-    lists:any(IsSame, Stack).
-
--spec same_abs_full_type_ref(abs_full_type_ref(), abs_full_type_ref()) ->
-	  boolean().
-same_abs_full_type_ref({SameMod,SameName,ArgForms1},
-		       {SameMod,SameName,ArgForms2}) ->
-    same_abs_type_list(ArgForms1, ArgForms2);
-same_abs_full_type_ref(_, _) ->
-    false.
-
--spec same_abs_type_list([abs_type()], [abs_type()]) -> boolean().
-same_abs_type_list([], []) ->
-    true;
-same_abs_type_list([X | XTail], [Y | YTail]) ->
-    same_abs_type(X, Y) andalso same_abs_type_list(XTail, YTail);
-same_abs_type_list(_, _) ->
-    false.
-
--spec same_abs_type(abs_type(), abs_type()) -> boolean().
-same_abs_type({from_mod,SameMod,Type1}, {from_mod,SameMod,Type2}) ->
-    same_abs_type(Type1, Type2);
-same_abs_type({var,_,SameName}, {var,_,SameName}) ->
-    true;
-same_abs_type({ann_type,_,[_Var1,Type1]}, {ann_type,_,[_Var2,Type2]}) ->
-    same_abs_type(Type1, Type2);
-same_abs_type({paren_type,_,[Type1]}, {paren_type,_,[Type2]}) ->
-    same_abs_type(Type1, Type2);
-same_abs_type({remote_type,_,Details1}, {remote_type,_,Details2}) ->
-    same_abs_type_list(Details1, Details2);
-same_abs_type({atom,_,SameAtom}, {atom,_,SameAtom}) ->
-    true;
-same_abs_type({integer,_,SameInt}, {integer,_,SameInt}) ->
-    true;
-same_abs_type({op,_,SameOp,Arg1}, {op,_,SameOp,Arg2}) ->
-    same_abs_type(Arg1, Arg2);
-same_abs_type({op,_,SameOp,Arg1a,Arg1b}, {op,_,SameOp,Arg2a,Arg2b}) ->
-    same_abs_type(Arg1a, Arg2a) andalso same_abs_type(Arg1b, Arg2b);
-same_abs_type({type,_,tuple,any}, {type,_,tuple,any}) ->
-    true;
-same_abs_type({type,_,SameName,Args1}, {type,_,SameName,Args2}) ->
-    same_abs_type_list(Args1, Args2);
-same_abs_type(_, _) ->
-    false.
 
 -spec abs_expr_error(atom(), abs_expr()) -> no_return().
 abs_expr_error(ImmReason, Expr) ->
