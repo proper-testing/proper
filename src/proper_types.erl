@@ -79,7 +79,7 @@
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container'.
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean()).
--type index() :: term().
+-type index() :: pos_integer().
 -type value() :: term().
 -type constraint_fun() :: fun((proper_gen:instance()) -> boolean()).
 
@@ -108,7 +108,7 @@
     | {'shrinkers', [proper_shrink:shrinker()]}
     | {'noshrink', boolean()}
     | {'internal_type', raw_type()}
-    | {'internal_types', tuple() | maybe_improper_list(type(),term())}
+    | {'internal_types', tuple() | maybe_improper_list(type(),type() | [])}
       %% The items returned by 'remove' must be of this type.
     | {'get_length', fun((proper_gen:imm_instance()) -> length())}
       %% If this is a container type, this should return the number of elements
@@ -129,7 +129,7 @@
     | {'remove', fun((index(),proper_gen:imm_instance()) ->
 		     proper_gen:imm_instance())}
     | {'retrieve', fun((index(), proper_gen:imm_instance() | tuple()
-			       | maybe_improper_list(type(),term())) ->
+			       | maybe_improper_list(type(),type() | [])) ->
 		       value() | type())}
     | {'update', fun((index(),value(),proper_gen:imm_instance()) ->
 		     proper_gen:imm_instance())}
@@ -591,7 +591,7 @@ tuple(RawFields) ->
 tuple_test(X, Fields) ->
     is_tuple(X) andalso fixed_list_test(tuple_to_list(X), Fields).
 
--spec tuple_update(position(), term(), tuple()) -> tuple().
+-spec tuple_update(index(), value(), tuple()) -> tuple().
 tuple_update(Index, NewElem, Tuple) ->
     setelement(Index, Tuple, NewElem).
 
@@ -615,7 +615,7 @@ exactly(E) ->
 	{is_instance, fun(X) -> X =:= E end}
     ]).
 
--spec fixed_list(maybe_improper_list()) -> type().
+-spec fixed_list(maybe_improper_list(raw_type(),raw_type() | [])) -> type().
 fixed_list(MaybeImproperRawFields) ->
     %% CAUTION: must handle improper lists
     {Fields, Internal, Indices, Retrieve, Update} =
@@ -666,14 +666,22 @@ fixed_list_test(X, ProperFields) ->
     andalso lists:all(fun({E,T}) -> is_instance(E, T) end,
 		      lists:zip(X, ProperFields)).
 
+%% TODO: Move these 2 functions to proper_arith?
+-spec improper_list_retrieve(index(), nonempty_improper_list(value(),value()),
+			     pos_integer()) -> value().
 improper_list_retrieve(Index, List, HeadLen) ->
     case Index =< HeadLen of
 	true  -> lists:nth(Index, List);
 	false -> lists:nthtail(HeadLen, List)
     end.
 
+-spec improper_list_update(index(), value(),
+			   nonempty_improper_list(value(),value()),
+			   pos_integer()) ->
+	  nonempty_improper_list(value(),value()).
 improper_list_update(Index, Value, List, HeadLen) ->
     case Index =< HeadLen of
+	%% TODO: This happens to work, but is not implied by list_update's spec.
 	true  -> proper_arith:list_update(Index, Value, List);
 	false -> lists:sublist(List, HeadLen) ++ Value
     end.

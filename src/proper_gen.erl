@@ -221,9 +221,8 @@ pick(RawType, Size) ->
     end.
 
 -spec contains_fun(term()) -> boolean().
-%% TODO: if improper lists are ever returned, this should cover them too.
 contains_fun(List) when is_list(List) ->
-    lists:any(fun contains_fun/1, List);
+    proper_arith:safe_any(fun contains_fun/1, List);
 contains_fun(Tuple) when is_tuple(Tuple) ->
     contains_fun(tuple_to_list(Tuple));
 contains_fun(Fun) when is_function(Fun) ->
@@ -286,9 +285,9 @@ clean_instance(ImmInstance) ->
     if
 	is_list(ImmInstance) ->
 	    %% CAUTION: this must handle improper lists
-	    proper_arith:safemap(fun clean_instance/1, ImmInstance);
+	    proper_arith:safe_map(fun clean_instance/1, ImmInstance);
 	is_tuple(ImmInstance) ->
-	    proper_arith:tuplemap(fun clean_instance/1, ImmInstance);
+	    proper_arith:tuple_map(fun clean_instance/1, ImmInstance);
 	true ->
 	    ImmInstance
     end.
@@ -505,9 +504,8 @@ exactly_gen(X) ->
 
 %% @private
 -spec fixed_list_gen([proper_types:type()]) -> imm_instance()
-%% @private
 		  ; ({[proper_types:type()],proper_types:type()}) ->
-	  maybe_improper_list(imm_instance(), imm_instance()).
+	  maybe_improper_list(imm_instance(), imm_instance() | []).
 fixed_list_gen({ProperHead,ImproperTail}) ->
     [generate(F) || F <- ProperHead] ++ generate(ImproperTail);
 fixed_list_gen(ProperFields) ->

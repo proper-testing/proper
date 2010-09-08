@@ -26,9 +26,9 @@
 -module(proper_arith).
 
 -export([le/2]).
--export([list_remove/2, list_update/3, list_insert/3, safemap/2, tuplemap/2,
-	 cut_improper_tail/1, head_length/1, find_first/2, filter/2,
-	 partition/2, remove/2, insert/3, unflatten/2]).
+-export([list_remove/2, list_update/3, list_insert/3, safe_map/2, safe_foldl/3,
+	 safe_any/2, tuple_map/2, cut_improper_tail/1, head_length/1,
+	 find_first/2, filter/2, partition/2, remove/2, insert/3, unflatten/2]).
 -export([rand_start/1, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
@@ -76,30 +76,50 @@ list_insert(Index, Elem, List) ->
     {H,T} = lists:split(Index - 1, List),
     H ++ [Elem] ++ T.
 
--spec safemap(fun((T) -> S), maybe_improper_list(T,term())) ->
-	  maybe_improper_list(S,term()).
-safemap(Fun, List) ->
-    safemap_tr(Fun, List, []).
+%% TODO: safe_map and cut_improper_tail can be combined into one generic list-
+%%	 recursing function, with 3 function arguments: apply_to_proper_elems,
+%%	 apply_to_improper_tail, combine
+-spec safe_map(fun((T) -> S), maybe_improper_list(T,T | [])) ->
+	  maybe_improper_list(S,S | []).
+safe_map(Fun, List) ->
+    safe_map_tr(Fun, List, []).
 
--spec safemap_tr(fun((T) -> S), maybe_improper_list(T,term()) | T, [S]) ->
-          maybe_improper_list(S,term()).
-safemap_tr(_Fun, [], AccList) ->
+-spec safe_map_tr(fun((T) -> S), maybe_improper_list(T,T | []) | T, [S]) ->
+	  maybe_improper_list(S,S | []).
+safe_map_tr(_Fun, [], AccList) ->
     lists:reverse(AccList);
-safemap_tr(Fun, [Head | Tail], AccList) ->
-    safemap_tr(Fun, Tail, [Fun(Head) | AccList]);
-safemap_tr(Fun, ImproperTail, AccList) ->
+safe_map_tr(Fun, [Head | Tail], AccList) ->
+    safe_map_tr(Fun, Tail, [Fun(Head) | AccList]);
+safe_map_tr(Fun, ImproperTail, AccList) ->
     lists:reverse(AccList) ++ Fun(ImproperTail).
 
--spec tuplemap(fun((term()) -> term()), tuple()) -> tuple().
-tuplemap(Fun, Tuple) ->
+-spec safe_foldl(fun((T,A) -> A), A, maybe_improper_list(T,T | [])) -> A.
+safe_foldl(_Fun, Acc, []) ->
+    Acc;
+safe_foldl(Fun, Acc, [X | Rest]) ->
+    safe_foldl(Fun, Fun(X,Acc), Rest);
+safe_foldl(Fun, Acc, ImproperTail) ->
+    Fun(ImproperTail, Acc).
+
+-spec safe_any(fun((T) -> boolean()), maybe_improper_list(T,T | [])) ->
+	  boolean().
+safe_any(_Pred, []) ->
+    false;
+safe_any(Pred, [X | Rest]) ->
+    Pred(X) orelse safe_any(Pred, Rest);
+safe_any(Pred, ImproperTail) ->
+    Pred(ImproperTail).
+
+-spec tuple_map(fun((term()) -> term()), tuple()) -> tuple().
+tuple_map(Fun, Tuple) ->
     list_to_tuple(lists:map(Fun, tuple_to_list(Tuple))).
 
--spec cut_improper_tail(maybe_improper_list(T,term())) -> {[T],T} | [T].
+-spec cut_improper_tail(maybe_improper_list(T,T | [])) -> [T] | {[T],T}.
 cut_improper_tail(List) ->
     cut_improper_tail_tr(List, []).
 
--spec cut_improper_tail_tr(maybe_improper_list(T,term()) | T, [T]) ->
-	  {[T],T} | [T].
+-spec cut_improper_tail_tr(maybe_improper_list(T,T | []) | T, [T]) ->
+	  [T] | {[T],T}.
 cut_improper_tail_tr([], AccList) ->
     lists:reverse(AccList);
 cut_improper_tail_tr([Head | Tail], AccList) ->
@@ -107,13 +127,12 @@ cut_improper_tail_tr([Head | Tail], AccList) ->
 cut_improper_tail_tr(ImproperTail, AccList) ->
     {lists:reverse(AccList), ImproperTail}.
 
--spec head_length(maybe_improper_list()) -> length().
+-spec head_length(nonempty_improper_list(term(),term())) -> pos_integer().
 head_length(List) ->
     head_length_tr(List, 0).
 
--spec head_length_tr(term(), length()) -> length().
-head_length_tr([], Len) ->
-    Len;
+-spec head_length_tr(nonempty_improper_list(term(),term()) | term(),
+		     non_neg_integer()) -> pos_integer().
 head_length_tr([_Head | Tail], Len) ->
     head_length_tr(Tail, Len + 1);
 head_length_tr(_ImproperTail, Len) ->

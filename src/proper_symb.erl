@@ -170,8 +170,8 @@ symb_walk_gen(VarValues, SymbTerm,
     SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleInfo) end,
     Term =
 	if
-	    is_list(SymbTerm)  -> proper_arith:safemap(SymbWalk, SymbTerm);
-	    is_tuple(SymbTerm) -> proper_arith:tuplemap(SymbWalk, SymbTerm);
+	    is_list(SymbTerm)  -> proper_arith:safe_map(SymbWalk, SymbTerm);
+	    is_tuple(SymbTerm) -> proper_arith:tuple_map(SymbWalk, SymbTerm);
 	    true               -> SymbTerm
 	end,
     HandleTerm(Term).
