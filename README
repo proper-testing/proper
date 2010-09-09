@@ -36,10 +36,6 @@ Quickstart guide
      proper:check(your_module:some_property()).
        or
      proper:check(your_module:some_property(), <option/options>).
-  You can test the accuracy of an exported function's spec by running:
-     proper:check_spec(mfa()).
-       or
-     proper:check_spec(mfa(), <option/options>).
   You can also try out the random instance generation subsystem by running:
      proper_gen:pick(some_type()).
        or
@@ -466,14 +462,18 @@ new ones:
 ?SUCHTHAT(<X>, <Type>, <Condition>)
     This produces a specialization of <Type>, which only includes those members
     of <Type> that satisfy the constraint <Condition> - that is, those members
-    for which the function 'fun(<X>) -> <Condition> end' returns true. If the
+    for which the function 'fun(<X>) -> <Condition> end' returns 'true'. If the
     constraint is very strict - that is, only a small percentage of instances
     of <Type> pass the test - it will take a lot of tries for the instance
     generation subsystem to randomly produce a valid instance of the specialized
     type. This will result in slower testing - testing may even be stopped
     short, in case the 'constraint_tries' limit is reached (see the 'Options'
     section). If this is the case, it would be more appropriate to generate
-    valid instances of the specialized type using the ?LET macro.
+    valid instances of the specialized type using the ?LET macro. Also make sure
+    that even small instances can satisfy the constraint, since PropEr will only
+    try small instances at the start of testing. If this is not possible, you
+    can instruct PropEr to start at a larger size ('start_size' option - see the
+    'Options' section for details).
 ?SUCHTHATMAYBE(<X>, <Type>, <Condition>)
     Equivalent to the ?SUCHTHAT macro, but the constraint <Condition> is
     considered non-strict: if the 'constraint_tries' limit is reached, the
@@ -547,21 +547,20 @@ Native types support
 --------------------------------------------------------------------------------
 
 PropEr can parse types expressed in Erlang's native type format and convert them
-to its own type format. Such expressions can be used instead of regular PropEr
-type constructors in the second argument of ?FORALL macros. No extra notation is
-required when using native types in ?FORALLs - PropEr will detect which calls
-correspond to native types. A parse transform is used to enable this
-functionality - this parse transform is automatically applied to any module that
-includes the proper.hrl header file. You can disable this feature by compiling
-your modules with -DPROPER_NOTRANS. Note that this will currently also disable
-the automatic exporting of properties.
+to its own type format. Such expressions can be used instead of regular type
+constructors in the second argument of ?FORALLs. No extra notation is required -
+PropEr will detect which calls correspond to native types by applying a parse
+transform during compilation. This parse transform is automatically applied to
+any module that includes the proper.hrl header file. You can disable this
+feature by compiling your modules with -DPROPER_NOTRANS. Note that this will
+currently also disable the automatic exporting of properties.
 
 The use of native types in properties is subject to the following usage rules:
 
 * Native types cannot be used outside of ?FORALLs.
-* Inside ?FORALLs, native types can be combined with other native types or even
-  with PropEr types inside tuples and lists (the constructs '[...]', '{...}' and
-  '++' are all allowed).
+* Inside ?FORALLs, native types can be combined with other native types, and
+  even with PropEr types, inside tuples and lists (the constructs '[...]',
+  '{...}' and '++' are all allowed).
 * All other constructs of Erlang's built-in type system (e.g. '|' for union, '_'
   as an alias of 'any()', '<<_:_>>' binary type syntax or 'fun((...) -> ...)'
   function type syntax) are not allowed in ?FORALLs, since they are rejected by
@@ -589,7 +588,7 @@ The use of native types in properties is subject to the following usage rules:
   - ?LET, ?LETSHRINK: only the top-level base type can be a native type
 * Native type declarations in the ?FORALLs of a module can reference any custom
   type declared in a -type or -opaque attribute of the same module, as long as
-  no module identifier is used in the declaration.
+  no module identifier is used.
 * Typed records cannot be referenced inside ?FORALLs using the '#rec_name{}'
   syntax. To use a typed record in a ?FORALL, enclose the record in a custom
   type like so:
@@ -649,6 +648,42 @@ The use of native types in properties is subject to the following usage rules:
   - using '_' as a type variable in the LHS of a '-type' declaration
   - using the same variable in more than one position in the LHS of a '-type'
     declaration
+
+
+--------------------------------------------------------------------------------
+Spec testing
+--------------------------------------------------------------------------------
+
+You can test the accuracy of an exported function's spec by running:
+     proper:check_spec(mfa()).
+       or
+     proper:check_spec(mfa(), <option/options>).
+Under this mode of operation, PropEr will call the provided function with
+increasingly complex valid inputs (according to its spec) and test that no
+unexpected value is returned.
+
+The use of check_spec is subject to the following usage rules:
+
+* Currently, PropEr can't test functions whose range contains a type that
+  exhibits a certain kind of self-reference: it is (directly or indirectly)
+  self-recursive and at least one recursion path contains only unions and type
+  references. E.g. these types are acceptable:
+     -type a(T) :: T | {'bar',a(T)}.
+     -type b() :: 42 | [c()].
+     -type c() :: {'baz',b()}.
+  while these are not:
+     -type a() :: 'foo' | b().
+     -type b() :: c() | [integer()].
+     -type c() :: 'bar' | a().
+     -type d(T) :: T | d({'baz',T}).
+* Throwing any exception or raising an 'error:badarg' is considered normal
+  behaviour.
+* Only the first clause of the function's spec is considered.
+* The only spec constraints we accept are 'is_subtype' constraints whose first
+  argument is a simple, non-'_' variable. It is not checked whether or not these
+  variables actually appear in the spec. The second argument of an 'is_subtype'
+  constraint cannot contain any non-'_' variables. Multiple constraints for the
+  same variable are not supported.
 
 
 --------------------------------------------------------------------------------
@@ -747,11 +782,11 @@ The use of Auto-ADT is currently subject to the following limitations:
   are not accepted. The only way for an API function to report failure while
   remaining Auto-ADT-compatible is through exceptions.
 * When parsing multi-clause specs, only the first clause is considered.
-* The only spec constraints that are accepted are 'is_subtype' constraints whose
-  first argument is a simple, non-'_' variable. It is not checked whether or not
-  these variables actually appear in the spec. The second argument of an
-  'is_subtype' constraint cannot contain any non-'_' variables. Multiple
-  constraints for the same variable are not supported.
+* The only spec constraints we accept are 'is_subtype' constraints whose first
+  argument is a simple, non-'_' variable. It is not checked whether or not these
+  variables actually appear in the spec. The second argument of an 'is_subtype'
+  constraint cannot contain any non-'_' variables. Multiple constraints for the
+  same variable are not supported.
 * Unexported opaques and opaques with no suitable specs to serve as API calls
   are silently discarded. Those will be treated like ordinary types.
 * Unexported or unspecced functions are silently rejected.
