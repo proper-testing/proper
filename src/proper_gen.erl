@@ -25,10 +25,8 @@
 -module(proper_gen).
 -export([pick/1, pick/2]).
 
--export([gen_state_get/0, gen_state_set/1, gen_state_erase/0]).
 -export([safe_generate/1]).
--export([normal_gen/1, alt_gens/1, clean_instance/1, get_ret_type/2,
-	 function_body/3]).
+-export([generate/1, normal_gen/1, alt_gens/1, clean_instance/1]).
 -export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
 	 binary_str_gen/1, binary_rev/1, binary_len_gen/1, binary_len_str_gen/1,
 	 bitstring_gen/1, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
@@ -38,7 +36,7 @@
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
-	      alt_gens/0, gen_state/0]).
+	      alt_gens/0]).
 
 -include("proper_internal.hrl").
 
@@ -71,67 +69,6 @@
 -type combine_fun() :: fun((instance()) -> imm_instance()).
 %% @private_type alt_gens
 -type alt_gens() :: fun(() -> [imm_instance()]).
--type fun_num() :: pos_integer().
-
-%% @private_type gen_state
--opaque gen_state() :: {[abs_form()] | 'undefined',fun_num() | 'undefined'}.
-
-
-%%------------------------------------------------------------------------------
-%% State handling functions
-%%------------------------------------------------------------------------------
-
--spec get_forms() -> [abs_form()] | 'undefined'.
-get_forms() ->
-    get('$forms').
-
--spec set_forms([abs_form()]) -> 'ok'.
-set_forms(Forms) ->
-    put('$forms', Forms),
-    ok.
-
--spec get_next_fun_num() -> fun_num().
-get_next_fun_num() ->
-    FunNum = case get('$next_fun_num') of
-		 undefined -> 1;
-		 N         -> N
-	     end,
-    put('$next_fun_num', FunNum + 1),
-    FunNum.
-
-%% @private
--spec gen_state_get() -> gen_state().
-gen_state_get() ->
-    {get('$forms'), get('$next_fun_num')}.
-
-%% @private
--spec gen_state_set(gen_state()) -> 'ok'.
-gen_state_set({Forms, NextFunNum}) ->
-    put('$forms', Forms),
-    put('$next_fun_num', NextFunNum),
-    case Forms of
-	undefined ->
-	    ok;
-	_  ->
-	    load_forms()
-    end.
-
-%% @private
--spec gen_state_erase() -> 'ok'.
-gen_state_erase() ->
-    erase('$forms'),
-    erase('$next_fun_num'),
-    _ = code:purge('$temp_mod'),
-    _ = code:delete('$temp_mod'),
-    _ = code:purge('$temp_mod'),
-    ok.
-
--spec load_forms() -> 'ok'.
-load_forms() ->
-    %% TODO: verbose and report options?
-    {ok,'$temp_mod',Code} = compile:forms(get('$forms'), [export_all]),
-    {module,_Mod} = code:load_binary('$temp_mod', "no_file", Code),
-    ok.
 
 
 %%------------------------------------------------------------------------------
@@ -206,8 +143,8 @@ pick(RawType, Size) ->
     case clean_instance(safe_generate(RawType)) of
 	{ok,Instance} = Result ->
 	    Msg = "WARNING: Some garbage has been left in the process registry "
-		  "and the code server to allow for the returned function(s) "
-		  "to run normally.~n"
+		  "and the code server~n"
+		  "to allow for the returned function(s) to run normally.~n"
 		  "Please run proper:global_state_erase() when done.~n",
 	    case contains_fun(Instance) of
 		true  -> io:format(Msg, []);
@@ -292,33 +229,6 @@ clean_instance(ImmInstance) ->
 	    ImmInstance
     end.
 
-%% @private
--spec get_ret_type(function(), arity()) -> proper_types:type().
-get_ret_type(Fun, Arity) ->
-    put('$get_ret_type', true),
-    RetType = apply(Fun, lists:duplicate(Arity,dummy)),
-    erase('$get_ret_type'),
-    RetType.
-
-%% @private
--spec function_body([term()], proper_types:type() | binary(),
-		    {integer(),integer()}) ->
-	  proper_types:type() | instance().
-function_body(Args, ImmRetType, {Seed1,Seed2}) ->
-    RetType = if
-		  is_binary(ImmRetType) -> binary_to_term(ImmRetType);
-		  true                  -> ImmRetType
-	      end,
-    case get('$get_ret_type') of
-	true ->
-	    RetType;
-	_ ->
-	    SavedSeed = get(random_seed),
-	    put(random_seed, {Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
-	    Ret = clean_instance(generate(RetType)),
-	    put(random_seed, SavedSeed),
-	    Ret
-    end.
 
 %%------------------------------------------------------------------------------
 %% Basic type generators
@@ -514,46 +424,9 @@ fixed_list_gen(ProperFields) ->
 %% @private
 -spec function_gen(arity(), proper_types:type()) -> function().
 function_gen(Arity, RetType) ->
-    FunSeed = {proper_arith:rand_int(0,?SEED_RANGE - 1),
-	       proper_arith:rand_int(0,?SEED_RANGE - 1)},
-    case Arity of
-	0 ->
-	    fun() -> ?MODULE:function_body([], RetType, FunSeed) end;
-	1 ->
-	    fun(A) -> ?MODULE:function_body([A], RetType, FunSeed) end;
-	2 ->
-	    fun(A,B) -> ?MODULE:function_body([A,B], RetType, FunSeed) end;
-	3 ->
-	    fun(A,B,C) -> ?MODULE:function_body([A,B,C], RetType, FunSeed) end;
-	4 ->
-	    fun(A,B,C,D) ->
-		?MODULE:function_body([A,B,C,D], RetType, FunSeed)
-	    end;
-	_ ->
-	    OldForms = case get_forms() of
-			   undefined -> [{attribute,0,module,'$temp_mod'}];
-			   F         -> F
-		       end,
-	    {FunName,FunForm} = new_function(Arity, RetType, FunSeed),
-	    Forms = OldForms ++ [FunForm],
-	    set_forms(Forms),
-	    load_forms(),
-	    erlang:make_fun('$temp_mod', FunName, Arity)
-    end.
-
--spec new_function(arity(), proper_types:type(), {integer(),integer()}) ->
-	  {atom(),abs_form()}.
-new_function(Arity, RetType, FunSeed) ->
-    FunNum = get_next_fun_num(),
-    FunName = list_to_atom("f" ++ integer_to_list(FunNum)),
-    Args = [{var,0,list_to_atom("X" ++ integer_to_list(N))}
-	    || N <- lists:seq(1, Arity)],
-    ArgsList = lists:foldr(fun(X,Acc) -> {cons,0,X,Acc} end, {nil,0}, Args),
-    Body = [{call, 0, {remote,0,{atom,0,?MODULE},{atom,0,function_body}},
-	     [ArgsList,
-	      erl_parse:abstract(term_to_binary(RetType)),
-	      erl_parse:abstract(FunSeed)]}],
-    {FunName, {function,0,FunName,Arity,[{clause,0,Args,[],Body}]}}.
+    FunSeed = {proper_arith:rand_int(0, ?SEED_RANGE - 1),
+	       proper_arith:rand_int(0, ?SEED_RANGE - 1)},
+    proper_funserver:create_fun(Arity, RetType, FunSeed).
 
 %% @private
 -spec any_gen(size()) -> imm_instance().

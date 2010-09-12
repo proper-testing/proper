@@ -59,7 +59,7 @@
 		end)).
 
 cexm(FailReason, Bound) ->
-    {cexm, FailReason, Bound, 10, {undefined,undefined}}.
+    {cexm, FailReason, Bound, 10, {state,'$temp_mod',[],1}}.
 
 state_is_clean() ->
     get() =:= []
@@ -205,11 +205,11 @@ assert_function_type_works(FunType) ->
     %% TODO: this isn't exception-safe
     ?assert(proper_types:is_instance(F, FunType)),
     Results1 = assert_is_pure_function(F),
-    GenState = proper_gen:gen_state_get(),
+    FunState = proper_funserver:get_state(),
     proper:global_state_erase(),
     ?assert(state_is_clean()),
     proper:global_state_init_size(10),
-    proper_gen:gen_state_set(GenState),
+    proper_funserver:set_state(FunState),
     Results2 = assert_is_pure_function(F),
     ?assertEqual(Results1,Results2),
     proper:global_state_erase(),
@@ -686,7 +686,7 @@ false_props_test_() ->
      ?_failsWith(time_out, _,
 		  ?FORALL(_, integer(),
 			  ?TIMEOUT(100,timer:sleep(150) =:= ok))),
-     ?_assertRun(false, {failed,5,_SameCExm,0,_SameCExm},
+     ?_assertRun(false, {failed,5,SameCExm,0,SameCExm},
 		 ?FORALL(X,?SIZED(Size,integer(Size,Size)),X < 5), []),
      ?_test(begin
 		proper:check(?FORALL(L, list(atom()),

@@ -165,7 +165,7 @@ is_type(_) ->
 
 %% @private
 -spec equal_types(type(), type()) -> boolean().
-equal_types(_Type, _Type) ->
+equal_types(SameType, SameType) ->
     true;
 equal_types(_, _) ->
     false.
@@ -181,14 +181,10 @@ is_raw_type(X) ->
 	true        -> false
     end.
 
--spec is_raw_type_list(term()) -> boolean().
+-spec is_raw_type_list(maybe_improper_list()) -> boolean().
 %% CAUTION: this must handle improper lists
-is_raw_type_list([]) ->
-    false;
-is_raw_type_list([X | Rest]) ->
-    is_raw_type(X) orelse is_raw_type_list(Rest);
-is_raw_type_list(X) ->
-    is_raw_type(X).
+is_raw_type_list(List) ->
+    proper_arith:safe_any(fun is_raw_type/1, List).
 
 -spec type_from_list([type_prop()]) -> type().
 type_from_list(KeyValueList) ->
@@ -687,7 +683,7 @@ improper_list_update(Index, Value, List, HeadLen) ->
     end.
 
 -spec function([raw_type()] | arity(), raw_type()) -> type().
-function(Arity, RawRetType) when is_integer(Arity), Arity >= 0, Arity =< 256 ->
+function(Arity, RawRetType) when is_integer(Arity), Arity >= 0, Arity =< 255 ->
     RetType = cook_outer(RawRetType),
     ?BASIC([
 	{generator, fun() -> proper_gen:function_gen(Arity, RetType) end},
@@ -700,7 +696,7 @@ function(RawArgTypes, RawRetType) ->
 function_test(X, Arity, RetType) ->
     is_function(X, Arity)
     %% TODO: what if it's not a function we produced?
-    andalso proper_gen:get_ret_type(X, Arity) =:= RetType.
+    andalso equal_types(RetType, proper_funserver:get_ret_type(X)).
 
 -spec any() -> type().
 any() ->

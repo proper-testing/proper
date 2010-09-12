@@ -17,7 +17,7 @@ TXT_FILES=COPYING README
 DOC_SRC_FILES=$(DOC_DIR)/overview.edoc
 MAKE_FILES=Makefile vsn.mk $(APP_SRC_DIR)/proper.app.src
 PACKAGE_FILE=proper.tar.gz
-REGISTERED_PROCS=proper_typeserver
+REGISTERED_PROCS=
 NEEDED_APPS=compiler erts kernel stdlib crypto
 
 include vsn.mk

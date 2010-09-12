@@ -129,31 +129,38 @@
 
 -spec start() -> 'ok'.
 start() ->
-    %% TODO: Is this synchronous?
-    {ok,_Pid} = gen_server:start({local,proper_typeserver}, ?MODULE, dummy, []),
+    {ok,TypeserverPid} = gen_server:start_link(?MODULE, dummy, []),
+    put('$typeserver_pid', TypeserverPid),
+    %% TODO: To make PropEr multi-threaded, this should be copied to each
+    %%       spawned worker process.
     ok.
 
 -spec stop() -> 'ok'.
 stop() ->
-    %% Ugly way to make the stopping synchronous.
-    MonitorRef = erlang:monitor(process, proper_typeserver),
-    gen_server:cast(proper_typeserver, stop),
-    receive
-	{'DOWN',MonitorRef,process,_,_} -> ok
-    end.
+    TypeserverPid = get('$typeserver_pid'),
+    erase('$typeserver_pid'),
+    gen_server:cast(TypeserverPid, stop).
 
 -spec create_spec_test(mfa()) -> rich_result(proper:test()).
 create_spec_test(MFA) ->
-    gen_server:call(proper_typeserver, {create_spec_test,MFA}).
+    TypeserverPid = get('$typeserver_pid'),
+    gen_server:call(TypeserverPid, {create_spec_test,MFA}).
 
 -spec get_type_repr(mod_name(), type_ref(), boolean()) ->
 	  rich_result(type_repr()).
 get_type_repr(Mod, TypeRef, IsRemote) ->
-    gen_server:call(proper_typeserver, {get_type_repr,Mod,TypeRef,IsRemote}).
+    TypeserverPid = get('$typeserver_pid'),
+    gen_server:call(TypeserverPid, {get_type_repr,Mod,TypeRef,IsRemote}).
 
 -spec translate_type(imm_type()) -> rich_result(fin_type()).
 translate_type(ImmType) ->
-    gen_server:call(proper_typeserver, {translate_type,ImmType}).
+    TypeserverPid = get('$typeserver_pid'),
+    gen_server:call(TypeserverPid, {translate_type,ImmType}).
+
+
+%%------------------------------------------------------------------------------
+%% Implementation of gen_server interface
+%%------------------------------------------------------------------------------
 
 -spec init(_) -> {'ok',state()}.
 init(_) ->
@@ -399,7 +406,7 @@ get_mod_info(Mod, AbsCode, ModExpFuns) ->
 		      mod_opaques = ModOpaques} = ModInfo,
 	    ModADTsSet = sets:from_list(ModADTs),
 	    NewModExpTypes = sets:union(ModExpTypes, ModADTsSet),
-	    NewModTypes = lists:foldl(fun store_adt/2, ModTypes, ModADTs),
+	    NewModTypes = lists:foldl(fun store_hard_adt/2, ModTypes, ModADTs),
 	    NewModOpaques = sets:union(ModOpaques, ModADTsSet),
 	    ModInfo#mod_info{mod_exp_types = NewModExpTypes,
 			     mod_types = NewModTypes,
@@ -408,15 +415,13 @@ get_mod_info(Mod, AbsCode, ModExpFuns) ->
 	    ModInfo
     end.
 
--spec store_adt(imm_type_ref(), mod_types()) -> mod_types().
-store_adt({Name,Arity}, ModTypes) ->
+-spec store_hard_adt(imm_type_ref(), mod_types()) -> mod_types().
+store_hard_adt({Name,Arity}, ModTypes) ->
     TypeRef = {type,Name,Arity},
-    TypeRepr = {abs_type,{type,0,any,[]},create_var_names(Arity),not_symb},
+    VarNames = [list_to_atom("X" ++ integer_to_list(N))
+		|| N <- lists:seq(1,Arity)],
+    TypeRepr = {abs_type,{type,0,any,[]},VarNames,not_symb},
     dict:store(TypeRef, TypeRepr, ModTypes).
-
--spec create_var_names(0..26) -> [var_name()].
-create_var_names(Arity) when Arity >= 0, Arity =< 26 ->
-    lists:seq($A, $A - 1 + Arity).
 
 -spec add_mod_info(abs_form(), mod_info()) -> mod_info().
 add_mod_info({attribute,_Line,export_type,TypesList},

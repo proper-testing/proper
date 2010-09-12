@@ -174,7 +174,7 @@
 -record(cexm, {fail_reason :: fail_reason(),
 	       bound       :: imm_testcase(),
 	       size        :: size(),
-	       gen_state   :: proper_gen:gen_state()}).
+	       fun_state   :: proper_funserver:state()}).
 -opaque counterexample() :: #cexm{}.
 
 
@@ -218,18 +218,19 @@ global_state_init(#opts{start_size = Size, constraint_tries = CTries,
     put('$constraint_tries', CTries),
     proper_arith:rand_start(Crypto),
     proper_typeserver:start(),
+    proper_funserver:start(),
     ok.
 
 -spec global_state_restore(counterexample(), opts()) -> 'ok'.
-global_state_restore(#cexm{size = Size, gen_state = GenState}, Opts) ->
+global_state_restore(#cexm{size = Size, fun_state = FunState}, Opts) ->
     global_state_init(Opts),
     put('$size', Size),
-    proper_gen:gen_state_set(GenState),
+    proper_funserver:set_state(FunState),
     ok.
 
 -spec global_state_erase() -> 'ok'.
 global_state_erase() ->
-    proper_gen:gen_state_erase(),
+    proper_funserver:stop(),
     proper_typeserver:stop(),
     proper_arith:rand_stop(),
     erase('$constraint_tries'),
@@ -489,7 +490,7 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Print) ->
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Print) ->
     {passed, ToPass, Samples, Printers};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
-    proper_gen:gen_state_erase(),
+    proper_funserver:reset_state(),
     case run(Test) of
 	{passed, true_prop, MoreSamples, MorePrinters} ->
 	    Print(".", []),
@@ -633,7 +634,7 @@ apply_args(Args, Prop, Ctx) ->
 	  {'failed', counterexample(), fail_actions()}.
 create_failed_result(#ctx{bound = Bound, fail_actions = Actions}, Reason) ->
     CExm = #cexm{fail_reason = Reason, bound = lists:reverse(Bound),
-		 size = get_size(), gen_state = proper_gen:gen_state_get()},
+		 size = get_size(), fun_state = proper_funserver:get_state()},
     {failed, CExm, lists:reverse(Actions)}.
 
 -spec child(pid(), delayed_test(), ctx()) -> 'ok'.
