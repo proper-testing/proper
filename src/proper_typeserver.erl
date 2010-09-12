@@ -1085,7 +1085,7 @@ convert(Mod, {type,_,'fun',[{type,_,product,Domain},Range]}, State, Stack,
 convert(Mod, {type,_,Name,[]}, State, Stack, VarDict) ->
     case ordsets:is_element(Name, ?STD_TYPES_0) of
 	true ->
-	    {ok, {simple,apply(proper_types,Name,[])}, State};
+	    {ok, {simple,proper_types:Name()}, State};
 	false ->
 	    convert_maybe_hard_adt(Mod, Name, [], State, Stack, VarDict)
     end;
