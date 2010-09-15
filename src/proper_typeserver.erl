@@ -26,7 +26,7 @@
 -module(proper_typeserver).
 -behaviour(gen_server).
 
--export([start/0, stop/0, create_spec_test/1, is_instance/3, translate_type/1]).
+-export([start/0, stop/0, create_spec_test/2, is_instance/3, translate_type/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
 -export([get_exp_info/1]).
@@ -115,7 +115,7 @@
 -type rich_result(T) :: {'ok',T} | {'error',term()}.
 -type rich_result2(T,S) :: {'ok',T,S} | {'error',term()}.
 
--type server_call() :: {'create_spec_test',mfa()}
+-type server_call() :: {'create_spec_test',mfa(),timeout()}
 		     | {'get_type_repr',mod_name(),type_ref(),boolean()}
 		     | {'translate_type',imm_type()}.
 -type server_response() :: rich_result(proper:test())
@@ -141,10 +141,10 @@ stop() ->
     erase('$typeserver_pid'),
     gen_server:cast(TypeserverPid, stop).
 
--spec create_spec_test(mfa()) -> rich_result(proper:test()).
-create_spec_test(MFA) ->
+-spec create_spec_test(mfa(), timeout()) -> rich_result(proper:test()).
+create_spec_test(MFA, SpecTimeout) ->
     TypeserverPid = get('$typeserver_pid'),
-    gen_server:call(TypeserverPid, {create_spec_test,MFA}).
+    gen_server:call(TypeserverPid, {create_spec_test,MFA,SpecTimeout}).
 
 -spec get_type_repr(mod_name(), type_ref(), boolean()) ->
 	  rich_result(type_repr()).
@@ -168,8 +168,8 @@ init(_) ->
 
 -spec handle_call(server_call(), _, state()) ->
 	  {'reply',server_response(),state()}.
-handle_call({create_spec_test,MFA}, _From, State) ->
-    case create_spec_test(MFA, State) of
+handle_call({create_spec_test,MFA,SpecTimeout}, _From, State) ->
+    case create_spec_test(MFA, SpecTimeout, State) of
 	{ok,Test,NewState} ->
 	    {reply, {ok,Test}, NewState};
 	{error,_Reason} = Error ->
@@ -211,24 +211,21 @@ code_change(_OldVsn, State, _) ->
 %% Top-level interface
 %%------------------------------------------------------------------------------
 
--spec create_spec_test(mfa(), state()) -> rich_result2(proper:test(),state()).
-create_spec_test({Mod,Fun,_Arity} = MFA, State) ->
+-spec create_spec_test(mfa(), timeout(), state()) ->
+	  rich_result2(proper:test(),state()).
+create_spec_test({Mod,Fun,_Arity} = MFA, SpecTimeout, State) ->
     case get_exp_spec(MFA, State) of
 	{ok,{Domain,Range},NewState} ->
-	    case convert(Mod, {type,0,tuple,Domain}, NewState) of
+	    case convert(Mod, {type,0,'$fixed_list',Domain}, NewState) of
 		{ok,FinType,FinalState} ->
 		    %% TODO: We just catch all exceptions, plus error:badarg.
-		    Test =
-			?FORALL(ArgsTuple, FinType,
-				begin
-				    Args = tuple_to_list(ArgsTuple),
-				    try apply(Mod,Fun,Args) of
-					X -> ?MODULE:is_instance(X,Mod,Range)
-				    catch
-					throw:_      -> true;
-					error:badarg -> true
-				    end
-				end),
+		    Test = ?FORALL(Args, FinType, ?TIMEOUT(SpecTimeout,
+			       try apply(Mod,Fun,Args) of
+				   X -> ?MODULE:is_instance(X,Mod,Range)
+			       catch
+				   throw:_      -> true;
+				   error:badarg -> true
+			       end)),
 		    {ok, Test, FinalState};
 		{error,_Reason} = Error ->
 		    Error
@@ -552,7 +549,7 @@ add_adt(Mod, {Name,Arity}, #mod_info{mod_types = ModTypes} = ModInfo,
 	  tagged_result2(abs_type(),[var_name()]).
 get_symb_call({Mod,_TypeName,_Arity} = FullADTRef, {FunName,Domain,Range}) ->
     BaseCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,Mod},{atom,0,FunName},
-			      {type,0,tuple,Domain}]},
+			      {type,0,'$fixed_list',Domain}]},
     unwrap_range(FullADTRef, BaseCall, Range).
 
 %% TODO: We only recurse into tuples and nonempty lists.
@@ -564,7 +561,7 @@ unwrap_range(FullADTRef, Call, {ann_type,_,[_Var,Type]}) ->
     unwrap_range(FullADTRef, Call, Type);
 unwrap_range(FullADTRef, Call, {type,_,nonempty_list,[ElemForm]}) ->
     NewCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},{atom,0,hd},
-			     {type,0,tuple,[Call]}]},
+			     {type,0,'$fixed_list',[Call]}]},
     unwrap_range(FullADTRef, NewCall, ElemForm);
 unwrap_range(_FullADTRef, _Call, {type,_,tuple,any}) ->
     error;
@@ -576,7 +573,8 @@ unwrap_range(FullADTRef, Call, {type,_,tuple,ElemForms}) ->
 	{Pos,GoodElem} ->
 	    NewCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},
 				     {atom,0,element},
-				     {type,0,tuple,[{integer,0,Pos},Call]}]},
+				     {type,0,'$fixed_list',[{integer,0,Pos},
+							    Call]}]},
 	    unwrap_range(FullADTRef, NewCall, GoodElem)
     end;
 unwrap_range({_Mod,SameName,Arity}, Call, {type,_,SameName,ArgForms}) ->
@@ -1059,7 +1057,9 @@ convert(_Mod, {type,_,nonempty_string,[]}, State, _Stack, _VarDict) ->
 convert(_Mod, {type,_,tuple,any}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:tuple()}, State};
 convert(Mod, {type,_,tuple,ElemForms}, State, Stack, VarDict) ->
-    convert_tuple(Mod, ElemForms, State, Stack, VarDict);
+    convert_tuple(Mod, ElemForms, false, State, Stack, VarDict);
+convert(Mod, {type,_,'$fixed_list',ElemForms}, State, Stack, VarDict) ->
+    convert_tuple(Mod, ElemForms, true, State, Stack, VarDict);
 convert(Mod, {type,_,record,[{atom,_,Name}|FieldForms]}, State, Stack,
 	VarDict) ->
     convert_record(Mod, Name, FieldForms, State, Stack, VarDict);
@@ -1087,6 +1087,16 @@ convert(Mod, {type,_,'fun',[{type,_,product,Domain},Range]}, State, Stack,
 	{error,_Reason} = Error ->
 	    Error
     end;
+%% TODO: These should be replaced with accurate types.
+convert(Mod, {type,_,maybe_improper_list,[]}, State, Stack, VarDict) ->
+    convert(Mod, {type,0,list,[]}, State, Stack, VarDict);
+convert(Mod, {type,_,maybe_improper_list,[Cont,_Ter]}, State, Stack, VarDict) ->
+    convert(Mod, {type,0,list,[Cont]}, State, Stack, VarDict);
+convert(Mod, {type,_,nonempty_maybe_improper_list,[]}, State, Stack, VarDict) ->
+    convert(Mod, {type,0,nonempty_list,[]}, State, Stack, VarDict);
+convert(Mod, {type,_,nonempty_maybe_improper_list,[Cont,_Term]}, State, Stack,
+	VarDict) ->
+    convert(Mod, {type,0,nonempty_list,[Cont]}, State, Stack, VarDict);
 convert(Mod, {type,_,Name,[]}, State, Stack, VarDict) ->
     case ordsets:is_element(Name, ?STD_TYPES_0) of
 	true ->
@@ -1158,12 +1168,12 @@ convert_normal_rec_list(RecFun, RecArgs, NonEmpty) ->
     NewRecArgs = clean_rec_args(RecArgs),
     {NewRecFun, NewRecArgs}.
 
--spec convert_tuple(mod_name(), [abs_type()], state(), stack(), var_dict()) ->
-	  rich_result2(ret_type(),state()).
-convert_tuple(Mod, ElemForms, State, Stack, VarDict) ->
+-spec convert_tuple(mod_name(), [abs_type()], boolean(), state(), stack(),
+		    var_dict()) -> rich_result2(ret_type(),state()).
+convert_tuple(Mod, ElemForms, ToList, State, Stack, VarDict) ->
     case process_list(Mod, ElemForms, State, [tuple | Stack], VarDict) of
 	{ok,RetTypes,NewState} ->
-	    case combine_ret_types(RetTypes, tuple) of
+	    case combine_ret_types(RetTypes, {tuple,ToList}) of
 		{simple,_FinType} = RetType ->
 		    {ok, RetType, NewState};
 		{rec,_RecFun,RecArgs} = RetType ->
@@ -1395,7 +1405,7 @@ convert_new_type(_TypeRef, {Mod,record,Name,SubstsDict} = FullTypeRef,
 		  error             -> OrigFieldType
 	      end
 	      || {FieldName,OrigFieldType} <- OrigFields],
-    case convert_tuple(Mod, [{atom,0,Name} | Fields], State,
+    case convert_tuple(Mod, [{atom,0,Name} | Fields], false, State,
 		       [FullTypeRef | Stack], dict:new()) of
 	{ok, {simple,_FinType}, _NewState} = Result ->
 	    Result;
@@ -1586,15 +1596,16 @@ partition_rec_args(FullTypeRef, RecArgs, OnlyInstanceAccepting) ->
     proper_arith:partition(SameType, RecArgs).
 
 %% Tuples can be of 0 arity, unions of 1 and wunions at least of 2.
--spec combine_ret_types([ret_type()], 'tuple' | 'union' | 'wunion') ->
-	  ret_type().
+-spec combine_ret_types([ret_type()], {'tuple',boolean()} | 'union'
+				      | 'wunion') -> ret_type().
 combine_ret_types(RetTypes, EnclosingType) ->
     case lists:all(fun is_simple_ret_type/1, RetTypes) of
 	true ->
 	    %% This should never happen for wunion.
 	    Combine = case EnclosingType of
-			  tuple -> fun proper_types:tuple/1;
-			  union -> fun proper_types:union/1
+			  {tuple,false} -> fun proper_types:tuple/1;
+			  {tuple,true}  -> fun proper_types:fixed_list/1;
+			  union         -> fun proper_types:union/1
 		      end,
 	    FinTypes = [T || {simple,T} <- RetTypes],
 	    {simple, Combine(FinTypes)};
@@ -1607,29 +1618,32 @@ combine_ret_types(RetTypes, EnclosingType) ->
 	    RecArgLens = [length(RecArgs) || RecArgs <- RecArgsList],
 	    RecFunInfo = {NumTypes,NumRecs,RecArgLens,RecFuns},
 	    FlatRecArgs = lists:flatten(RecArgsList),
-	    NewRecFun =
+	    {NewRecFun,NewRecArgs} =
 		case EnclosingType of
-		    tuple  -> tuple_rec_fun(RecFunInfo);
-		    union  -> union_rec_fun(RecFunInfo);
-		    wunion -> wunion_rec_fun(RecFunInfo)
-		end,
-	    NewRecArgs =
-		case EnclosingType of
-		    tuple  -> soft_clean_rec_args(FlatRecArgs, RecFunInfo);
-		    union  -> clean_rec_args(FlatRecArgs);
-		    wunion -> clean_rec_args(FlatRecArgs)
+		    {tuple,ToList} ->
+			{tuple_rec_fun(RecFunInfo,ToList),
+			 soft_clean_rec_args(FlatRecArgs,RecFunInfo,ToList)};
+		    union ->
+			{union_rec_fun(RecFunInfo),clean_rec_args(FlatRecArgs)};
+		    wunion ->
+			{wunion_rec_fun(RecFunInfo),
+			 clean_rec_args(FlatRecArgs)}
 		end,
 	    {rec, NewRecFun, NewRecArgs}
     end.
 
--spec tuple_rec_fun(rec_fun_info()) -> rec_fun().
-tuple_rec_fun({_NumTypes,NumRecs,RecArgLens,RecFuns}) ->
+-spec tuple_rec_fun(rec_fun_info(), boolean()) -> rec_fun().
+tuple_rec_fun({_NumTypes,NumRecs,RecArgLens,RecFuns}, ToList) ->
+    Combine = case ToList of
+		  true  -> fun proper_types:fixed_list/1;
+		  false -> fun proper_types:tuple/1
+	      end,
     fun(AllGFs,TopSize) ->
 	Size = TopSize div NumRecs,
 	GFsList = proper_arith:unflatten(AllGFs, RecArgLens),
 	ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
 	ZipFun = fun erlang:apply/2,
-	proper_types:tuple(lists:zipwith(ZipFun, RecFuns, ArgsList))
+	Combine(lists:zipwith(ZipFun, RecFuns, ArgsList))
     end.
 
 -spec union_rec_fun(rec_fun_info()) -> rec_fun().
@@ -1670,28 +1684,30 @@ is_simple_ret_type({rec,_RecFun,_RecArgs}) ->
 clean_rec_args(RecArgs) ->
     [{false,F} || {_B,F} <- RecArgs].
 
--spec soft_clean_rec_args(rec_args(), rec_fun_info()) -> rec_args().
-soft_clean_rec_args(RecArgs, RecFunInfo) ->
-    soft_clean_rec_args_tr(RecArgs, [], RecFunInfo, false, 1).
+-spec soft_clean_rec_args(rec_args(), rec_fun_info(), boolean()) -> rec_args().
+soft_clean_rec_args(RecArgs, RecFunInfo, ToList) ->
+    soft_clean_rec_args_tr(RecArgs, [], RecFunInfo, ToList, false, 1).
 
--spec soft_clean_rec_args_tr(rec_args(), rec_args(), rec_fun_info(),
+-spec soft_clean_rec_args_tr(rec_args(), rec_args(), rec_fun_info(), boolean(),
 			     boolean(), position()) -> rec_args().
-soft_clean_rec_args_tr([], Acc, _RecFunInfo, _FoundListInst, _Pos) ->
+soft_clean_rec_args_tr([], Acc, _RecFunInfo, _ToList, _FoundListInst, _Pos) ->
     lists:reverse(Acc);
 soft_clean_rec_args_tr([{{list,_NonEmpty,_AltRecFun},FTRef} | Rest], Acc,
-		       RecFunInfo, true, Pos) ->
+		       RecFunInfo, ToList, true, Pos) ->
     NewArg = {false,FTRef},
-    soft_clean_rec_args_tr(Rest, [NewArg | Acc], RecFunInfo, true, Pos+1);
+    soft_clean_rec_args_tr(Rest, [NewArg|Acc], RecFunInfo, ToList, true, Pos+1);
 soft_clean_rec_args_tr([{{list,NonEmpty,AltRecFun},FTRef} | Rest], Acc,
-		       RecFunInfo, false, Pos) ->
+		       RecFunInfo, ToList, false, Pos) ->
     {NumTypes,NumRecs,RecArgLens,RecFuns} = RecFunInfo,
     AltRecFunPos = get_group(Pos, RecArgLens),
     AltRecFuns = proper_arith:list_update(AltRecFunPos, AltRecFun, RecFuns),
     AltRecFunInfo = {NumTypes,NumRecs,RecArgLens,AltRecFuns},
-    NewArg = {{list,NonEmpty,tuple_rec_fun(AltRecFunInfo)},FTRef},
-    soft_clean_rec_args_tr(Rest, [NewArg | Acc], RecFunInfo, true, Pos+1);
-soft_clean_rec_args_tr([Arg | Rest], Acc, RecFunInfo, FoundListInst, Pos) ->
-    soft_clean_rec_args_tr(Rest, [Arg | Acc], RecFunInfo, FoundListInst, Pos+1).
+    NewArg = {{list,NonEmpty,tuple_rec_fun(AltRecFunInfo,ToList)},FTRef},
+    soft_clean_rec_args_tr(Rest, [NewArg|Acc], RecFunInfo, ToList, true, Pos+1);
+soft_clean_rec_args_tr([Arg | Rest], Acc, RecFunInfo, ToList, FoundListInst,
+		       Pos) ->
+    soft_clean_rec_args_tr(Rest, [Arg | Acc], RecFunInfo, ToList, FoundListInst,
+			   Pos+1).
 
 -spec get_group(pos_integer(), [non_neg_integer()]) -> pos_integer().
 get_group(Pos, AllMembers) ->

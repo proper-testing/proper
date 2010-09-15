@@ -36,9 +36,9 @@
 	 function1/1, function2/1, function3/1, function4/1]).
 -export([resize/2, non_empty/1, noshrink/1]).
 
--export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, get_prop/2,
-	 find_prop/2, new_type/2, subtype/2, safe_is_instance/2, is_instance/2,
-	 unwrap/1, weakly/1, strongly/1, satisfies_all/2]).
+-export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, to_binary/1,
+	 from_binary/1, get_prop/2, find_prop/2, safe_is_instance/2,
+	 is_instance/2, unwrap/1, weakly/1, strongly/1, satisfies_all/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
 	 native_type/2, distlist/3]).
 
@@ -74,6 +74,17 @@
 
 
 %%------------------------------------------------------------------------------
+%% Type declaration macros
+%%------------------------------------------------------------------------------
+
+-define(BASIC(PropList), new_type(PropList,basic)).
+-define(WRAPPER(PropList), new_type(PropList,wrapper)).
+-define(CONSTRUCTED(PropList), new_type(PropList,constructed)).
+-define(CONTAINER(PropList), new_type(PropList,container)).
+-define(SUBTYPE(Type,PropList), subtype(PropList,Type)).
+
+
+%%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
 
@@ -83,8 +94,11 @@
 -type value() :: term().
 -type constraint_fun() :: fun((proper_gen:instance()) -> boolean()).
 
--type type() :: {'$type', [type_prop()]}.
--type raw_type() :: term().
+-opaque type() :: {'$type', [type_prop()]}.
+-type raw_type() :: type() | [raw_type()] | loose_tuple(raw_type()) | term().
+-type loose_tuple(T) :: {} | {T} | {T,T} | {T,T,T} | {T,T,T,T} | {T,T,T,T,T}
+		      | {T,T,T,T,T,T} | {T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T}
+		      | {T,T,T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T,T,T} | tuple().
 -type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
 			| 'parts_type' | 'combine' | 'alt_gens'
 			| 'shrink_to_parts' | 'size_transform' | 'is_instance'
@@ -144,7 +158,7 @@
 %%------------------------------------------------------------------------------
 
 %% @private
--spec cook_outer(raw_type()) -> type().
+-spec cook_outer(raw_type()) -> proper_types:type().
 cook_outer(Type = {'$type',_Props}) ->
     Type;
 cook_outer(RawType) ->
@@ -164,7 +178,7 @@ is_type(_) ->
     false.
 
 %% @private
--spec equal_types(type(), type()) -> boolean().
+-spec equal_types(proper_types:type(), proper_types:type()) -> boolean().
 equal_types(SameType, SameType) ->
     true;
 equal_types(_, _) ->
@@ -186,41 +200,52 @@ is_raw_type(X) ->
 is_raw_type_list(List) ->
     proper_arith:safe_any(fun is_raw_type/1, List).
 
--spec type_from_list([type_prop()]) -> type().
+%% @private
+-spec to_binary(proper_types:type()) -> binary().
+to_binary(Type) ->
+    term_to_binary(Type).
+
+%% @private
+%% TODO: restore: -spec from_binary(binary()) -> proper_types:type().
+from_binary(Binary) ->
+    binary_to_term(Binary).
+
+-spec type_from_list([type_prop()]) -> proper_types:type().
 type_from_list(KeyValueList) ->
     {'$type',orddict:from_list(KeyValueList)}.
 
--spec add_prop(type_prop_name(), type_prop_value(), type()) -> type().
+-spec add_prop(type_prop_name(), type_prop_value(), proper_types:type()) ->
+	  proper_types:type().
 add_prop(PropName, Value, {'$type',Props}) ->
     {'$type',orddict:store(PropName, Value, Props)}.
 
--spec add_props([type_prop()], type()) -> type().
+-spec add_props([type_prop()], proper_types:type()) -> proper_types:type().
 add_props(PropList, {'$type',OldProps}) ->
     {'$type', lists:foldl(fun({N,V},Acc) -> orddict:store(N, V, Acc) end,
 			  OldProps, PropList)}.
 
--spec append_to_prop(type_prop_name(), type_prop_value(), type()) -> type().
+-spec append_to_prop(type_prop_name(), type_prop_value(),
+		     proper_types:type()) -> proper_types:type().
 append_to_prop(PropName, Value, {'$type',Props}) ->
     {'$type',orddict:append(PropName, Value, Props)}.
 
 %% @private
--spec get_prop(type_prop_name(), type()) -> type_prop_value().
+-spec get_prop(type_prop_name(), proper_types:type()) -> type_prop_value().
 get_prop(PropName, {'$type',Props}) ->
     orddict:fetch(PropName, Props).
 
 %% @private
--spec find_prop(type_prop_name(), type()) -> {'ok',type_prop_value()} | 'error'.
+-spec find_prop(type_prop_name(), proper_types:type()) ->
+	  {'ok',type_prop_value()} | 'error'.
 find_prop(PropName, {'$type',Props}) ->
     orddict:find(PropName, Props).
 
-%% @private
--spec new_type([type_prop()], type_kind()) -> type().
+-spec new_type([type_prop()], type_kind()) -> proper_types:type().
 new_type(PropList, Kind) ->
     Type = type_from_list(PropList),
     add_prop(kind, Kind, Type).
 
-%% @private
--spec subtype([type_prop()], type()) -> type().
+-spec subtype([type_prop()], proper_types:type()) -> proper_types:type().
 %% TODO: should the 'is_instance' function etc. be reset for subtypes?
 subtype(PropList, Type) ->
     add_props(PropList, Type).
@@ -266,19 +291,20 @@ is_instance(ImmInstance, RawType) ->
      end)
     andalso weakly(satisfies_all(CleanInstance, Type)).
 
--spec wrapper_test(proper_gen:imm_instance(), type()) -> boolean().
+-spec wrapper_test(proper_gen:imm_instance(), proper_types:type()) -> boolean().
 wrapper_test(ImmInstance, Type) ->
     %% TODO: check if it's actually a raw type that's returned?
     lists:any(fun(T) -> is_instance(ImmInstance, T) end, unwrap(Type)).
 
 %% @private
--spec unwrap(type()) -> [type()].
+%% TODO: restore:-spec unwrap(proper_types:type()) -> [proper_types:type(),...].
 %% TODO: check if it's actually a raw type that's returned?
 unwrap(Type) ->
     RawInnerTypes = proper_gen:alt_gens(Type) ++ [proper_gen:normal_gen(Type)],
     [cook_outer(T) || T <- RawInnerTypes].
 
--spec constructed_test(proper_gen:imm_instance(), type()) -> boolean().
+-spec constructed_test(proper_gen:imm_instance(), proper_types:type()) ->
+	  boolean().
 constructed_test({'$used',ImmParts,ImmInstance}, Type) ->
     PartsType = get_prop(parts_type, Type),
     Combine = get_prop(combine, Type),
@@ -326,7 +352,8 @@ satisfies(Instance, {Test,true}) ->
     {Result,Result}.
 
 %% @private
--spec satisfies_all(proper_gen:instance(), type()) -> {boolean(),boolean()}.
+-spec satisfies_all(proper_gen:instance(), proper_types:type()) ->
+	  {boolean(),boolean()}.
 satisfies_all(Instance, Type) ->
     case find_prop(constraints, Type) of
 	{ok, Constraints} ->
@@ -343,21 +370,22 @@ satisfies_all(Instance, Type) ->
 %%------------------------------------------------------------------------------
 
 %% @private
--spec lazy(proper_gen:nosize_generator()) -> type().
+-spec lazy(proper_gen:nosize_generator()) -> proper_types:type().
 lazy(Gen) ->
     ?WRAPPER([
 	{generator, Gen}
     ]).
 
 %% @private
--spec sized(proper_gen:sized_generator()) -> type().
+-spec sized(proper_gen:sized_generator()) -> proper_types:type().
 sized(Gen) ->
     ?WRAPPER([
 	{generator, Gen}
     ]).
 
 %% @private
--spec bind(raw_type(), proper_gen:combine_fun(), boolean()) -> type().
+-spec bind(raw_type(), proper_gen:combine_fun(), boolean()) ->
+	  proper_types:type().
 bind(RawPartsType, Combine, ShrinkToParts) ->
     PartsType = cook_outer(RawPartsType),
     ?CONSTRUCTED([
@@ -368,7 +396,7 @@ bind(RawPartsType, Combine, ShrinkToParts) ->
 
 %% @private
 -spec shrinkwith(proper_gen:nosize_generator(), proper_gen:alt_gens()) ->
-	  type().
+	  proper_types:type().
 shrinkwith(Gen, DelaydAltGens) ->
     ?WRAPPER([
 	{generator, Gen},
@@ -376,13 +404,14 @@ shrinkwith(Gen, DelaydAltGens) ->
     ]).
 
 %% @private
--spec add_constraint(raw_type(), constraint_fun(), boolean()) -> type().
+-spec add_constraint(raw_type(), constraint_fun(), boolean()) ->
+	  proper_types:type().
 add_constraint(RawType, Condition, IsStrict) ->
     Type = cook_outer(RawType),
     append_to_prop(constraints, {Condition,IsStrict}, Type).
 
 %% @private
--spec native_type(mod_name(), string()) -> type().
+-spec native_type(mod_name(), string()) -> proper_types:type().
 native_type(Mod, TypeStr) ->
     ?WRAPPER([
 	{generator, fun() ->  proper_gen:native_type_gen(Mod,TypeStr) end}
@@ -393,7 +422,8 @@ native_type(Mod, TypeStr) ->
 %% Basic types
 %%------------------------------------------------------------------------------
 
--spec integer(proper_arith:extint(), proper_arith:extint()) -> type().
+-spec integer(proper_arith:extint(), proper_arith:extint()) ->
+	  proper_types:type().
 integer(Low, High) ->
     ?BASIC([
 	{generator, fun(Size) -> proper_gen:integer_gen(Size, Low, High) end},
@@ -409,7 +439,8 @@ integer_test(X, Low, High) ->
     andalso proper_arith:le(Low, X)
     andalso proper_arith:le(X, High).
 
--spec float(proper_arith:extnum(), proper_arith:extnum()) -> type().
+-spec float(proper_arith:extnum(), proper_arith:extnum()) ->
+	  proper_types:type().
 float(Low, High) ->
     ?BASIC([
 	{generator, fun(Size) -> proper_gen:float_gen(Size, Low, High) end},
@@ -425,7 +456,7 @@ float_test(X, Low, High) ->
     andalso proper_arith:le(Low, X)
     andalso proper_arith:le(X, High).
 
--spec atom() -> type().
+-spec atom() -> proper_types:type().
 atom() ->
     ?WRAPPER([
 	{generator, fun proper_gen:atom_gen/1},
@@ -441,7 +472,7 @@ atom_test(X) ->
     %% atoms used internally and never produced by the atom generator.
     andalso (X =:= '' orelse hd(atom_to_list(X)) =/= $$).
 
--spec binary() -> type().
+-spec binary() -> proper_types:type().
 binary() ->
     ?WRAPPER([
 	{generator, fun proper_gen:binary_gen/1},
@@ -450,7 +481,7 @@ binary() ->
 	{is_instance, fun erlang:is_binary/1}
     ]).
 
--spec binary(length()) -> type().
+-spec binary(length()) -> proper_types:type().
 binary(Len) ->
     ?WRAPPER([
 	{generator, fun() -> proper_gen:binary_len_gen(Len) end},
@@ -463,7 +494,7 @@ binary(Len) ->
 binary_len_test(X, Len) ->
     is_binary(X) andalso byte_size(X) =:= Len.
 
--spec bitstring() -> type().
+-spec bitstring() -> proper_types:type().
 bitstring() ->
     ?WRAPPER([
 	{generator, fun proper_gen:bitstring_gen/1},
@@ -471,7 +502,7 @@ bitstring() ->
 	{is_instance, fun erlang:is_bitstring/1}
     ]).
 
--spec bitstring(length()) -> type().
+-spec bitstring(length()) -> proper_types:type().
 bitstring(Len) ->
     ?WRAPPER([
 	{generator, fun() -> proper_gen:bitstring_len_gen(Len) end},
@@ -483,7 +514,7 @@ bitstring(Len) ->
 bitstring_len_test(X, Len) ->
     is_bitstring(X) andalso bit_size(X) =:= Len.
 
--spec list(raw_type()) -> type().
+-spec list(raw_type()) -> proper_types:type().
 % TODO: subtyping would be useful here (list, vector, fixed_list)
 list(RawElemType) ->
     ElemType = cook_outer(RawElemType),
@@ -500,7 +531,7 @@ list(RawElemType) ->
 	{update, fun proper_arith:list_update/3}
     ]).
 
--spec list_test(proper_gen:imm_instance(), type()) -> boolean().
+-spec list_test(proper_gen:imm_instance(), proper_types:type()) -> boolean().
 list_test(X, ElemType) ->
     is_list(X)
     andalso lists:all(fun(E) -> is_instance(E, ElemType) end, X).
@@ -513,7 +544,8 @@ list_get_indices(List) ->
 %% This assumes that:
 %% - instances of size S are always valid instances of size >S
 %% - any recursive calls inside Gen are lazy
--spec distlist(size(), proper_gen:sized_generator(), boolean()) -> type().
+-spec distlist(size(), proper_gen:sized_generator(), boolean()) ->
+	  proper_types:type().
 distlist(Size, Gen, NonEmpty) ->
     ParentType = case NonEmpty of
 		     true  -> non_empty(list(Gen(Size)));
@@ -523,7 +555,7 @@ distlist(Size, Gen, NonEmpty) ->
 	{generator, fun() -> proper_gen:distlist_gen(Size, Gen, NonEmpty) end}
     ]).
 
--spec vector(length(), raw_type()) -> type().
+-spec vector(length(), raw_type()) -> proper_types:type().
 vector(Len, RawElemType) ->
     ElemType = cook_outer(RawElemType),
     Indices = lists:seq(1, Len),
@@ -536,13 +568,14 @@ vector(Len, RawElemType) ->
 	{update, fun proper_arith:list_update/3}
     ]).
 
--spec vector_test(proper_gen:imm_instance(), length(), type()) -> boolean().
+-spec vector_test(proper_gen:imm_instance(), length(), proper_types:type()) ->
+	  boolean().
 vector_test(X, Len, ElemType) ->
     is_list(X)
     andalso length(X) =:= Len
     andalso lists:all(fun(E) -> is_instance(E, ElemType) end, X).
 
--spec union([raw_type()]) -> type().
+-spec union([raw_type(),...]) -> proper_types:type().
 union(RawChoices) ->
     Choices = [cook_outer(C) || C <- RawChoices],
     ?BASIC([
@@ -557,11 +590,11 @@ union(RawChoices) ->
 	  end]}
     ]).
 
--spec union_test(proper_gen:imm_instance(), [type()]) -> boolean().
+-spec union_test(proper_gen:imm_instance(), [proper_types:type()]) -> boolean().
 union_test(X, Choices) ->
     lists:any(fun(C) -> is_instance(X, C) end, Choices).
 
--spec weighted_union([{frequency(),raw_type()}]) -> type().
+-spec weighted_union([{frequency(),raw_type()},...]) -> proper_types:type().
 weighted_union(RawFreqChoices) ->
     CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
     FreqChoices = lists:map(CookFreqType, RawFreqChoices),
@@ -570,7 +603,7 @@ weighted_union(RawFreqChoices) ->
 	{generator, fun() -> proper_gen:weighted_union_gen(FreqChoices) end}
     ]).
 
--spec tuple([raw_type()]) -> type().
+-spec tuple([raw_type()]) -> proper_types:type().
 tuple(RawFields) ->
     Fields = [cook_outer(F) || F <- RawFields],
     Indices = lists:seq(1, length(Fields)),
@@ -583,7 +616,7 @@ tuple(RawFields) ->
 	{update, fun tuple_update/3}
     ]).
 
--spec tuple_test(proper_gen:imm_instance(), [type()]) -> boolean().
+-spec tuple_test(proper_gen:imm_instance(), [proper_types:type()]) -> boolean().
 tuple_test(X, Fields) ->
     is_tuple(X) andalso fixed_list_test(tuple_to_list(X), Fields).
 
@@ -591,7 +624,7 @@ tuple_test(X, Fields) ->
 tuple_update(Index, NewElem, Tuple) ->
     setelement(Index, Tuple, NewElem).
 
--spec loose_tuple(raw_type()) -> type().
+-spec loose_tuple(raw_type()) -> proper_types:type().
 loose_tuple(RawElemType) ->
     ElemType = cook_outer(RawElemType),
     ?WRAPPER([
@@ -600,18 +633,20 @@ loose_tuple(RawElemType) ->
 	{is_instance, fun(X) -> loose_tuple_test(X, ElemType) end}
     ]).
 
--spec loose_tuple_test(proper_gen:imm_instance(), type()) -> boolean().
+-spec loose_tuple_test(proper_gen:imm_instance(), proper_types:type()) ->
+	  boolean().
 loose_tuple_test(X, ElemType) ->
     is_tuple(X) andalso list_test(tuple_to_list(X), ElemType).
 
--spec exactly(term()) -> type().
+-spec exactly(term()) -> proper_types:type().
 exactly(E) ->
     ?BASIC([
 	{generator, fun() -> proper_gen:exactly_gen(E) end},
 	{is_instance, fun(X) -> X =:= E end}
     ]).
 
--spec fixed_list(maybe_improper_list(raw_type(),raw_type() | [])) -> type().
+-spec fixed_list(maybe_improper_list(raw_type(),raw_type() | [])) ->
+	  proper_types:type().
 fixed_list(MaybeImproperRawFields) ->
     %% CAUTION: must handle improper lists
     {Fields, Internal, Indices, Retrieve, Update} =
@@ -644,7 +679,9 @@ fixed_list(MaybeImproperRawFields) ->
     ]).
 
 -spec fixed_list_test(proper_gen:imm_instance(),
-		      [type()] | {[type()],type()}) -> boolean().
+		      [proper_types:type()] | {[proper_types:type()],
+					       proper_types:type()}) ->
+	  boolean().
 fixed_list_test(X, {ProperHead,ImproperTail}) ->
     is_list(X) andalso
     begin
@@ -682,7 +719,7 @@ improper_list_update(Index, Value, List, HeadLen) ->
 	false -> lists:sublist(List, HeadLen) ++ Value
     end.
 
--spec function([raw_type()] | arity(), raw_type()) -> type().
+-spec function([raw_type()] | arity(), raw_type()) -> proper_types:type().
 function(Arity, RawRetType) when is_integer(Arity), Arity >= 0, Arity =< 255 ->
     RetType = cook_outer(RawRetType),
     ?BASIC([
@@ -692,13 +729,14 @@ function(Arity, RawRetType) when is_integer(Arity), Arity >= 0, Arity =< 255 ->
 function(RawArgTypes, RawRetType) ->
     function(length(RawArgTypes), RawRetType).
 
--spec function_test(proper_gen:imm_instance(), arity(), type()) -> boolean().
+-spec function_test(proper_gen:imm_instance(), arity(), proper_types:type()) ->
+	  boolean().
 function_test(X, Arity, RetType) ->
     is_function(X, Arity)
     %% TODO: what if it's not a function we produced?
     andalso equal_types(RetType, proper_funserver:get_ret_type(X)).
 
--spec any() -> type().
+-spec any() -> proper_types:type().
 any() ->
     AllTypes = [integer(),float(),atom(),bitstring(),?LAZY(loose_tuple(any())),
 		?LAZY(list(any()))],
@@ -711,58 +749,58 @@ any() ->
 %% Type aliases
 %%------------------------------------------------------------------------------
 
--spec integer() -> type().
+-spec integer() -> proper_types:type().
 integer() -> integer(inf, inf).
 
--spec non_neg_integer() -> type().
+-spec non_neg_integer() -> proper_types:type().
 non_neg_integer() -> integer(0, inf).
 
--spec pos_integer() -> type().
+-spec pos_integer() -> proper_types:type().
 pos_integer() -> integer(1, inf).
 
--spec neg_integer() -> type().
+-spec neg_integer() -> proper_types:type().
 neg_integer() -> integer(inf, -1).
 
--spec range(proper_arith:extint(), proper_arith:extint()) -> type().
+-spec range(proper_arith:extint(),proper_arith:extint()) -> proper_types:type().
 range(Low, High) -> integer(Low, High).
 
--spec float() -> type().
+-spec float() -> proper_types:type().
 float() -> float(inf, inf).
 
--spec non_neg_float() -> type().
+-spec non_neg_float() -> proper_types:type().
 non_neg_float() -> float(0.0, inf).
 
--spec number() -> type().
+-spec number() -> proper_types:type().
 number() -> union([integer(), float()]).
 
--spec boolean() -> type().
+-spec boolean() -> proper_types:type().
 boolean() -> union(['false', 'true']).
 
--spec byte() -> type().
+-spec byte() -> proper_types:type().
 byte() -> integer(0, 255).
 
--spec char() -> type().
+-spec char() -> proper_types:type().
 char() -> integer(0, 16#10ffff).
 
--spec list() -> type().
+-spec list() -> proper_types:type().
 list() -> list(any()).
 
--spec tuple() -> type().
+-spec tuple() -> proper_types:type().
 tuple() -> loose_tuple(any()).
 
--spec string() -> type().
+-spec string() -> proper_types:type().
 string() -> list(char()).
 
--spec wunion([{frequency(),raw_type()}]) -> type().
+-spec wunion([{frequency(),raw_type()},...]) -> proper_types:type().
 wunion(FreqChoices) -> weighted_union(FreqChoices).
 
--spec term() -> type().
+-spec term() -> proper_types:type().
 term() -> any().
 
--spec timeout() -> type().
+-spec timeout() -> proper_types:type().
 timeout() -> union([non_neg_integer(), 'infinity']).
 
--spec arity() -> type().
+-spec arity() -> proper_types:type().
 arity() -> integer(0, 255).
 
 
@@ -770,61 +808,62 @@ arity() -> integer(0, 255).
 %% QuickCheck compatibility types
 %%------------------------------------------------------------------------------
 
--spec int() -> type().
+-spec int() -> proper_types:type().
 int() -> ?SIZED(Size, integer(-Size,Size)).
 
--spec nat() -> type().
+-spec nat() -> proper_types:type().
 nat() -> ?SIZED(Size, integer(0,Size)).
 
--spec largeint() -> type().
+-spec largeint() -> proper_types:type().
 largeint() -> integer().
 
--spec real() -> type().
+-spec real() -> proper_types:type().
 real() -> float().
 
--spec bool() -> type().
+-spec bool() -> proper_types:type().
 bool() -> boolean().
 
--spec choose(proper_arith:extint(), proper_arith:extint()) -> type().
+-spec choose(proper_arith:extint(), proper_arith:extint()) ->
+	  proper_types:type().
 choose(Low, High) -> integer(Low, High).
 
--spec elements([raw_type()]) -> type().
+-spec elements([raw_type(),...]) -> proper_types:type().
 elements(Choices) -> union(Choices).
 
--spec oneof([raw_type()]) -> type().
+-spec oneof([raw_type(),...]) -> proper_types:type().
 oneof(Choices) -> union(Choices).
 
--spec frequency([{frequency(),raw_type()}]) -> type().
+-spec frequency([{frequency(),raw_type()},...]) -> proper_types:type().
 frequency(FreqChoices) -> weighted_union(FreqChoices).
 
--spec return(term()) -> type().
+-spec return(term()) -> proper_types:type().
 return(X) -> exactly(X).
 
--spec default(raw_type(), raw_type()) -> type().
+-spec default(raw_type(), raw_type()) -> proper_types:type().
 default(Default, OtherType) ->
     union([Default, OtherType]).
 
--spec orderedlist(raw_type()) -> type().
+-spec orderedlist(raw_type()) -> proper_types:type().
 orderedlist(RawElemType) ->
     ?LET(L, list(RawElemType), lists:sort(L)).
 
--spec function0(raw_type()) -> type().
+-spec function0(raw_type()) -> proper_types:type().
 function0(RawRetType) ->
     function(0, RawRetType).
 
--spec function1(raw_type()) -> type().
+-spec function1(raw_type()) -> proper_types:type().
 function1(RawRetType) ->
     function(1, RawRetType).
 
--spec function2(raw_type()) -> type().
+-spec function2(raw_type()) -> proper_types:type().
 function2(RawRetType) ->
     function(2, RawRetType).
 
--spec function3(raw_type()) -> type().
+-spec function3(raw_type()) -> proper_types:type().
 function3(RawRetType) ->
     function(3, RawRetType).
 
--spec function4(raw_type()) -> type().
+-spec function4(raw_type()) -> proper_types:type().
 function4(RawRetType) ->
     function(4, RawRetType).
 
@@ -833,7 +872,7 @@ function4(RawRetType) ->
 %% Additional type specification functions
 %%------------------------------------------------------------------------------
 
--spec resize(size(), raw_type()) -> type().
+-spec resize(size(), raw_type()) -> proper_types:type().
 resize(Size, RawType) ->
     Type = cook_outer(RawType),
     case find_prop(size_transform, Type) of
@@ -843,10 +882,10 @@ resize(Size, RawType) ->
 	    add_prop(size_transform, fun(_S) -> Size end, Type)
     end.
 
--spec non_empty(raw_type()) -> type().
+-spec non_empty(raw_type()) -> proper_types:type().
 non_empty(RawListType) ->
     ?SUCHTHAT(L, RawListType, L =/= []).
 
--spec noshrink(type()) -> type().
+-spec noshrink(proper_types:type()) -> proper_types:type().
 noshrink(Type) ->
     add_prop(noshrink, true, Type).

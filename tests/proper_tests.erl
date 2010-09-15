@@ -510,6 +510,14 @@ undefined_symb_calls() ->
 %%	 can't produce, such as impropers) (also check that everything we
 %%	 produce based on a type is an instance)
 %% TODO: check that functions that throw exceptions pass
+%% TODO: property inside a ?TIMEOUT returning false
+%% TODO: some branch of a ?FORALL has a collect while another doesn't
+%% TODO: symbolic functions returning functions are evaluated?
+%% TODO: pure_check
+%% TODO: spec_timeout option
+%% TODO: defined option precedence
+%% TODO: conversion of maybe_improper_list
+
 
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].
@@ -764,12 +772,12 @@ adts_test_() ->
     [?_assertRun(true, _,
 		 ?FORALL({X,S},{integer(),set()},
 			 sets:is_element(X,sets:add_element(X,S))),
-		 20),
+		 [20]),
      ?_assertRun(true, _,
 		 ?FORALL({X,Y,D},
 			 {integer(),float(),ddict:ddict(integer(),float())},
 			 dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y),
-		 30),
+		 [30]),
      ?_failsWithReason(false_prop,
 		       ?FORALL({X,D},
 			       {boolean(),ddict:ddict(boolean(),integer())},

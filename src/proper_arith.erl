@@ -27,9 +27,10 @@
 
 -export([le/2]).
 -export([list_remove/2, list_update/3, list_insert/3, safe_map/2, safe_foldl/3,
-	 safe_any/2, tuple_map/2, cut_improper_tail/1, head_length/1,
-	 find_first/2, filter/2, partition/2, remove/2, insert/3, unflatten/2]).
--export([rand_start/1, rand_stop/0,
+	 safe_any/2, safe_zip/2, tuple_map/2, cut_improper_tail/1,
+	 head_length/1, find_first/2, filter/2, partition/2, remove/2, insert/3,
+	 unflatten/2]).
+-export([rand_start/1, rand_reseed/0, rand_stop/0,
 	 rand_int/1, rand_int/2, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
 	 rand_bytes/1, distribute/2, jumble/1, rand_choose/1, freq_choose/1]).
@@ -109,6 +110,18 @@ safe_any(Pred, [X | Rest]) ->
     Pred(X) orelse safe_any(Pred, Rest);
 safe_any(Pred, ImproperTail) ->
     Pred(ImproperTail).
+
+-spec safe_zip([T], [S]) -> [{T,S}].
+safe_zip(Xs, Ys) ->
+    safe_zip_tr(Xs, Ys, []).
+
+-spec safe_zip_tr([T], [S], [{T,S}]) -> [{T,S}].
+safe_zip_tr([], _Ys, Acc) ->
+    lists:reverse(Acc);
+safe_zip_tr(_Xs, [], Acc) ->
+    lists:reverse(Acc);
+safe_zip_tr([X|Xtail], [Y|YTail], Acc) ->
+    safe_zip_tr(Xtail, YTail, [{X,Y}|Acc]).
 
 -spec tuple_map(fun((term()) -> term()), tuple()) -> tuple().
 tuple_map(Fun, Tuple) ->
@@ -234,6 +247,13 @@ rand_start(Crypto) ->
 	false ->
 	    ok
     end.
+
+-spec rand_reseed() -> 'ok'.
+rand_reseed() ->
+    %% TODO: This should use the pid of the process somehow, in case two
+    %%       spawned functions call it simultaneously?
+    _ = random:seed(now()),
+    ok.
 
 -spec rand_stop() -> 'ok'.
 rand_stop() ->

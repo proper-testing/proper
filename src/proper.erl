@@ -22,7 +22,8 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([check/1, check/2, check_spec/1, check_spec/2, retest/2, retest/3]).
+-export([check/1, check/2, pure_check/1, pure_check/2, check_spec/1,
+	 check_spec/2, retest/2, retest/3]).
 -export([numtests/2, fails/1, on_output/2]).
 -export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
 	 with_title/1, equals/2]).
@@ -94,7 +95,7 @@
 -type implies_clause() :: {'implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
--type timeout_clause() :: {timeout, time_period(), fun(() -> boolean())}.
+-type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
@@ -114,7 +115,8 @@
 		  | {'max_shrinks', non_neg_integer()}
 		  | 'noshrink'
 		  | {'constraint_tries', pos_integer()}
-		  | 'fails'.
+		  | 'fails'
+		  | {'spec_timeout',timeout()}.
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
 	       long_result      = false           :: boolean(),
 	       crypto           = false           :: boolean(),
@@ -123,7 +125,8 @@
 	       max_shrinks      = 500             :: non_neg_integer(),
 	       noshrink         = false           :: boolean(),
 	       constraint_tries = 50              :: pos_integer(),
-	       expect_fail      = false           :: boolean()}).
+	       expect_fail      = false           :: boolean(),
+	       spec_timeout     = infinity        :: timeout()}).
 -type opts() :: #opts{}.
 %% TODO: ways for the user to define exceptions to not consider as errors??
 %% TODO: should they contain specific reasons (or '$any' for all reasons)?
@@ -237,6 +240,16 @@ global_state_erase() ->
     erase('$size'),
     ok.
 
+-spec spawn_link_migrate(fun(() -> _)) -> pid().
+spawn_link_migrate(ActualFun) ->
+    PDictStuff = get(),
+    Fun = fun() ->
+	      lists:foreach(fun({K,V}) -> put(K,V) end, PDictStuff),
+	      proper_arith:rand_reseed(),
+	      ActualFun()
+	  end,
+    spawn_link(Fun).
+
 -spec save_counterexample(counterexample()) -> 'ok'.
 save_counterexample(CExm) ->
     put('$counterexample', CExm),
@@ -278,6 +291,20 @@ check(OuterTest, UserOpts) ->
     {Test,Opts} = peel_test(OuterTest, ImmOpts),
     test({test,Test}, Opts).
 
+-spec pure_check(outer_test()) -> long_result() | short_result().
+pure_check(OuterTest) ->
+    pure_check(OuterTest, []).
+
+-spec pure_check(outer_test(), [user_opt()] | user_opt()) ->
+	  long_result() | short_result().
+pure_check(OuterTest, ImmUserOpts) ->
+    Parent = self(),
+    UserOpts = add_user_opt(quiet, ImmUserOpts),
+    spawn_link(fun() -> Parent ! {result,check(OuterTest,UserOpts)} end),
+    receive
+	{result,Result} -> Result
+    end.
+
 -spec check_spec(mfa()) -> long_result() | short_result().
 check_spec(MFA) ->
     check_spec(MFA, []).
@@ -299,38 +326,44 @@ retest(OuterTest, CExm, UserOpts) ->
     {Test,Opts} = peel_test(OuterTest, ImmOpts),
     retry(Test, CExm, Opts).
 
--spec parse_opts([user_opt()] | user_opt()) -> opts().
-parse_opts(OptsList) ->
-    parse_opts(OptsList, #opts{}).
+-spec add_user_opt(user_opt(), [user_opt()] | user_opt()) -> [user_opt()].
+add_user_opt(NewUserOpt, UserOptsList) when is_list(UserOptsList) ->
+    [NewUserOpt | UserOptsList];
+add_user_opt(NewUserOpt, SingleUserOpt) ->
+    add_user_opt(NewUserOpt, [SingleUserOpt]).
 
--spec parse_opts([user_opt()] | user_opt(), opts()) -> opts().
+-spec parse_opts([user_opt()] | user_opt()) -> opts().
+parse_opts(UserOptsList) when is_list(UserOptsList) ->
+    parse_opts(lists:reverse(UserOptsList), #opts{});
+parse_opts(SingleUserOpt) ->
+    parse_opts([SingleUserOpt]).
+
+-spec parse_opts([user_opt()], opts()) -> opts().
 parse_opts([], Opts) ->
     Opts;
 parse_opts([UserOpt | Rest], Opts) ->
-    parse_opts(Rest, parse_opt(UserOpt,Opts));
-parse_opts(UserOpt, Opts) ->
-    parse_opt(UserOpt, Opts).
+    parse_opts(Rest, parse_opt(UserOpt,Opts)).
 
 -spec parse_opt(user_opt(), opts()) -> opts().
 parse_opt(UserOpt, Opts) ->
     case UserOpt of
-	quiet                        -> Opts#opts{output_fun =
-					    fun(_,_) -> ok end};
-	{to_file,IoDev}              -> Opts#opts{output_fun =
-					    fun(S,F) ->
-						io:format(IoDev, S, F)
-					    end};
-	{on_output,Print}            -> Opts#opts{output_fun = Print};
-	long_result                  -> Opts#opts{long_result = true};
-	crypto                       -> Opts#opts{crypto = true};
-	{numtests,N}                 -> Opts#opts{numtests = N};
-	N when is_integer(N), N > 0  -> Opts#opts{numtests = N};
-	{start_size,Size}            -> Opts#opts{start_size = Size};
-	{max_shrinks,N}              -> Opts#opts{max_shrinks = N};
-	noshrink                     -> Opts#opts{noshrink = true};
-	{constraint_tries,N}         -> Opts#opts{constraint_tries = N};
-	fails                        -> Opts#opts{expect_fail = true};
-	_                            -> Opts
+	quiet                -> Opts#opts{output_fun = fun(_,_) -> ok end};
+	{to_file,IoDev}      -> Opts#opts{output_fun =
+					      fun(S,F) ->
+						  io:format(IoDev, S, F)
+					      end};
+	{on_output,Print}    -> Opts#opts{output_fun = Print};
+	long_result          -> Opts#opts{long_result = true};
+	crypto               -> Opts#opts{crypto = true};
+	{numtests,N}         -> Opts#opts{numtests = N};
+	N when is_integer(N) -> Opts#opts{numtests = N};
+	{start_size,Size}    -> Opts#opts{start_size = Size};
+	{max_shrinks,N}      -> Opts#opts{max_shrinks = N};
+	noshrink             -> Opts#opts{noshrink = true};
+	{constraint_tries,N} -> Opts#opts{constraint_tries = N};
+	fails                -> Opts#opts{expect_fail = true};
+	{spec_timeout,N}     -> Opts#opts{spec_timeout = N};
+	_                    -> Opts
     end.
 
 -spec peel_test(outer_test(), opts()) -> {test(),opts()}.
@@ -399,7 +432,7 @@ whenfail(Action, DTest) ->
     {whenfail, Action, DTest}.
 
 %% @private
--spec timeout(time_period(), delayed_test()) -> timeout_clause().
+-spec timeout(time_period(), fun(() -> boolean())) -> timeout_clause().
 timeout(Limit, DTest) ->
     {timeout, Limit, DTest}.
 
@@ -413,14 +446,14 @@ equals(A, B) ->
 %%------------------------------------------------------------------------------
 
 -spec test(raw_test(), opts()) -> long_result() | short_result().
-test(RawTest, #opts{numtests = NumTests, output_fun = Print,
-		    long_result = ReturnLong} = Opts) ->
+test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
+		    output_fun = Print, spec_timeout = SpecTimeout} = Opts) ->
     global_state_init(Opts),
     Test = case RawTest of
 	       {test,NormalTest} ->
 		   NormalTest;
 	       {spec,MFA} ->
-		   case proper_typeserver:create_spec_test(MFA) of
+		   case proper_typeserver:create_spec_test(MFA, SpecTimeout) of
 		       {ok,NormalTest} ->
 			   NormalTest;
 		       {error,Reason}  ->
@@ -524,7 +557,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
 add_samples(MoreSamples, none) ->
     MoreSamples;
 add_samples(MoreSamples, Samples) ->
-    lists:zipwith(fun erlang:'++'/2, MoreSamples, Samples).
+    [M ++ S || {M,S} <- proper_arith:safe_zip(MoreSamples,Samples)].
 
 -spec run(test()) -> single_run_result().
 run(Test) ->
@@ -586,7 +619,7 @@ run({whenfail,NewAction,Prop}, #ctx{fail_actions = Actions} = Ctx)->
     force(Prop, NewCtx);
 run({timeout,Limit,Prop}, Ctx) ->
     Self = self(),
-    Child = spawn_link(fun() -> child(Self,Prop,Ctx) end),
+    Child = spawn_link_migrate(fun() -> child(Self,Prop,Ctx) end),
     receive
 	{result, Result} -> Result
     after Limit ->
@@ -749,7 +782,7 @@ report_imm_result({passed,Passed,Samples,Printers},
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Passed, Print) end,
-		  lists:zip(Printers, SortedSamples)),
+		  proper_arith:safe_zip(Printers, SortedSamples)),
     ok;
 report_imm_result({failed,Performed,_CExm,_Actions},
 		  #opts{expect_fail = true, output_fun = Print}) ->
@@ -808,8 +841,7 @@ report_error(type_mismatch, Print) ->
     Print("Error: the variables' and types' structures inside a ?FORALL don't "
 	  "match.~n", []);
 report_error({typeserver,SubReason}, Print) ->
-    Print("Error: couldn't translate a native type.~nThe typeserver "
-	  "responded: ~w~n", [SubReason]);
+    Print("Error: The typeserver encountered an error: ~w~n", [SubReason]);
 report_error(wrong_type, Print) ->
     Print(?MISMATCH_MSG ++ "the instances don't match the types.~n", []);
 report_error(rejected, Print) ->

@@ -172,7 +172,9 @@ equals(<A>, <B>)
     screen.
 
 Additionally, a property may be wrapped with one or more of the following
-outer-level wrappers, which control the behaviour of the testing subsystem:
+outer-level wrappers, which control the behaviour of the testing subsystem. If
+the same wrapper appears more than once in a property, the innermost takes
+precedence.
 
 numtests(<Positive_number>, <Prop>)
     Specifies the number of tests to run. Default is 100.
@@ -231,6 +233,11 @@ detailing the results of testing. The return tuple can be one of the following:
 * {'error', <Type_of_error>}: An error occured - see the 'Errors' section for a
   description of possible errors.
 
+You can also run PropEr in pure mode by using proper:pure_check/1,2 instead of
+proper:check/1,2. Under this mode, PropEr will perform no I/O and will not
+access the caller's process dictionary in any way. Please note that PropEr will
+not actually run as a pure function under this mode.
+
 
 --------------------------------------------------------------------------------
 Counterexamples
@@ -277,9 +284,15 @@ useful parts of a counterexample:
 Options
 --------------------------------------------------------------------------------
 
-Options can be provided as a second argument to proper:check. A single option
-can be written stand-alone, or multiple options can be provided in a list.
-Unrecognized options are ignored. The available options are:
+Options can be provided as an extra argument to testing functions exported from
+the main proper module (such as proper:check). A single option  can be written
+stand-alone, or multiple options can be provided in a list. Unrecognized options
+are ignored. When two settings conflict, the one that comes first in the list
+takes precedence. Settings given inside extrernal wrappers to a property (see
+the 'How to write properties' section) override any conflicting settings
+provided as options.
+
+The available options are:
 
 'quiet'
     Enables quiet mode - no output is printed on screen while PropEr is running.
@@ -321,6 +334,10 @@ Unrecognized options are ignored. The available options are:
     is 50.
 'fails'
     This is equivalent to the 'fails' property wrapper.
+{'spec_timeout', 'infinity' | <Non_negative_number>}
+    When testing a spec, PropEr will consider an input to be failing if the
+    function under test takes more that the specified amount of milliseconds to
+    return for that input.
 
 
 --------------------------------------------------------------------------------
@@ -814,9 +831,8 @@ occurs. Normaly, a message is also printed on screen describing the error.
   constraint(s). This error should only be encountered during normal operation.
 * 'type_mismatch': The variables' and types' structures inside a ?FORALL don't
   match. Please check your properties.
-* {'typeserver', <SubError>}: The typeserver couldn't process a native type
-  inside a ?FORALL. The <SubError> field contains specific information
-  regarding the error.
+* {'typeserver', <SubError>}: The typeserver encountered an error. The
+  <SubError> field contains specific information regarding the error.
 * {'unexpected', <Result>}: A test returned an unexpected result during normal
   operation. If you ever get this error, it means that you have found a bug in
   PropEr - please send an error report to the maintainers and remember to

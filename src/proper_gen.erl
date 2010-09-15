@@ -214,10 +214,6 @@ clean_instance({'$used',_ImmParts,ImmInstance}) ->
     clean_instance(ImmInstance);
 clean_instance({'$to_part',ImmInstance}) ->
     clean_instance(ImmInstance);
-clean_instance({'$call',Mod,Fun,ArgsTuple}) when is_tuple(ArgsTuple) ->
-    Args = tuple_to_list(ArgsTuple),
-    CleanArgs = [clean_instance(A) || A <- Args],
-    {'$call', Mod, Fun, CleanArgs};
 clean_instance(ImmInstance) ->
     if
 	is_list(ImmInstance) ->
@@ -374,13 +370,14 @@ vector_gen_tr(Left, ElemType, AccList) ->
     vector_gen_tr(Left - 1, ElemType, [generate(ElemType) | AccList]).
 
 %% @private
--spec union_gen([proper_types:type()]) -> imm_instance().
+-spec union_gen([proper_types:type(),...]) -> imm_instance().
 union_gen(Choices) ->
     {_Choice,Type} = proper_arith:rand_choose(Choices),
     generate(Type).
 
 %% @private
--spec weighted_union_gen([{frequency(),proper_types:type()}]) -> imm_instance().
+-spec weighted_union_gen([{frequency(),proper_types:type()},...]) ->
+	  imm_instance().
 weighted_union_gen(FreqChoices) ->
     {_Choice,Type} = proper_arith:freq_choose(FreqChoices),
     generate(Type).

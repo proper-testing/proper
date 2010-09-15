@@ -48,14 +48,3 @@
 	proper_types:add_constraint(RawType,fun(X) -> Condition end,true)).
 -define(SUCHTHATMAYBE(X,RawType,Condition),
 	proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
-
-
-%%------------------------------------------------------------------------------
-%% Type declaration macros
-%%------------------------------------------------------------------------------
-
--define(BASIC(PropList), proper_types:new_type(PropList,basic)).
--define(WRAPPER(PropList), proper_types:new_type(PropList,wrapper)).
--define(CONSTRUCTED(PropList), proper_types:new_type(PropList,constructed)).
--define(CONTAINER(PropList), proper_types:new_type(PropList,container)).
--define(SUBTYPE(Type,PropList), proper_types:subtype(PropList,Type)).

@@ -172,7 +172,8 @@ create_fun(Arity,RetType,FunSeed,#state{temp_mod = TempMod, forms = Forms,
 	    || N <- lists:seq(1,Arity)],
     ArgsList = lists:foldr(fun(X,Acc) -> {cons,0,X,Acc} end, {nil,0}, Args),
     Body = [{call, 0, {remote,0,{atom,0,?MODULE},{atom,0,function_body}},
-	     [ArgsList, erl_parse:abstract({bin,term_to_binary(RetType)}),
+	     [ArgsList,
+	      erl_parse:abstract({bin,proper_types:to_binary(RetType)}),
 	      erl_parse:abstract(FunSeed)]}],
     Form = {function,0,FunName,Arity,[{clause,0,Args,[],Body}]},
     NewState = State#state{forms = [Form|Forms], next_fun_num = NextFunNum + 1},
@@ -226,7 +227,7 @@ get_ret_type(Fun) ->
 function_body(Args, ImmRetType, {Seed1,Seed2}) ->
     RetType = case ImmRetType of
 		  {type,T} -> T;
-		  {bin,B}  -> binary_to_term(B)
+		  {bin,B}  -> proper_types:from_binary(B)
 	      end,
     case get('$get_ret_type') of
 	true ->
@@ -236,5 +237,5 @@ function_body(Args, ImmRetType, {Seed1,Seed2}) ->
 	    put(random_seed, {Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
 	    Ret = proper_gen:clean_instance(proper_gen:generate(RetType)),
 	    put(random_seed, SavedSeed),
-	    Ret
+	    proper_symb:internal_eval(Ret)
     end.
