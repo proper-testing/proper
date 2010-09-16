@@ -222,14 +222,12 @@ detailing the results of testing. The return tuple can be one of the following:
   held for all <Number_of_tests_passed> valid produced inputs. The third element
   of the return tuple is a list containing one list of collected categories for
   each separate 'collect' or 'aggregate' clause in the test property.
-* {'failed', <After_so_many_tests>, <Counterexample>}: The property failed for
-  the input contained in <Counterexample> (see the 'Counterexamples' section).
-  PropEr had been instructed not to attempt shrinking on this input.
 * {'failed', <After_so_many_tests>, <Original_counterexample>,
    <Number_of_shrinks>, <Simplified_counterexample>}: The property failed for
   the input contained in <Original_counterexample>, which has been shrunk to the
   minimal failing input contained in <Simplified_counterexample> (see the
-  'Counterexamples' section).
+  'Counterexamples' section). Note that <Number_of_shrinks> will always be zero
+  if PropEr had been instructed not to attempt shrinking on this input.
 * {'error', <Type_of_error>}: An error occured - see the 'Errors' section for a
   description of possible errors.
 
@@ -262,8 +260,18 @@ This will return one of the following:
     reason as before).
   * {'error', <Type_of_error>}: An error occured - see the 'Errors' section for
     a description of possible errors.
-Unless silent mode is active, PropEr will also print a message on screen,
-describing the result of the re-checking.
+Unless a 'no_shrink' option is present, proper:retest will also try to shrink
+the counterexample. The minimal counterexample can again be retrieved by running
+proper:get_counterexample(). Unless silent mode is active, PropEr will also
+print a message on screen, describing the result of the re-checking.
+
+In long-result mode, the return value format of proper:retest becomes:
+  * 'passed': The test case passed the property.
+  * {'failed', <Number_of_Shrinks>, <Minimal_CExm>}: The property still fails
+    for this input. After <Number_of_Shrinks> shrinks, PropEr simplified the
+    counterexample to <Minimal_CExm>.
+  * {'error', <Type_of_error>}: An error occured - see the 'Errors' section for
+    a description of possible errors.
 
 Apart from the actual produced instances of the types in ?FORALL wrappers, a
 counterexample contains some additional information that PropEr needs in order
@@ -677,7 +685,12 @@ You can test the accuracy of an exported function's spec by running:
      proper:check_spec(mfa(), <option/options>).
 Under this mode of operation, PropEr will call the provided function with
 increasingly complex valid inputs (according to its spec) and test that no
-unexpected value is returned.
+unexpected value is returned. If an input is found that violates the spec, it
+will be saved as a counterexample and PropEr will attempt to shrink it. You can
+re-check a counterexample against the spec that it violated by running:
+     proper:retest_spec(mfa(), <CExm>).
+       or
+     proper:retest_spec(mfa(), <CExm>, <option/options>).
 
 The use of check_spec is subject to the following usage rules:
 

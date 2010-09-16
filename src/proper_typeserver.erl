@@ -27,6 +27,7 @@
 -behaviour(gen_server).
 
 -export([start/0, stop/0, create_spec_test/2, is_instance/3, translate_type/1]).
+-export([demo_translate_type/2, demo_is_instance/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
 -export([get_exp_info/1]).
@@ -156,6 +157,37 @@ get_type_repr(Mod, TypeRef, IsRemote) ->
 translate_type(ImmType) ->
     TypeserverPid = get('$typeserver_pid'),
     gen_server:call(TypeserverPid, {translate_type,ImmType}).
+
+-spec demo_translate_type(mod_name(), string()) -> rich_result(fin_type()).
+demo_translate_type(Mod, TypeStr) ->
+    start(),
+    Result = translate_type({Mod,TypeStr}),
+    stop(),
+    Result.
+
+-spec demo_is_instance(term(), mod_name(), string()) ->
+	  boolean() | {'error',term()}.
+demo_is_instance(X, Mod, TypeStr) ->
+    case parse_type(TypeStr) of
+	{ok,TypeForm} ->
+	    start(),
+	    Result =
+		%% Force the typeserver to load the module.
+		case translate_type({Mod,"integer()"}) of
+		    {ok,_FinType} ->
+			try is_instance(X, Mod, TypeForm) of
+			    Bool -> Bool
+			catch
+			    throw:{'$typeserver',Reason} -> {error, Reason}
+			end;
+		    {error,_Reason} = Error ->
+			Error
+		end,
+	    stop(),
+	    Result;
+	{error,_Reason} = Error ->
+	    Error
+    end.
 
 
 %%------------------------------------------------------------------------------

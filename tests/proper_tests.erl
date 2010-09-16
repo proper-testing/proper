@@ -115,22 +115,33 @@ assertEqualsOneOf(X, List) ->
 		   ?assert(state_is_clean()),
 		   ?assertEqual(exp_short_result(Opts),
 				proper:retest(Test, CExm1, Opts)),
-		   ?assert(state_is_clean()),
-		   case proper:check(Test, [long_result | Opts]) of
-		       {failed,_,CExm2,_,CExm3} ->
-			   ?assertNot(lists:member(fails, Opts)),
-			   ?assertNot(lists:member(noshrink, Opts)),
-			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm1),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm2),
-			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm3);
-		       {failed,_,CExm2} ->
-			   ?assert(lists:member(fails, Opts) orelse
-				   lists:member(noshrink, Opts)),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm1),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm2)
-		   end,
+		   {ok,CExm2} = proper:get_counterexample(),
 		   proper:clean_garbage(),
-		   ?assert(state_is_clean())
+		   ?assert(state_is_clean()),
+		   {failed,_,CExm3,Shrinks,CExm4} =
+		       proper:check(Test, [long_result | Opts]),
+		   proper:clean_garbage(),
+		   ?assert(state_is_clean()),
+		   {failed,_,CExm5} =
+		       proper:retest(Test, CExm3, [long_result | Opts]),
+		   proper:clean_garbage(),
+		   ?assert(state_is_clean()),
+		   case lists:member(fails,Opts)
+			orelse lists:member(noshrink,Opts) of
+		       true ->
+			   ?assertEqual(Shrinks, 0),
+			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm1),
+			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm2),
+			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm3),
+			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm4),
+			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm5);
+		       false ->
+			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm1),
+			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm2),
+			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm3),
+			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm4),
+			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm5)
+		   end
 	       end)).
 
 exp_short_result(Opts) ->
@@ -505,7 +516,8 @@ undefined_symb_calls() ->
 %% TODO: more ADT tests: check bad declarations, bad variable use, multi-clause,
 %%	 is_subtype, unacceptable range, unexported opaque, no-specs opaque,
 %%	 unexported/unspecced functions, unbound variables, check as constructed
-%% TODO: module, check_spec, check_module_specs
+%% TODO: module, check_spec, check_module_specs, retest_spec (long result mode
+%%	 too)
 %% TODO: proper_typeserver:is_instance (with existing types too, plus types we
 %%	 can't produce, such as impropers) (also check that everything we
 %%	 produce based on a type is an instance)
@@ -517,6 +529,7 @@ undefined_symb_calls() ->
 %% TODO: spec_timeout option
 %% TODO: defined option precedence
 %% TODO: conversion of maybe_improper_list
+%% TODO: use demo_is_instance and demo_translate_type
 
 
 simple_types_test_() ->
@@ -716,7 +729,7 @@ false_props_test_() ->
 		 ?FORALL(_L,shuffle(lists:seq(1,10)),false)),
      ?_assertRun(false, {failed,1,_,0,_}, ?FORALL(_,integer(0,0),false), []),
      ?_assertRun(false, {failed,1,_,0,_}, ?FORALL(_,float(0.0,0.0),false), []),
-     ?_assertRun(true, {failed,_,_}, fails(?FORALL(_,integer(),false)), []),
+     ?_assertRun(true, {failed,_,_,0,_}, fails(?FORALL(_,integer(),false)), []),
      ?_failsWith(false_prop, [16], ?FORALL(X,?LET(Y,integer(),Y*Y),X < 15)),
      ?_failsWith(false_prop, [0.0],
 		 ?FORALL(_, ?LETSHRINK([A,B],[float(),atom()],{A,B}), false))].
@@ -755,7 +768,7 @@ not_defined_test_() ->
 options_test_() ->
     [?_assertRun(true, {passed,300,[]}, ?FORALL(_,1,true), [{numtests,300}]),
      ?_assertRun(true, {passed,300,[]}, ?FORALL(_,1,true), [300]),
-     ?_assertRun(false, {failed,1,_},
+     ?_assertRun(false, {failed,1,_,0,_},
 		 ?FORALL(L, list(float()),
 			 ?IMPLIES(length(L) > 4, L =:= [])), [noshrink]),
      ?_failRun(false_prop, [42], [42], none,

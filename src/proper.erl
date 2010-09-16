@@ -23,7 +23,7 @@
 
 -module(proper).
 -export([check/1, check/2, pure_check/1, pure_check/2, check_spec/1,
-	 check_spec/2, retest/2, retest/3]).
+	 check_spec/2, retest/2, retest/3, retest_spec/2, retest_spec/3]).
 -export([numtests/2, fails/1, on_output/2]).
 -export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
 	 with_title/1, equals/2]).
@@ -147,6 +147,21 @@
 			      [stats_printer()]}
 			   | {'failed', counterexample(), fail_actions()}
 			   | {'error', single_run_error_reason()}.
+-type imm_result() :: {'passed', pos_integer(), [sample()], [stats_printer()]}
+		    | {'failed',pos_integer(),counterexample(),fail_actions()}
+		    | {'error', error_reason()}.
+-type long_result() :: {'passed', pos_integer(), [sample()]}
+		     | {'failed', pos_integer(), counterexample(),
+			 non_neg_integer(), counterexample()}
+		     | {'error', error_reason()}.
+-type short_result() :: boolean() | {'error', error_reason()}.
+-type result() :: long_result() | short_result().
+-type long_rerun_result() :: 'passed'
+			   | {'failed', non_neg_integer(), counterexample()}
+			   | {'error', rerun_error_reason()}.
+-type short_rerun_result() :: boolean() | {'error', rerun_error_reason()}.
+-type rerun_result() :: long_rerun_result() | short_rerun_result().
+
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
 -type fail_reason() :: 'false_prop' | 'time_out'
 		     | {'exception',exc_kind(),exc_reason(),stacktrace()}.
@@ -157,22 +172,9 @@
 			     | {'typeserver',term()}.
 -type single_run_error_reason() :: common_error_reason() | 'wrong_type'
 				 | 'rejected' | 'too_many_instances'.
-
--type rerun_result() :: boolean() | {'error', rerun_error_reason()}.
--type rerun_error_reason() :: single_run_error_reason() | 'too_few_instances'.
-
--type error_result() :: {'error', error_reason()}.
 -type error_reason() :: common_error_reason() | 'cant_satisfy'
 		      | {'unexpected', single_run_result()}.
--type imm_result() :: error_result()
-		    | {'passed', pos_integer(), [sample()], [stats_printer()]}
-		    | {'failed',pos_integer(),counterexample(),fail_actions()}.
--type long_result() :: error_result()
-		     | {'passed', pos_integer(), [sample()]}
-		     | {'failed', pos_integer(), counterexample()}
-		     | {'failed', pos_integer(), counterexample(),
-			 non_neg_integer(), counterexample()}.
--type short_result() :: boolean() | error_result().
+-type rerun_error_reason() :: single_run_error_reason() | 'too_few_instances'.
 
 -record(cexm, {fail_reason :: fail_reason(),
 	       bound       :: imm_testcase(),
@@ -280,23 +282,21 @@ get_bound(#cexm{bound = ImmTestCase}) ->
 %% Outwards interface functions
 %%------------------------------------------------------------------------------
 
--spec check(outer_test()) -> long_result() | short_result().
+-spec check(outer_test()) -> result().
 check(OuterTest) ->
     check(OuterTest, []).
 
--spec check(outer_test(), [user_opt()] | user_opt()) ->
-	  long_result() | short_result().
+-spec check(outer_test(), [user_opt()] | user_opt()) -> result().
 check(OuterTest, UserOpts) ->
     ImmOpts = parse_opts(UserOpts),
     {Test,Opts} = peel_test(OuterTest, ImmOpts),
     test({test,Test}, Opts).
 
--spec pure_check(outer_test()) -> long_result() | short_result().
+-spec pure_check(outer_test()) -> result().
 pure_check(OuterTest) ->
     pure_check(OuterTest, []).
 
--spec pure_check(outer_test(), [user_opt()] | user_opt()) ->
-	  long_result() | short_result().
+-spec pure_check(outer_test(), [user_opt()] | user_opt()) -> result().
 pure_check(OuterTest, ImmUserOpts) ->
     Parent = self(),
     UserOpts = add_user_opt(quiet, ImmUserOpts),
@@ -305,12 +305,11 @@ pure_check(OuterTest, ImmUserOpts) ->
 	{result,Result} -> Result
     end.
 
--spec check_spec(mfa()) -> long_result() | short_result().
+-spec check_spec(mfa()) -> result().
 check_spec(MFA) ->
     check_spec(MFA, []).
 
--spec check_spec(mfa(), [user_opt()] | user_opt()) ->
-	  long_result() | short_result().
+-spec check_spec(mfa(), [user_opt()] | user_opt()) -> result().
 check_spec(MFA, UserOpts) ->
     Opts = parse_opts(UserOpts),
     test({spec,MFA}, Opts).
@@ -324,7 +323,17 @@ retest(OuterTest, CExm) ->
 retest(OuterTest, CExm, UserOpts) ->
     ImmOpts = parse_opts(UserOpts),
     {Test,Opts} = peel_test(OuterTest, ImmOpts),
-    retry(Test, CExm, Opts).
+    retry({test,Test}, CExm, Opts).
+
+-spec retest_spec(mfa(), counterexample()) -> rerun_result().
+retest_spec(MFA, CExm) ->
+    retest_spec(MFA, CExm, []).
+
+-spec retest_spec(mfa(), counterexample(), [user_opt()] | user_opt()) ->
+	  rerun_result().
+retest_spec(MFA, CExm, UserOpts) ->
+    Opts = parse_opts(UserOpts),
+    retry({spec,MFA}, CExm, Opts).
 
 -spec add_user_opt(user_opt(), [user_opt()] | user_opt()) -> [user_opt()].
 add_user_opt(NewUserOpt, UserOptsList) when is_list(UserOptsList) ->
@@ -442,71 +451,95 @@ equals(A, B) ->
 
 
 %%------------------------------------------------------------------------------
-%% Main testing functions
+%% Bulk testing functions
 %%------------------------------------------------------------------------------
 
--spec test(raw_test(), opts()) -> long_result() | short_result().
+-spec test(raw_test(), opts()) -> result().
 test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
-		    output_fun = Print, spec_timeout = SpecTimeout} = Opts) ->
+		    output_fun = Print} = Opts) ->
     global_state_init(Opts),
-    Test = case RawTest of
-	       {test,NormalTest} ->
-		   NormalTest;
-	       {spec,MFA} ->
-		   case proper_typeserver:create_spec_test(MFA, SpecTimeout) of
-		       {ok,NormalTest} ->
-			   NormalTest;
-		       {error,Reason}  ->
-			   ?FORALL(_, dummy, throw({'$typeserver',Reason}))
-		   end
-	   end,
+    Test = cook_test(RawTest, Opts),
     ImmResult = perform(NumTests, Test, Print),
     Print("~n", []),
     report_imm_result(ImmResult, Opts),
-    ShortResult = get_short_result(ImmResult, Opts),
-    LongResult = get_long_result(ImmResult, Test, Opts),
+    {ShortResult,LongResult} = get_result(ImmResult, Test, Opts),
     global_state_erase(),
     case ReturnLong of
 	true  -> LongResult;
 	false -> ShortResult
     end.
 
--spec retry(test(), counterexample(), opts()) -> rerun_result().
-retry(Test, #cexm{bound = ImmTestCase} = CExm, Opts) ->
+-spec retry(raw_test(), counterexample(), opts()) -> rerun_result().
+retry(RawTest, #cexm{bound = ImmTestCase, fail_reason = OldReason} = CExm,
+      #opts{long_result = ReturnLong, output_fun = Print} = Opts) ->
     global_state_restore(CExm, Opts),
+    Test = cook_test(RawTest, Opts),
     SingleRunResult = rerun(Test, ImmTestCase),
-    RerunResult = get_rerun_result(SingleRunResult, CExm, Opts),
+    report_rerun_result(SingleRunResult, OldReason, Print),
+    {ShortResult,LongResult} =
+	get_rerun_result(SingleRunResult, Test, OldReason, Opts),
     global_state_erase(),
-    RerunResult.
+    case ReturnLong of
+	true  -> LongResult;
+	false -> ShortResult
+    end.
 
--spec get_short_result(imm_result(), opts()) -> short_result().
-get_short_result({passed,_Passed,_Samples,_Printers}, Opts) ->
-    not Opts#opts.expect_fail;
-get_short_result({failed,_Performed,_CExm,_Actions}, Opts) ->
-    Opts#opts.expect_fail;
-get_short_result({error,_Reason} = ErrorResult, _Opts) ->
-    ErrorResult.
+-spec cook_test(raw_test(), opts()) -> test().
+cook_test({test,Test}, _Opts) ->
+    Test;
+cook_test({spec,MFA}, #opts{spec_timeout = SpecTimeout}) ->
+    case proper_typeserver:create_spec_test(MFA, SpecTimeout) of
+	{ok,Test} ->
+	    Test;
+	{error,Reason}  ->
+	    ?FORALL(_, dummy, throw({'$typeserver',Reason}))
+    end.
 
--spec get_long_result(imm_result(), test(), opts()) -> long_result().
-get_long_result({passed,Passed,Samples,_Printers}, _Test, _Opts) ->
-    {passed, Passed, Samples};
-get_long_result({failed,Performed,CExm,_Actions}, Test,
-		 #opts{expect_fail = false, noshrink = false,
-		       max_shrinks = MaxShrinks, output_fun = Print}) ->
-    Print("Shrinking", []),
-    #cexm{fail_reason = Reason, bound = ImmTestCase} = CExm,
-    StrTest = skip_to_next(Test),
-    {Shrinks, MinImmTestCase} =
-	proper_shrink:shrink(ImmTestCase, StrTest, Reason, MaxShrinks, Print),
-    {failed, MinCExm, MinActions} = rerun(Test, MinImmTestCase),
-    report_shrinking(Shrinks, MinImmTestCase, MinActions, Print),
+-spec get_result(imm_result(),test(),opts()) -> {short_result(),long_result()}.
+get_result({passed,Passed,Samples,_Printers}, _Test, Opts) ->
+    {not Opts#opts.expect_fail, {passed,Passed,Samples}};
+get_result({failed,Performed,CExm,_Actions}, Test, Opts) ->
+    {Shrinks,MinCExm} = shrink(Test, CExm, Opts),
     save_counterexample(MinCExm),
-    {failed, Performed, CExm, Shrinks, MinCExm};
-get_long_result({failed,Performed,CExm,_Actions}, _Test, _Opts) ->
-    save_counterexample(CExm),
-    {failed, Performed, CExm};
-get_long_result(ImmResult, _Test, _Opts) ->
-    ImmResult.
+    {Opts#opts.expect_fail, {failed,Performed,CExm,Shrinks,MinCExm}};
+get_result({error,_Reason} = ErrorResult, _Test, _Opts) ->
+    {ErrorResult, ErrorResult}.
+
+-spec get_rerun_result(single_run_result(), test(), fail_reason(), opts()) ->
+	  {short_rerun_result(),long_rerun_result()}.
+get_rerun_result({passed,true_prop,_Samples,_Printers}, _Test, _OldReason,
+		 Opts) ->
+    {not Opts#opts.expect_fail, passed};
+get_rerun_result({passed,didnt_crash,_Samples,_Printers}, _Test, OldReason,
+		 Opts) ->
+    case OldReason of
+	{exception,_ExcKind,_ExcReason,_StackTrace} ->
+	    {not Opts#opts.expect_fail, passed};
+	_ ->
+	    ErrorResult = {error,too_few_instances},
+	    {ErrorResult, ErrorResult}
+    end;
+get_rerun_result({failed,CExm,_Actions}, Test, _OldReason, Opts) ->
+    {Shrinks,MinCExm} = shrink(Test, CExm, Opts),
+    save_counterexample(MinCExm),
+    {Opts#opts.expect_fail, {failed,Shrinks,MinCExm}};
+get_rerun_result({error,_Reason} = ErrorResult, _Test, _OldReason, _Opts) ->
+    {ErrorResult, ErrorResult}.
+
+-spec shrink(test(), counterexample(), opts()) ->
+	  {non_neg_integer(),counterexample()}.
+shrink(Test, #cexm{fail_reason = Reason, bound = ImmTestCase},
+       #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
+	     output_fun = Print}) ->
+    Print("Shrinking ", []),
+    StrTest = skip_to_next(Test),
+    {Shrinks,MinImmTestCase} =
+	proper_shrink:shrink(ImmTestCase, StrTest, Reason, MaxShrinks, Print),
+    {failed,MinCExm,MinActions} = rerun(Test, MinImmTestCase),
+    report_shrinking(Shrinks, MinImmTestCase, MinActions, Print),
+    {Shrinks, MinCExm};
+shrink(_Test, CExm, _Opts) ->
+    {0, CExm}.
 
 -spec perform(non_neg_integer(), test(), output_fun()) -> imm_result().
 perform(NumTests, Test, Print) ->
@@ -558,6 +591,11 @@ add_samples(MoreSamples, none) ->
     MoreSamples;
 add_samples(MoreSamples, Samples) ->
     [M ++ S || {M,S} <- proper_arith:safe_zip(MoreSamples,Samples)].
+
+
+%%------------------------------------------------------------------------------
+%% Single test runner functions
+%%------------------------------------------------------------------------------
 
 -spec run(test()) -> single_run_result().
 run(Test) ->
@@ -673,7 +711,7 @@ create_failed_result(#ctx{bound = Bound, fail_actions = Actions}, Reason) ->
 -spec child(pid(), delayed_test(), ctx()) -> 'ok'.
 child(Father, Prop, Ctx) ->
     Result = force(Prop, Ctx),
-    Father ! {result, Result},
+    Father ! {result,Result},
     ok.
 
 -spec clear_mailbox() -> 'ok'.
@@ -689,11 +727,10 @@ threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) ->
     {module,FunMod} = erlang:fun_info(Fun, module),
     {name,FunName} = erlang:fun_info(Fun, name),
     {arity,FunArity} = erlang:fun_info(Fun, arity),
-    TopArity =
-	if
-	    is_integer(TopArgs) -> TopArgs;
-	    is_list(TopArgs)    -> length(TopArgs)
-	end,
+    TopArity = if
+		   is_integer(TopArgs) -> TopArgs;
+		   is_list(TopArgs)    -> length(TopArgs)
+	       end,
     FunMod =:= TopMod andalso FunName =:= TopName andalso FunArity =:= TopArity.
 
 -spec clean_testcase(imm_testcase()) -> clean_testcase().
@@ -786,51 +823,41 @@ report_imm_result({passed,Passed,Samples,Printers},
     ok;
 report_imm_result({failed,Performed,_CExm,_Actions},
 		  #opts{expect_fail = true, output_fun = Print}) ->
-    Print("OK, failed as expected, after ~b tests.~n", [Performed]),
-    ok;
+    Print("OK, failed as expected, after ~b tests.~n", [Performed]);
 report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
-		   Actions},
-		  #opts{expect_fail = false, output_fun = Print}) ->
+		   Actions}, #opts{expect_fail = false, output_fun = Print}) ->
     Print("Failed, after ~b tests.~n", [Performed]),
     report_fail_reason(Reason, Print, false),
     print_bound(Bound, Print),
-    execute_actions(Actions),
-    ok;
+    execute_actions(Actions);
 report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
-    report_error(Reason, Print),
-    ok.
+    report_error(Reason, Print).
 
--spec get_rerun_result(single_run_result(), counterexample(), opts()) ->
-	  rerun_result().
-get_rerun_result({passed,true_prop,_Samples,_Printers}, _CExm,
-		 #opts{expect_fail = ExpectF, output_fun = Print}) ->
-    Print("The input passed the test.~n", []),
-    not ExpectF;
-get_rerun_result({passed,didnt_crash,_Samples,_Printers},
-		 #cexm{fail_reason = Reason},
-		 #opts{expect_fail = ExpectF, output_fun = Print}) ->
-    case Reason of
+-spec report_rerun_result(single_run_result(), fail_reason(), output_fun()) ->
+	  'ok'.
+report_rerun_result({passed,true_prop,_Samples,_Printers}, _OldReason, Print) ->
+    Print("The input passed the test.~n", []);
+report_rerun_result({passed,didnt_crash,_Samples,_Printers},OldReason,Print) ->
+    case OldReason of
 	{exception,_ExcKind,_ExcReason,_StackTrace} ->
-	    Print("The input didn't raise an early exception.~n", []),
-	    not ExpectF;
+	    Print("The input didn't raise an early exception.~n", []);
 	_ ->
-	    report_error(too_few_instances, Print),
-	    {error, too_few_instances}
+	    report_error(too_few_instances, Print)
     end;
-get_rerun_result({failed,#cexm{fail_reason = NewReason},Actions},
-		 #cexm{fail_reason = OldReason},
-		 #opts{expect_fail = ExpectF, output_fun = Print}) ->
+report_rerun_result({failed,#cexm{fail_reason = NewReason},Actions}, OldReason,
+		    Print) ->
     Print("The input still fails the test", []),
     case same_fail_reason(OldReason, NewReason) of
-	true  -> Print(".~n", []);
-	false -> Print(", but for a different reason:~n", []),
-		 report_fail_reason(NewReason, Print, true)
+	true ->
+	    Print(".~n", []),
+	    report_fail_reason(NewReason, Print, false);
+	false ->
+	    Print(", but for a different reason:~n", []),
+	    report_fail_reason(NewReason, Print, true)
     end,
-    execute_actions(Actions),
-    ExpectF;
-get_rerun_result({error,Reason} = Error, _CExm, #opts{output_fun = Print}) ->
-    report_error(Reason, Print),
-    Error.
+    execute_actions(Actions);
+report_rerun_result({error,Reason}, _OldReason, Print) ->
+    report_error(Reason, Print).
 
 %% @private
 -spec report_error(rerun_error_reason() | error_reason(), output_fun()) -> 'ok'.
@@ -884,8 +911,7 @@ execute_actions(Actions) ->
 report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
     Print("(~b times)~n", [Shrinks]),
     print_bound(MinImmTestCase, Print),
-    execute_actions(MinActions),
-    ok.
+    execute_actions(MinActions).
 
 
 %%------------------------------------------------------------------------------
