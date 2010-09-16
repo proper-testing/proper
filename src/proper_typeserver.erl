@@ -509,7 +509,7 @@ process_fun_clause({type,_,bounded_fun,[MainClause,Constraints]}) ->
 			   [{atom,_,is_subtype},[{var,_,V},T]]} <- Constraints,
 			  V =/= '_'],
     VarSubstsDict = dict:from_list(VarSubsts),
-    Domain = update_vars(RawDomain, VarSubstsDict, false),
+    Domain = [update_vars(A, VarSubstsDict, false) || A <- RawDomain],
     Range = update_vars(RawRange, VarSubstsDict, false),
     {Domain, Range}.
 
