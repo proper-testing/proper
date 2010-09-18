@@ -517,7 +517,7 @@ undefined_symb_calls() ->
 %%	 is_subtype, unacceptable range, unexported opaque, no-specs opaque,
 %%	 unexported/unspecced functions, unbound variables, check as constructed
 %% TODO: module, check_spec, check_module_specs, retest_spec (long result mode
-%%	 too)
+%%	 too, other options pass)
 %% TODO: proper_typeserver:is_instance (with existing types too, plus types we
 %%	 can't produce, such as impropers) (also check that everything we
 %%	 produce based on a type is an instance)

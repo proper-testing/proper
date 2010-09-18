@@ -26,7 +26,8 @@
 -module(proper_typeserver).
 -behaviour(gen_server).
 
--export([start/0, stop/0, create_spec_test/2, is_instance/3, translate_type/1]).
+-export([start/0, stop/0, create_spec_test/2, get_exp_specced/1, is_instance/3,
+	 translate_type/1]).
 -export([demo_translate_type/2, demo_is_instance/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
@@ -117,9 +118,11 @@
 -type rich_result2(T,S) :: {'ok',T,S} | {'error',term()}.
 
 -type server_call() :: {'create_spec_test',mfa(),timeout()}
+		     | {'get_exp_specced',mod_name()}
 		     | {'get_type_repr',mod_name(),type_ref(),boolean()}
 		     | {'translate_type',imm_type()}.
 -type server_response() :: rich_result(proper:test())
+			 | rich_result([mfa()])
 			 | rich_result(type_repr())
 			 | rich_result(fin_type()).
 
@@ -146,6 +149,11 @@ stop() ->
 create_spec_test(MFA, SpecTimeout) ->
     TypeserverPid = get('$typeserver_pid'),
     gen_server:call(TypeserverPid, {create_spec_test,MFA,SpecTimeout}).
+
+-spec get_exp_specced(mod_name()) -> rich_result([mfa()]).
+get_exp_specced(Mod) ->
+    TypeserverPid = get('$typeserver_pid'),
+    gen_server:call(TypeserverPid, {get_exp_specced,Mod}).
 
 -spec get_type_repr(mod_name(), type_ref(), boolean()) ->
 	  rich_result(type_repr()).
@@ -207,6 +215,13 @@ handle_call({create_spec_test,MFA,SpecTimeout}, _From, State) ->
 	{error,_Reason} = Error ->
 	    {reply, Error, State}
     end;
+handle_call({get_exp_specced,Mod}, _From, State) ->
+    case get_exp_specced(Mod, State) of
+	{ok,MFAs,NewState} ->
+	    {reply, {ok,MFAs}, NewState};
+	{error,_Reason} = Error ->
+	    {reply, Error, State}
+    end;
 handle_call({get_type_repr,Mod,TypeRef,IsRemote}, _From, State) ->
     case get_type_repr(Mod, TypeRef, IsRemote, State) of
 	{ok,TypeRepr,NewState} ->
@@ -245,23 +260,10 @@ code_change(_OldVsn, State, _) ->
 
 -spec create_spec_test(mfa(), timeout(), state()) ->
 	  rich_result2(proper:test(),state()).
-create_spec_test({Mod,Fun,_Arity} = MFA, SpecTimeout, State) ->
+create_spec_test(MFA, SpecTimeout, State) ->
     case get_exp_spec(MFA, State) of
-	{ok,{Domain,Range},NewState} ->
-	    case convert(Mod, {type,0,'$fixed_list',Domain}, NewState) of
-		{ok,FinType,FinalState} ->
-		    %% TODO: We just catch all exceptions, plus error:badarg.
-		    Test = ?FORALL(Args, FinType, ?TIMEOUT(SpecTimeout,
-			       try apply(Mod,Fun,Args) of
-				   X -> ?MODULE:is_instance(X,Mod,Range)
-			       catch
-				   throw:_      -> true;
-				   error:badarg -> true
-			       end)),
-		    {ok, Test, FinalState};
-		{error,_Reason} = Error ->
-		    Error
-	    end;
+	{ok,FunRepr,NewState} ->
+	    make_spec_test(MFA, FunRepr, SpecTimeout, NewState);
 	{error,_Reason} = Error ->
 	    Error
     end.
@@ -277,6 +279,35 @@ get_exp_spec({Mod,Fun,Arity} = MFA, State) ->
 		error ->
 		    {error, {function_not_exported_or_specced,MFA}}
 	    end;
+	{error,_Reason} = Error ->
+	    Error
+    end.
+
+-spec make_spec_test(mfa(), fun_repr(), timeout(), state()) ->
+	  rich_result2(proper:test(),state()).
+make_spec_test({Mod,Fun,_Arity}, {Domain,Range}, SpecTimeout, State) ->
+    case convert(Mod, {type,0,'$fixed_list',Domain}, State) of
+	{ok,FinType,NewState} ->
+	    %% TODO: We just catch all exceptions, plus error:badarg.
+	    Test = ?FORALL(Args, FinType, ?TIMEOUT(SpecTimeout,
+			try apply(Mod,Fun,Args) of
+			    X -> ?MODULE:is_instance(X,Mod,Range)
+			catch
+			    throw:_      -> true;
+			    error:badarg -> true
+			end)),
+	    {ok, Test, NewState};
+	{error,_Reason} = Error ->
+	    Error
+    end.
+
+-spec get_exp_specced(mod_name(), state()) -> rich_result2([mfa()],state()).
+get_exp_specced(Mod, State) ->
+    case add_module(Mod, State) of
+	{ok,#state{exp_specs = ExpSpecs} = NewState} ->
+	    ModExpSpecs = dict:fetch(Mod, ExpSpecs),
+	    ExpSpecced = [{Mod,F,A} || {F,A} <- dict:fetch_keys(ModExpSpecs)],
+	    {ok, ExpSpecced, NewState};
 	{error,_Reason} = Error ->
 	    Error
     end.

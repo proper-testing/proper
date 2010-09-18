@@ -236,6 +236,17 @@ proper:check/1,2. Under this mode, PropEr will perform no I/O and will not
 access the caller's process dictionary in any way. Please note that PropEr will
 not actually run as a pure function under this mode.
 
+To test all properties exported from a module (a property is a 0-arity function
+whose name begins with "prop_"), you can run:
+   proper:module(<Module>).
+     or
+   proper:module(<Module>, <option/options>).
+This returns a list of all failing and faulty properties, in the form of mfas.
+Testing progress is also printed on screen (unless 'quiet' mode is active). The
+provided options are passed on to each property, except for 'long_result', which
+controls the return value format of proper:module itself: under 'long_result'
+mode, a list of {mfa(),counterexample()} tuples is returned.
+
 
 --------------------------------------------------------------------------------
 Counterexamples
@@ -243,11 +254,13 @@ Counterexamples
 
 The last (simplest) counterexample produced by PropEr during a testing run can
 be retrieved after testing has finished, by running proper:get_counterexample().
-To enable this functionality, some information has to remain in the process
-dictionary even after proper:check has returned. To completely clean up the
-process dictionary of PropEr-produced entries, run proper:clean_garbage().
-Counterexamples can also be retrieved by running PropEr in long-result mode,
-where counterexamples are also returned as part of the return tuple.
+When testing a whole module, run proper:get_counterexamples() to get a
+counterexample for each failing property. To enable this functionality, some
+information has to remain in the process dictionary even after PropEr has
+returned. To completely clean up the process dictionary of PropEr-produced
+entries, run proper:clean_garbage(). Counterexamples can also be retrieved by
+running PropEr in long-result mode, where counterexamples are also returned as
+part of the return value.
 
 You can re-check a specific counterexample <CExm> against the property <Prop>
 that it previously falsified by running:
@@ -310,8 +323,8 @@ The available options are:
 {'on_output', <output_function>}
     PropEr will use the supplied function for all output printing. This function
     should accept two arguments in the style of io:format/2.
-    CAUTION: If multiple of the above three output control options are provided,
-    the last one in the list takes precedence.
+    CAUTION: The above three output control options are incompatible with each
+    other.
 'long_result'
     Enables long-result mode (see the 'Program behaviour' section for details).
 'crypto'
@@ -691,6 +704,11 @@ re-check a counterexample against the spec that it violated by running:
      proper:retest_spec(mfa(), <CExm>).
        or
      proper:retest_spec(mfa(), <CExm>, <option/options>).
+You can test all exported functions of a module against their spec by running:
+     proper:module_specs(<Module>).
+       or
+     proper:module_specs(<Module>, <option/options/).
+The behaviour of proper:module_specs is similar to that of proper:module.
 
 The use of check_spec is subject to the following usage rules:
 

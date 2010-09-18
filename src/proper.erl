@@ -23,12 +23,13 @@
 
 -module(proper).
 -export([check/1, check/2, pure_check/1, pure_check/2, check_spec/1,
-	 check_spec/2, retest/2, retest/3, retest_spec/2, retest_spec/3]).
+	 check_spec/2, retest/2, retest/3, retest_spec/2, retest_spec/3,
+	 module/1, module/2, module_specs/1, module_specs/2]).
 -export([numtests/2, fails/1, on_output/2]).
 -export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
 	 with_title/1, equals/2]).
--export([global_state_erase/0, get_counterexample/0, clean_garbage/0,
-	 get_fail_reason/1, get_bound/1]).
+-export([global_state_erase/0, get_counterexample/0, get_counterexamples/0,
+	 clean_garbage/0, get_fail_reason/1, get_bound/1]).
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
 -export([forall/2, implies/2, whenfail/2, timeout/2]).
@@ -82,6 +83,7 @@
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
+-type raw_test_kind() :: 'test' | 'spec'.
 -type raw_test() :: {'test',test()} | {'spec',mfa()}.
 %% @private_type stripped_test
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
@@ -117,6 +119,7 @@
 		  | {'constraint_tries', pos_integer()}
 		  | 'fails'
 		  | {'spec_timeout',timeout()}.
+-type user_opt_or_opts() :: [user_opt()] | user_opt().
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
 	       long_result      = false           :: boolean(),
 	       crypto           = false           :: boolean(),
@@ -161,6 +164,9 @@
 			   | {'error', rerun_error_reason()}.
 -type short_rerun_result() :: boolean() | {'error', rerun_error_reason()}.
 -type rerun_result() :: long_rerun_result() | short_rerun_result().
+-type short_module_result() :: [mfa()].
+-type long_module_result() :: [{mfa(),counterexample()}].
+-type module_result() :: long_module_result() | short_module_result().
 
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
 -type fail_reason() :: 'false_prop' | 'time_out'
@@ -233,6 +239,12 @@ global_state_restore(#cexm{size = Size, fun_state = FunState}, Opts) ->
     proper_funserver:set_state(FunState),
     ok.
 
+-spec global_state_reset(opts()) -> 'ok'.
+global_state_reset(#opts{start_size = Size}) ->
+    clean_garbage(),
+    put('$size', Size),
+    proper_funserver:reset_state().
+
 -spec global_state_erase() -> 'ok'.
 global_state_erase() ->
     proper_funserver:stop(),
@@ -264,9 +276,22 @@ get_counterexample() ->
 	CExm      -> {ok, CExm}
     end.
 
+-spec save_counterexamples([{mfa(),counterexample()}]) -> 'ok'.
+save_counterexamples(CExms) ->
+    put('$counterexamples', CExms),
+    ok.
+
+-spec get_counterexamples() -> {'ok',[{mfa(),counterexample()}]} | 'error'.
+get_counterexamples() ->
+    case get('$counterexamples') of
+	undefined -> error;
+	CExms     -> {ok, CExms}
+    end.
+
 -spec clean_garbage() -> 'ok'.
 clean_garbage() ->
     erase('$counterexample'),
+    erase('$counterexamples'),
     ok.
 
 -spec get_fail_reason(counterexample()) -> fail_reason().
@@ -286,7 +311,7 @@ get_bound(#cexm{bound = ImmTestCase}) ->
 check(OuterTest) ->
     check(OuterTest, []).
 
--spec check(outer_test(), [user_opt()] | user_opt()) -> result().
+-spec check(outer_test(), user_opt_or_opts()) -> result().
 check(OuterTest, UserOpts) ->
     ImmOpts = parse_opts(UserOpts),
     {Test,Opts} = peel_test(OuterTest, ImmOpts),
@@ -296,7 +321,7 @@ check(OuterTest, UserOpts) ->
 pure_check(OuterTest) ->
     pure_check(OuterTest, []).
 
--spec pure_check(outer_test(), [user_opt()] | user_opt()) -> result().
+-spec pure_check(outer_test(), user_opt_or_opts()) -> result().
 pure_check(OuterTest, ImmUserOpts) ->
     Parent = self(),
     UserOpts = add_user_opt(quiet, ImmUserOpts),
@@ -309,7 +334,7 @@ pure_check(OuterTest, ImmUserOpts) ->
 check_spec(MFA) ->
     check_spec(MFA, []).
 
--spec check_spec(mfa(), [user_opt()] | user_opt()) -> result().
+-spec check_spec(mfa(), user_opt_or_opts()) -> result().
 check_spec(MFA, UserOpts) ->
     Opts = parse_opts(UserOpts),
     test({spec,MFA}, Opts).
@@ -318,7 +343,7 @@ check_spec(MFA, UserOpts) ->
 retest(OuterTest, CExm) ->
     retest(OuterTest, CExm, []).
 
--spec retest(outer_test(), counterexample(), [user_opt()] | user_opt()) ->
+-spec retest(outer_test(), counterexample(), user_opt_or_opts()) ->
 	  rerun_result().
 retest(OuterTest, CExm, UserOpts) ->
     ImmOpts = parse_opts(UserOpts),
@@ -329,19 +354,37 @@ retest(OuterTest, CExm, UserOpts) ->
 retest_spec(MFA, CExm) ->
     retest_spec(MFA, CExm, []).
 
--spec retest_spec(mfa(), counterexample(), [user_opt()] | user_opt()) ->
+-spec retest_spec(mfa(), counterexample(), user_opt_or_opts()) ->
 	  rerun_result().
 retest_spec(MFA, CExm, UserOpts) ->
     Opts = parse_opts(UserOpts),
     retry({spec,MFA}, CExm, Opts).
 
--spec add_user_opt(user_opt(), [user_opt()] | user_opt()) -> [user_opt()].
+-spec module(mod_name()) -> module_result().
+module(Mod) ->
+    module(Mod, []).
+
+-spec module(mod_name(), user_opt_or_opts()) -> module_result().
+module(Mod, UserOpts) ->
+    Opts = parse_opts(UserOpts),
+    multi_test(Mod, test, Opts).
+
+-spec module_specs(mod_name()) -> module_result().
+module_specs(Mod) ->
+    module_specs(Mod, []).
+
+-spec module_specs(mod_name(), user_opt_or_opts()) -> module_result().
+module_specs(Mod, UserOpts) ->
+    Opts = parse_opts(UserOpts),
+    multi_test(Mod, spec, Opts).
+
+-spec add_user_opt(user_opt(), user_opt_or_opts()) -> [user_opt()].
 add_user_opt(NewUserOpt, UserOptsList) when is_list(UserOptsList) ->
     [NewUserOpt | UserOptsList];
 add_user_opt(NewUserOpt, SingleUserOpt) ->
     add_user_opt(NewUserOpt, [SingleUserOpt]).
 
--spec parse_opts([user_opt()] | user_opt()) -> opts().
+-spec parse_opts(user_opt_or_opts()) -> opts().
 parse_opts(UserOptsList) when is_list(UserOptsList) ->
     parse_opts(lists:reverse(UserOptsList), #opts{});
 parse_opts(SingleUserOpt) ->
@@ -455,15 +498,20 @@ equals(A, B) ->
 %%------------------------------------------------------------------------------
 
 -spec test(raw_test(), opts()) -> result().
-test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
-		    output_fun = Print} = Opts) ->
+test(RawTest, Opts) ->
     global_state_init(Opts),
+    Result = inner_test(RawTest, Opts),
+    global_state_erase(),
+    Result.
+
+-spec inner_test(raw_test(), opts()) -> result().
+inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
+			  output_fun = Print} = Opts) ->
     Test = cook_test(RawTest, Opts),
     ImmResult = perform(NumTests, Test, Print),
     Print("~n", []),
     report_imm_result(ImmResult, Opts),
     {ShortResult,LongResult} = get_result(ImmResult, Test, Opts),
-    global_state_erase(),
     case ReturnLong of
 	true  -> LongResult;
 	false -> ShortResult
@@ -482,6 +530,64 @@ retry(RawTest, #cexm{bound = ImmTestCase, fail_reason = OldReason} = CExm,
     case ReturnLong of
 	true  -> LongResult;
 	false -> ShortResult
+    end.
+
+-spec multi_test(mod_name(), raw_test_kind(), opts()) -> module_result().
+multi_test(Mod, RawTestKind,
+	   #opts{long_result = ReturnLong, output_fun = Print} = Opts) ->
+    global_state_init(Opts),
+    MFAs =
+	case RawTestKind of
+	    test ->
+		[{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
+				 lists:prefix(?PROPERTY_PREFIX,
+					      atom_to_list(Name))];
+	    spec ->
+		case proper_typeserver:get_exp_specced(Mod) of
+		    {ok,ExpSpecced} ->
+			ExpSpecced;
+		    {error,Reason} ->
+			report_error({typeserver,Reason}, Print),
+			[]
+		end
+	end,
+    RawResult = [mfa_test(MFA, RawTestKind, Opts) || MFA <- MFAs],
+    {RawShortResult,RawLongResult} = lists:unzip(RawResult),
+    ShortResult = [X || X <- RawShortResult, X =/= none],
+    LongResult = [X || X <- RawLongResult, X =/= none],
+    save_counterexamples(LongResult),
+    global_state_erase(),
+    case ReturnLong of
+	true  -> LongResult;
+	false -> ShortResult
+    end.
+
+-spec mfa_test(mfa(), raw_test_kind(), opts()) ->
+	  {'none' | mfa(), 'none' | {mfa(),counterexample()}}.
+mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
+    {RawTest,#opts{output_fun = Print} = Opts} =
+	case RawTestKind of
+	    test ->
+		OuterTest = Mod:Fun(),
+		{Test,FinalOpts} = peel_test(OuterTest, ImmOpts),
+		{{test,Test}, FinalOpts};
+	    spec ->
+		{{spec,MFA}, ImmOpts}
+	end,
+    global_state_reset(Opts),
+    Print("Testing ~w:~w/~b~n", [Mod,Fun,Arity]),
+    ShortResult = inner_test(RawTest, Opts#opts{long_result = false}),
+    Print("~n", []),
+    case ShortResult of
+	true ->
+	    {none, none};
+	false ->
+	    case get_counterexample() of
+		{ok,CExm} -> {MFA, {MFA,CExm}};
+		error     -> {MFA, none}
+	    end;
+	{error,_Reason} ->
+	    {MFA, none}
     end.
 
 -spec cook_test(raw_test(), opts()) -> test().
@@ -815,7 +921,7 @@ report_imm_result({passed,Passed,Samples,Printers},
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
 	true  -> Print("Error: no test failed~n", []);
-	false -> Print("OK, passed ~b tests~n", [Passed])
+	false -> Print("OK, passed ~b test(s)~n", [Passed])
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Passed, Print) end,
@@ -823,10 +929,10 @@ report_imm_result({passed,Passed,Samples,Printers},
     ok;
 report_imm_result({failed,Performed,_CExm,_Actions},
 		  #opts{expect_fail = true, output_fun = Print}) ->
-    Print("OK, failed as expected, after ~b tests.~n", [Performed]);
+    Print("OK, failed as expected, after ~b test(s).~n", [Performed]);
 report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
 		   Actions}, #opts{expect_fail = false, output_fun = Print}) ->
-    Print("Failed, after ~b tests.~n", [Performed]),
+    Print("Failed, after ~b test(s).~n", [Performed]),
     report_fail_reason(Reason, Print, false),
     print_bound(Bound, Print),
     execute_actions(Actions);
