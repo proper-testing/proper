@@ -1130,26 +1130,7 @@ convert(Mod, {type,_,union,ChoiceForms}, State, Stack, VarDict) ->
     convert_union(Mod, ChoiceForms, State, Stack, VarDict);
 convert(Mod, {type,_,'fun',[{type,_,product,Domain},Range]}, State, Stack,
 	VarDict) ->
-    Arity = length(Domain),
-    case convert(Mod, Range, State, ['fun' | Stack], VarDict) of
-	{ok,{simple,RangeType},NewState} ->
-	    {ok, {simple,proper_types:function(Arity,RangeType)}, NewState};
-	{ok,{rec,RecFun,RecArgs},NewState} ->
-	    %% We bind the generated value by size.
-	    case at_toplevel(RecArgs, Stack) of
-		true ->
-		    base_case_error(Stack);
-		false ->
-		    NewRecFun =
-			fun(GenFuns,Size) ->
-			    proper_types:function(Arity, RecFun(GenFuns,Size))
-			end,
-		    NewRecArgs = clean_rec_args(RecArgs),
-		    {ok, {rec,NewRecFun,NewRecArgs}, NewState}
-	    end;
-	{error,_Reason} = Error ->
-	    Error
-    end;
+    convert_fun(Mod, length(Domain), Range, State, Stack, VarDict);
 %% TODO: These should be replaced with accurate types.
 convert(Mod, {type,_,maybe_improper_list,[]}, State, Stack, VarDict) ->
     convert(Mod, {type,0,list,[]}, State, Stack, VarDict);
@@ -1171,6 +1152,46 @@ convert(Mod, {type,_,Name,ArgForms}, State, Stack, VarDict) ->
     convert_maybe_hard_adt(Mod, Name, ArgForms, State, Stack, VarDict);
 convert(_Mod, TypeForm, _State, _Stack, _VarDict) ->
     {error, {unsupported_type,TypeForm}}.
+
+-spec convert_fun(mod_name(), arity(), abs_type(), state(), stack(),
+		  var_dict()) -> rich_result2(ret_type(),state()).
+convert_fun(Mod, Arity, Range, State, Stack, VarDict) ->
+    case convert(Mod, Range, State, ['fun' | Stack], VarDict) of
+	{ok,{simple,RangeType},NewState} ->
+	    {ok, {simple,proper_types:function(Arity,RangeType)}, NewState};
+	{ok,{rec,RecFun,RecArgs},NewState} ->
+	    case at_toplevel(RecArgs, Stack) of
+		true  -> base_case_error(Stack);
+		false -> convert_rec_fun(Arity, RecFun, RecArgs, NewState)
+	    end;
+	{error,_Reason} = Error ->
+	    Error
+    end.
+
+-spec convert_rec_fun(arity(), rec_fun(), rec_args(), state()) ->
+	  {'ok',ret_type(),state()}.
+convert_rec_fun(Arity, RecFun, RecArgs, State) ->
+    %% We bind the generated value by size.
+    NewRecFun =
+	fun(GenFuns,Size) ->
+	    proper_types:function(Arity, RecFun(GenFuns,Size))
+	end,
+    NewRecArgs =
+	case Arity of
+	    0 -> [update_zero_arity_fun_rec_arg(A) || A <- RecArgs];
+	    _ -> clean_rec_args(RecArgs)
+	end,
+    {ok, {rec,NewRecFun,NewRecArgs}, State}.
+
+-spec update_zero_arity_fun_rec_arg(rec_arg()) -> rec_arg().
+update_zero_arity_fun_rec_arg({{list,NonEmpty,AltRecFun},FullTypeRef}) ->
+    NewAltRecFun =
+	fun(GenFuns,Size) ->
+	    proper_types:function(0, AltRecFun(GenFuns,Size))
+	end,
+    {{list,NonEmpty,NewAltRecFun}, FullTypeRef};
+update_zero_arity_fun_rec_arg({_Bool,_FullTypeRef} = RecArg) ->
+    RecArg.
 
 -spec convert_list(mod_name(), boolean(), abs_type(), state(), stack(),
 		   var_dict()) -> rich_result2(ret_type(),state()).

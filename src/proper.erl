@@ -1015,7 +1015,7 @@ execute_actions(Actions) ->
 -spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
 		       output_fun()) -> 'ok'.
 report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
-    Print("(~b times)~n", [Shrinks]),
+    Print("(~b time(s))~n", [Shrinks]),
     print_bound(MinImmTestCase, Print),
     execute_actions(MinActions).
 
