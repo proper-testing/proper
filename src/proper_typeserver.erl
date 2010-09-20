@@ -1176,22 +1176,8 @@ convert_rec_fun(Arity, RecFun, RecArgs, State) ->
 	fun(GenFuns,Size) ->
 	    proper_types:function(Arity, RecFun(GenFuns,Size))
 	end,
-    NewRecArgs =
-	case Arity of
-	    0 -> [update_zero_arity_fun_rec_arg(A) || A <- RecArgs];
-	    _ -> clean_rec_args(RecArgs)
-	end,
+    NewRecArgs = clean_rec_args(RecArgs),
     {ok, {rec,NewRecFun,NewRecArgs}, State}.
-
--spec update_zero_arity_fun_rec_arg(rec_arg()) -> rec_arg().
-update_zero_arity_fun_rec_arg({{list,NonEmpty,AltRecFun},FullTypeRef}) ->
-    NewAltRecFun =
-	fun(GenFuns,Size) ->
-	    proper_types:function(0, AltRecFun(GenFuns,Size))
-	end,
-    {{list,NonEmpty,NewAltRecFun}, FullTypeRef};
-update_zero_arity_fun_rec_arg({_Bool,_FullTypeRef} = RecArg) ->
-    RecArg.
 
 -spec convert_list(mod_name(), boolean(), abs_type(), state(), stack(),
 		   var_dict()) -> rich_result2(ret_type(),state()).

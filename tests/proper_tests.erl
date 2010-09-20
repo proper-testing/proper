@@ -512,7 +512,7 @@ undefined_symb_calls() ->
 %% TODO: try some more expressions with a ?FORALL underneath
 %% TODO: various constructors like '|' (+ record notation) are parser-rejected
 %% TODO: test nonempty recursive lists
-%% TODO: test list-recursive with instances, also 0-arity funs
+%% TODO: test list-recursive with instances
 %% TODO: more ADT tests: check bad declarations, bad variable use, multi-clause,
 %%	 is_subtype, unacceptable range, unexported opaque, no-specs opaque,
 %%	 unexported/unspecced functions, unbound variables, check as constructed
