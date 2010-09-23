@@ -842,6 +842,7 @@ The use of Auto-ADT is currently subject to the following limitations:
 * Specs that make bad use of variables are silently rejected.
 
 For an example on how to write Auto-ADT-compatible parametric specs, see the
+tests/stack module, which contains a simple implementation of a stack, or the
 tests/ddict module, which wraps the STDLIB dict ADT.
 
 
