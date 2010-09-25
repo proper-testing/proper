@@ -16,13 +16,14 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%% Auto-ADT usage example: list-based implementation of a stack
+%% Auto-ADT usage example: list-based implementation of a stack, with element
+%% counting
 
 -module(stack).
--export([is_empty/1, new/0, push/2, pop/1]).
+-export([is_empty/1, size/1, new/0, push/2, pop/1]).
 -export_type([stack/1]).
 
--opaque stack(T) :: [T].
+-opaque stack(T) :: {non_neg_integer(),[T]}.
 
 %% NOTE: You don't need to include the proper header if no properties are
 %%	 declared in the module.
@@ -32,24 +33,28 @@
 %%	 When this would mean singleton variables, use variables starting with
 %%	 an underscore.
 -spec is_empty(stack(_T)) -> boolean().
-is_empty([]) ->
+is_empty({0, []}) ->
     true;
-is_empty([_Top|_Rest]) ->
+is_empty({_N, [_Top|_Rest]}) ->
     false.
+
+-spec size(stack(_T)) -> non_neg_integer().
+size({N, _Elems}) ->
+    N.
 
 -spec new() -> stack(_T).
 new() ->
-    [].
+    {0, []}.
 
 -spec push(T, stack(T)) -> stack(T).
-push(X, Stack) ->
-    [X|Stack].
+push(X, {N,Elems}) ->
+    {N+1, [X|Elems]}.
 
 -spec pop(stack(T)) -> {T,stack(T)}.
-pop([]) ->
+pop({0, []}) ->
     throw(stack_empty);
-pop([Top|Rest]) ->
-    {Top, Rest}.
+pop({N, [Top|Rest]}) when N > 0 ->
+    {Top, {N-1,Rest}}.
 
 
 %%------------------------------------------------------------------------------
