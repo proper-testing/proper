@@ -76,5 +76,9 @@
 %%------------------------------------------------------------------------------
 
 -ifndef(PROPER_NOTRANS).
+-ifdef(PROPER_REMOVE_PROPS).
+-compile({parse_transform, proper_prop_remover}).
+-else.
 -compile({parse_transform, proper_transformer}).
+-endif.
 -endif.

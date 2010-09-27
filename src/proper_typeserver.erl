@@ -423,12 +423,13 @@ get_mod_code_and_exports(Mod) ->
 	    SrcFileName = atom_to_list(Mod) ++ ?SRC_FILE_EXT,
 	    case code:where_is_file(SrcFileName) of
 		FullSrcFileName when is_list(FullSrcFileName) ->
-		    CompilerOpts = [binary,debug_info,{d,'PROPER_NOTRANS'}],
+		    CompilerOpts = [binary,debug_info,{d,'PROPER_REMOVE_PROPS'},
+				    return_errors],
 		    case compile:file(FullSrcFileName, CompilerOpts) of
 			{ok,Mod,Binary} ->
 			    get_chunks(Binary);
-			error ->
-			    {error, cant_compile_source_file}
+			{error,Errors,_Warnings} ->
+			    {error, {cant_compile_source_file,Errors}}
 		    end;
 		non_existing ->
 		    {error, cant_find_object_or_source_file}

@@ -280,10 +280,10 @@ rewrite_expr({call,Line,FunRef,Args}, ModInfo) ->
     NewFunRef = rewrite_expr(FunRef, ModInfo),
     NewArgs = [rewrite_expr(A,ModInfo) || A <- Args],
     {call,Line,NewFunRef,NewArgs};
-rewrite_expr({remote,ModExpr,FunExpr}, ModInfo) ->
+rewrite_expr({remote,Line,ModExpr,FunExpr}, ModInfo) ->
     NewModExpr = rewrite_expr(ModExpr, ModInfo),
     NewFunExpr = rewrite_expr(FunExpr, ModInfo),
-    {remote,NewModExpr,NewFunExpr};
+    {remote,Line,NewModExpr,NewFunExpr};
 rewrite_expr({lc,Line,Expr,GensAndFilters}, ModInfo) ->
     NewExpr = rewrite_expr(Expr, ModInfo),
     NewGensAndFilters = [rewrite_expr(W,ModInfo) || W <- GensAndFilters],
@@ -353,7 +353,7 @@ rewrite_type({op,Line,'++',LeftExpr,RightExpr}, ModInfo) ->
     {op,Line,'++',NewLeftExpr,NewRightExpr};
 rewrite_type({call,Line,{remote,_,{atom,_,Mod},{atom,_,Call}} = FunRef,
 	      Args} = Expr,
-	      #mod_info{name = ModName, helper_pid = HelperPid} = ModInfo) ->
+	     #mod_info{name = ModName, helper_pid = HelperPid} = ModInfo) ->
     case is_exported_type(Mod, Call, length(Args), HelperPid) of
 	true ->
 	    native_type_call(ModName, Expr);
