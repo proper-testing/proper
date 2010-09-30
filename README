@@ -654,17 +654,18 @@ The use of native types in properties is subject to the following usage rules:
      -type rec() :: #rec{b :: 'nil'} | #rec{b :: rec()}.
      -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
 * Remote types may be referenced in a ?FORALL, as long as they are exported from
-  the remote module. Currently, PropEr requires that any modules whose types are
-  remotely referenced from within properties are present in the code path at
-  compile time, either compiled with debug_info enabled, or only in source form.
-  If PropEr cannot find a remote module, cannot get the abstract code from the
-  compiled object file or fails to compile the source file, all calls to that
-  module will automatically be considered calls to PropEr type constructors.
+  the remote module. Currently, PropEr requires that any remote modules whose
+  types are directly referenced from within properties are present in the code
+  path at compile time, either compiled with debug_info enabled or in source
+  form. If PropEr cannot find a remote module at all, finds only a compiled
+  object file with no debug information or fails to compile the source file, all
+  calls to that module will automatically be considered calls to PropEr type
+  constructors.
 * For native types to be translated correctly, both the module that contains the
   ?FORALL declaration as well as any module that contains the declaration of a
   type referenced (directly or indirectly) from inside a ?FORALL must be present
-  in the code path at runtime, either compiled with debug_info enabled or only
-  in source form.
+  in the code path at runtime, either compiled with debug_info enabled or in
+  source form.
 * Local types with the same name as an auto-imported BIF are not accepted by
   PropEr, unless the BIF in question has been declared in a no_auto_import
   option.

@@ -427,7 +427,7 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
 	true ->
 	    {ok, State};
 	false ->
-	    case get_mod_code_and_exports(Mod) of
+	    case get_code_and_exports(Mod) of
 		{ok,AbsCode,ModExpFuns} ->
 		    RawModInfo = get_mod_info(Mod, AbsCode, ModExpFuns),
 		    ModInfo = process_adts(Mod, RawModInfo),
@@ -439,7 +439,7 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
 
 -spec get_exp_info(mod_name()) -> rich_result2(mod_exp_types(),mod_exp_funs()).
 get_exp_info(Mod) ->
-    case get_mod_code_and_exports(Mod) of
+    case get_code_and_exports(Mod) of
 	{ok,AbsCode,ModExpFuns} ->
 	    RawModInfo = get_mod_info(Mod, AbsCode, ModExpFuns),
 	    {ok, RawModInfo#mod_info.mod_exp_types, ModExpFuns};
@@ -447,27 +447,36 @@ get_exp_info(Mod) ->
 	    Error
     end.
 
--spec get_mod_code_and_exports(mod_name()) ->
+-spec get_code_and_exports(mod_name()) ->
 	  rich_result2([abs_form()],mod_exp_funs()).
-get_mod_code_and_exports(Mod) ->
+get_code_and_exports(Mod) ->
     case code:which(Mod) of
 	ObjFileName when is_list(ObjFileName) ->
-	    get_chunks(ObjFileName);
+	    case get_chunks(ObjFileName) of
+		{ok,_AbsCode,_ModExpFuns} = Result ->
+		    Result;
+		{error,Reason} ->
+		    get_code_and_exports_from_source(Mod, Reason)
+	    end;
 	_ErrAtom when is_atom(_ErrAtom) ->
-	    SrcFileName = atom_to_list(Mod) ++ ?SRC_FILE_EXT,
-	    case code:where_is_file(SrcFileName) of
-		FullSrcFileName when is_list(FullSrcFileName) ->
-		    CompilerOpts = [binary,debug_info,{d,'PROPER_REMOVE_PROPS'},
-				    return_errors],
-		    case compile:file(FullSrcFileName, CompilerOpts) of
-			{ok,Mod,Binary} ->
-			    get_chunks(Binary);
-			{error,Errors,_Warnings} ->
-			    {error, {cant_compile_source_file,Errors}}
-		    end;
-		non_existing ->
-		    {error, cant_find_object_or_source_file}
-	    end
+	    get_code_and_exports_from_source(Mod, cant_find_object_file)
+    end.
+
+-spec get_code_and_exports_from_source(mod_name(), term()) ->
+	  rich_result2([abs_form()],mod_exp_funs()).
+get_code_and_exports_from_source(Mod, ObjError) ->
+    SrcFileName = atom_to_list(Mod) ++ ?SRC_FILE_EXT,
+    case code:where_is_file(SrcFileName) of
+	FullSrcFileName when is_list(FullSrcFileName) ->
+	    Opts = [binary,debug_info,return_errors,{d,'PROPER_REMOVE_PROPS'}],
+	    case compile:file(FullSrcFileName, Opts) of
+		{ok,Mod,Binary} ->
+		    get_chunks(Binary);
+		{error,Errors,_Warnings} ->
+		    {error, {ObjError,{cant_compile_source_file,Errors}}}
+	    end;
+	non_existing ->
+	    {error, {ObjError,cant_find_source_file}}
     end.
 
 -spec get_chunks(string() | binary()) ->
