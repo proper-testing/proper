@@ -31,7 +31,7 @@
 -export([demo_translate_type/2, demo_is_instance/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
--export([get_exp_info/1]).
+-export([get_exp_info/1, match/2]).
 
 -export_type([imm_type/0, mod_exp_types/0, mod_exp_funs/0]).
 
@@ -45,16 +45,47 @@
 -define(SRC_FILE_EXT, ".erl").
 
 %% CAUTION: all these must be sorted
--define(STD_TYPES_0, [any,arity,atom,binary,bitstring,bool,boolean,byte,char,
-		      float,integer,list,neg_integer,non_neg_integer,number,
-		      pos_integer,string,term,timeout]).
--define(HARD_ADTS, [{{array,0},array},{{dict,0},dict},{{digraph,0},digraph},
-		    {{gb_set,0},gb_sets},{{gb_tree,0},gb_trees},
-		    {{queue,0},queue},{{set,0},sets},{{tid,0},ets}]).
--define(HARD_ADT_MODS, [{array,[{array,0}]},{dict,[{dict,0}]},
-			{digraph,[{digraph,0}]},{gb_sets,[{gb_set,0}]},
-			{gb_trees,[{gb_tree,0}]},{queue,[{queue,0}]},
-			{sets,[{set,0}]}]). %% ets:tid/0 is already exported
+-define(STD_TYPES_0,
+	[any,arity,atom,binary,bitstring,bool,boolean,byte,char,float,integer,
+	 list,neg_integer,non_neg_integer,number,pos_integer,string,term,
+	 timeout]).
+-define(HARD_ADTS,
+	%% gb_trees:iterator and gb_sets:iterator are NOT hardcoded
+	[{{array,0},array},      {{array,1},proper_array},
+	 {{dict,0},dict},        {{dict,2},proper_dict},
+	 {{gb_set,0},gb_sets},   {{gb_set,1},proper_gb_sets},
+	 {{gb_tree,0},gb_trees}, {{gb_tree,2},proper_gb_trees},
+	                         {{orddict,2},proper_orddict},
+	                         {{ordset,1},proper_ordsets},
+	 {{queue,0},queue},      {{queue,1},proper_queue},
+	 {{set,0},sets},         {{set,1},proper_sets}]).
+-define(HARD_ADT_MODS,
+	[{array, [{{array,0},
+		   {{type,0,record,[{atom,0,array}]},[]}}]},
+	 {dict, [{{dict,0},
+		  {{type,0,record,[{atom,0,dict}]},[]}}]},
+	 {gb_sets, [{{gb_set,0},
+		     {{type,0,tuple,[{type,0,non_neg_integer,[]},
+				     {type,0,gb_set_node,[]}]},[]}}]},
+	 {gb_trees, [{{gb_tree,0},
+		      {{type,0,tuple,[{type,0,non_neg_integer,[]},
+				      {type,0,gb_tree_node,[]}]},[]}}]},
+	 %% Our parametric ADTs are already declared as normal types, we just
+	 %% need to change them to opaques.
+	 {proper_array, [{{array,1},already_declared}]},
+	 {proper_dict, [{{dict,2},already_declared}]},
+	 {proper_gb_sets, [{{gb_set,1},already_declared},
+			   {{iterator,1},already_declared}]},
+	 {proper_gb_trees, [{{gb_tree,2},already_declared},
+			    {{iterator,2},already_declared}]},
+	 {proper_orddict, [{{orddict,2},already_declared}]},
+	 {proper_ordsets, [{{ordset,1},already_declared}]},
+	 {proper_queue, [{{queue,1},already_declared}]},
+	 {proper_sets, [{{set,1},already_declared}]},
+	 {queue, [{{queue,0},
+		   {{type,0,tuple,[{type,0,list,[]},{type,0,list,[]}]},[]}}]},
+	 {sets, [{{set,0},
+		  {{type,0,record,[{atom,0,set}]},[]}}]}]).
 
 
 %%------------------------------------------------------------------------------
@@ -83,12 +114,15 @@
 			 [rec_fun(),...]}.
 
 -type imm_type_ref() :: {type_name(),arity()}.
+-type hard_adt_repr() :: {abs_type(),[var_name()]} | 'already_declared'.
 -type fun_ref() :: {fun_name(),arity()}.
 -type fun_repr() :: fun_clause_repr().
 -type fun_clause_repr() :: {[abs_type()],abs_type()}.
 -type proc_fun_ref() :: {fun_name(),[abs_type()],abs_type()}.
 -type full_imm_type_ref() :: {mod_name(),type_name(),arity()}.
 -type imm_stack() :: [full_imm_type_ref()].
+-type pattern() :: tuple().
+-type next_step() :: 'none' | 'take_head' | {'match_with',pattern()}.
 
 -type mod_exp_types() :: set(). %% set(imm_type_ref())
 -type mod_types() :: dict(). %% dict(type_ref(),type_repr())
@@ -465,7 +499,9 @@ get_mod_info(Mod, AbsCode, ModExpFuns) ->
 	{ok,ModADTs} ->
 	    #mod_info{mod_exp_types = ModExpTypes, mod_types = ModTypes,
 		      mod_opaques = ModOpaques} = ModInfo,
-	    ModADTsSet = sets:from_list(ModADTs),
+	    ModADTsSet =
+		sets:from_list([ImmTypeRef
+				|| {ImmTypeRef,_HardADTRepr} <- ModADTs]),
 	    NewModExpTypes = sets:union(ModExpTypes, ModADTsSet),
 	    NewModTypes = lists:foldl(fun store_hard_adt/2, ModTypes, ModADTs),
 	    NewModOpaques = sets:union(ModOpaques, ModADTsSet),
@@ -476,12 +512,13 @@ get_mod_info(Mod, AbsCode, ModExpFuns) ->
 	    ModInfo
     end.
 
--spec store_hard_adt(imm_type_ref(), mod_types()) -> mod_types().
-store_hard_adt({Name,Arity}, ModTypes) ->
+-spec store_hard_adt({imm_type_ref(),hard_adt_repr()}, mod_types()) ->
+	  mod_types().
+store_hard_adt({_ImmTypeRef,already_declared}, ModTypes) ->
+    ModTypes;
+store_hard_adt({{Name,Arity},{TypeForm,VarNames}}, ModTypes) ->
     TypeRef = {type,Name,Arity},
-    VarNames = [list_to_atom("X" ++ integer_to_list(N))
-		|| N <- lists:seq(1,Arity)],
-    TypeRepr = {abs_type,{type,0,any,[]},VarNames,not_symb},
+    TypeRepr = {abs_type,TypeForm,VarNames,not_symb},
     dict:store(TypeRef, TypeRepr, ModTypes).
 
 -spec add_mod_info(abs_form(), mod_info()) -> mod_info().
@@ -614,43 +651,109 @@ add_adt(Mod, {Name,Arity}, #mod_info{mod_types = ModTypes} = ModInfo,
 get_symb_call({Mod,_TypeName,_Arity} = FullADTRef, {FunName,Domain,Range}) ->
     BaseCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,Mod},{atom,0,FunName},
 			      {type,0,'$fixed_list',Domain}]},
-    unwrap_range(FullADTRef, BaseCall, Range).
+    unwrap_range(FullADTRef, BaseCall, Range, false).
 
-%% TODO: We only recurse into tuples and nonempty lists.
--spec unwrap_range(full_imm_type_ref(), abs_type() | 'dummy', abs_type()) ->
-	  tagged_result2(abs_type(),[var_name()]).
-unwrap_range(FullADTRef, Call, {paren_type,_,[Type]}) ->
-    unwrap_range(FullADTRef, Call, Type);
-unwrap_range(FullADTRef, Call, {ann_type,_,[_Var,Type]}) ->
-    unwrap_range(FullADTRef, Call, Type);
-unwrap_range(FullADTRef, Call, {type,_,nonempty_list,[ElemForm]}) ->
-    NewCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},{atom,0,hd},
-			     {type,0,'$fixed_list',[Call]}]},
-    unwrap_range(FullADTRef, NewCall, ElemForm);
-unwrap_range(_FullADTRef, _Call, {type,_,tuple,any}) ->
+
+
+
+
+-spec unwrap_range(full_imm_type_ref(), abs_type() | next_step(), abs_type(),
+		   boolean()) ->
+	  tagged_result2(abs_type()  | next_step(),[var_name()]).
+unwrap_range(FullADTRef, Call, {paren_type,_,[Type]}, TestRun) ->
+    unwrap_range(FullADTRef, Call, Type, TestRun);
+unwrap_range(FullADTRef, Call, {ann_type,_,[_Var,Type]}, TestRun) ->
+    unwrap_range(FullADTRef, Call, Type, TestRun);
+unwrap_range(FullADTRef, Call, {type,_,NEListKind,Args}, TestRun)
+	when NEListKind =:= 'nonempty_list';
+	     NEListKind =:= 'nonempty_improper_list';
+	     NEListKind =:= 'nonempty_maybe_improper_list' ->
+    HeadType =
+	case NEListKind of
+	    nonempty_list ->
+		[ElemForm] = Args,
+		ElemForm;
+	    _ ->
+		[ContForm,_TermForm] = Args,
+		ContForm
+	end,
+    NewCall =
+	case TestRun of
+	    true ->
+		case Call of
+		    none -> take_head;
+		    _    -> Call
+		end;
+	    false ->
+		{type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},{atom,0,hd},
+			       {type,0,'$fixed_list',[Call]}]}
+	end,
+    unwrap_range(FullADTRef, NewCall, HeadType, TestRun);
+unwrap_range(_FullADTRef, _Call, {type,_,tuple,any}, _TestRun) ->
     error;
-unwrap_range(FullADTRef, Call, {type,_,tuple,ElemForms}) ->
-    Translates = fun(T) -> unwrap_range(FullADTRef,dummy,T) =/= error end,
-    case proper_arith:find_first(Translates, ElemForms) of
+unwrap_range(FullADTRef, Call, {type,_,tuple,FieldForms}, TestRun) ->
+    Translates = fun(T) -> unwrap_range(FullADTRef,none,T,true) =/= error end,
+    case proper_arith:find_first(Translates, FieldForms) of
 	none ->
 	    error;
-	{Pos,GoodElem} ->
-	    NewCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},
-				     {atom,0,element},
-				     {type,0,'$fixed_list',[{integer,0,Pos},
-							    Call]}]},
-	    unwrap_range(FullADTRef, NewCall, GoodElem)
+	{TargetPos,TargetElem} ->
+	    Pattern = get_pattern(TargetPos, FieldForms),
+	    case TestRun of
+		true ->
+		    NewCall =
+			case Call of
+			    none -> {match_with,Pattern};
+			    _    -> Call
+			end,
+		    {ok, NewCall, []};
+		false ->
+		    AbsPattern = term_to_singleton_type(Pattern),
+		    NewCall =
+			{type,0,tuple,
+			 [{atom,0,'$call'},{atom,0,?MODULE},{atom,0,match},
+			  {type,0,'$fixed_list',[AbsPattern,Call]}]},
+		    unwrap_range(FullADTRef, NewCall, TargetElem, TestRun)
+	    end
     end;
-unwrap_range({_Mod,SameName,Arity}, Call, {type,_,SameName,ArgForms}) ->
+unwrap_range(FullADTRef, Call, {type,_,union,Choices}, TestRun) ->
+    TestedChoices = [unwrap_range(FullADTRef,none,C,true) || C <- Choices],
+    NotError = fun(error) -> false; (_) -> true end,
+    case proper_arith:find_first(NotError, TestedChoices) of
+	none ->
+	    error;
+	{_ChoicePos,{ok,none,_RangeVars}} ->
+	    error;
+	{ChoicePos,{ok,NextStep,_RangeVars}} ->
+	    {A, [ChoiceElem|B]} = lists:split(ChoicePos-1, Choices),
+	    OtherChoices = A ++ B,
+	    DistinctChoice =
+		case NextStep of
+		    take_head ->
+			fun cant_have_head/1;
+		    {match_with,Pattern} ->
+			fun(C) -> cant_match(Pattern, C) end
+		end,
+	    case {lists:all(DistinctChoice,OtherChoices), TestRun} of
+		{true,true} ->
+		    {ok, NextStep, []};
+		{true,false} ->
+		    unwrap_range(FullADTRef, Call, ChoiceElem, TestRun);
+		{false,_} ->
+		    error
+	    end
+    end;
+unwrap_range({_Mod,SameName,Arity}, Call, {type,_,SameName,ArgForms},
+	     _TestRun) ->
     RangeVars = [V || {var,_,V} <- ArgForms, V =/= '_'],
     case length(ArgForms) =:= Arity andalso length(RangeVars) =:= Arity of
 	true  -> {ok, Call, RangeVars};
 	false -> error
     end;
 unwrap_range({SameMod,SameName,_Arity} = FullADTRef, Call,
-	     {remote_type,_,[{atom,_,SameMod},{atom,_,SameName},ArgForms]}) ->
-    unwrap_range(FullADTRef, Call, {type,0,SameName,ArgForms});
-unwrap_range(_FullADTRef, _Call, _Range) ->
+	     {remote_type,_,[{atom,_,SameMod},{atom,_,SameName},ArgForms]},
+	     TestRun) ->
+    unwrap_range(FullADTRef, Call, {type,0,SameName,ArgForms}, TestRun);
+unwrap_range(_FullADTRef, _Call, _Range, _TestRun) ->
     error.
 
 -spec fix_vars(full_imm_type_ref(), abs_type(), [var_name()], [var_name()]) ->
@@ -755,6 +858,158 @@ update_vars({type,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) ->
 			|| A <- ArgForms]};
 update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
     Call.
+
+
+%%------------------------------------------------------------------------------
+%% Match-related functions
+%%------------------------------------------------------------------------------
+
+-spec get_pattern(position(), [abs_type()]) -> pattern().
+get_pattern(TargetPos, FieldForms) ->
+    {0,RevPattern} = lists:foldl(fun add_field/2, {TargetPos,[]}, FieldForms),
+    list_to_tuple(lists:reverse(RevPattern)).
+
+-spec add_field(abs_type(), {non_neg_integer(),[0 | 1 | atom()]}) ->
+	  {non_neg_integer(),[0 | 1 | atom(),...]}.
+add_field(_Type, {1,Acc}) ->
+    {0, [1|Acc]};
+add_field({atom,_,Tag}, {Left,Acc}) ->
+    {erlang:max(0,Left-1), [Tag|Acc]};
+add_field(_Type, {Left,Acc}) ->
+    {erlang:max(0,Left-1), [0|Acc]}.
+
+-spec match(pattern(), tuple()) -> term().
+match(Pattern, Term) when tuple_size(Pattern) =:= tuple_size(Term) ->
+    match(tuple_to_list(Pattern), tuple_to_list(Term), none, false);
+match(_Pattern, _Term) ->
+    throw(no_match).
+
+-spec match([0 | 1 | atom()], [term()], 'none' | {'ok',T}, boolean()) -> T.
+match([], [], {ok,Target}, _TypeMode) ->
+    Target;
+match([0|PatRest], [_|ToMatchRest], Acc, TypeMode) ->
+    match(PatRest, ToMatchRest, Acc, TypeMode);
+match([1|PatRest], [Target|ToMatchRest], none, TypeMode) ->
+    match(PatRest, ToMatchRest, {ok,Target}, TypeMode);
+match([Tag|PatRest], [X|ToMatchRest], Acc, TypeMode) when is_atom(Tag) ->
+    MatchesTag =
+	case TypeMode of
+	    true  -> can_be_tag(Tag, X);
+	    false -> Tag =:= X
+	end,
+    case MatchesTag of
+	true  -> match(PatRest, ToMatchRest, Acc, TypeMode);
+	false -> throw(no_match)
+    end.
+
+%% CAUTION: these must be sorted
+-define(NON_ATOM_TYPES,
+	[arity,binary,bitstring,byte,char,float,'fun',function,integer,iodata,
+	 iolist,list,maybe_improper_list,mfa,neg_integer,nil,no_return,
+	 non_neg_integer,none,nonempty_improper_list,nonempty_list,
+	 nonempty_maybe_improper_list,nonempty_string,number,pid,port,
+	 pos_integer,range,record,reference,string,tuple]).
+-define(NON_TUPLE_TYPES,
+	[arity,atom,binary,bitstring,bool,boolean,byte,char,float,'fun',
+	 function,identifier,integer,iodata,iolist,list,maybe_improper_list,
+	 neg_integer,nil,no_return,node,non_neg_integer,none,
+	 nonempty_improper_list,nonempty_list,nonempty_maybe_improper_list,
+	 nonempty_string,number,pid,port,pos_integer,range,reference,string,
+	 timeout]).
+-define(NO_HEAD_TYPES,
+	[arity,atom,binary,bitstring,bool,boolean,byte,char,float,'fun',
+	 function,identifier,integer,mfa,module,neg_integer,nil,no_return,node,
+	 non_neg_integer,none,number,pid,port,pos_integer,range,record,
+	 reference,timeout,tuple]).
+
+-spec can_be_tag(atom(), abs_type()) -> boolean().
+can_be_tag(Tag, {ann_type,_,[_Var,Type]}) ->
+    can_be_tag(Tag, Type);
+can_be_tag(Tag, {paren_type,_,[Type]}) ->
+    can_be_tag(Tag, Type);
+can_be_tag(Tag, {atom,_,Atom}) ->
+    Tag =:= Atom;
+can_be_tag(_Tag, {integer,_,_Int}) ->
+    false;
+can_be_tag(_Tag, {op,_,_Op,_Arg}) ->
+    false;
+can_be_tag(_Tag, {op,_,_Op,_Arg1,_Arg2}) ->
+    false;
+can_be_tag(Tag, {type,_,BName,[]}) when BName =:= bool; BName =:= boolean ->
+    is_boolean(Tag);
+can_be_tag(Tag, {type,_,timeout,[]}) ->
+    Tag =:= infinity;
+can_be_tag(Tag, {type,_,union,Choices}) ->
+    lists:any(fun(C) -> can_be_tag(Tag,C) end, Choices);
+can_be_tag(_Tag, {type,_,Name,_Args}) ->
+    not ordsets:is_element(Name, ?NON_ATOM_TYPES);
+can_be_tag(_Tag, _Type) ->
+    true.
+
+-spec cant_match(pattern(), abs_type()) -> boolean().
+cant_match(Pattern, {ann_type,_,[_Var,Type]}) ->
+    cant_match(Pattern, Type);
+cant_match(Pattern, {paren_type,_,[Type]}) ->
+    cant_match(Pattern, Type);
+cant_match(_Pattern, {atom,_,_Atom}) ->
+    true;
+cant_match(_Pattern, {integer,_,_Int}) ->
+    true;
+cant_match(_Pattern, {op,_,_Op,_Arg}) ->
+    true;
+cant_match(_Pattern, {op,_,_Op,_Arg1,_Arg2}) ->
+    true;
+cant_match(Pattern, {type,_,mfa,[]}) ->
+    cant_match(Pattern, {type,0,tuple,[{type,0,atom,[]},{type,0,atom,[]},
+				       {type,0,arity,[]}]});
+cant_match(Pattern, {type,_,union,Choices}) ->
+    lists:all(fun(C) -> cant_match(Pattern,C) end, Choices);
+cant_match(_Pattern, {type,_,tuple,any}) ->
+    false;
+cant_match(Pattern, {type,_,tuple,Fields}) ->
+    tuple_size(Pattern) =/= length(Fields) orelse
+    try match(tuple_to_list(Pattern), Fields, none, true) of
+	_ -> false
+    catch
+	throw:no_match -> true
+    end;
+cant_match(_Pattern, {type,_,Name,_Args}) ->
+    ordsets:is_element(Name, ?NON_TUPLE_TYPES);
+cant_match(_Pattern, _Type) ->
+    false.
+
+-spec cant_have_head(abs_type()) -> boolean().
+cant_have_head({ann_type,_,[_Var,Type]}) ->
+    cant_have_head(Type);
+cant_have_head({paren_type,_,[Type]}) ->
+    cant_have_head(Type);
+cant_have_head({atom,_,_Atom}) ->
+    true;
+cant_have_head({integer,_,_Int}) ->
+    true;
+cant_have_head({op,_,_Op,_Arg}) ->
+    true;
+cant_have_head({op,_,_Op,_Arg1,_Arg2}) ->
+    true;
+cant_have_head({type,_,union,Choices}) ->
+    lists:all(fun cant_have_head/1, Choices);
+cant_have_head({type,_,Name,_Args}) ->
+    ordsets:is_element(Name, ?NO_HEAD_TYPES);
+cant_have_head(_Type) ->
+    false.
+
+%% Only covers atoms, integers and tuples, i.e. those that can be specified
+%% through singleton types.
+-spec term_to_singleton_type(atom() | integer() | tuple()) -> abs_type().
+term_to_singleton_type(Atom) when is_atom(Atom) ->
+    {atom,0,Atom};
+term_to_singleton_type(Int) when is_integer(Int), Int >= 0 ->
+    {integer,0,Int};
+term_to_singleton_type(Int) when is_integer(Int), Int < 0 ->
+    {op,0,'-',{integer,0,-Int}};
+term_to_singleton_type(Tuple) when is_tuple(Tuple) ->
+    Fields = tuple_to_list(Tuple),
+    {type,0,tuple,[term_to_singleton_type(F) || F <- Fields]}.
 
 
 %%------------------------------------------------------------------------------

@@ -725,13 +725,21 @@ The use of check_spec is subject to the following usage rules:
      -type c() :: 'bar' | a().
      -type d(T) :: T | d({'baz',T}).
 * Throwing any exception or raising an 'error:badarg' is considered normal
-  behaviour.
+  behaviour. Currently, users cannot fine-tune this setting.
 * Only the first clause of the function's spec is considered.
 * The only spec constraints we accept are 'is_subtype' constraints whose first
   argument is a simple, non-'_' variable. It is not checked whether or not these
   variables actually appear in the spec. The second argument of an 'is_subtype'
   constraint cannot contain any non-'_' variables. Multiple constraints for the
   same variable are not supported.
+
+PropEr comes with an extra header file, "proper/include/proper_param_adts.hrl",
+which contains definitions of parametric wrappers for some STDLIB ADTs, namely
+array/1, dict/2, gb_set/1, gb_tree/2, queue/1, set/1, orddict/2 and ordset/1. By
+including this header file, you can use the above parametric types to better
+document your code and facilitate spec testing (PropEr automatically recognizes
+these types and produces valid instances). Please note that Dialyzer currenty
+treats these the same way as the non-parametric versions.
 
 
 --------------------------------------------------------------------------------
@@ -804,7 +812,10 @@ no call to eval/1 is required inside the property. Produced instances are
 guaranteed to evaluate successfully. Parametric ADTs are fully supported, as
 long as they appear instantiated inside ?FORALLs. ADTs hard-coded in the Erlang
 type system (array, dict, digraph, gb_set, gb_tree, queue, and set) are
-automatically detected and handled as such.
+automatically detected and handled as such. PropEr also accepts parametric
+versions of the above ADTs in ?FORALLs (array/1, dict/2, gb_set/1, gb_tree/2,
+queue/1, set/1, also orddict/2 and ordset/1).
+
 
 The use of Auto-ADT is currently subject to the following limitations:
 
@@ -819,16 +830,16 @@ The use of Auto-ADT is currently subject to the following limitations:
   begin with an underscore.
 * Specs that introduce an implicit binding among the parameters of an ADT are
   rejected, e.g.:
-     -spec foo(dict(T,S),dict(S,T)) -> dict(T,S).
+     -spec foo(mydict(T,S),mydict(S,T)) -> mydict(T,S).
   This includes using the same type variable twice in the parameters of an ADT.
 * While parsing the return type of specs in search of ADT references, PropEr
-  only recurses into tuples and non-empty lists - all other constructs are
-  ignored. This prohibits, among others, indirect references to the ADT through
-  other custom types. Another notable rejected construct is the union: return
-  values like this one:
-     {'ok',ADT} | 'error'
-  are not accepted. The only way for an API function to report failure while
-  remaining Auto-ADT-compatible is through exceptions.
+  only recurses into tuples, unions and non-empty lists - all other constructs
+  are ignored. This prohibits, among others, indirect references to the ADT
+  through other custom types and records.
+* When encountering a union in the return type, PropEr will pick the first
+  choice that can return an ADT. This choice must be distinguishable from the
+  others either by having a unique term structure or by having a unique tag (if
+  it's a tagged tuple).
 * When parsing multi-clause specs, only the first clause is considered.
 * The only spec constraints we accept are 'is_subtype' constraints whose first
   argument is a simple, non-'_' variable. It is not checked whether or not these
@@ -843,7 +854,7 @@ The use of Auto-ADT is currently subject to the following limitations:
 
 For an example on how to write Auto-ADT-compatible parametric specs, see the
 tests/stack module, which contains a simple implementation of a stack, or the
-tests/ddict module, which wraps the STDLIB dict ADT.
+proper/proper_dict module, which wraps the STDLIB dict ADT.
 
 
 --------------------------------------------------------------------------------

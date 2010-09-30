@@ -491,7 +491,7 @@ undefined_symb_calls() ->
 
 %% TODO: write tests for old datatypes, use old tests
 %% TODO: check output redirection, quiet, to_file, on_output/2 (maybe by
-%%	 writing to a string in the process dictinary), statistics printing,
+%%	 writing to a string in the process dictionary), statistics printing,
 %%	 standard verbose behaviour
 %% TODO: fix compiler warnings
 %% TODO: how to test 'crypto' option?
@@ -788,12 +788,12 @@ adts_test_() ->
 		 [20]),
      ?_assertRun(true, _,
 		 ?FORALL({X,Y,D},
-			 {integer(),float(),ddict:ddict(integer(),float())},
+			 {integer(),float(),dict(integer(),float())},
 			 dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y),
 		 [30]),
      ?_failsWithReason(false_prop,
 		       ?FORALL({X,D},
-			       {boolean(),ddict:ddict(boolean(),integer())},
+			       {boolean(),dict(boolean(),integer())},
 			       dict:erase(X, dict:store(X,42,D)) =:= D))].
 
 
