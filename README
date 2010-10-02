@@ -306,12 +306,11 @@ Options
 --------------------------------------------------------------------------------
 
 Options can be provided as an extra argument to testing functions exported from
-the main proper module (such as proper:check). A single option  can be written
-stand-alone, or multiple options can be provided in a list. Unrecognized options
-are ignored. When two settings conflict, the one that comes first in the list
-takes precedence. Settings given inside extrernal wrappers to a property (see
-the 'How to write properties' section) override any conflicting settings
-provided as options.
+the main proper module (such as proper:check). A single option can be written
+stand-alone, or multiple options can be provided in a list. When two settings
+conflict, the one that comes first in the list takes precedence. Settings given
+inside extrernal wrappers to a property (see the 'How to write properties'
+section) override any conflicting settings provided as options.
 
 The available options are:
 
@@ -359,6 +358,10 @@ The available options are:
     When testing a spec, PropEr will consider an input to be failing if the
     function under test takes more that the specified amount of milliseconds to
     return for that input.
+'any_to_integer'
+    All generated instances of the type 'any()' will be integers. This is
+    provided as a means to speed up the testing of specs, where 'any()' is a
+    commonly used type (see the 'Spec testing' section for details).
 
 
 --------------------------------------------------------------------------------
@@ -417,6 +420,9 @@ The following basic types are provided:
 * any() : all Erlang terms (that PropEr can produce)
     also written as term()
     currently, functions are never produced as instances of any()
+    CAUTION: Instances of 'any()' are expensive to produce, shrink and instance-
+    check, both in terms of processing time and consumed memory. Only use this
+    type if you are certain that you need it.
 
 All the above have analogues in the built-in types of the Erlang language.
 
@@ -866,6 +872,8 @@ The following errors may be encountered during testing. The term provided for
 each error is the error type returned by proper:check in case such an error
 occurs. Normaly, a message is also printed on screen describing the error.
 
+* {'unrecognized_option', <Option>}: <Option> is not an option that PropEr
+  understands.
 * 'cant_generate': The instance generation subsystem has failed to produce an
   instance that satisfies some ?SUCHTHAT constraint. You should either increase
   the 'constraint_tries' limit, loosen the failing constraint, or make it

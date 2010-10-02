@@ -427,23 +427,30 @@ function_gen(Arity, RetType) ->
 
 %% @private
 -spec any_gen(size()) -> imm_instance().
-any_gen(0) ->
+any_gen(Size) ->
+    case get('$any_type') of
+	undefined      -> real_any_gen(Size);
+	{type,AnyType} -> generate(proper_types:resize(Size, AnyType))
+    end.
+
+-spec real_any_gen(size()) -> imm_instance().
+real_any_gen(0) ->
     SimpleTypes = [proper_types:integer(), proper_types:float(),
 		   proper_types:atom()],
     union_gen(SimpleTypes);
-any_gen(Size) ->
+real_any_gen(Size) ->
     FreqChoices = [{?ANY_SIMPLE_PROB,simple}, {?ANY_BINARY_PROB,binary},
 		   {?ANY_EXPAND_PROB,expand}],
     case proper_arith:freq_choose(FreqChoices) of
 	{_,simple} ->
-	    any_gen(0);
+	    real_any_gen(0);
 	{_,binary} ->
 	    generate(proper_types:resize(Size, proper_types:bitstring()));
 	{_,expand} ->
 	    %% TODO: statistics of produced terms?
 	    NumElems = proper_arith:rand_int(0, Size - 1),
 	    ElemSizes = proper_arith:distribute(Size - 1, NumElems),
-	    ElemTypes = [?LAZY(any_gen(S)) || S <- ElemSizes],
+	    ElemTypes = [?LAZY(real_any_gen(S)) || S <- ElemSizes],
 	    case proper_arith:rand_int(1,2) of
 		1 -> fixed_list_gen(ElemTypes);
 		2 -> tuple_gen(ElemTypes)

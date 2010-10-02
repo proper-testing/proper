@@ -118,8 +118,9 @@
 		  | 'noshrink'
 		  | {'constraint_tries', pos_integer()}
 		  | 'fails'
+		  | 'any_to_integer'
 		  | {'spec_timeout',timeout()}.
--type user_opt_or_opts() :: [user_opt()] | user_opt().
+-type user_opts() :: [user_opt()] | user_opt().
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
 	       long_result      = false           :: boolean(),
 	       crypto           = false           :: boolean(),
@@ -129,6 +130,8 @@
 	       noshrink         = false           :: boolean(),
 	       constraint_tries = 50              :: pos_integer(),
 	       expect_fail      = false           :: boolean(),
+	       any_type	                          :: {'type',
+						      proper_types:type()},
 	       spec_timeout     = infinity        :: timeout()}).
 -type opts() :: #opts{}.
 %% TODO: ways for the user to define exceptions to not consider as errors??
@@ -179,8 +182,10 @@
 -type single_run_error_reason() :: common_error_reason() | 'wrong_type'
 				 | 'rejected' | 'too_many_instances'.
 -type error_reason() :: common_error_reason() | 'cant_satisfy'
+		      | {'unrecognized_option', term()}
 		      | {'unexpected', single_run_result()}.
--type rerun_error_reason() :: single_run_error_reason() | 'too_few_instances'.
+-type rerun_error_reason() :: single_run_error_reason() | 'too_few_instances'
+			    | {'unrecognized_option', term()}.
 
 -record(cexm, {fail_reason :: fail_reason(),
 	       bound       :: imm_testcase(),
@@ -223,10 +228,11 @@ global_state_init_size(Size) ->
 
 -spec global_state_init(opts()) -> 'ok'.
 global_state_init(#opts{start_size = Size, constraint_tries = CTries,
-			crypto = Crypto}) ->
+			crypto = Crypto, any_type = AnyType}) ->
     clean_garbage(),
     put('$size', Size),
     put('$constraint_tries', CTries),
+    put('$any_type',AnyType),
     proper_arith:rand_start(Crypto),
     proper_typeserver:start(),
     proper_funserver:start(),
@@ -252,6 +258,7 @@ global_state_erase() ->
     proper_arith:rand_stop(),
     erase('$constraint_tries'),
     erase('$size'),
+    erase('$any_type'),
     ok.
 
 -spec spawn_link_migrate(fun(() -> _)) -> pid().
@@ -311,17 +318,23 @@ get_bound(#cexm{bound = ImmTestCase}) ->
 check(OuterTest) ->
     check(OuterTest, []).
 
--spec check(outer_test(), user_opt_or_opts()) -> result().
+-spec check(outer_test(), user_opts()) -> result().
 check(OuterTest, UserOpts) ->
-    ImmOpts = parse_opts(UserOpts),
-    {Test,Opts} = peel_test(OuterTest, ImmOpts),
-    test({test,Test}, Opts).
+    try parse_opts(UserOpts) of
+	ImmOpts ->
+	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
+	    test({test,Test}, Opts)
+    catch
+	throw:{unrecognized_option,_UserOpt} = Error ->
+	    report_error(Error, fun io:format/2),
+	    Error
+    end.
 
 -spec pure_check(outer_test()) -> result().
 pure_check(OuterTest) ->
     pure_check(OuterTest, []).
 
--spec pure_check(outer_test(), user_opt_or_opts()) -> result().
+-spec pure_check(outer_test(), user_opts()) -> result().
 pure_check(OuterTest, ImmUserOpts) ->
     Parent = self(),
     UserOpts = add_user_opt(quiet, ImmUserOpts),
@@ -334,57 +347,85 @@ pure_check(OuterTest, ImmUserOpts) ->
 check_spec(MFA) ->
     check_spec(MFA, []).
 
--spec check_spec(mfa(), user_opt_or_opts()) -> result().
+-spec check_spec(mfa(), user_opts()) -> result().
 check_spec(MFA, UserOpts) ->
-    Opts = parse_opts(UserOpts),
-    test({spec,MFA}, Opts).
+    try parse_opts(UserOpts) of
+	Opts ->
+	    test({spec,MFA}, Opts)
+    catch
+	throw:{unrecognized_option,_UserOpt} = Error ->
+	    report_error(Error, fun io:format/2),
+	    Error
+    end.
 
 -spec retest(outer_test(), counterexample()) -> rerun_result().
 retest(OuterTest, CExm) ->
     retest(OuterTest, CExm, []).
 
--spec retest(outer_test(), counterexample(), user_opt_or_opts()) ->
-	  rerun_result().
+-spec retest(outer_test(), counterexample(), user_opts()) -> rerun_result().
 retest(OuterTest, CExm, UserOpts) ->
-    ImmOpts = parse_opts(UserOpts),
-    {Test,Opts} = peel_test(OuterTest, ImmOpts),
-    retry({test,Test}, CExm, Opts).
+    try parse_opts(UserOpts) of
+	ImmOpts ->
+	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
+	    retry({test,Test}, CExm, Opts)
+    catch
+	throw:{unrecognized_option,_UserOpt} = Error ->
+	    report_error(Error, fun io:format/2),
+	    Error
+    end.
 
 -spec retest_spec(mfa(), counterexample()) -> rerun_result().
 retest_spec(MFA, CExm) ->
     retest_spec(MFA, CExm, []).
 
--spec retest_spec(mfa(), counterexample(), user_opt_or_opts()) ->
-	  rerun_result().
+-spec retest_spec(mfa(), counterexample(), user_opts()) -> rerun_result().
 retest_spec(MFA, CExm, UserOpts) ->
-    Opts = parse_opts(UserOpts),
-    retry({spec,MFA}, CExm, Opts).
+    try parse_opts(UserOpts) of
+	Opts ->
+	    retry({spec,MFA}, CExm, Opts)
+    catch
+	throw:{unrecognized_option,_UserOpt} = Error ->
+	    report_error(Error, fun io:format/2),
+	    Error
+    end.
 
 -spec module(mod_name()) -> module_result().
 module(Mod) ->
     module(Mod, []).
 
--spec module(mod_name(), user_opt_or_opts()) -> module_result().
+-spec module(mod_name(), user_opts()) -> module_result().
 module(Mod, UserOpts) ->
-    Opts = parse_opts(UserOpts),
-    multi_test(Mod, test, Opts).
+    try parse_opts(UserOpts) of
+	Opts ->
+	    multi_test(Mod, test, Opts)
+    catch
+	throw:{unrecognized_option,_UserOpt} = Error ->
+	    report_error(Error, fun io:format/2),
+	    Error
+    end.
 
 -spec module_specs(mod_name()) -> module_result().
 module_specs(Mod) ->
     module_specs(Mod, []).
 
--spec module_specs(mod_name(), user_opt_or_opts()) -> module_result().
+-spec module_specs(mod_name(), user_opts()) -> module_result().
 module_specs(Mod, UserOpts) ->
-    Opts = parse_opts(UserOpts),
-    multi_test(Mod, spec, Opts).
+    try parse_opts(UserOpts) of
+	Opts ->
+	    multi_test(Mod, spec, Opts)
+    catch
+	throw:{unrecognized_option,_UserOpt} = Error ->
+	    report_error(Error, fun io:format/2),
+	    Error
+    end.
 
--spec add_user_opt(user_opt(), user_opt_or_opts()) -> [user_opt()].
+-spec add_user_opt(user_opt(), user_opts()) -> [user_opt()].
 add_user_opt(NewUserOpt, UserOptsList) when is_list(UserOptsList) ->
     [NewUserOpt | UserOptsList];
 add_user_opt(NewUserOpt, SingleUserOpt) ->
     add_user_opt(NewUserOpt, [SingleUserOpt]).
 
--spec parse_opts(user_opt_or_opts()) -> opts().
+-spec parse_opts(user_opts()) -> opts().
 parse_opts(UserOptsList) when is_list(UserOptsList) ->
     parse_opts(lists:reverse(UserOptsList), #opts{});
 parse_opts(SingleUserOpt) ->
@@ -401,9 +442,8 @@ parse_opt(UserOpt, Opts) ->
     case UserOpt of
 	quiet                -> Opts#opts{output_fun = fun(_,_) -> ok end};
 	{to_file,IoDev}      -> Opts#opts{output_fun =
-					      fun(S,F) ->
-						  io:format(IoDev, S, F)
-					      end};
+				    fun(S,F) -> io:format(IoDev, S, F) end
+				};
 	{on_output,Print}    -> Opts#opts{output_fun = Print};
 	long_result          -> Opts#opts{long_result = true};
 	crypto               -> Opts#opts{crypto = true};
@@ -414,8 +454,11 @@ parse_opt(UserOpt, Opts) ->
 	noshrink             -> Opts#opts{noshrink = true};
 	{constraint_tries,N} -> Opts#opts{constraint_tries = N};
 	fails                -> Opts#opts{expect_fail = true};
+	any_to_integer       -> Opts#opts{any_type =
+				    {type,proper_types:integer()}
+				};
 	{spec_timeout,N}     -> Opts#opts{spec_timeout = N};
-	_                    -> Opts
+	_                    -> throw({unrecognized_option,UserOpt})
     end.
 
 -spec peel_test(outer_test(), opts()) -> {test(),opts()}.
@@ -987,7 +1030,9 @@ report_error(cant_satisfy, Print) ->
     Print("Error: no valid test could be generated.~n", []);
 report_error({unexpected,Unexpected}, Print) ->
     Print("Internal error: the last run returned an unexpected result:~n~w~n"
-	  "Please notify the maintainers about this error~n", [Unexpected]).
+	  "Please notify the maintainers about this error~n", [Unexpected]);
+report_error({unrecognized_option,UserOpt}, Print) ->
+    Print("Error: Unrecognized option: ~w~n", [UserOpt]).
 
 -spec report_fail_reason(fail_reason(), output_fun(), boolean()) -> 'ok'.
 report_fail_reason(false_prop, _Print, false) ->
