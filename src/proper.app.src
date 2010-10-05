@@ -22,7 +22,7 @@
 %%% @doc This is the file that generates the proper.app file.
 
 {application, proper,
- [{description, "A property-based testing tool for Erlang inspired by QuickCheck"},
+ [{description, "A QuickCheck-inspired property-based testing tool for Erlang"},
   {vsn, "%PROPER_VSN%"},
   {modules, [%PROPER_MODULES%]},
   {registered, [%PROPER_REGISTERED%]},

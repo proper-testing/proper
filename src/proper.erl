@@ -963,8 +963,8 @@ apply_skip(Args, Prop) ->
 report_imm_result({passed,Passed,Samples,Printers},
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("Error: no test failed~n", []);
-	false -> Print("OK, passed ~b test(s)~n", [Passed])
+	true  -> Print("Error: no test failed.~n", []);
+	false -> Print("OK, passed ~b test(s).~n", [Passed])
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Passed, Print) end,

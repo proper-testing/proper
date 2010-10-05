@@ -2,9 +2,9 @@
 Contact information and license
 --------------------------------------------------------------------------------
 
-PropEr (PROPerty-based testing tool for ERlang) is an open-source implementation
-of QuickCheck for Erlang developed by Manolis Papadakis (manopapad@gmail.com)
-and Kostis Sagonas (kostis@cs.ntua.gr).
+PropEr (PROPerty-based testing tool for ERlang) is a QuickCheck-inspired
+open-source property-based testing tool for Erlang, developed by Manolis
+Papadakis (manopapad@gmail.com) and Kostis Sagonas (kostis@cs.ntua.gr).
 
 Most of the source code of PropEr is written mainly by Manolis Papadakis.
 
