@@ -662,42 +662,26 @@ get_symb_call({Mod,_TypeName,_Arity} = FullADTRef, {FunName,Domain,Range}) ->
 			      {type,0,'$fixed_list',Domain}]},
     unwrap_range(FullADTRef, BaseCall, Range, false).
 
-
-
-
-
 -spec unwrap_range(full_imm_type_ref(), abs_type() | next_step(), abs_type(),
 		   boolean()) ->
-	  tagged_result2(abs_type()  | next_step(),[var_name()]).
+	  tagged_result2(abs_type() | next_step(),[var_name()]).
 unwrap_range(FullADTRef, Call, {paren_type,_,[Type]}, TestRun) ->
     unwrap_range(FullADTRef, Call, Type, TestRun);
 unwrap_range(FullADTRef, Call, {ann_type,_,[_Var,Type]}, TestRun) ->
     unwrap_range(FullADTRef, Call, Type, TestRun);
-unwrap_range(FullADTRef, Call, {type,_,NEListKind,Args}, TestRun)
-	when NEListKind =:= 'nonempty_list';
-	     NEListKind =:= 'nonempty_improper_list';
-	     NEListKind =:= 'nonempty_maybe_improper_list' ->
-    HeadType =
-	case NEListKind of
-	    nonempty_list ->
-		[ElemForm] = Args,
-		ElemForm;
-	    _ ->
-		[ContForm,_TermForm] = Args,
-		ContForm
-	end,
-    NewCall =
-	case TestRun of
-	    true ->
-		case Call of
-		    none -> take_head;
-		    _    -> Call
-		end;
-	    false ->
-		{type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},{atom,0,hd},
-			       {type,0,'$fixed_list',[Call]}]}
-	end,
-    unwrap_range(FullADTRef, NewCall, HeadType, TestRun);
+unwrap_range(FullADTRef, Call, {type,_,list,[ElemType]}, TestRun) ->
+    unwrap_list(FullADTRef, Call, ElemType, TestRun);
+unwrap_range(FullADTRef, Call, {type,_,maybe_improper_list,[Cont,_Term]},
+	     TestRun) ->
+    unwrap_list(FullADTRef, Call, Cont, TestRun);
+unwrap_range(FullADTRef, Call, {type,_,nonempty_list,[ElemType]}, TestRun) ->
+    unwrap_list(FullADTRef, Call, ElemType, TestRun);
+unwrap_range(FullADTRef, Call, {type,_,nonempty_improper_list,[Cont,_Term]},
+	     TestRun) ->
+    unwrap_list(FullADTRef, Call, Cont, TestRun);
+unwrap_range(FullADTRef, Call,
+	     {type,_,nonempty_maybe_improper_list,[Cont,_Term]}, TestRun) ->
+    unwrap_list(FullADTRef, Call, Cont, TestRun);
 unwrap_range(_FullADTRef, _Call, {type,_,tuple,any}, _TestRun) ->
     error;
 unwrap_range(FullADTRef, Call, {type,_,tuple,FieldForms}, TestRun) ->
@@ -764,6 +748,23 @@ unwrap_range({SameMod,SameName,_Arity} = FullADTRef, Call,
     unwrap_range(FullADTRef, Call, {type,0,SameName,ArgForms}, TestRun);
 unwrap_range(_FullADTRef, _Call, _Range, _TestRun) ->
     error.
+
+-spec unwrap_list(full_imm_type_ref(), abs_type() | next_step(), abs_type(),
+		  boolean()) ->
+	  tagged_result2(abs_type() | next_step(),[var_name()]).
+unwrap_list(FullADTRef, Call, HeadType, TestRun) ->
+    NewCall =
+	case TestRun of
+	    true ->
+		case Call of
+		    none -> take_head;
+		    _    -> Call
+		end;
+	    false ->
+		{type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},{atom,0,hd},
+			       {type,0,'$fixed_list',[Call]}]}
+	end,
+    unwrap_range(FullADTRef, NewCall, HeadType, TestRun).
 
 -spec fix_vars(full_imm_type_ref(), abs_type(), [var_name()], [var_name()]) ->
 	  tagged_result(abs_type()).
@@ -1996,7 +1997,7 @@ wunion_rec_fun({NumTypes,_NumRecs,RecArgLens,RecFuns}) ->
 	GFsList = proper_arith:unflatten(AllGFs, RecArgLens),
 	ArgsList = [[GenFuns,Size] || GenFuns <- GFsList],
 	ZipFun = fun(W,F,A) -> {W,?LAZY(apply(F,A))} end,
-	RecWeight = Size div (NumTypes - 1) + 1,
+	RecWeight = erlang:max(1, Size div (NumTypes - 1)),
 	Weights = [1 | lists:duplicate(NumTypes - 1, RecWeight)],
 	WeightedChoices = lists:zipwith3(ZipFun, Weights, RecFuns, ArgsList),
 	proper_types:wunion(WeightedChoices)

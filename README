@@ -823,7 +823,6 @@ automatically detected and handled as such. PropEr also accepts parametric
 versions of the above ADTs in ?FORALLs (array/1, dict/2, gb_set/1, gb_tree/2,
 queue/1, set/1, also orddict/2 and ordset/1).
 
-
 The use of Auto-ADT is currently subject to the following limitations:
 
 * In the ADT's '-opaque' declaration, as in all types' declarations, only
@@ -840,9 +839,9 @@ The use of Auto-ADT is currently subject to the following limitations:
      -spec foo(mydict(T,S),mydict(S,T)) -> mydict(T,S).
   This includes using the same type variable twice in the parameters of an ADT.
 * While parsing the return type of specs in search of ADT references, PropEr
-  only recurses into tuples, unions and non-empty lists - all other constructs
-  are ignored. This prohibits, among others, indirect references to the ADT
-  through other custom types and records.
+  only recurses into tuples, unions and lists - all other constructs are
+  ignored. This prohibits, among others, indirect references to the ADT through
+  other custom types and records.
 * When encountering a union in the return type, PropEr will pick the first
   choice that can return an ADT. This choice must be distinguishable from the
   others either by having a unique term structure or by having a unique tag (if
