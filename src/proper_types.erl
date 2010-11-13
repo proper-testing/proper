@@ -96,9 +96,6 @@
 
 -opaque type() :: {'$type', [type_prop()]}.
 -type raw_type() :: type() | [raw_type()] | loose_tuple(raw_type()) | term().
--type loose_tuple(T) :: {} | {T} | {T,T} | {T,T,T} | {T,T,T,T} | {T,T,T,T,T}
-		      | {T,T,T,T,T,T} | {T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T}
-		      | {T,T,T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T,T,T} | tuple().
 -type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
 			| 'parts_type' | 'combine' | 'alt_gens'
 			| 'shrink_to_parts' | 'size_transform' | 'is_instance'
@@ -158,6 +155,7 @@
 %%------------------------------------------------------------------------------
 
 %% @private
+%% TODO: just cook/1 ?
 -spec cook_outer(raw_type()) -> proper_types:type().
 cook_outer(Type = {'$type',_Props}) ->
     Type;

@@ -23,7 +23,7 @@
 %%%	 this module.
 
 -module(proper_gen).
--export([pick/1, pick/2]).
+-export([pick/1, pick/2, sampleshrink/1, sampleshrink/2]).
 
 -export([safe_generate/1]).
 -export([generate/1, normal_gen/1, alt_gens/1, clean_instance/1]).
@@ -155,6 +155,35 @@ pick(RawType, Size) ->
 	    proper:report_error(Reason, fun io:format/2),
 	    proper:global_state_erase(),
 	    error
+    end.
+
+-spec sampleshrink(proper_types:raw_type()) -> 'ok'.
+sampleshrink(RawType) ->
+    sampleshrink(RawType, 10).
+
+-spec sampleshrink(proper_types:raw_type(), size()) -> 'ok'.
+sampleshrink(RawType, Size) ->
+    proper:global_state_init_size(Size),
+    Type = proper_types:cook_outer(RawType),
+    case safe_generate(Type) of
+	{ok,ImmInstance} ->
+	    Shrunk = keep_shrinking([ImmInstance], Type),
+	    lists:foreach(fun(I) -> io:format("~p~n",[clean_instance(I)]) end,
+			  Shrunk);
+	{error,_Reason} ->
+	    io:format("Error: couldn't generate.~n", [])
+    end,
+    proper:global_state_erase(),
+    ok.
+
+-spec keep_shrinking([imm_instance()], proper_types:type()) -> [imm_instance()].
+keep_shrinking([ImmInstance|_Rest] = Acc, Type) ->
+    case proper_shrink:shrink([ImmInstance], {Type,fun(_) -> false end},
+			      false_prop, 1, fun(_,_) -> ok end) of
+	{0,_} ->
+	    lists:reverse(Acc);
+	{1,[ShrunkImmInstance]} ->
+	    keep_shrinking([ShrunkImmInstance|Acc], Type)
     end.
 
 -spec contains_fun(term()) -> boolean().

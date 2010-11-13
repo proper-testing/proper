@@ -121,7 +121,8 @@
 -type proc_fun_ref() :: {fun_name(),[abs_type()],abs_type()}.
 -type full_imm_type_ref() :: {mod_name(),type_name(),arity()}.
 -type imm_stack() :: [full_imm_type_ref()].
--type pattern() :: tuple().
+-type pat_field() :: 0 | 1 | atom().
+-type pattern() :: loose_tuple(pat_field()).
 -type next_step() :: 'none' | 'take_head' | {'match_with',pattern()}.
 
 -type mod_exp_types() :: set(). %% set(imm_type_ref())
@@ -879,8 +880,8 @@ get_pattern(TargetPos, FieldForms) ->
     {0,RevPattern} = lists:foldl(fun add_field/2, {TargetPos,[]}, FieldForms),
     list_to_tuple(lists:reverse(RevPattern)).
 
--spec add_field(abs_type(), {non_neg_integer(),[0 | 1 | atom()]}) ->
-	  {non_neg_integer(),[0 | 1 | atom(),...]}.
+-spec add_field(abs_type(), {non_neg_integer(),[pat_field()]}) ->
+	  {non_neg_integer(),[pat_field(),...]}.
 add_field(_Type, {1,Acc}) ->
     {0, [1|Acc]};
 add_field({atom,_,Tag}, {Left,Acc}) ->
@@ -894,7 +895,7 @@ match(Pattern, Term) when tuple_size(Pattern) =:= tuple_size(Term) ->
 match(_Pattern, _Term) ->
     throw(no_match).
 
--spec match([0 | 1 | atom()], [term()], 'none' | {'ok',T}, boolean()) -> T.
+-spec match([pat_field()], [term()], 'none' | {'ok',T}, boolean()) -> T.
 match([], [], {ok,Target}, _TypeMode) ->
     Target;
 match([0|PatRest], [_|ToMatchRest], Acc, TypeMode) ->
@@ -1010,7 +1011,8 @@ cant_have_head(_Type) ->
 
 %% Only covers atoms, integers and tuples, i.e. those that can be specified
 %% through singleton types.
--spec term_to_singleton_type(atom() | integer() | tuple()) -> abs_type().
+-spec term_to_singleton_type(atom() | integer()
+			     | loose_tuple(atom() | integer())) -> abs_type().
 term_to_singleton_type(Atom) when is_atom(Atom) ->
     {atom,0,Atom};
 term_to_singleton_type(Int) when is_integer(Int), Int >= 0 ->

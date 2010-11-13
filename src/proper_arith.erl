@@ -123,7 +123,7 @@ safe_zip_tr(_Xs, [], Acc) ->
 safe_zip_tr([X|Xtail], [Y|YTail], Acc) ->
     safe_zip_tr(Xtail, YTail, [{X,Y}|Acc]).
 
--spec tuple_map(fun((term()) -> term()), tuple()) -> tuple().
+-spec tuple_map(fun((T) -> S), loose_tuple(T)) -> loose_tuple(S).
 tuple_map(Fun, Tuple) ->
     list_to_tuple(lists:map(Fun, tuple_to_list(Tuple))).
 
