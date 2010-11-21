@@ -33,7 +33,8 @@
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
-	 function1/1, function2/1, function3/1, function4/1]).
+	 function1/1, function2/1, function3/1, function4/1,
+	 weighted_default/2]).
 -export([resize/2, non_empty/1, noshrink/1]).
 
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, to_binary/1,
@@ -865,6 +866,10 @@ function3(RawRetType) ->
 function4(RawRetType) ->
     function(4, RawRetType).
 
+-spec weighted_default({frequency(),raw_type()}, {frequency(),raw_type()}) ->
+	  proper_types:type().
+weighted_default(Default, OtherType) ->
+    weighted_union([Default, OtherType]).
 
 %%------------------------------------------------------------------------------
 %% Additional type specification functions
@@ -882,8 +887,8 @@ resize(Size, RawType) ->
 
 -spec non_empty(raw_type()) -> proper_types:type().
 non_empty(RawListType) ->
-    ?SUCHTHAT(L, RawListType, L =/= []).
+    ?SUCHTHAT(L, RawListType, L =/= [] andalso L =/= <<>>).
 
--spec noshrink(proper_types:type()) -> proper_types:type().
-noshrink(Type) ->
-    add_prop(noshrink, true, Type).
+-spec noshrink(raw_type()) -> proper_types:type().
+noshrink(RawType) ->
+    add_prop(noshrink, true, cook_outer(RawType)).

@@ -53,7 +53,7 @@
 -import(proper_types, [int/0, nat/0, largeint/0, real/0, bool/0, choose/2,
 		       elements/1, oneof/1, frequency/1, return/1, default/2,
 		       orderedlist/1, function0/1, function1/1, function2/1,
-		       function3/1, function4/1]).
+		       function3/1, function4/1, weighted_default/2]).
 
 
 %%------------------------------------------------------------------------------

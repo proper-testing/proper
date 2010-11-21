@@ -467,7 +467,7 @@ In addition, the following types are provided:
     union to an instance of the first type in ListOfTypes, thus you should write
     the simplest case first,
     also written as oneof(ListOfTypes) and elements(ListOfTypes)
-* weighted_union(ListOfTypes) : a specialization of union(ListOfTypes) where
+* weighted_union(ListOfTypes) : a specialization of union(ListOfTypes), where
     each type in ListOfTypes is assigned a frequency like so: {frequency,type},
     frequencies must be Erlang expressions that evaluate to positive integers,
     types with larger frequencies are more likely to be chosen by the random
@@ -478,6 +478,11 @@ In addition, the following types are provided:
 * default(Default, Type) : adds a default value, Default, to Type,
     the default serves as a primary shrinking target for instances, while it is
     also chosen by the random instance generation subsystem half the time
+* weighted_default(Default, Type) : a specialization of default(Default, Type),
+    where Default and Type are assigned weights like so: {frequency,type},
+    to be considered by the random instance generator,
+    the shrinking subsystem will ignore the weights and try to shrink
+    using the default value
 * function[0-4](RetType) : equivalent to function([0-4], RetType), provided for
     compatibility with QuickCheck
 * timeout() : equivalent to union([non_neg_integer() | 'timeout']),
@@ -523,10 +528,10 @@ new ones:
     considered non-strict: if the 'constraint_tries' limit is reached, the
     generator will just return an instance of <Type> instead of failing,
     even if that instance doesn't satisfy the constraint.
-non_empty(<List_type>)
+non_empty(<List_or_binary_type>)
     This is a predefined constraint that can be applied to random-length list
-    types (e.g. list() and string()) to ensure that the produced lists are not
-    empty.
+    and binary types (e.g. list(), string(), binary()) to ensure that the
+    produced values are not empty.
 noshrink(<Type>)
     Creates a new type which is equivalent to <Type>, but whose instances are
     never shrunk by the shrinking subsystem.
