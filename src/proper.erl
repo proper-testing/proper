@@ -26,7 +26,7 @@
 	 check_spec/2, retest/2, retest/3, retest_spec/2, retest_spec/3,
 	 module/1, module/2, module_specs/1, module_specs/2]).
 -export([numtests/2, fails/1, on_output/2]).
--export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
+-export([collect/2, collect/3, aggregate/2, aggregate/3, classify/3, measure/3,
 	 with_title/1, equals/2]).
 -export([global_state_erase/0, get_counterexample/0, get_counterexamples/0,
 	 clean_garbage/0, get_fail_reason/1, get_bound/1]).
@@ -37,6 +37,7 @@
 
 -export_type([test/0, outer_test/0, counterexample/0]).
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
+%% @private_type imm_testcase, stripped_test, fail_reason
 
 -include("proper_internal.hrl").
 
@@ -52,7 +53,6 @@
 %% Test types
 %%------------------------------------------------------------------------------
 
-%% @private_type imm_testcase
 -type imm_testcase() :: [proper_gen:imm_instance()].
 -type clean_testcase() :: [proper_gen:instance()].
 -type sample() :: [term()].
@@ -77,6 +77,7 @@
 	      | implies_clause()
 	      | sample_clause()
 	      | whenfail_clause()
+	      %%| trapexit_clause()
 	      | timeout_clause().
 	      %%| always_clause()
 	      %%| sometimes_clause()
@@ -85,7 +86,6 @@
 -type lazy_test() :: delayed_test() | dependent_test().
 -type raw_test_kind() :: 'test' | 'spec'.
 -type raw_test() :: {'test',test()} | {'spec',mfa()}.
-%% @private_type stripped_test
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
 -type stripped_forall()	:: {proper_types:type(), dependent_test()}.
 
@@ -97,6 +97,7 @@
 -type implies_clause() :: {'implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
+%%-type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
 -type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
@@ -149,10 +150,9 @@
 %% Result types
 %%------------------------------------------------------------------------------
 
--type single_run_result() :: {'passed', pass_reason(), [sample()],
-			      [stats_printer()]}
-			   | {'failed', counterexample(), fail_actions()}
-			   | {'error', single_run_error_reason()}.
+-type run_result() :: {'passed', pass_reason(), [sample()], [stats_printer()]}
+		    | {'failed', counterexample(), fail_actions()}
+		    | {'error', single_run_error_reason()}.
 -type imm_result() :: {'passed', pos_integer(), [sample()], [stats_printer()]}
 		    | {'failed',pos_integer(),counterexample(),fail_actions()}
 		    | {'error', error_reason()}.
@@ -183,7 +183,7 @@
 				 | 'rejected' | 'too_many_instances'.
 -type error_reason() :: common_error_reason() | 'cant_satisfy'
 		      | {'unrecognized_option', term()}
-		      | {'unexpected', single_run_result()}.
+		      | {'unexpected', run_result()}.
 -type rerun_error_reason() :: single_run_error_reason() | 'too_few_instances'
 			    | {'unrecognized_option', term()}.
 
@@ -311,7 +311,7 @@ get_bound(#cexm{bound = ImmTestCase}) ->
 
 
 %%------------------------------------------------------------------------------
-%% Outwards interface functions
+%% Public interface functions
 %%------------------------------------------------------------------------------
 
 -spec check(outer_test()) -> result().
@@ -419,6 +419,11 @@ module_specs(Mod, UserOpts) ->
 	    Error
     end.
 
+
+%%------------------------------------------------------------------------------
+%% Options parsing functions
+%%------------------------------------------------------------------------------
+
 -spec add_user_opt(user_opt(), user_opts()) -> [user_opt()].
 add_user_opt(NewUserOpt, UserOptsList) when is_list(UserOptsList) ->
     [NewUserOpt | UserOptsList];
@@ -514,6 +519,14 @@ aggregate(Sample, Test) ->
 -spec aggregate(stats_printer(), sample(), test()) -> sample_clause().
 aggregate(Printer, Sample, Test) ->
     {sample, Sample, Printer, Test}.
+
+-spec classify(boolean(), term() | sample(), test()) -> sample_clause().
+classify(false, _TermOrSample, Test) ->
+    aggregate([], Test);
+classify(true, Sample, Test) when is_list(Sample) ->
+    aggregate(Sample, Test);
+classify(true, Term, Test) ->
+    collect(Term, Test).
 
 -spec measure(title(), number() | [number()], test()) -> sample_clause().
 measure(Title, Sample, Test) when is_number(Sample) ->
@@ -654,7 +667,7 @@ get_result({failed,Performed,CExm,_Actions}, Test, Opts) ->
 get_result({error,_Reason} = ErrorResult, _Test, _Opts) ->
     {ErrorResult, ErrorResult}.
 
--spec get_rerun_result(single_run_result(), test(), fail_reason(), opts()) ->
+-spec get_rerun_result(run_result(), test(), fail_reason(), opts()) ->
 	  {short_rerun_result(),long_rerun_result()}.
 get_rerun_result({passed,true_prop,_Samples,_Printers}, _Test, _OldReason,
 		 Opts) ->
@@ -746,16 +759,16 @@ add_samples(MoreSamples, Samples) ->
 %% Single test runner functions
 %%------------------------------------------------------------------------------
 
--spec run(test()) -> single_run_result().
+-spec run(test()) -> run_result().
 run(Test) ->
     run(Test, #ctx{}).
 
--spec rerun(test(), imm_testcase()) -> single_run_result().
+-spec rerun(test(), imm_testcase()) -> run_result().
 rerun(Test, ImmTestCase) ->
     Ctx = #ctx{try_shrunk = true, to_try = ImmTestCase},
     run(Test, Ctx).
 
--spec run(test(), ctx()) -> single_run_result().
+-spec run(test(), ctx()) -> run_result().
 run(true, #ctx{to_try = [], samples = Samples, printers = Printers}) ->
     {passed, true_prop, lists:reverse(Samples), lists:reverse(Printers)};
 run(true, _Ctx) ->
@@ -816,17 +829,15 @@ run({timeout,Limit,Prop}, Ctx) ->
 	create_failed_result(Ctx, time_out)
     end.
 
--spec force(delayed_test(), ctx()) -> single_run_result().
+-spec force(delayed_test(), ctx()) -> run_result().
 force(Prop, Ctx) ->
     apply_args([], Prop, Ctx).
 
--spec force(proper_gen:instance(), dependent_test(), ctx()) ->
-	  single_run_result().
+-spec force(proper_gen:instance(), dependent_test(), ctx()) -> run_result().
 force(Arg, Prop, Ctx) ->
     apply_args([proper_symb:internal_eval(Arg)], Prop, Ctx).
 
--spec apply_args([proper_gen:instance()], lazy_test(), ctx()) ->
-	  single_run_result().
+-spec apply_args([proper_gen:instance()], lazy_test(), ctx()) -> run_result().
 apply_args(Args, Prop, Ctx) ->
     try apply(Prop, Args) of
 	InnerProp ->
@@ -982,8 +993,7 @@ report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
 report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
     report_error(Reason, Print).
 
--spec report_rerun_result(single_run_result(), fail_reason(), output_fun()) ->
-	  'ok'.
+-spec report_rerun_result(run_result(), fail_reason(), output_fun()) -> 'ok'.
 report_rerun_result({passed,true_prop,_Samples,_Printers}, _OldReason, Print) ->
     Print("The input passed the test.~n", []);
 report_rerun_result({passed,didnt_crash,_Samples,_Printers},OldReason,Print) ->

@@ -149,6 +149,10 @@ aggregate(<Categories>, <Prop>)
 aggregate(<Stats_printer>, <Categories>, <Prop>)
     Same as collect/3, but accepts a list of categories under which to classify
     the produced test case.
+classify(<Counts>, <Category/Categories>, <Prop>)
+    Same as collect/2, but accepts both a single category and a list of
+    categories. Also, if the boolean flag <Counts> is 'false', the produced test
+    case is not counted.
 measure(<Title>, <Number> | <List_of_numbers>, <Prop>)
     The number (or numbers) provided are collected and some numeric statistics
     over the collected sample are printed at the end of testing (in case no test
