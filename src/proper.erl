@@ -22,9 +22,9 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([check/1, check/2, pure_check/1, pure_check/2, check_spec/1,
-	 check_spec/2, retest/2, retest/3, retest_spec/2, retest_spec/3,
-	 module/1, module/2, module_specs/1, module_specs/2]).
+-export([quickcheck/1, quickcheck/2, check/2, check/3,
+	 pure_check/1, pure_check/2, module/1, module/2,
+	 check_spec/1, check_spec/2, check_specs/1, check_specs/2]).
 -export([numtests/2, fails/1, on_output/2]).
 -export([collect/2, collect/3, aggregate/2, aggregate/3, classify/3, measure/3,
 	 with_title/1, equals/2]).
@@ -314,12 +314,12 @@ get_bound(#cexm{bound = ImmTestCase}) ->
 %% Public interface functions
 %%------------------------------------------------------------------------------
 
--spec check(outer_test()) -> result().
-check(OuterTest) ->
-    check(OuterTest, []).
+-spec quickcheck(outer_test()) -> result().
+quickcheck(OuterTest) ->
+    quickcheck(OuterTest, []).
 
--spec check(outer_test(), user_opts()) -> result().
-check(OuterTest, UserOpts) ->
+-spec quickcheck(outer_test(), user_opts()) -> result().
+quickcheck(OuterTest, UserOpts) ->
     try parse_opts(UserOpts) of
 	ImmOpts ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
@@ -338,7 +338,7 @@ pure_check(OuterTest) ->
 pure_check(OuterTest, ImmUserOpts) ->
     Parent = self(),
     UserOpts = add_user_opt(quiet, ImmUserOpts),
-    spawn_link(fun() -> Parent ! {result,check(OuterTest,UserOpts)} end),
+    spawn_link(fun() -> Parent ! {result,quickcheck(OuterTest,UserOpts)} end),
     receive
 	{result,Result} -> Result
     end.
@@ -358,31 +358,16 @@ check_spec(MFA, UserOpts) ->
 	    Error
     end.
 
--spec retest(outer_test(), counterexample()) -> rerun_result().
-retest(OuterTest, CExm) ->
-    retest(OuterTest, CExm, []).
+-spec check(outer_test(), counterexample()) -> rerun_result().
+check(OuterTest, CExm) ->
+    check(OuterTest, CExm, []).
 
--spec retest(outer_test(), counterexample(), user_opts()) -> rerun_result().
-retest(OuterTest, CExm, UserOpts) ->
+-spec check(outer_test(), counterexample(), user_opts()) -> rerun_result().
+check(OuterTest, CExm, UserOpts) ->
     try parse_opts(UserOpts) of
 	ImmOpts ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
-	    retry({test,Test}, CExm, Opts)
-    catch
-	throw:{unrecognized_option,_UserOpt} = Error ->
-	    report_error(Error, fun io:format/2),
-	    Error
-    end.
-
--spec retest_spec(mfa(), counterexample()) -> rerun_result().
-retest_spec(MFA, CExm) ->
-    retest_spec(MFA, CExm, []).
-
--spec retest_spec(mfa(), counterexample(), user_opts()) -> rerun_result().
-retest_spec(MFA, CExm, UserOpts) ->
-    try parse_opts(UserOpts) of
-	Opts ->
-	    retry({spec,MFA}, CExm, Opts)
+	    retry(Test, CExm, Opts)
     catch
 	throw:{unrecognized_option,_UserOpt} = Error ->
 	    report_error(Error, fun io:format/2),
@@ -395,24 +380,22 @@ module(Mod) ->
 
 -spec module(mod_name(), user_opts()) -> module_result().
 module(Mod, UserOpts) ->
+    multi_test_prep(Mod, test, UserOpts).
+
+-spec check_specs(mod_name()) -> module_result().
+check_specs(Mod) ->
+    check_specs(Mod, []).
+
+-spec check_specs(mod_name(), user_opts()) -> module_result().
+check_specs(Mod, UserOpts) ->
+    multi_test_prep(Mod, spec, UserOpts).
+
+-spec multi_test_prep(mod_name(), raw_test_kind(), user_opts()) ->
+	  module_result().
+multi_test_prep(Mod, Kind, UserOpts) ->
     try parse_opts(UserOpts) of
 	Opts ->
-	    multi_test(Mod, test, Opts)
-    catch
-	throw:{unrecognized_option,_UserOpt} = Error ->
-	    report_error(Error, fun io:format/2),
-	    Error
-    end.
-
--spec module_specs(mod_name()) -> module_result().
-module_specs(Mod) ->
-    module_specs(Mod, []).
-
--spec module_specs(mod_name(), user_opts()) -> module_result().
-module_specs(Mod, UserOpts) ->
-    try parse_opts(UserOpts) of
-	Opts ->
-	    multi_test(Mod, spec, Opts)
+	    multi_test(Mod, Kind, Opts)
     catch
 	throw:{unrecognized_option,_UserOpt} = Error ->
 	    report_error(Error, fun io:format/2),
@@ -573,11 +556,10 @@ inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
 	false -> ShortResult
     end.
 
--spec retry(raw_test(), counterexample(), opts()) -> rerun_result().
-retry(RawTest, #cexm{bound = ImmTestCase, fail_reason = OldReason} = CExm,
+-spec retry(test(), counterexample(), opts()) -> rerun_result().
+retry(Test, #cexm{bound = ImmTestCase, fail_reason = OldReason} = CExm,
       #opts{long_result = ReturnLong, output_fun = Print} = Opts) ->
     global_state_restore(CExm, Opts),
-    Test = cook_test(RawTest, Opts),
     SingleRunResult = rerun(Test, ImmTestCase),
     report_rerun_result(SingleRunResult, OldReason, Print),
     {ShortResult,LongResult} =

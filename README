@@ -33,9 +33,9 @@ Quickstart guide
   exporting of properties, compile your module with -DPROPER_NOTRANS.
 * Compile your source files.
 * For each property, run:
-     proper:check(your_module:some_property()).
+     proper:quickcheck(your_module:some_property()).
        or
-     proper:check(your_module:some_property(), <option/options>).
+     proper:quickcheck(your_module:some_property(), <option/options>).
   You can also try out the random instance generation subsystem by running:
      proper_gen:pick(some_type()).
        or
@@ -236,7 +236,7 @@ detailing the results of testing. The return tuple can be one of the following:
   description of possible errors.
 
 You can also run PropEr in pure mode by using proper:pure_check/1,2 instead of
-proper:check/1,2. Under this mode, PropEr will perform no I/O and will not
+proper:quickcheck/1,2. Under this mode, PropEr will perform no I/O and will not
 access the caller's process dictionary in any way. Please note that PropEr will
 not actually run as a pure function under this mode.
 
@@ -268,21 +268,21 @@ part of the return value.
 
 You can re-check a specific counterexample <CExm> against the property <Prop>
 that it previously falsified by running:
-   proper:retest(<Prop>, <CExm>)
+   proper:check(<Prop>, <CExm>)
      or
-   proper:retest(<Prop>, <CExm>, <option/options>)
+   proper:check(<Prop>, <CExm>, <option/options>)
 This will return one of the following:
   * 'true': The property now holds for this test case.
   * 'false': The test case still fails (although not necessarily for the same
     reason as before).
   * {'error', <Type_of_error>}: An error occured - see the 'Errors' section for
     a description of possible errors.
-Unless a 'no_shrink' option is present, proper:retest will also try to shrink
+Unless a 'no_shrink' option is present, proper:check will also try to shrink
 the counterexample. The minimal counterexample can again be retrieved by running
 proper:get_counterexample(). Unless silent mode is active, PropEr will also
 print a message on screen, describing the result of the re-checking.
 
-In long-result mode, the return value format of proper:retest becomes:
+In long-result mode, the return value format of proper:check becomes:
   * 'passed': The test case passed the property.
   * {'failed', <Number_of_Shrinks>, <Minimal_CExm>}: The property still fails
     for this input. After <Number_of_Shrinks> shrinks, PropEr simplified the
@@ -310,11 +310,11 @@ Options
 --------------------------------------------------------------------------------
 
 Options can be provided as an extra argument to testing functions exported from
-the main proper module (such as proper:check). A single option can be written
-stand-alone, or multiple options can be provided in a list. When two settings
-conflict, the one that comes first in the list takes precedence. Settings given
-inside extrernal wrappers to a property (see the 'How to write properties'
-section) override any conflicting settings provided as options.
+the main proper module (such as proper:quickcheck). A single option can be
+written stand-alone, or multiple options can be provided in a list. When two
+settings conflict, the one that comes first in the list takes precedence.
+Settings given inside extrernal wrappers to a property (see the 'How to write
+properties' section) override any conflicting settings provided as options.
 
 The available options are:
 
@@ -715,16 +715,13 @@ You can test the accuracy of an exported function's spec by running:
 Under this mode of operation, PropEr will call the provided function with
 increasingly complex valid inputs (according to its spec) and test that no
 unexpected value is returned. If an input is found that violates the spec, it
-will be saved as a counterexample and PropEr will attempt to shrink it. You can
-re-check a counterexample against the spec that it violated by running:
-     proper:retest_spec(mfa(), <CExm>).
-       or
-     proper:retest_spec(mfa(), <CExm>, <option/options>).
+will be saved as a counterexample and PropEr will attempt to shrink it.
+
 You can test all exported functions of a module against their spec by running:
-     proper:module_specs(<Module>).
+     proper:check_specs(<Module>).
        or
-     proper:module_specs(<Module>, <option/options/).
-The behaviour of proper:module_specs is similar to that of proper:module.
+     proper:check_specs(<Module>, <option/options/).
+The behaviour of proper:check_specs is similar to that of proper:module.
 
 The use of check_spec is subject to the following usage rules:
 
@@ -877,7 +874,7 @@ Errors
 --------------------------------------------------------------------------------
 
 The following errors may be encountered during testing. The term provided for
-each error is the error type returned by proper:check in case such an error
+each error is the error type returned by proper:quickcheck in case such an error
 occurs. Normaly, a message is also printed on screen describing the error.
 
 * {'unrecognized_option', <Option>}: <Option> is not an option that PropEr
@@ -925,7 +922,5 @@ provide a nonexhaustive list of known incompatibilities:
   instances of the failing test case itself. That required extra bit of
   information is the reason for encapsulating the failing test case in an opaque
   'counterexample' datatype.
-* The naming of functions in the main proper module differs slightly from the
-  naming of functions in the main eqc module.
 * proper_gen:pick differs from eqc_gen:pick in return value format.
 * PropEr handles 'size' differently from QuickCheck.
