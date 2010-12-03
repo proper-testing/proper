@@ -37,7 +37,9 @@
 
 -export_type([test/0, outer_test/0, counterexample/0]).
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
-%% @private_type imm_testcase, stripped_test, fail_reason
+%% @private_type imm_testcase
+%% @private_type stripped_test
+%% @private_type fail_reason
 
 -include("proper_internal.hrl").
 

@@ -37,6 +37,13 @@
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
 	      alt_gens/0]).
+%% @private_type sized_generator
+%% @private_type nosize_generator
+%% @private_type generator
+%% @private_type straight_gen
+%% @private_type reverse_gen
+%% @private_type combine_fun
+%% @private_type alt_gens
 
 -include("proper_internal.hrl").
 
@@ -53,21 +60,14 @@
 		      | {'$used', imm_instance(), imm_instance()}
 		      | {'$to_part', imm_instance()}.
 
-%% @private_type sized_generator
 -type sized_generator() :: fun((size()) -> imm_instance()).
-%% @private_type nosize_generator
 -type nosize_generator() :: fun(() -> imm_instance()).
-%% @private_type generator
 -type generator() :: sized_generator() | nosize_generator().
 -type sized_straight_gen() :: fun((size()) -> {'ok',instance()} | 'error').
 -type nosize_straight_gen() :: fun(() -> {'ok',instance()} | 'error').
-%% @private_type straight_gen
 -type straight_gen() :: sized_straight_gen() | nosize_straight_gen().
-%% @private_type reverse_gen
 -type reverse_gen() :: fun((instance()) -> imm_instance()).
-%% @private_type combine_fun
 -type combine_fun() :: fun((instance()) -> imm_instance()).
-%% @private_type alt_gens
 -type alt_gens() :: fun(() -> [imm_instance()]).
 
 

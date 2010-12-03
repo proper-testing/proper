@@ -45,6 +45,10 @@
                     | {'size', array_size()}.
 -type array_opts(T) :: array_opt(T) | [array_opt(T)].
 
+%% This header is only included so that the strip_types parse transform will be
+%% applied to this file as well.
+-include("proper_internal.hrl").
+
 
 %%------------------------------------------------------------------------------
 %% API functions

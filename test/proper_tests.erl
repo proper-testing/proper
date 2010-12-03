@@ -62,9 +62,7 @@ cexm(FailReason, Bound) ->
     {cexm, FailReason, Bound, 10, {state,'$temp_mod',[],1}}.
 
 state_is_clean() ->
-    get() =:= []
-    andalso [] =:= [Proc || Proc <- registered(),
-			    lists:member(Proc, ?PROPER_REGISTERED)].
+    get() =:= [].
 
 -define(_failsWithReason(ExpReason, Test),
 	?_failRun(ExpReason, _, _, none, Test, [noshrink])).

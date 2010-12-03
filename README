@@ -41,15 +41,13 @@ Quickstart guide
        or
      proper_gen:pick(some_type(), <size>).
 
-Note to users of Erlang r13b03 or older:
+Note to users of Erlang/OTP R13B03 or older:
 
-PropEr makes heavy use of recursive types, which are unsupported in versions of
-the Erlang/OTP distribution prior to r13b04. To compile PropEr under such a
-system, run 'make' like so:
-   make NOTYPES=1
-This enables the spec+type-stripping parse transform included in PropEr, which
-fixes the problem by stripping all type information from PropEr's source files
-while compiling.
+PropEr makes heavy use of recursive types, which are unsupported on versions of
+the Erlang/OTP distribution prior to R13B04. To compile PropEr under such a
+system, add {d,NO_TYPES} to erl_opts inside rebar.config. This enables the
+spec+type-stripping parse transform included in PropEr, which fixes the problem
+by stripping all type information from PropEr's source files while compiling.
 
 
 --------------------------------------------------------------------------------
