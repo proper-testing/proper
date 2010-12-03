@@ -32,14 +32,14 @@
 
 -export_type([ordset/1]).
 
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
+%% When parsed by the typeserver, this becomes opaque (it's declared as a
+%% simple type because dialyzer can't handle parametric opaque types yet).
 -type ordset(T) :: [T].
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% API functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec new() -> ordset(_T).
 new() ->

@@ -19,8 +19,8 @@
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
-%%% @doc The generator subsystem and generators for basic types are contained in
-%%%	 this module.
+%%% @doc The generator subsystem and generators for basic types are contained
+%%%	 in this module.
 
 -module(proper_gen).
 -export([pick/1, pick/2, sampleshrink/1, sampleshrink/2]).
@@ -41,9 +41,9 @@
 -include("proper_internal.hrl").
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Types
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -type instance() :: term().
 %% TODO: update imm_instance() when adding more types: be careful when reading
@@ -71,9 +71,9 @@
 -type alt_gens() :: fun(() -> [imm_instance()]).
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Instance generation functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 %% @private
 -spec safe_generate(proper_types:raw_type()) ->
@@ -176,7 +176,7 @@ sampleshrink(RawType, Size) ->
     proper:global_state_erase(),
     ok.
 
--spec keep_shrinking([imm_instance()], proper_types:type()) -> [imm_instance()].
+-spec keep_shrinking([imm_instance(),...], proper_types:type()) -> [imm_instance(),...].
 keep_shrinking([ImmInstance|_Rest] = Acc, Type) ->
     case proper_shrink:shrink([ImmInstance], {Type,fun(_) -> false end},
 			      false_prop, 1, fun(_,_) -> ok end) of
@@ -197,9 +197,9 @@ contains_fun(_Term) ->
     false.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Utility functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec normal_or_str_gen(proper_types:type()) -> imm_instance().
 normal_or_str_gen(Type) ->
@@ -255,9 +255,9 @@ clean_instance(ImmInstance) ->
     end.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Basic type generators
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 %% @private
 -spec integer_gen(size(), proper_arith:extint(), proper_arith:extint()) ->
