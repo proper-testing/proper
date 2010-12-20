@@ -29,7 +29,7 @@
 -export([number_shrinker/4, union_first_choice_shrinker/3,
 	 union_recursive_shrinker/3]).
 
--export_type([shrinker/0]).
+-export_type([shrinker/0,state/0]).
 
 -include("proper_internal.hrl").
 
@@ -93,20 +93,21 @@ shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
     shrink([ImmInstance | Shrunk], Rest, NewTest, Reason,
 	   Shrinks, ShrinksLeft, init, Print);
 shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
-       Shrinks, ShrinksLeft, State, Print) ->
+       Shrinks, ShrinksLeft, State, Print) -> 
     {NewImmInstances,NewState} = shrink_one(ImmInstance, Type, State),
+ 
     %% TODO: Should we try fixing the nested ?FORALLs while shrinking? We could
     %%       also just produce new test tails.
     IsValid = fun(I) ->
-		  I =/= ImmInstance andalso
+		  I =/= ImmInstance  andalso
 		  proper:still_fails(I, Rest, Prop, Reason)
 	      end,
     case proper_arith:find_first(IsValid, NewImmInstances) of
-	none ->
+	none -> 
 	    shrink(Shrunk, TestTail, Test, Reason,
 		   Shrinks, ShrinksLeft, NewState, Print);
 	{Pos, ShrunkImmInstance} ->
-	    Print(".", []),
+	    Print(".", []), Print("shrunkInstance: ~w\n", [ShrunkImmInstance]),
 	    shrink(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
 		   Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Print)
     end.
@@ -166,11 +167,12 @@ get_shrinkers(Type) ->
 			end;
 		    container ->
 			[fun split_shrinker/3, fun remove_shrinker/3,
-			 fun elements_shrinker/3]
+			 fun elements_shrinker/3];	    
+		    commands ->
+			[]
 		end,
 	    CustomShrinkers ++ StandardShrinkers
     end.
-
 
 %%------------------------------------------------------------------------------
 %% Wrapper type shrinkers

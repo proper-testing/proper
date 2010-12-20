@@ -32,7 +32,7 @@
 	 clean_garbage/0, get_fail_reason/1, get_bound/1]).
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
--export([forall/2, implies/2, whenfail/2, timeout/2]).
+-export([forall/2, implies/2, whenfail/2, timeout/2, trapexit/1]).
 -export([still_fails/4, force_skip/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0]).
@@ -77,8 +77,9 @@
 	      | implies_clause()
 	      | sample_clause()
 	      | whenfail_clause()
-	      | timeout_clause().
-	      %%| always_clause()
+	      | timeout_clause()
+	      | trapexit_clause().
+	      %% | always_clause()
 	      %%| sometimes_clause()
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
@@ -98,6 +99,7 @@
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
 -type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
+-type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
@@ -172,7 +174,7 @@
 -type module_result() :: long_module_result() | short_module_result().
 
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
--type fail_reason() :: 'false_prop' | 'time_out'
+-type fail_reason() :: 'false_prop' | 'time_out' | 'trapexit'
 		     | {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
@@ -531,6 +533,11 @@ whenfail(Action, DTest) ->
 timeout(Limit, DTest) ->
     {timeout, Limit, DTest}.
 
+%% @private
+-spec trapexit( fun(() -> boolean())) -> trapexit_clause().
+trapexit( DTest) ->
+    {trapexit, DTest}.
+
 -spec equals(term(), term()) -> whenfail_clause().
 equals(A, B) ->
     ?WHENFAIL(io:format("~w =/= ~w~n",[A,B]), A =:= B).
@@ -770,6 +777,7 @@ run({forall,RawType,Prop},
 	{true, []} ->
 	    {passed, didnt_crash, [], []};
 	{true, [ImmInstance | Rest]} ->
+	    %% TODO: is_instance check about commands
 	    case proper_types:safe_is_instance(ImmInstance, RawType) of
 		true ->
 		    Instance = proper_gen:clean_instance(ImmInstance),
@@ -814,8 +822,23 @@ run({timeout,Limit,Prop}, Ctx) ->
 	exit(Child, kill),
 	clear_mailbox(),
 	create_failed_result(Ctx, time_out)
-    end.
-
+    end;
+run({trapexit,Prop}, Ctx) ->
+    WasTrap = process_flag(trap_exit, true),
+    Self = self(),
+    Child = spawn_link_migrate(fun() -> child(Self,Prop,Ctx) end),
+    receive 
+	{result, Result} -> 
+	    unlink(Child),
+	    process_flag(trap_exit, WasTrap),
+	    clear_mailbox(),
+	    Result;
+	{'EXIT', Child, _Reason} ->
+	    process_flag(trap_exit, WasTrap),
+	    clear_mailbox(),
+	    create_failed_result(Ctx,trapexit)  		    
+    end.     
+    
 -spec force(delayed_test(), ctx()) -> single_run_result().
 force(Prop, Ctx) ->
     apply_args([], Prop, Ctx).
@@ -900,7 +923,8 @@ still_fails(ImmInstance, TestTail, Prop, OldReason) ->
     case force(Instance, Prop, Ctx) of
 	%% We check that it's the same fault that caused the crash.
 	{failed, #cexm{fail_reason = NewReason}, _Actions} ->
-	    same_fail_reason(OldReason, NewReason);
+	  %  true;
+	   same_fail_reason(OldReason, NewReason);
 	_ ->
 	    false
     end.

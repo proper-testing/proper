@@ -26,8 +26,8 @@
 -export([is_inst/2, is_inst/3]).
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
-	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
-	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0]).
+	 bitstring/1,commands/1, list/1, vector/2, union/1, weighted_union/1,
+	 tuple/1, loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
@@ -82,13 +82,14 @@
 -define(CONSTRUCTED(PropList), new_type(PropList,constructed)).
 -define(CONTAINER(PropList), new_type(PropList,container)).
 -define(SUBTYPE(Type,PropList), subtype(PropList,Type)).
+-define(COMMANDS(PropList), new_type(PropList,commands)).
 
 
 %%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
 
--type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container'.
+-type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | 'commands'.
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean()).
 -type index() :: pos_integer().
 -type value() :: term().
@@ -151,6 +152,7 @@
       %% A list of constraints on instances of this type: each constraint is a
       %% tuple of a fun that must return 'true' for each valid instance and a
       %% boolean field that specifies whether the condition is strict.
+  
 
 
 %%------------------------------------------------------------------------------
@@ -282,6 +284,8 @@ is_instance(ImmInstance, RawType) ->
     (case get_prop(kind, Type) of
 	 wrapper     -> wrapper_test(ImmInstance, Type);
 	 constructed -> constructed_test(ImmInstance, Type);
+%% TODO: is_instance check about commands
+	 commands    -> true;
 	 _           -> false
      end
      orelse
@@ -513,6 +517,19 @@ bitstring(Len) ->
 -spec bitstring_len_test(proper_gen:imm_instance(), length()) -> boolean().
 bitstring_len_test(X, Len) ->
     is_bitstring(X) andalso bit_size(X) =:= Len.
+
+-spec commands(mod_name()) -> proper_types:type().		       
+commands(Module) ->
+    ?COMMANDS([
+	{generator, fun(Size) -> proper_statem:gen_commands(Module,Size) end},
+	{get_indices, fun list_get_indices/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{remove, fun proper_arith:list_remove/2},
+	{shrinkers, [fun(Cmds,T,S) -> proper_statem:split_shrinker(Module,Cmds,T,S) end,
+		     fun(Cmds,T,S) -> proper_statem:remove_shrinker(Module,Cmds,T,S) end]}
+    ]).
 
 -spec list(raw_type()) -> proper_types:type().
 % TODO: subtyping would be useful here (list, vector, fixed_list)

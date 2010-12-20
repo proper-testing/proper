@@ -27,7 +27,7 @@
 	 pretty_print/2]).
 -export([internal_eval/1, internal_well_defined/1]).
 
--export_type([]).
+-export_type([var_id/0,var_values/0]).
 
 -include("proper_internal.hrl").
 
@@ -38,8 +38,9 @@
 
 %% -type symb_call()  :: {'call' | '$call',mod_name(),fun_name(),[symb_term()]}.
 %% TODO: only atoms are allowed as variable identifiers?
--type var_id() :: atom().
-%% -type symb_var() :: {'var',var_id()}.
+%%type var_id() :: atom().
+-type var_id() :: integer().
+-type symb_var() :: {'var',var_id()}.
 -type var_values() :: [{var_id(),term()}].
 -type symb_term() :: term().
 -type handled_term() :: term().
