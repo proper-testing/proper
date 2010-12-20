@@ -32,14 +32,18 @@
 
 -export_type([ordset/1]).
 
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
+%% When parsed by the typeserver, this becomes opaque (it's declared as a
+%% simple type because dialyzer can't handle parametric opaque types yet).
 -type ordset(T) :: [T].
 
+%% This header is only included so that the strip_types parse transform will be
+%% applied to this file as well.
+-include("proper_internal.hrl").
 
-%%------------------------------------------------------------------------------
+
+%%-----------------------------------------------------------------------------
 %% API functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec new() -> ordset(_T).
 new() ->

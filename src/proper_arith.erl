@@ -40,17 +40,17 @@
 -include("proper_internal.hrl").
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Types
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -type extint()  :: integer() | 'inf'.
 -type extnum()  :: number()  | 'inf'.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Arithmetic functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec le(extnum(), extnum()) -> boolean().
 le(inf, _B) -> true;
@@ -58,21 +58,21 @@ le(_A, inf) -> true;
 le(A, B)    -> A =< B.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% List handling functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec list_remove(position(), [T]) -> [T].
 list_remove(Index, List) ->
     {H,[_Elem | T]} = lists:split(Index - 1, List),
     H ++ T.
 
--spec list_update(position(), T, [T]) -> [T].
+-spec list_update(position(), T, [T]) -> [T,...].
 list_update(Index, NewElem, List) ->
     {H,[_OldElem | T]} = lists:split(Index - 1, List),
     H ++ [NewElem] ++ T.
 
--spec list_insert(position(), T, [T]) -> [T].
+-spec list_insert(position(), T, [T]) -> [T,...].
 list_insert(Index, Elem, List) ->
     {H,T} = lists:split(Index - 1, List),
     H ++ [Elem] ++ T.
@@ -123,7 +123,7 @@ safe_zip_tr(_Xs, [], Acc) ->
 safe_zip_tr([X|Xtail], [Y|YTail], Acc) ->
     safe_zip_tr(Xtail, YTail, [{X,Y}|Acc]).
 
--spec tuple_map(fun((term()) -> term()), tuple()) -> tuple().
+-spec tuple_map(fun((T) -> S), loose_tuple(T)) -> loose_tuple(S).
 tuple_map(Fun, Tuple) ->
     list_to_tuple(lists:map(Fun, tuple_to_list(Tuple))).
 
@@ -225,9 +225,9 @@ remove_n(N, {List,Acc}) ->
     {Back, [Front | Acc]}.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Random functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.

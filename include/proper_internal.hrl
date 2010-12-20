@@ -23,6 +23,15 @@
 
 
 %%------------------------------------------------------------------------------
+%% Activate strip_types parse transform
+%%------------------------------------------------------------------------------
+
+-ifdef(NO_TYPES).
+-compile({parse_transform, strip_types}).
+-endif.
+
+
+%%------------------------------------------------------------------------------
 %% Macros
 %%------------------------------------------------------------------------------
 
@@ -50,9 +59,14 @@
 -type length() :: non_neg_integer().
 -type position() :: pos_integer().
 -type frequency() :: pos_integer().
+
 %% TODO: Replace these with the appropriate types from stdlib.
 -type abs_form() :: term().
 -type abs_clause() :: term().
 -type abs_type() :: term().
 -type abs_rec_field() :: term().
 -type abs_expr() :: term().
+
+-type loose_tuple(T) :: {} | {T} | {T,T} | {T,T,T} | {T,T,T,T} | {T,T,T,T,T}
+		      | {T,T,T,T,T,T} | {T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T}
+		      | {T,T,T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T,T,T} | tuple().

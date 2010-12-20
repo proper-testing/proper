@@ -37,6 +37,10 @@
 %% Based on the documentation alone, this is the best we can do.
 -type iterator(_K,_V) :: term().
 
+%% This header is only included so that the strip_types parse transform will be
+%% applied to this file as well.
+-include("proper_internal.hrl").
+
 
 %%------------------------------------------------------------------------------
 %% API functions

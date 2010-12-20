@@ -51,6 +51,10 @@
 %%   {'$call',proper_dict,update,[aa,<fun>,{'$call',proper_dict,new,[]}]}
 %% which would raise an exception if we tried to evaluate it.
 
+%% This header is only included so that the strip_types parse transform will be
+%% applied to this file as well.
+-include("proper_internal.hrl").
+
 
 %%------------------------------------------------------------------------------
 %% API functions

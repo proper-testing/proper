@@ -28,8 +28,8 @@
 %%------------------------------------------------------------------------------
 
 -import(proper, [numtests/2, fails/1, on_output/2]).
--import(proper, [collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
-		 with_title/1, equals/2]).
+-import(proper, [collect/2, collect/3, aggregate/2, aggregate/3, classify/3,
+		 measure/3, with_title/1, equals/2]).
 
 
 %%------------------------------------------------------------------------------
@@ -53,7 +53,7 @@
 -import(proper_types, [int/0, nat/0, largeint/0, real/0, bool/0, choose/2,
 		       elements/1, oneof/1, frequency/1, return/1, default/2,
 		       orderedlist/1, function0/1, function1/1, function2/1,
-		       function3/1, function4/1]).
+		       function3/1, function4/1, weighted_default/2]).
 
 
 %%------------------------------------------------------------------------------

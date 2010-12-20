@@ -22,11 +22,11 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([check/1, check/2, pure_check/1, pure_check/2, check_spec/1,
-	 check_spec/2, retest/2, retest/3, retest_spec/2, retest_spec/3,
-	 module/1, module/2, module_specs/1, module_specs/2]).
+-export([quickcheck/1, quickcheck/2, check/2, check/3,
+	 pure_check/1, pure_check/2, module/1, module/2,
+	 check_spec/1, check_spec/2, check_specs/1, check_specs/2]).
 -export([numtests/2, fails/1, on_output/2]).
--export([collect/2, collect/3, aggregate/2, aggregate/3, measure/3,
+-export([collect/2, collect/3, aggregate/2, aggregate/3, classify/3, measure/3,
 	 with_title/1, equals/2]).
 -export([global_state_erase/0, get_counterexample/0, get_counterexamples/0,
 	 clean_garbage/0, get_fail_reason/1, get_bound/1]).
@@ -37,22 +37,24 @@
 
 -export_type([test/0, outer_test/0, counterexample/0]).
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
+%% @private_type imm_testcase
+%% @private_type stripped_test
+%% @private_type fail_reason
 
 -include("proper_internal.hrl").
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Macros
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -define(MISMATCH_MSG, "Error: the input doesn't correspond to this property: ").
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Test types
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
-%% @private_type imm_testcase
 -type imm_testcase() :: [proper_gen:imm_instance()].
 -type clean_testcase() :: [proper_gen:instance()].
 -type sample() :: [term()].
@@ -77,16 +79,15 @@
 	      | implies_clause()
 	      | sample_clause()
 	      | whenfail_clause()
-	      | timeout_clause()
-	      | trapexit_clause().
-	      %% | always_clause()
+	      %%| trapexit_clause()
+	      | timeout_clause().
+	      %%| always_clause()
 	      %%| sometimes_clause()
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
 -type raw_test_kind() :: 'test' | 'spec'.
 -type raw_test() :: {'test',test()} | {'spec',mfa()}.
-%% @private_type stripped_test
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
 -type stripped_forall()	:: {proper_types:type(), dependent_test()}.
 
@@ -98,15 +99,16 @@
 -type implies_clause() :: {'implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
+%%-type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
 -type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
 -type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Options and Context types
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -type user_opt() :: 'quiet'
 		  | {'to_file', file:io_device()}
@@ -147,14 +149,13 @@
 -type ctx() :: #ctx{}.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Result types
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
--type single_run_result() :: {'passed', pass_reason(), [sample()],
-			      [stats_printer()]}
-			   | {'failed', counterexample(), fail_actions()}
-			   | {'error', single_run_error_reason()}.
+-type run_result() :: {'passed', pass_reason(), [sample()], [stats_printer()]}
+		    | {'failed', counterexample(), fail_actions()}
+		    | {'error', single_run_error_reason()}.
 -type imm_result() :: {'passed', pos_integer(), [sample()], [stats_printer()]}
 		    | {'failed',pos_integer(),counterexample(),fail_actions()}
 		    | {'error', error_reason()}.
@@ -185,7 +186,7 @@
 				 | 'rejected' | 'too_many_instances'.
 -type error_reason() :: common_error_reason() | 'cant_satisfy'
 		      | {'unrecognized_option', term()}
-		      | {'unexpected', single_run_result()}.
+		      | {'unexpected', run_result()}.
 -type rerun_error_reason() :: single_run_error_reason() | 'too_few_instances'
 			    | {'unrecognized_option', term()}.
 
@@ -196,9 +197,9 @@
 -opaque counterexample() :: #cexm{}.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% State handling functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec get_size() -> size() | 'undefined'.
 get_size() ->
@@ -312,16 +313,16 @@ get_bound(#cexm{bound = ImmTestCase}) ->
     clean_testcase(ImmTestCase).
 
 
-%%------------------------------------------------------------------------------
-%% Outwards interface functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
+%% Public interface functions
+%%-----------------------------------------------------------------------------
 
--spec check(outer_test()) -> result().
-check(OuterTest) ->
-    check(OuterTest, []).
+-spec quickcheck(outer_test()) -> result().
+quickcheck(OuterTest) ->
+    quickcheck(OuterTest, []).
 
--spec check(outer_test(), user_opts()) -> result().
-check(OuterTest, UserOpts) ->
+-spec quickcheck(outer_test(), user_opts()) -> result().
+quickcheck(OuterTest, UserOpts) ->
     try parse_opts(UserOpts) of
 	ImmOpts ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
@@ -340,7 +341,7 @@ pure_check(OuterTest) ->
 pure_check(OuterTest, ImmUserOpts) ->
     Parent = self(),
     UserOpts = add_user_opt(quiet, ImmUserOpts),
-    spawn_link(fun() -> Parent ! {result,check(OuterTest,UserOpts)} end),
+    spawn_link(fun() -> Parent ! {result,quickcheck(OuterTest,UserOpts)} end),
     receive
 	{result,Result} -> Result
     end.
@@ -360,31 +361,16 @@ check_spec(MFA, UserOpts) ->
 	    Error
     end.
 
--spec retest(outer_test(), counterexample()) -> rerun_result().
-retest(OuterTest, CExm) ->
-    retest(OuterTest, CExm, []).
+-spec check(outer_test(), counterexample()) -> rerun_result().
+check(OuterTest, CExm) ->
+    check(OuterTest, CExm, []).
 
--spec retest(outer_test(), counterexample(), user_opts()) -> rerun_result().
-retest(OuterTest, CExm, UserOpts) ->
+-spec check(outer_test(), counterexample(), user_opts()) -> rerun_result().
+check(OuterTest, CExm, UserOpts) ->
     try parse_opts(UserOpts) of
 	ImmOpts ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
-	    retry({test,Test}, CExm, Opts)
-    catch
-	throw:{unrecognized_option,_UserOpt} = Error ->
-	    report_error(Error, fun io:format/2),
-	    Error
-    end.
-
--spec retest_spec(mfa(), counterexample()) -> rerun_result().
-retest_spec(MFA, CExm) ->
-    retest_spec(MFA, CExm, []).
-
--spec retest_spec(mfa(), counterexample(), user_opts()) -> rerun_result().
-retest_spec(MFA, CExm, UserOpts) ->
-    try parse_opts(UserOpts) of
-	Opts ->
-	    retry({spec,MFA}, CExm, Opts)
+	    retry(Test, CExm, Opts)
     catch
 	throw:{unrecognized_option,_UserOpt} = Error ->
 	    report_error(Error, fun io:format/2),
@@ -397,31 +383,34 @@ module(Mod) ->
 
 -spec module(mod_name(), user_opts()) -> module_result().
 module(Mod, UserOpts) ->
+    multi_test_prep(Mod, test, UserOpts).
+
+-spec check_specs(mod_name()) -> module_result().
+check_specs(Mod) ->
+    check_specs(Mod, []).
+
+-spec check_specs(mod_name(), user_opts()) -> module_result().
+check_specs(Mod, UserOpts) ->
+    multi_test_prep(Mod, spec, UserOpts).
+
+-spec multi_test_prep(mod_name(), raw_test_kind(), user_opts()) ->
+	  module_result().
+multi_test_prep(Mod, Kind, UserOpts) ->
     try parse_opts(UserOpts) of
 	Opts ->
-	    multi_test(Mod, test, Opts)
+	    multi_test(Mod, Kind, Opts)
     catch
 	throw:{unrecognized_option,_UserOpt} = Error ->
 	    report_error(Error, fun io:format/2),
 	    Error
     end.
 
--spec module_specs(mod_name()) -> module_result().
-module_specs(Mod) ->
-    module_specs(Mod, []).
 
--spec module_specs(mod_name(), user_opts()) -> module_result().
-module_specs(Mod, UserOpts) ->
-    try parse_opts(UserOpts) of
-	Opts ->
-	    multi_test(Mod, spec, Opts)
-    catch
-	throw:{unrecognized_option,_UserOpt} = Error ->
-	    report_error(Error, fun io:format/2),
-	    Error
-    end.
+%%-----------------------------------------------------------------------------
+%% Options parsing functions
+%%-----------------------------------------------------------------------------
 
--spec add_user_opt(user_opt(), user_opts()) -> [user_opt()].
+-spec add_user_opt(user_opt(), user_opts()) -> [user_opt(),...].
 add_user_opt(NewUserOpt, UserOptsList) when is_list(UserOptsList) ->
     [NewUserOpt | UserOptsList];
 add_user_opt(NewUserOpt, SingleUserOpt) ->
@@ -474,9 +463,9 @@ peel_test(Test, Opts) ->
     {Test, Opts}.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Test declaration functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 %% TODO: All of these should have a test() or outer_test() return type.
 -spec numtests(pos_integer(), outer_test()) -> numtests_clause().
@@ -517,6 +506,14 @@ aggregate(Sample, Test) ->
 aggregate(Printer, Sample, Test) ->
     {sample, Sample, Printer, Test}.
 
+-spec classify(boolean(), term() | sample(), test()) -> sample_clause().
+classify(false, _TermOrSample, Test) ->
+    aggregate([], Test);
+classify(true, Sample, Test) when is_list(Sample) ->
+    aggregate(Sample, Test);
+classify(true, Term, Test) ->
+    collect(Term, Test).
+
 -spec measure(title(), number() | [number()], test()) -> sample_clause().
 measure(Title, Sample, Test) when is_number(Sample) ->
     measure(Title, [Sample], Test);
@@ -543,9 +540,9 @@ equals(A, B) ->
     ?WHENFAIL(io:format("~w =/= ~w~n",[A,B]), A =:= B).
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Bulk testing functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec test(raw_test(), opts()) -> result().
 test(RawTest, Opts) ->
@@ -567,11 +564,10 @@ inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
 	false -> ShortResult
     end.
 
--spec retry(raw_test(), counterexample(), opts()) -> rerun_result().
-retry(RawTest, #cexm{bound = ImmTestCase, fail_reason = OldReason} = CExm,
+-spec retry(test(), counterexample(), opts()) -> rerun_result().
+retry(Test, #cexm{bound = ImmTestCase, fail_reason = OldReason} = CExm,
       #opts{long_result = ReturnLong, output_fun = Print} = Opts) ->
     global_state_restore(CExm, Opts),
-    Test = cook_test(RawTest, Opts),
     SingleRunResult = rerun(Test, ImmTestCase),
     report_rerun_result(SingleRunResult, OldReason, Print),
     {ShortResult,LongResult} =
@@ -661,7 +657,7 @@ get_result({failed,Performed,CExm,_Actions}, Test, Opts) ->
 get_result({error,_Reason} = ErrorResult, _Test, _Opts) ->
     {ErrorResult, ErrorResult}.
 
--spec get_rerun_result(single_run_result(), test(), fail_reason(), opts()) ->
+-spec get_rerun_result(run_result(), test(), fail_reason(), opts()) ->
 	  {short_rerun_result(),long_rerun_result()}.
 get_rerun_result({passed,true_prop,_Samples,_Printers}, _Test, _OldReason,
 		 Opts) ->
@@ -749,20 +745,20 @@ add_samples(MoreSamples, Samples) ->
     [M ++ S || {M,S} <- proper_arith:safe_zip(MoreSamples,Samples)].
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Single test runner functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
--spec run(test()) -> single_run_result().
+-spec run(test()) -> run_result().
 run(Test) ->
     run(Test, #ctx{}).
 
--spec rerun(test(), imm_testcase()) -> single_run_result().
+-spec rerun(test(), imm_testcase()) -> run_result().
 rerun(Test, ImmTestCase) ->
     Ctx = #ctx{try_shrunk = true, to_try = ImmTestCase},
     run(Test, Ctx).
 
--spec run(test(), ctx()) -> single_run_result().
+-spec run(test(), ctx()) -> run_result().
 run(true, #ctx{to_try = [], samples = Samples, printers = Printers}) ->
     {passed, true_prop, lists:reverse(Samples), lists:reverse(Printers)};
 run(true, _Ctx) ->
@@ -822,34 +818,17 @@ run({timeout,Limit,Prop}, Ctx) ->
 	exit(Child, kill),
 	clear_mailbox(),
 	create_failed_result(Ctx, time_out)
-    end;
-run({trapexit,Prop}, Ctx) ->
-    WasTrap = process_flag(trap_exit, true),
-    Self = self(),
-    Child = spawn_link_migrate(fun() -> child(Self,Prop,Ctx) end),
-    receive 
-	{result, Result} -> 
-	    unlink(Child),
-	    process_flag(trap_exit, WasTrap),
-	    clear_mailbox(),
-	    Result;
-	{'EXIT', Child, _Reason} ->
-	    process_flag(trap_exit, WasTrap),
-	    clear_mailbox(),
-	    create_failed_result(Ctx,trapexit)  		    
-    end.     
-    
--spec force(delayed_test(), ctx()) -> single_run_result().
+    end.
+
+-spec force(delayed_test(), ctx()) -> run_result().
 force(Prop, Ctx) ->
     apply_args([], Prop, Ctx).
 
--spec force(proper_gen:instance(), dependent_test(), ctx()) ->
-	  single_run_result().
+-spec force(proper_gen:instance(), dependent_test(), ctx()) -> run_result().
 force(Arg, Prop, Ctx) ->
     apply_args([proper_symb:internal_eval(Arg)], Prop, Ctx).
 
--spec apply_args([proper_gen:instance()], lazy_test(), ctx()) ->
-	  single_run_result().
+-spec apply_args([proper_gen:instance()], lazy_test(), ctx()) -> run_result().
 apply_args(Args, Prop, Ctx) ->
     try apply(Prop, Args) of
 	InnerProp ->
@@ -910,9 +889,9 @@ clean_testcase(ImmTestCase) ->
     [proper_gen:clean_instance(I) || I <- ImmTestCase].
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Shrinking callback functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 %% @private
 -spec still_fails(proper_gen:imm_instance(), imm_testcase(), dependent_test(),
@@ -979,9 +958,9 @@ apply_skip(Args, Prop) ->
     end.
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Output functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec report_imm_result(imm_result(), opts()) -> 'ok'.
 report_imm_result({passed,Passed,Samples,Printers},
@@ -1006,8 +985,7 @@ report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
 report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
     report_error(Reason, Print).
 
--spec report_rerun_result(single_run_result(), fail_reason(), output_fun()) ->
-	  'ok'.
+-spec report_rerun_result(run_result(), fail_reason(), output_fun()) -> 'ok'.
 report_rerun_result({passed,true_prop,_Samples,_Printers}, _OldReason, Print) ->
     Print("The input passed the test.~n", []);
 report_rerun_result({passed,didnt_crash,_Samples,_Printers},OldReason,Print) ->
@@ -1089,9 +1067,9 @@ report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
     execute_actions(MinActions).
 
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% Stats printing functions
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 
 -spec apply_stats_printer(stats_printer(), sample(), pos_integer(),
 			  output_fun()) -> 'ok'.

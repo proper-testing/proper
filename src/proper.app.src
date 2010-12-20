@@ -23,8 +23,7 @@
 
 {application, proper,
  [{description, "A QuickCheck-inspired property-based testing tool for Erlang"},
-  {vsn, "%PROPER_VSN%"},
-  {modules, [%PROPER_MODULES%]},
-  {registered, [%PROPER_REGISTERED%]},
-  {applications, [%PROPER_NEEDED_APPS%]},
+  {vsn, "1.0"},
+  {registered, []},
+  {applications, [compiler,erts,kernel,stdlib,crypto]},
   {env, []}]}.

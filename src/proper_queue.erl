@@ -35,6 +35,10 @@
 %% type because dialyzer can't handle parametric opaque types yet).
 -type queue(_T) :: queue().
 
+%% This header is only included so that the strip_types parse transform will be
+%% applied to this file as well.
+-include("proper_internal.hrl").
+
 
 %%------------------------------------------------------------------------------
 %% API functions

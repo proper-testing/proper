@@ -43,18 +43,18 @@
 
 -define(_assertRun(ExpShortResult, ExpLongResult, Test, Opts),
 	?_test(begin
-		   ?assertEqual(ExpShortResult, proper:check(Test,Opts)),
+		   ?assertEqual(ExpShortResult, proper:quickcheck(Test,Opts)),
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean()),
 		   ?assertMatch(ExpLongResult,
-				proper:check(Test,[long_result|Opts])),
+				proper:quickcheck(Test,[long_result|Opts])),
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean())
 		end)).
 
 -define(_assertReRun(ExpShortResult, Test, CExm, Opts),
 	?_test(begin
-		   ?assertEqual(ExpShortResult, proper:retest(Test,CExm,Opts)),
+		   ?assertEqual(ExpShortResult, proper:check(Test,CExm,Opts)),
 		   ?assert(state_is_clean())
 		end)).
 
@@ -62,9 +62,7 @@ cexm(FailReason, Bound) ->
     {cexm, FailReason, Bound, 10, {state,'$temp_mod',[],1}}.
 
 state_is_clean() ->
-    get() =:= []
-    andalso [] =:= [Proc || Proc <- registered(),
-			    lists:member(Proc, ?PROPER_REGISTERED)].
+    get() =:= [].
 
 -define(_failsWithReason(ExpReason, Test),
 	?_failRun(ExpReason, _, _, none, Test, [noshrink])).
@@ -109,21 +107,21 @@ assertEqualsOneOf(X, List) ->
 -define(_failRun(ExpReason, ExpTestCase, ExpShrunk, AllShrunk, Test, Opts),
 	?_test(begin
 		   ?assertEqual(exp_short_result(Opts),
-				proper:check(Test, Opts)),
+				proper:quickcheck(Test, Opts)),
 		   {ok,CExm1} = proper:get_counterexample(),
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean()),
 		   ?assertEqual(exp_short_result(Opts),
-				proper:retest(Test, CExm1, Opts)),
+				proper:check(Test, CExm1, Opts)),
 		   {ok,CExm2} = proper:get_counterexample(),
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean()),
 		   {failed,_,CExm3,Shrinks,CExm4} =
-		       proper:check(Test, [long_result | Opts]),
+		       proper:quickcheck(Test, [long_result | Opts]),
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean()),
 		   {failed,_,CExm5} =
-		       proper:retest(Test, CExm3, [long_result | Opts]),
+		       proper:check(Test, CExm3, [long_result | Opts]),
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean()),
 		   case lists:member(fails,Opts)
@@ -650,12 +648,11 @@ true_props_test_() ->
      ?_perfectRun(?FORALL(L, ?SIZED(Size,resize(Size div 5,list(integer()))),
 			  length(L) =< 20)),
      ?_test(begin
+		Prop = ?FORALL(L, list(integer()),
+			   collect(length(L), collect(L =:= [],
+			       lists:reverse(lists:reverse(L)) =:= L))),
 		{passed,100,[Lengths,IsEmpty]} =
-		    proper:check(?FORALL(L, list(integer()),
-					 collect(length(L),collect(L =:= [],
-					 lists:reverse(lists:reverse(L))
-					 =:= L))),
-				long_result),
+		    proper:quickcheck(Prop, long_result),
 		proper:clean_garbage(),
 		?assert(state_is_clean()),
 		?assertEqual(100, length(Lengths)),
@@ -664,12 +661,10 @@ true_props_test_() ->
 			     length([X || X <- IsEmpty, X =:= true]))
 	    end),
      ?_test(begin
+		Prop = ?FORALL(L, list(integer()),
+			    aggregate(smaller_lengths_than_my_own(L), true)),
 		{passed,100,[SmallerLens]} =
-		    proper:check(
-			?FORALL(L, list(integer()),
-				aggregate(smaller_lengths_than_my_own(L),
-					  true)),
-			long_result),
+		    proper:quickcheck(Prop, long_result),
 		proper:clean_garbage(),
 		?assert(state_is_clean()),
 		?assert(correct_smaller_length_aggregation(100, SmallerLens))
@@ -710,8 +705,8 @@ false_props_test_() ->
      ?_assertRun(false, {failed,5,SameCExm,0,SameCExm},
 		 ?FORALL(X,?SIZED(Size,integer(Size,Size)),X < 5), []),
      ?_test(begin
-		proper:check(?FORALL(L, list(atom()),
-				     ?WHENFAIL(inc_temp(), length(L) < 5))),
+		proper:quickcheck(?FORALL(L, list(atom()),
+					  ?WHENFAIL(inc_temp(),length(L) < 5))),
 		?assertEqual(2, get_temp()),
 		erase_temp(),
 		proper:clean_garbage(),

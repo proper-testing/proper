@@ -20,7 +20,7 @@
 %% counting
 
 -module(stack).
--export([is_empty/1, size/1, new/0, push/2, pop/1]).
+-export([is_empty/1, size/1, new/0, push/2, pop/1, safe_pop/1]).
 -export_type([stack/1]).
 
 -opaque stack(T) :: {non_neg_integer(),[T]}.
@@ -56,6 +56,11 @@ pop({0, []}) ->
 pop({N, [Top|Rest]}) when N > 0 ->
     {Top, {N-1,Rest}}.
 
+-spec safe_pop(stack(T)) -> {'ok',T,stack(T)} | 'error'.
+safe_pop({0, []}) ->
+    error;
+safe_pop({N, [Top|Rest]}) when N > 0 ->
+    {ok, Top, {N-1,Rest}}.
 
 %%------------------------------------------------------------------------------
 %% Properties
