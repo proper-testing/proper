@@ -27,7 +27,7 @@
 
 -export([shrink/5]).
 -export([number_shrinker/4, union_first_choice_shrinker/3,
-	 union_recursive_shrinker/3]).
+	 union_recursive_shrinker/3, split_shrinker/3, remove_shrinker/3]).
 
 -export_type([shrinker/0,state/0]).
 

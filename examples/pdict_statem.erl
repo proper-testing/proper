@@ -52,7 +52,8 @@ postcondition(Props, {call, erlang, put, [Key,_]}, undefined) ->
 postcondition(Props, {call, erlang, put, [Key,_]}, Old) ->
     [{Key,Old}] == proplists:lookup_all(Key,Props);
 postcondition(Props, {call, erlang, get, [Key]}, Val) ->
-  %  {Key,Val} == proplists:lookup(Key,Props);
+    {Key,Val} == proplists:lookup(Key,Props);
+postcondition(Props, {call, erlang, erase, [d]}, Val) ->
     false;
 postcondition(Props, {call, erlang, erase, [Key]}, Val) ->
     {Key,Val} == proplists:lookup(Key,Props);

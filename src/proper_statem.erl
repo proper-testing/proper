@@ -95,104 +95,29 @@ do_run_command(Commands, Env, Module, History, State) ->
 
 -spec split_shrinker(mod_name(),proper_gen:imm_instance(), proper_types:type(),proper_shrink:state()) ->
 	  {[proper_gen:imm_instance()],proper_shrink:state()}.
-split_shrinker(Module,Instance, Type, init) ->
-    case {proper_types:find_prop(split, Type),
-	  proper_types:find_prop(get_length, Type),
-	  proper_types:find_prop(join, Type)} of
-	{{ok,_Split}, {ok,GetLength}, {ok,_Join}} ->
-	    split_shrinker(Module,Instance, Type, {slices,2,GetLength(Instance)});
-	{_, _, _} ->
-	    {[], done}
-    end;
-
-%% implementation of the ddmin algorithm, but stopping before the granularity
-%% reaches 1, since we run a 'remove' shrinker after this
-%% TODO: on success, start over with the whole testcase or keep removing slices?
-split_shrinker(Module, Instance, Type, {slices,N,Len}) ->
-    case Len < 2 * N of
-	true ->
-	    {[], done};
-	false ->
-	    {SmallSlices,BigSlices} = slice(Instance, Type, N, Len),
-	     StartState = Module:initial_state(),
-	     IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq) end,
-	    {ValidSmall,ValidBig} = {lists:filter(IsValid,SmallSlices),
-				     lists:filter(IsValid,BigSlices)},
-	    {ValidSmall ++ ValidBig, {slices,2*N,Len}}
-    end;
-split_shrinker(Module,Instance, Type, {shrunk,Pos,{slices,DoubleN,_Len}}) ->
-    N = DoubleN div 2,
-    GetLength = proper_types:get_prop(get_length, Type),
-    case Pos =< N of
-	true ->
-	    split_shrinker(Module,Instance, Type, {slices,2,GetLength(Instance)});
-	false ->
-	    split_shrinker(Module,Instance, Type, {slices,N-1,GetLength(Instance)})
-    end.
-
-
--spec slice(proper_gen:imm_instance(), proper_types:type(), pos_integer(),
-	    length()) ->
-	  {[proper_gen:imm_instance()],[proper_gen:imm_instance()]}.
-slice(Instance, Type, Slices, Len) ->
-    BigSlices = Len rem Slices,
-    SmallSlices = Slices - BigSlices,
-    SmallSliceLen = Len div Slices,
-    BigSliceLen = SmallSliceLen + 1,
-    BigSliceTotal = BigSlices * BigSliceLen,
-    WhereToSlice =
-	[{1 + X * BigSliceLen, BigSliceLen}
-	 || X <- lists:seq(0, BigSlices - 1)] ++
-	[{BigSliceTotal + 1 + X * SmallSliceLen, SmallSliceLen}
-	 || X <- lists:seq(0, SmallSlices - 1)],
-    lists:unzip([take_slice(Instance, Type, From, SliceLen)
-		 || {From,SliceLen} <- WhereToSlice]).
-
--spec take_slice(proper_gen:imm_instance(), proper_types:type(), pos_integer(),
-		 length()) ->
-	  {proper_gen:imm_instance(),proper_gen:imm_instance()}.
-take_slice(Instance, Type, From, SliceLen) ->
-    Split = proper_types:get_prop(split, Type),
-    Join = proper_types:get_prop(join, Type),
-    {Front,ImmBack} = Split(From - 1, Instance),
-    {Slice,Back} = Split(SliceLen, ImmBack),
-    {Slice, Join(Front, Back)}.
+%% TODO: efficiency vs reuse of code 
+split_shrinker(Module, Commands, Type,State) ->
+    {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
+    StartState = Module:initial_state(),
+    IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq) end,
+    {lists:filter(IsValid,Slices),NewState}.
 
 -spec remove_shrinker(mod_name(),proper_gen:imm_instance(), proper_types:type(),
 		     proper_shrink:state()) ->
-	  {[proper_gen:imm_instance()],proper_shrink:state()}.
-remove_shrinker(Module,Commands,Type,init) ->
-     case {proper_types:find_prop(get_indices, Type),
-	   proper_types:find_prop(remove, Type)} of
-	{{ok,_GetIndices}, {ok,_Remove}} ->
-	    remove_shrinker(Module,Commands,Type,
-			    {shrunk,1,{indices,ordsets:from_list([]),dummy}});
-	_ ->
-	    {[], done}
-    end;
-remove_shrinker(_Module,_Commands, _Type, {indices,_Checked,[]}) ->
-    {[], done};
-remove_shrinker(Module,Commands,Type,{indices,Checked,[Index | Rest]}) ->
-    Remove = proper_types:get_prop(remove, Type),
-    NewCommands = Remove(Index,Commands),
-      
-    StartState = Module:initial_state(),
-
-    case validate(Module,StartState,NewCommands) of
-	true -> 
-	     {[NewCommands],
-	      {indices,ordsets:add_element(Index, Checked),Rest}};
-	_ ->
-	    remove_shrinker(Module,Commands,Type,
-			     {indices,ordsets:add_element(Index,Checked),Rest})
-    end;   
-   
-remove_shrinker(Module,Commands,Type,{shrunk,1,{indices,Checked,_ToCheck}}) ->
-    GetIndices = proper_types:get_prop(get_indices, Type),
-    Indices = ordsets:from_list(GetIndices(Commands)),
-    NewToCheck = ordsets:subtract(Indices, Checked),
-    remove_shrinker(Module,Commands,Type,{indices,Checked,NewToCheck}).
-
+	  {[proper_gen:imm_instance()],proper_shrink:state()}. 
+remove_shrinker(Module,Commands,Type,State) ->
+   {CommandList,NewState} =  proper_shrink:remove_shrinker(Commands,Type,State),
+   case CommandList of
+       [] -> {[],NewState};
+       [NewCommands] ->
+	   StartState = Module:initial_state(),
+	   case validate(Module,StartState,NewCommands) of
+	       true -> {[NewCommands],NewState};
+	        _ ->
+		   remove_shrinker(Module,Commands,Type,NewState)
+	   end
+   end.
+ 
 -spec validate(mod_name(),cmd_state(),[proper_gen:imm_instance()]) -> boolean().
 validate(_Mod,_State,[]) -> true;
 
