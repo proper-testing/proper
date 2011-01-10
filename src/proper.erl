@@ -902,7 +902,6 @@ still_fails(ImmInstance, TestTail, Prop, OldReason) ->
     case force(Instance, Prop, Ctx) of
 	%% We check that it's the same fault that caused the crash.
 	{failed, #cexm{fail_reason = NewReason}, _Actions} ->
-	  %  true;
 	   same_fail_reason(OldReason, NewReason);
 	_ ->
 	    false
@@ -937,6 +936,8 @@ skip_to_next({whenfail,_Action,Prop}) ->
     force_skip(Prop);
 skip_to_next({timeout,_Limit,_Prop}) ->
     false. % This is OK, since ?TIMEOUT cannot contain any other wrappers.
+
+
 
 -spec force_skip(delayed_test()) -> stripped_test().
 force_skip(Prop) ->

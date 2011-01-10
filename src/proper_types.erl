@@ -26,8 +26,9 @@
 -export([is_inst/2, is_inst/3]).
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
-	 bitstring/1,commands/1, list/1, vector/2, union/1, weighted_union/1,
-	 tuple/1, loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0]).
+	 bitstring/1,commands/1,commands/2,list/1, vector/2, union/1, 
+	 weighted_union/1,tuple/1, loose_tuple/1, exactly/1, fixed_list/1, 
+	 function/2, any/0]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
@@ -41,7 +42,7 @@
 	 from_binary/1, get_prop/2, find_prop/2, safe_is_instance/2,
 	 is_instance/2, unwrap/1, weakly/1, strongly/1, satisfies_all/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
-	 native_type/2, distlist/3]).
+	 native_type/2, distlist/3, more_commands/2]).
 
 -export_type([type/0, raw_type/0]).
 
@@ -526,9 +527,32 @@ commands(Module) ->
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
 	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, [fun(Cmds,T,S) -> proper_statem:split_shrinker(Module,Cmds,T,S) end,
-		     fun(Cmds,T,S) -> proper_statem:remove_shrinker(Module,Cmds,T,S) end]}
-    ]).
+	{shrinkers, [fun(Cmds,T,S) -> 
+			     proper_statem:split_shrinker(Module,Module:initial_state(),
+							  Cmds,T,S) end,
+		     fun(Cmds,T,S) -> 
+			     proper_statem:remove_shrinker(Module,Module:initial_state(),
+							   Cmds,T,S) end]}
+	      ]).
+
+-spec commands(mod_name(),proper_statem:symbolic_state()) -> proper_types:type().
+commands(Module,StartState) ->
+    ?COMMANDS([
+	{generator, fun(Size) -> proper_statem:gen_commands(Module,StartState,Size) end},
+	{get_indices, fun list_get_indices/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{remove, fun proper_arith:list_remove/2},
+	{shrinkers,[fun(Cmds,T,S) -> 
+			    proper_statem:split_shrinker(Module,StartState,Cmds,T,S) end,
+		    fun(Cmds,T,S) -> 
+			    proper_statem:remove_shrinker(Module,StartState,Cmds,T,S) end]}
+	      ]).
+
+-spec more_commands(integer(),proper_types:type()) ->  proper_types:type().
+more_commands(N,Gen) ->			    
+    ?SIZED(Size, resize(Size * N, Gen)).
 
 -spec list(raw_type()) -> proper_types:type().
 % TODO: subtyping would be useful here (list, vector, fixed_list)

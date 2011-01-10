@@ -9,8 +9,9 @@ frequency() ->
 
 initial_state() -> {?FREQUENCIES,[]}.    
 
-command(_) -> oneof([{call,frequency,allocate,[]},
-		     {call,frequency,deallocate,[frequency()]}]).
+command(_) ->
+    oneof([{call,frequency,allocate,[]},
+	   {call,frequency,deallocate,[frequency()]}]).
 
 precondition(_Freqs,{call,frequency,allocate,[]}) ->
     true;
@@ -27,7 +28,9 @@ next_state({Free,Alloc},_V,{call,frequency,deallocate,[Freq]}) ->
     {[Freq|Free],lists:delete(Freq,Alloc)}.
 
 postcondition({[],_Alloc},{call,frequency,allocate,[]},{error,no_frequency}) ->
-    false;
+    true;
+%postcondition({[14],_Alloc},{call,frequency,allocate,[]},_Freq) ->
+%    false;
 postcondition({Free,Alloc},{call,frequency,allocate,[]},Freq) ->
     lists:member(Freq,Free) andalso (not lists:member(Freq,Alloc));
 postcondition(_,{call,frequency,deallocate,[_Freq]},_Res) ->

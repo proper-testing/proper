@@ -2,8 +2,8 @@
 -include_lib("proper/include/proper.hrl").
 
 -compile(export_all).
--record(state,{pids=[], % pids spawned in this test
-	       regs=[] % list of {Name,Pid} in the registry
+-record(state,{pids=[], % pids spawned in this test, not registered right now
+	       regs=[]  % list of {Name,Pid} in the registry
 	      }).
 
 %% Initialize the state
@@ -12,10 +12,10 @@ initial_state() ->
 
 %% Command generator
 command(S) ->
-    oneof([{call,erlang,register,[name(),pid(S)]} || S#state.pids/=[]] ++
+    oneof([{call,erlang,register,[name(),pid(S)]} || S#state.pids=/=[]] ++
 	  [{call,?MODULE,unregister,[name()]},
-	   {call,erlang,whereis,[name()]},
-	   {call,?MODULE,spawn,[]}
+	  {call,erlang,whereis,[name()]},
+	  {call,?MODULE,spawn,[]}
 	  ]).
 
 -define(names,[a,b,c,d]).
@@ -32,7 +32,12 @@ next_state(S,_V,{call,_,register,[Name,Pid]}) ->
     S#state{pids=lists:delete(Pid,S#state.pids),
 	    regs=[{Name,Pid}|S#state.regs]};
 next_state(S,_V,{call,_,unregister,[Name]}) ->
-    S#state{regs=proplists:delete(Name,S#state.regs)};
+    case proplists:get_value(Name,S#state.regs) of
+	undefined -> 
+	    S;
+	Pid ->
+	    S#state{pids=[Pid|S#state.pids],regs=proplists:delete(Name,S#state.regs)}
+    end;
 next_state(S,_V,{call,_,_,_}) -> S.
 
 %% Precondition, checked before command is added to the command sequence
@@ -51,7 +56,8 @@ postcondition(S,{call,_,unregister,[Name]},Res) ->
 	true ->
 	    unregister_ok(S,Name)
     end;
-
+%postcondition(_S,{call,_,whereis,[d]},_Res) ->
+%    false;
 postcondition(_S,{call,_,_,_},_Res) ->
     true.
 

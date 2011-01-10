@@ -1,23 +1,32 @@
 -module(proper_statem).
 
 -define(TRIES,100).
--export([gen_commands/2, run_commands/2, state_after/2,
-	 remove_shrinker/4,split_shrinker/4]).
+
+-export([gen_commands/2, gen_commands/3, run_commands/2, state_after/2,
+	 remove_shrinker/5, split_shrinker/5, command_names/1, zip/2]).
+
+-export_type([symbolic_state/0]).
 
 -include("proper_internal.hrl").
 
 %%TODO: type refinement
 -type var_count() :: non_neg_integer().
 -type tries() :: non_neg_integer().
--type cmd_state() :: any().
+%%TODO: abstract datatype for states
+-type symbolic_state() :: any().
+-type dynamic_state() :: any().
+-type fsm_state() :: symbolic_state() | dynamic_state().
 -type result() :: any().
+
+-spec gen_commands(mod_name(),symbolic_state(),size()) -> [proper_gen:imm_instance()].
+gen_commands(Module,StartState,Size) ->
+    [{init,StartState}|gen_commands(Module, StartState,[], Size, Size, ?TRIES)].
 
 -spec gen_commands(mod_name(),size()) -> [proper_gen:imm_instance()].
 gen_commands(Module,Size) ->
-    gen_commands(Module, Module:initial_state(),
-		 [], Size, Size, ?TRIES).
+    gen_commands(Module, Module:initial_state(),[], Size, Size, ?TRIES).
 
--spec gen_commands(mod_name(),cmd_state(),[proper_gen:imm_instance()],size(),
+-spec gen_commands(mod_name(),symbolic_state(),[proper_gen:imm_instance()],size(),
 		   var_count(),tries()) -> [proper_gen:imm_instance()].
 gen_commands(_Module,_,Commands,_,0,_) ->
         lists:reverse(Commands);
@@ -46,14 +55,15 @@ gen_commands(Module,State,Commands,Size,Count,Tries) ->
     end.
 
 -spec run_commands(mod_name(),[proper_gen:imm_instance()]) -> 
-			   {[{cmd_state(),result()}],cmd_state(),'ok'|{'postcondition',any()}}.			  
+			   {[{dynamic_state(),result()}],dynamic_state(),
+			    'ok'|{'postcondition',boolean()}}.			  
 run_commands(Module,Cmds) ->
     run_commands(Module,Cmds,[]).
 
 -spec run_commands(mod_name(),[proper_gen:imm_instance()],[any()]) ->
-			   {[{cmd_state(),result()}],cmd_state(),'ok'|{'postcondition',any()}}.
+			   {[{dynamic_state(),result()}],dynamic_state(),
+			    'ok'|{'postcondition',boolean()}}.
 run_commands(Module,Commands,Env) ->
-
     do_run_command(Commands,
 		   Env,
 		   Module,
@@ -61,8 +71,9 @@ run_commands(Module,Commands,Env) ->
 		   proper_symb:eval(Env,Module:initial_state())).
 
 -spec do_run_command([proper_gen:imm_instance()],[any()],mod_name(),
-		     [{cmd_state(),result()}],cmd_state()) -> 
-			    {[{cmd_state(),result()}],cmd_state(),'ok'|{'postcondition',any()}}.			    
+		     [{dynamic_state(),result()}],dynamic_state()) -> 
+			    {[{dynamic_state(),result()}],dynamic_state(),
+			     'ok'|{'postcondition',boolean()}}.			    
 do_run_command(Commands, Env, Module, History, State) ->
     case Commands of
 	[] -> 
@@ -72,53 +83,69 @@ do_run_command(Commands, Env, Module, History, State) ->
 	    State2 = proper_symb:eval(Env, S),
 	    do_run_command(Rest, Env, Module, History, State2);
 	
-	[{set, {var,V}=Var, {call,M,F,A}}|Rest] ->
+	[{set, {var,V}, {call,M,F,A}}|Rest] ->
 	    M2=proper_symb:eval(Env,M), 
 	    F2=proper_symb:eval(Env,F), 
 	    A2=proper_symb:eval(Env,A),
 	    
 	    Res = apply(M2,F2,A2),
-
 	    Call = {call, M2,F2,A2},
-	    History2 = [{State,Res}|History],
-    
+   
 	    case Module:postcondition(State,Call,Res) of
 		true ->
 		    Env2 = [{V,Res}|proplists:delete(V,Env)],
-		    State2 = Module:next_state(State,Var,Call),
+		    State2 = Module:next_state(State,Res,Call),
+		    History2 = [{State,Res}|History],
 		    do_run_command(Rest, Env2, Module, History2, State2);
 			   
 		Other ->
-		    {lists:reverse(History2), State, {postcondition, Other}}
+		    {lists:reverse(History), State, {postcondition, Other}}
 	    end
     end.
 
--spec split_shrinker(mod_name(),proper_gen:imm_instance(), proper_types:type(),proper_shrink:state()) ->
-	  {[proper_gen:imm_instance()],proper_shrink:state()}.
-%% TODO: efficiency vs reuse of code 
-split_shrinker(Module, Commands, Type,State) ->
+-spec split_shrinker(mod_name(),symbolic_state(),proper_gen:imm_instance(), 
+		     proper_types:type(),proper_shrink:state()) ->
+			    {[proper_gen:imm_instance()],proper_shrink:state()}. 
+split_shrinker(Module, StartState, [{init,StartState}|Commands], Type,State) ->
     {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
-    StartState = Module:initial_state(),
+    IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq) end,
+    {lists:map(fun(L) -> [{init,StartState}|L] end,lists:filter(IsValid,Slices)),
+     NewState};
+
+split_shrinker(Module, StartState, Commands, Type,State) ->
+    {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
     IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq) end,
     {lists:filter(IsValid,Slices),NewState}.
 
--spec remove_shrinker(mod_name(),proper_gen:imm_instance(), proper_types:type(),
-		     proper_shrink:state()) ->
-	  {[proper_gen:imm_instance()],proper_shrink:state()}. 
-remove_shrinker(Module,Commands,Type,State) ->
+-spec remove_shrinker(mod_name(),symbolic_state(),proper_gen:imm_instance(),
+		      proper_types:type(),proper_shrink:state()) ->
+			     {[proper_gen:imm_instance()],proper_shrink:state()}. 
+remove_shrinker(Module,StartState,[{init,StartState}|Commands]=Cmds,Type,State) ->
+   {CommandList,NewState} =  proper_shrink:remove_shrinker(Commands,Type,State),
+   case CommandList of
+       [] -> {[{init,StartState}],NewState};
+       [NewCommands] ->
+	   case validate(Module,StartState,NewCommands) of
+	       true -> 
+		   {[{init,StartState}|NewCommands],NewState};
+	        _ ->
+		   remove_shrinker(Module,StartState,Cmds,Type,NewState)
+	   end
+   end;
+
+remove_shrinker(Module,StartState,Commands,Type,State) ->
    {CommandList,NewState} =  proper_shrink:remove_shrinker(Commands,Type,State),
    case CommandList of
        [] -> {[],NewState};
        [NewCommands] ->
-	   StartState = Module:initial_state(),
 	   case validate(Module,StartState,NewCommands) of
 	       true -> {[NewCommands],NewState};
 	        _ ->
-		   remove_shrinker(Module,Commands,Type,NewState)
+		   remove_shrinker(Module,StartState,Commands,Type,NewState)
 	   end
    end.
  
--spec validate(mod_name(),cmd_state(),[proper_gen:imm_instance()]) -> boolean().
+-spec validate(mod_name(),symbolic_state(),[proper_gen:imm_instance()]) -> boolean().
 validate(_Mod,_State,[]) -> true;
 
 validate(Module,_State,[{init,S}|Commands]) ->
@@ -134,14 +161,7 @@ validate(Module,State,[{set,Var,Call}|Commands]) ->
 	_ -> false
     end.
 
-%%-----------------------------------------------------------------
-%% @doc Evaluate command list, and return final state.
-%%
-%% Given a `Module' and `Commands', a value picked from the domain
-%% `triq_statem:commands(Module)' 
-%% @end
-%%-----------------------------------------------------------------
--spec state_after(mod_name(),[proper_gen:imm_instance()]) -> cmd_state().		   
+-spec state_after(mod_name(),[proper_gen:imm_instance()]) -> symbolic_state().		   
 state_after(Module,Commands) ->
     NextState = fun(S,V,C) -> Module:next_state(S,V,C) end,
     lists:foldl(fun({init,S}, _) ->
@@ -152,5 +172,22 @@ state_after(Module,Commands) ->
 		Module:initial_state(),
 		Commands).
 
+-spec command_names([proper_gen:imm_instance()]) -> [{mod_name(),fun_name(),integer()}].
+command_names(Cmds) ->
+    GetName = fun({set,_Var,{call,M,F,Args}}) -> {M,F,length(Args)} end,
+    lists:map(GetName,Cmds).
+    
 
-
+-spec zip([A],[B]) -> [{A,B}].
+zip(X,Y) ->
+    Lx = length(X),
+    Ly = length(Y),
+    if Lx < Ly ->
+	    lists:zip(X,lists:sublist(Y,Lx));
+       Lx == Ly ->
+	    lists:zip(X,Y);
+       true ->
+	    lists:zip(lists:sublist(X,Ly),Y)
+    end.
+    
+		 

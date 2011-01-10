@@ -1,20 +1,19 @@
 -module(frequency).
 -export([start/0,stop/0,allocate/0,deallocate/1]).
 -export([get_frequencies/0]).
--export([init/0]).
 
 start() ->
-    register(frequency, spawn(frequency, init, [])).
+    register(frequency, spawn(fun init/0)).
 
 init() ->
     Frequencies = {get_frequencies(), []},
     loop(Frequencies).
 
 get_frequencies() ->
-     [10,11,12,13,14,15].
+    [10,11,12,13,14,15].
 
 stop() ->
-     call(stop).
+    call(stop).
 allocate() ->
     call(allocate).
 deallocate(Freq) ->

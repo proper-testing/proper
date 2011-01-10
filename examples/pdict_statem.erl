@@ -10,29 +10,38 @@
 %% operations erlang:put/2, erlang:get/1 and and erlang:erase/1.
 %%
 
+-define(KEYS, [a,b,c,d]).
 prop_pdict() ->
     ?FORALL(Cmds, 
-	    commands(pdict_statem),
+	    more_commands(2,commands(?MODULE)),
 	    begin
-		{H,S,Result} = run_commands(pdict_statem, Cmds),
+		%erlang:put(a,5),
+		{H,S,Result} = run_commands(?MODULE, Cmds),
+		lists:map(fun(Key) -> erlang:erase(Key) end,?KEYS),
 		?WHENFAIL(io:format("History: ~p\nState: ~p\nRes: ~p\n",
 				    [H,S,Result]),
+		%?WHENFAIL(io:format("History: ~p\n", [zip(H,Cmds)]),
 		Result == ok)
+		%aggregate(command_names(Cmds),Result == ok)
 	    end).
 
--define(KEYS, [a,b,c,d]).
 key() ->
     oneof(?KEYS).
 
-initial_state() ->
-    lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
-		 erlang:get()).
+initial_state() -> [].
+
+%%TODO 
+%% is initial state allowed to depend on e.g. process dictionnary? 
+%% has problems with shrinking
+%%
+%% initial_state() -> lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
+%%                                 erlang:get()).
 
 command([]) ->
-    {call, erlang, put, [key(), int()]};
+    {call, erlang, put, [key(), integer()]};
 command(Props) ->
     ?LET({Key,Value}, frequency([{5, elements(Props)},
-				 {1, {key(),int()}}]),
+				 {1, {key(),integer()}}]),
 	 oneof([{call, erlang, put,   [Key, Value]},
 		{call, erlang, get,   [Key]},
 		{call, erlang, erase, [Key]}
@@ -50,20 +59,19 @@ precondition(_,_) ->
 postcondition(Props, {call, erlang, put, [Key,_]}, undefined) ->
     not proplists:is_defined(Key,Props);
 postcondition(Props, {call, erlang, put, [Key,_]}, Old) ->
-    [{Key,Old}] == proplists:lookup_all(Key,Props);
+    [{Key,Old}] =:= proplists:lookup_all(Key,Props);
 postcondition(Props, {call, erlang, get, [Key]}, Val) ->
-    {Key,Val} == proplists:lookup(Key,Props);
-postcondition(Props, {call, erlang, erase, [d]}, Val) ->
-    false;
+    {Key,Val} =:= proplists:lookup(Key,Props);
 postcondition(Props, {call, erlang, erase, [Key]}, Val) ->
-    {Key,Val} == proplists:lookup(Key,Props);
+    {Key,Val} =:= proplists:lookup(Key,Props);
 postcondition(_,_,_) ->
     false.
 
-%%change from Triq model
 next_state(Props, _Var, {call, erlang, put, [Key,Value]}) ->
-    [{Key,Value}| proplists:delete(Key,Props)];
-  %  [{Key,Value}| Props];
+    %% correct model
+    %[{Key,Value}| proplists:delete(Key,Props)];
+    %% wrong model
+    [{Key,Value}| Props];
 next_state(Props, _Var, {call, erlang, erase, [Key]}) ->
     proplists:delete(Key,Props);
 next_state(Props, _Var, {call, erlang, get, [_]}) ->
