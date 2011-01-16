@@ -380,8 +380,8 @@ check(OuterTest, CExm, UserOpts) ->
 module(Mod) ->
     module(Mod, []).
 
--spec module(mod_name(), user_opts()) -> module_result().
-module(Mod, UserOpts) ->
+-spec module(user_opts(), mod_name()) -> module_result().
+module(UserOpts, Mod) ->
     multi_test_prep(Mod, test, UserOpts).
 
 -spec check_specs(mod_name()) -> module_result().
