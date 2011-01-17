@@ -34,6 +34,7 @@
 -export([get_size/1, global_state_init_size/1, report_error/2]).
 -export([forall/2, implies/2, whenfail/2, timeout/2, trapexit/1]).
 -export([still_fails/4, force_skip/2]).
+-export([spawn_link_migrate/1]).
 
 -export_type([test/0, outer_test/0, counterexample/0]).
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
@@ -79,7 +80,7 @@
 	      | implies_clause()
 	      | sample_clause()
 	      | whenfail_clause()
-	      %%| trapexit_clause()
+	      | trapexit_clause()
 	      | timeout_clause().
 	      %%| always_clause()
 	      %%| sometimes_clause()
@@ -99,7 +100,6 @@
 -type implies_clause() :: {'implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
-%%-type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
 -type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
 -type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
@@ -773,7 +773,6 @@ run({forall,RawType,Prop},
 	{true, []} ->
 	    {passed, didnt_crash, [], []};
 	{true, [ImmInstance | Rest]} ->
-	    %% TODO: is_instance check about commands
 	    case proper_types:safe_is_instance(ImmInstance, RawType) of
 		true ->
 		    Instance = proper_gen:clean_instance(ImmInstance),

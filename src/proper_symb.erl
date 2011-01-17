@@ -38,8 +38,8 @@
 
 %% -type symb_call()  :: {'call' | '$call',mod_name(),fun_name(),[symb_term()]}.
 %% TODO: only atoms are allowed as variable identifiers?
-%%type var_id() :: atom().
--type var_id() :: integer().
+
+-type var_id() :: integer() | atom().
 -type symb_var() :: {'var',var_id()}.
 -type var_values() :: [{var_id(),term()}].
 -type symb_term() :: term().

@@ -12,36 +12,31 @@
 
 -define(KEYS, [a,b,c,d]).
 prop_pdict() ->
-    ?FORALL(Cmds, 
-	    more_commands(2,commands(?MODULE)),
-	    begin
-		%erlang:put(a,5),
-		{H,S,Result} = run_commands(?MODULE, Cmds),
-		lists:map(fun(Key) -> erlang:erase(Key) end,?KEYS),
-		?WHENFAIL(io:format("History: ~p\nState: ~p\nRes: ~p\n",
-				    [H,S,Result]),
-		%?WHENFAIL(io:format("History: ~p\n", [zip(H,Cmds)]),
-		Result == ok)
-		%aggregate(command_names(Cmds),Result == ok)
-	    end).
+    ?FORALL(Cmds,more_commands(2,commands(?MODULE)),
+	    ?FORALL([A,B,C,D],[integer(),integer(),integer(),integer()],
+		    begin
+			lists:map(fun({K,V})->erlang:put(K,V) end,
+				  [{a,A},{b,B},{c,C},{d,D}]),
+			{_H,_S,Res} = proper_statem:run_commands(?MODULE,Cmds,[{x,42}]),
+			lists:map(fun(Key) -> erlang:erase(Key) end,?KEYS),
+			%?WHENFAIL(io:format("History: ~p\nState: ~p\nRes: ~p\n",
+			%		    [_H,_S,Res]),
+			%	  Result == ok)
+			aggregate(command_names(Cmds),Res == ok)
+		    end)).
 
 key() ->
     oneof(?KEYS).
 
-initial_state() -> [].
-
-%%TODO 
-%% is initial state allowed to depend on e.g. process dictionnary? 
-%% has problems with shrinking
-%%
-%% initial_state() -> lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
-%%                                 erlang:get()).
+initial_state() -> lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
+                                 erlang:get()).
 
 command([]) ->
     {call, erlang, put, [key(), integer()]};
 command(Props) ->
     ?LET({Key,Value}, frequency([{5, elements(Props)},
-				 {1, {key(),integer()}}]),
+				 {1, {key(),integer()}},
+				 {10, {key(),{var,x}}}]),
 	 oneof([{call, erlang, put,   [Key, Value]},
 		{call, erlang, get,   [Key]},
 		{call, erlang, erase, [Key]}
@@ -69,9 +64,9 @@ postcondition(_,_,_) ->
 
 next_state(Props, _Var, {call, erlang, put, [Key,Value]}) ->
     %% correct model
-    %[{Key,Value}| proplists:delete(Key,Props)];
+    [{Key,Value}| proplists:delete(Key,Props)];
     %% wrong model
-    [{Key,Value}| Props];
+    %[{Key,Value}| Props];
 next_state(Props, _Var, {call, erlang, erase, [Key]}) ->
     proplists:delete(Key,Props);
 next_state(Props, _Var, {call, erlang, get, [_]}) ->

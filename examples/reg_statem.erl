@@ -29,20 +29,22 @@ pid(S) ->
 next_state(S,V,{call,_,spawn,_}) ->
     S#state{pids=[V|S#state.pids]};
 next_state(S,_V,{call,_,register,[Name,Pid]}) ->
-    S#state{pids=lists:delete(Pid,S#state.pids),
-	    regs=[{Name,Pid}|S#state.regs]};
+   % S#state{pids=lists:delete(Pid,S#state.pids),
+   % regs=[{Name,Pid}|S#state.regs]};
+    S#state{regs=[{Name,Pid}|S#state.regs]};    
 next_state(S,_V,{call,_,unregister,[Name]}) ->
-    case proplists:get_value(Name,S#state.regs) of
-	undefined -> 
-	    S;
-	Pid ->
-	    S#state{pids=[Pid|S#state.pids],regs=proplists:delete(Name,S#state.regs)}
-    end;
+    %case proplists:get_value(Name,S#state.regs) of
+%	undefined -> 
+%	    S;
+%	Pid ->
+%	    S#state{pids=[Pid|S#state.pids],regs=proplists:delete(Name,S#state.regs)}
+%    end;
+    S#state{regs=proplists:delete(Name,S#state.regs)};
 next_state(S,_V,{call,_,_,_}) -> S.
 
 %% Precondition, checked before command is added to the command sequence
-precondition(S,{call,_,register,[Name,_Pid]}) ->
-    not proplists:is_defined(Name,S#state.regs);
+%precondition(S,{call,_,register,[Name,_Pid]}) ->
+%    not proplists:is_defined(Name,S#state.regs);
 
 precondition(_S,{call,_,_,_}) ->
     true.
@@ -82,9 +84,6 @@ cleanup() ->
 %% Exception-catching versions of the API under test
 unregister(Name) ->
     catch erlang:unregister(Name).
-
-register(Pid) ->
-    catch erlang:register(Pid).
 
 %% Spawn a dummy process to use as test data. Processes die after 5
 %% seconds, long after the test is over, to avoid filling the Erlang

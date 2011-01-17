@@ -107,7 +107,8 @@ shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
 	    shrink(Shrunk, TestTail, Test, Reason,
 		   Shrinks, ShrinksLeft, NewState, Print);
 	{Pos, ShrunkImmInstance} ->
-	    Print(".", []), Print("shrunkInstance: ~w\n", [ShrunkImmInstance]),
+	    Print(".", []),
+	    % Print("shrunkInstance: ~w\n", [ShrunkImmInstance]),
 	    shrink(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
 		   Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Print)
     end.

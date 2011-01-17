@@ -284,8 +284,6 @@ is_instance(ImmInstance, RawType) ->
     (case get_prop(kind, Type) of
 	 wrapper     -> wrapper_test(ImmInstance, Type);
 	 constructed -> constructed_test(ImmInstance, Type);
-%% TODO: is_instance check about commands
-	 commands    -> true;
 	 _           -> false
      end
      orelse
@@ -522,6 +520,7 @@ bitstring_len_test(X, Len) ->
 commands(Module) ->
     ?COMMANDS([
 	{generator, fun(Size) -> proper_statem:gen_commands(Module,Size) end},
+	{is_instance, fun(X) -> proper_statem:commands_test(X) end},    
 	{get_indices, fun list_get_indices/1},
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
@@ -539,6 +538,7 @@ commands(Module) ->
 commands(Module,StartState) ->
     ?COMMANDS([
 	{generator, fun(Size) -> proper_statem:gen_commands(Module,StartState,Size) end},
+	{is_instance, fun(X) -> proper_statem:command_test(X) end},
 	{get_indices, fun list_get_indices/1},
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
