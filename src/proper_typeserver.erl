@@ -218,8 +218,7 @@ demo_is_instance(X, Mod, TypeStr) ->
 		%% Force the typeserver to load the module.
 		case translate_type({Mod,"integer()"}) of
 		    {ok,_FinType} ->
-			try is_instance(X, Mod, TypeForm) of
-			    Bool -> Bool
+			try is_instance(X, Mod, TypeForm)
 			catch
 			    throw:{'$typeserver',Reason} -> {error, Reason}
 			end;
