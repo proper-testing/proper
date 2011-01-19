@@ -22,14 +22,14 @@
 %%% @doc This is the main PropEr module.
 
 -module(proper).
--export([quickcheck/1, quickcheck/2, check/2, check/3,
-	 pure_check/1, pure_check/2, module/1, module/2,
+-export([quickcheck/1, quickcheck/2, counterexample/1, counterexample/2,
+	 check/2, check/3, pure_check/1, pure_check/2, module/1, module/2,
 	 check_spec/1, check_spec/2, check_specs/1, check_specs/2]).
 -export([numtests/2, fails/1, on_output/2]).
 -export([collect/2, collect/3, aggregate/2, aggregate/3, classify/3, measure/3,
 	 with_title/1, equals/2]).
--export([global_state_erase/0, get_counterexample/0, get_counterexamples/0,
-	 clean_garbage/0, get_fail_reason/1, get_bound/1]).
+-export([counterexample/0, counterexamples/0]).
+-export([clean_garbage/0, global_state_erase/0]).
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
 -export([forall/2, implies/2, whenfail/2, timeout/2]).
@@ -48,7 +48,7 @@
 %% Macros
 %%-----------------------------------------------------------------------------
 
--define(MISMATCH_MSG, "Error: the input doesn't correspond to this property: ").
+-define(MISMATCH_MSG, "Error: The input doesn't correspond to this property: ").
 
 
 %%-----------------------------------------------------------------------------
@@ -56,16 +56,16 @@
 %%-----------------------------------------------------------------------------
 
 -type imm_testcase() :: [proper_gen:imm_instance()].
--type clean_testcase() :: [proper_gen:instance()].
+-type counterexample() :: [proper_gen:instance()].
 -type sample() :: [term()].
 -type freq_sample() :: [{term(),frequency()}].
 -type side_effects_fun() :: fun(() -> 'ok').
 -type fail_actions() :: [side_effects_fun()].
--type output_fun() :: fun((string(), [term()]) -> 'ok').
+-type output_fun() :: fun((string(),[term()]) -> 'ok').
 -type title() :: atom() | string().
 -type stats_printer() :: fun((sample()) -> 'ok')
-		       | fun((sample(), pos_integer()) -> 'ok')
-		       | fun((sample(), pos_integer(), output_fun()) -> 'ok').
+		       | fun((sample(),pos_integer()) -> 'ok')
+		       | fun((sample(),pos_integer(),output_fun()) -> 'ok').
 -type numeric_stat() :: number() | 'undefined'.
 -type numeric_stats() :: {numeric_stat(),numeric_stat(),numeric_stat()}.
 -type time_period() :: non_neg_integer().
@@ -110,16 +110,16 @@
 %%-----------------------------------------------------------------------------
 
 -type user_opt() :: 'quiet'
-		  | {'to_file', file:io_device()}
-		  | {'on_output', output_fun()}
+		  | {'to_file',file:io_device()}
+		  | {'on_output',output_fun()}
 		  | 'long_result'
 		  | 'crypto'
 		  | {'numtests', pos_integer()}
 		  | pos_integer()
-		  | {'start_size', size()}
-		  | {'max_shrinks', non_neg_integer()}
+		  | {'start_size',size()}
+		  | {'max_shrinks',non_neg_integer()}
 		  | 'noshrink'
-		  | {'constraint_tries', pos_integer()}
+		  | {'constraint_tries',pos_integer()}
 		  | 'fails'
 		  | 'any_to_integer'
 		  | {'spec_timeout',timeout()}.
@@ -137,14 +137,11 @@
 						      proper_types:type()},
 	       spec_timeout     = infinity        :: timeout()}).
 -type opts() :: #opts{}.
-%% TODO: ways for the user to define exceptions to not consider as errors??
-%% TODO: should they contain specific reasons (or '$any' for all reasons)?
--record(ctx, {try_shrunk   = false :: boolean(),
-	      bound        = []    :: imm_testcase(),
-	      to_try       = []    :: imm_testcase(),
-	      fail_actions = []    :: fail_actions(),
-	      samples      = []    :: [sample()],
-	      printers     = []    :: [stats_printer()]}).
+-record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
+	      bound    = []  :: imm_testcase() | counterexample(),
+	      actions  = []  :: fail_actions(),
+	      samples  = []  :: [sample()],
+	      printers = []  :: [stats_printer()]}).
 -type ctx() :: #ctx{}.
 
 
@@ -152,26 +149,15 @@
 %% Result types
 %%-----------------------------------------------------------------------------
 
--type run_result() :: {'passed', pass_reason(), [sample()], [stats_printer()]}
-		    | {'failed', counterexample(), fail_actions()}
-		    | {'error', single_run_error_reason()}.
--type imm_result() :: {'passed', pos_integer(), [sample()], [stats_printer()]}
-		    | {'failed',pos_integer(),counterexample(),fail_actions()}
-		    | {'error', error_reason()}.
--type long_result() :: {'passed', pos_integer(), [sample()]}
-		     | {'failed', pos_integer(), counterexample(),
-			 non_neg_integer(), counterexample()}
-		     | {'error', error_reason()}.
--type short_result() :: boolean() | {'error', error_reason()}.
--type result() :: long_result() | short_result().
--type long_rerun_result() :: 'passed'
-			   | {'failed', non_neg_integer(), counterexample()}
-			   | {'error', rerun_error_reason()}.
--type short_rerun_result() :: boolean() | {'error', rerun_error_reason()}.
--type rerun_result() :: long_rerun_result() | short_rerun_result().
--type short_module_result() :: [mfa()].
--type long_module_result() :: [{mfa(),counterexample()}].
--type module_result() :: long_module_result() | short_module_result().
+-record(pass, {reason    :: pass_reason(),
+	       samples   :: [sample()],
+	       printers  :: [stats_printer()],
+	       performed :: pos_integer()}).
+-record(fail, {reason    :: fail_reason(),
+	       bound     :: imm_testcase() | counterexample(),
+	       actions   :: fail_actions(),
+	       performed :: pos_integer()}).
+-type error() :: {'error', error_reason()}.
 
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
 -type fail_reason() :: 'false_prop' | 'time_out'
@@ -179,30 +165,26 @@
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
--type common_error_reason() :: 'cant_generate' | 'type_mismatch'
-			     | {'typeserver',term()}.
--type single_run_error_reason() :: common_error_reason() | 'wrong_type'
-				 | 'rejected' | 'too_many_instances'.
--type error_reason() :: common_error_reason() | 'cant_satisfy'
-		      | {'unrecognized_option', term()}
-		      | {'unexpected', run_result()}.
--type rerun_error_reason() :: single_run_error_reason() | 'too_few_instances'
-			    | {'unrecognized_option', term()}.
+-type error_reason() :: 'cant_generate' | 'cant_satisfy' | 'rejected'
+		      | 'too_many_instances' | 'type_mismatch' | 'wrong_type'
+		      | {'typeserver',term()} | {'unexpected',any()}
+		      | {'unrecognized_option',term()}.
 
--record(cexm, {fail_reason :: fail_reason(),
-	       bound       :: imm_testcase(),
-	       size        :: size(),
-	       fun_state   :: proper_funserver:state()}).
--opaque counterexample() :: #cexm{}.
+-type run_result() :: #pass{performed :: 'undefined'}
+		    | #fail{performed :: 'undefined'}
+		    | error().
+-type imm_result() :: #pass{reason :: 'undefined'} | #fail{} | error().
+-type long_result() :: 'true' | counterexample() | error().
+-type short_result() :: boolean() | error().
+-type result() :: long_result() | short_result().
+-type long_module_result() :: [{mfa(),counterexample()}] | error().
+-type short_module_result() :: [mfa()] | error().
+-type module_result() :: long_module_result() | short_module_result().
 
 
 %%-----------------------------------------------------------------------------
 %% State handling functions
 %%-----------------------------------------------------------------------------
-
--spec get_size() -> size() | 'undefined'.
-get_size() ->
-    get('$size').
 
 -spec grow_size() -> 'ok'.
 grow_size() ->
@@ -240,27 +222,20 @@ global_state_init(#opts{start_size = Size, constraint_tries = CTries,
     proper_funserver:start(),
     ok.
 
--spec global_state_restore(counterexample(), opts()) -> 'ok'.
-global_state_restore(#cexm{size = Size, fun_state = FunState}, Opts) ->
-    global_state_init(Opts),
-    put('$size', Size),
-    proper_funserver:set_state(FunState),
-    ok.
-
 -spec global_state_reset(opts()) -> 'ok'.
 global_state_reset(#opts{start_size = Size}) ->
     clean_garbage(),
     put('$size', Size),
-    proper_funserver:reset_state().
+    proper_funserver:reset().
 
 -spec global_state_erase() -> 'ok'.
 global_state_erase() ->
     proper_funserver:stop(),
     proper_typeserver:stop(),
     proper_arith:rand_stop(),
+    erase('$any_type'),
     erase('$constraint_tries'),
     erase('$size'),
-    erase('$any_type'),
     ok.
 
 -spec spawn_link_migrate(fun(() -> _)) -> pid().
@@ -278,38 +253,24 @@ save_counterexample(CExm) ->
     put('$counterexample', CExm),
     ok.
 
--spec get_counterexample() -> {'ok',counterexample()} | 'error'.
-get_counterexample() ->
-    case get('$counterexample') of
-	undefined -> error;
-	CExm      -> {ok, CExm}
-    end.
+-spec counterexample() -> counterexample() | 'undefined'.
+counterexample() ->
+    get('$counterexample').
 
 -spec save_counterexamples([{mfa(),counterexample()}]) -> 'ok'.
 save_counterexamples(CExms) ->
     put('$counterexamples', CExms),
     ok.
 
--spec get_counterexamples() -> {'ok',[{mfa(),counterexample()}]} | 'error'.
-get_counterexamples() ->
-    case get('$counterexamples') of
-	undefined -> error;
-	CExms     -> {ok, CExms}
-    end.
+-spec counterexamples() -> [{mfa(),counterexample()}] | 'undefined'.
+counterexamples() ->
+    get('$counterexamples').
 
 -spec clean_garbage() -> 'ok'.
 clean_garbage() ->
     erase('$counterexample'),
     erase('$counterexamples'),
     ok.
-
--spec get_fail_reason(counterexample()) -> fail_reason().
-get_fail_reason(#cexm{fail_reason = Reason}) ->
-    Reason.
-
--spec get_bound(counterexample()) -> clean_testcase().
-get_bound(#cexm{bound = ImmTestCase}) ->
-    clean_testcase(ImmTestCase).
 
 
 %%-----------------------------------------------------------------------------
@@ -327,10 +288,18 @@ quickcheck(OuterTest, UserOpts) ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
 	    test({test,Test}, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Error ->
-	    report_error(Error, fun io:format/2),
-	    Error
+	throw:{unrecognized_option,_UserOpt} = Reason ->
+	    report_error(Reason, fun io:format/2),
+	    {error, Reason}
     end.
+
+-spec counterexample(outer_test()) -> long_result().
+counterexample(OuterTest) ->
+    counterexample(OuterTest, []).
+
+-spec counterexample(outer_test(), user_opts()) -> long_result().
+counterexample(OuterTest, UserOpts) ->
+    quickcheck(OuterTest, add_user_opt(long_result,UserOpts)).
 
 -spec pure_check(outer_test()) -> result().
 pure_check(OuterTest) ->
@@ -355,30 +324,30 @@ check_spec(MFA, UserOpts) ->
 	Opts ->
 	    test({spec,MFA}, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Error ->
-	    report_error(Error, fun io:format/2),
-	    Error
+	throw:{unrecognized_option,_UserOpt} = Reason ->
+	    report_error(Reason, fun io:format/2),
+	    {error, Reason}
     end.
 
--spec check(outer_test(), counterexample()) -> rerun_result().
+-spec check(outer_test(), counterexample()) -> short_result().
 check(OuterTest, CExm) ->
     check(OuterTest, CExm, []).
 
--spec check(outer_test(), counterexample(), user_opts()) -> rerun_result().
+-spec check(outer_test(), counterexample(), user_opts()) -> short_result().
 check(OuterTest, CExm, UserOpts) ->
     try parse_opts(UserOpts) of
 	ImmOpts ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
 	    retry(Test, CExm, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Error ->
-	    report_error(Error, fun io:format/2),
-	    Error
+	throw:{unrecognized_option,_UserOpt} = Reason ->
+	    report_error(Reason, fun io:format/2),
+	    {error, Reason}
     end.
 
 -spec module(mod_name()) -> module_result().
 module(Mod) ->
-    module(Mod, []).
+    module([], Mod).
 
 -spec module(user_opts(), mod_name()) -> module_result().
 module(UserOpts, Mod) ->
@@ -399,9 +368,9 @@ multi_test_prep(Mod, Kind, UserOpts) ->
 	Opts ->
 	    multi_test(Mod, Kind, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Error ->
-	    report_error(Error, fun io:format/2),
-	    Error
+	throw:{unrecognized_option,_UserOpt} = Reason ->
+	    report_error(Reason, fun io:format/2),
+	    {error, Reason}
     end.
 
 
@@ -558,52 +527,47 @@ inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
 	false -> ShortResult
     end.
 
--spec retry(test(), counterexample(), opts()) -> rerun_result().
-retry(Test, #cexm{bound = ImmTestCase, fail_reason = OldReason} = CExm,
-      #opts{long_result = ReturnLong, output_fun = Print} = Opts) ->
-    global_state_restore(CExm, Opts),
-    SingleRunResult = rerun(Test, ImmTestCase),
-    report_rerun_result(SingleRunResult, OldReason, Print),
-    {ShortResult,LongResult} =
-	get_rerun_result(SingleRunResult, Test, OldReason, Opts),
+-spec retry(test(), counterexample(), opts()) -> short_result().
+retry(Test, CExm, Opts) ->
+    global_state_init(Opts),
+    RunResult = rerun(Test, false, CExm),
+    report_rerun_result(RunResult, Opts),
+    ShortResult = get_rerun_result(RunResult),
     global_state_erase(),
-    case ReturnLong of
-	true  -> LongResult;
-	false -> ShortResult
-    end.
+    ShortResult.
 
 -spec multi_test(mod_name(), raw_test_kind(), opts()) -> module_result().
 multi_test(Mod, RawTestKind,
 	   #opts{long_result = ReturnLong, output_fun = Print} = Opts) ->
     global_state_init(Opts),
-    MFAs =
+    MaybeMFAs =
 	case RawTestKind of
-	    test ->
-		[{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
-				 lists:prefix(?PROPERTY_PREFIX,
-					      atom_to_list(Name))];
-	    spec ->
-		case proper_typeserver:get_exp_specced(Mod) of
-		    {ok,ExpSpecced} ->
-			ExpSpecced;
-		    {error,Reason} ->
-			report_error({typeserver,Reason}, Print),
-			[]
-		end
+	    test -> {ok, [{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
+					  lists:prefix(?PROPERTY_PREFIX,
+						       atom_to_list(Name))]};
+	    spec -> proper_typeserver:get_exp_specced(Mod)
 	end,
-    RawResult = [mfa_test(MFA, RawTestKind, Opts) || MFA <- MFAs],
-    {RawShortResult,RawLongResult} = lists:unzip(RawResult),
-    ShortResult = [X || X <- RawShortResult, X =/= none],
-    LongResult = [X || X <- RawLongResult, X =/= none],
-    save_counterexamples(LongResult),
+    {ShortResult, LongResult} =
+	case MaybeMFAs of
+	    {ok,MFAs} ->
+		RawLRes = [{MFA,mfa_test(MFA,RawTestKind,Opts)} || MFA <- MFAs],
+		LRes = [{MFA,Res} || {MFA,Res} <- RawLRes, is_list(Res)],
+		SRes = [MFA || {MFA,_Res} <- LRes],
+		save_counterexamples(LRes),
+		{SRes, LRes};
+	    {error,SubReason} ->
+		Reason = {typeserver,SubReason},
+		report_error(Reason, Print),
+		Error = {error,Reason},
+		{Error, Error}
+	end,
     global_state_erase(),
     case ReturnLong of
 	true  -> LongResult;
 	false -> ShortResult
     end.
 
--spec mfa_test(mfa(), raw_test_kind(), opts()) ->
-	  {'none' | mfa(), 'none' | {mfa(),counterexample()}}.
+-spec mfa_test(mfa(), raw_test_kind(), opts()) -> long_result().
 mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
     {RawTest,#opts{output_fun = Print} = Opts} =
 	case RawTestKind of
@@ -616,19 +580,9 @@ mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
 	end,
     global_state_reset(Opts),
     Print("Testing ~w:~w/~b~n", [Mod,Fun,Arity]),
-    ShortResult = inner_test(RawTest, Opts#opts{long_result = false}),
+    LongResult = inner_test(RawTest, Opts#opts{long_result = true}),
     Print("~n", []),
-    case ShortResult of
-	true ->
-	    {none, none};
-	false ->
-	    case get_counterexample() of
-		{ok,CExm} -> {MFA, {MFA,CExm}};
-		error     -> {MFA, none}
-	    end;
-	{error,_Reason} ->
-	    {MFA, none}
-    end.
+    LongResult.
 
 -spec cook_test(raw_test(), opts()) -> test().
 cook_test({test,Test}, _Opts) ->
@@ -642,50 +596,36 @@ cook_test({spec,MFA}, #opts{spec_timeout = SpecTimeout}) ->
     end.
 
 -spec get_result(imm_result(),test(),opts()) -> {short_result(),long_result()}.
-get_result({passed,Passed,Samples,_Printers}, _Test, Opts) ->
-    {not Opts#opts.expect_fail, {passed,Passed,Samples}};
-get_result({failed,Performed,CExm,_Actions}, Test, Opts) ->
-    {Shrinks,MinCExm} = shrink(Test, CExm, Opts),
-    save_counterexample(MinCExm),
-    {Opts#opts.expect_fail, {failed,Performed,CExm,Shrinks,MinCExm}};
+get_result(#pass{}, _Test, _Opts) ->
+    {true, true};
+get_result(#fail{reason = Reason, bound = Bound}, Test, Opts) ->
+    MinTestCase = clean_testcase(shrink(Test, Reason, Bound, Opts)),
+    save_counterexample(MinTestCase),
+    {false, MinTestCase};
 get_result({error,_Reason} = ErrorResult, _Test, _Opts) ->
     {ErrorResult, ErrorResult}.
 
--spec get_rerun_result(run_result(), test(), fail_reason(), opts()) ->
-	  {short_rerun_result(),long_rerun_result()}.
-get_rerun_result({passed,true_prop,_Samples,_Printers}, _Test, _OldReason,
-		 Opts) ->
-    {not Opts#opts.expect_fail, passed};
-get_rerun_result({passed,didnt_crash,_Samples,_Printers}, _Test, OldReason,
-		 Opts) ->
-    case OldReason of
-	{exception,_ExcKind,_ExcReason,_StackTrace} ->
-	    {not Opts#opts.expect_fail, passed};
-	_ ->
-	    ErrorResult = {error,too_few_instances},
-	    {ErrorResult, ErrorResult}
-    end;
-get_rerun_result({failed,CExm,_Actions}, Test, _OldReason, Opts) ->
-    {Shrinks,MinCExm} = shrink(Test, CExm, Opts),
-    save_counterexample(MinCExm),
-    {Opts#opts.expect_fail, {failed,Shrinks,MinCExm}};
-get_rerun_result({error,_Reason} = ErrorResult, _Test, _OldReason, _Opts) ->
-    {ErrorResult, ErrorResult}.
+-spec get_rerun_result(run_result()) -> short_result().
+get_rerun_result(#pass{}) ->
+    true;
+get_rerun_result(#fail{}) ->
+    false;
+get_rerun_result({error,_Reason} = ErrorResult) ->
+    ErrorResult.
 
--spec shrink(test(), counterexample(), opts()) ->
-	  {non_neg_integer(),counterexample()}.
-shrink(Test, #cexm{fail_reason = Reason, bound = ImmTestCase},
+-spec shrink(test(), fail_reason(), imm_testcase(), opts()) -> imm_testcase().
+shrink(Test, Reason, ImmTestCase,
        #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
 	     output_fun = Print}) ->
     Print("Shrinking ", []),
     StrTest = skip_to_next(Test),
     {Shrinks,MinImmTestCase} =
 	proper_shrink:shrink(ImmTestCase, StrTest, Reason, MaxShrinks, Print),
-    {failed,MinCExm,MinActions} = rerun(Test, MinImmTestCase),
+    #fail{actions = MinActions} = rerun(Test, true, MinImmTestCase),
     report_shrinking(Shrinks, MinImmTestCase, MinActions, Print),
-    {Shrinks, MinCExm};
-shrink(_Test, CExm, _Opts) ->
-    {0, CExm}.
+    MinImmTestCase;
+shrink(_Test, _Reason, ImmTestCase, _Opts) ->
+    ImmTestCase.
 
 -spec perform(non_neg_integer(), test(), output_fun()) -> imm_result().
 perform(NumTests, Test, Print) ->
@@ -697,14 +637,15 @@ perform(NumTests, Test, Print) ->
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Print) ->
     case Passed of
 	0 -> {error, cant_satisfy};
-	_ -> {passed, Passed, Samples, Printers}
+	_ -> #pass{samples = Samples, printers = Printers, performed = Passed}
     end;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Print) ->
-    {passed, ToPass, Samples, Printers};
+    #pass{samples = Samples, printers = Printers, performed = ToPass};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
-    proper_funserver:reset_state(),
+    proper_funserver:reset(),
     case run(Test) of
-	{passed, true_prop, MoreSamples, MorePrinters} ->
+	#pass{reason = true_prop, samples = MoreSamples,
+	      printers = MorePrinters} ->
 	    Print(".", []),
 	    NewSamples = add_samples(MoreSamples, Samples),
 	    NewPrinters = case Printers of
@@ -714,20 +655,20 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
 	    grow_size(),
 	    perform(Passed + 1, ToPass, TriesLeft - 1, Test,
 		    NewSamples, NewPrinters, Print);
-	{failed, CExm, Actions} ->
+	#fail{} = FailResult ->
 	    Print("!", []),
-	    {failed, Passed + 1, CExm, Actions};
+	    FailResult#fail{performed = Passed + 1};
 	{error, cant_generate} = Error ->
-	    Error;
-	{error, type_mismatch} = Error ->
-	    Error;
-	{error, {typeserver,_SubReason}} = Error ->
 	    Error;
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(),
 	    perform(Passed, ToPass, TriesLeft - 1, Test,
 		    Samples, Printers, Print);
+	{error, type_mismatch} = Error ->
+	    Error;
+	{error, {typeserver,_SubReason}} = Error ->
+	    Error;
 	Unexpected ->
 	    {error, {unexpected,Unexpected}}
     end.
@@ -747,59 +688,60 @@ add_samples(MoreSamples, Samples) ->
 run(Test) ->
     run(Test, #ctx{}).
 
--spec rerun(test(), imm_testcase()) -> run_result().
-rerun(Test, ImmTestCase) ->
-    Ctx = #ctx{try_shrunk = true, to_try = ImmTestCase},
+-spec rerun(test(),boolean(),imm_testcase() | counterexample()) -> run_result().
+rerun(Test, IsImm, ToTry) ->
+    Mode = case IsImm of true -> try_shrunk; false -> try_cexm end,
+    Ctx = #ctx{mode = Mode, bound = ToTry},
     run(Test, Ctx).
 
 -spec run(test(), ctx()) -> run_result().
-run(true, #ctx{to_try = [], samples = Samples, printers = Printers}) ->
-    {passed, true_prop, lists:reverse(Samples), lists:reverse(Printers)};
-run(true, _Ctx) ->
-    {error, too_many_instances};
-run(false, #ctx{to_try = []} = Ctx) ->
-    create_failed_result(Ctx, false_prop);
-run(false, _Ctx) ->
-    {error, too_many_instances};
-run({forall,RawType,Prop},
-    #ctx{try_shrunk = TryShrunk, to_try = ToTry, bound = Bound} = Ctx) ->
-    case {TryShrunk, ToTry} of
-	{true, []} ->
-	    {passed, didnt_crash, [], []};
-	{true, [ImmInstance | Rest]} ->
-	    case proper_types:safe_is_instance(ImmInstance, RawType) of
-		true ->
-		    Instance = proper_gen:clean_instance(ImmInstance),
-		    NewCtx = Ctx#ctx{to_try = Rest,
-				     bound = [ImmInstance | Bound]},
-		    force(Instance, Prop, NewCtx);
-		false ->
-		    %% TODO: could try to fix the instances here
-		    {error, wrong_type};
-		{error,_Reason} = Error ->
-		    Error
+run(Result, #ctx{mode = Mode, bound = Bound} = Ctx) when is_boolean(Result) ->
+    case Mode =:= new orelse Bound =:= [] of
+	true ->
+	    case Result of
+		true  -> create_pass_result(Ctx, true_prop);
+		false -> create_fail_result(Ctx, false_prop)
 	    end;
-	{false, []} ->
-	    case proper_gen:safe_generate(RawType) of
-		{ok,ImmInstance} ->
-		    Instance = proper_gen:clean_instance(ImmInstance),
-		    NewCtx = Ctx#ctx{bound = [ImmInstance | Bound]},
-		    force(Instance, Prop, NewCtx);
-		{error,_Reason} = Error ->
-		    Error
-	    end
+	false ->
+	    {error, too_many_instances}
     end;
+run({forall,RawType,Prop}, #ctx{mode = new, bound = Bound} = Ctx) ->
+    case proper_gen:safe_generate(RawType) of
+	{ok,ImmInstance} ->
+	    Instance = proper_gen:clean_instance(ImmInstance),
+	    NewCtx = Ctx#ctx{bound = [ImmInstance | Bound]},
+	    force(Instance, Prop, NewCtx);
+	{error,_Reason} = Error ->
+	    Error
+    end;
+run({forall,_RawType,_Prop}, #ctx{bound = []} = Ctx) ->
+    create_pass_result(Ctx, didnt_crash);
+run({forall,RawType,Prop}, #ctx{mode = try_shrunk,
+				bound = [ImmInstance | Rest]} = Ctx) ->
+    case proper_types:safe_is_instance(ImmInstance, RawType) of
+	true ->
+	    Instance = proper_gen:clean_instance(ImmInstance),
+	    force(Instance, Prop, Ctx#ctx{bound = Rest});
+	false ->
+	    %% TODO: could try to fix the instances here
+	    {error, wrong_type};
+	{error,_Reason} = Error ->
+	    Error
+    end;
+run({forall,_RawType,Prop}, #ctx{mode = try_cexm,
+				 bound = [Instance | Rest]} = Ctx) ->
+    force(Instance, Prop, Ctx#ctx{bound = Rest});
 run({implies,true,Prop}, Ctx) ->
     force(Prop, Ctx);
 run({implies,false,_Prop}, _Ctx) ->
     {error, rejected};
-run({sample,NewSample,NewPrinter,Prop},
-    #ctx{samples = Samples, printers = Printers} = Ctx) ->
+run({sample,NewSample,NewPrinter,Prop}, #ctx{samples = Samples,
+					     printers = Printers} = Ctx) ->
     NewCtx = Ctx#ctx{samples = [NewSample | Samples],
 		     printers = [NewPrinter | Printers]},
     run(Prop, NewCtx);
-run({whenfail,NewAction,Prop}, #ctx{fail_actions = Actions} = Ctx)->
-    NewCtx = Ctx#ctx{fail_actions = [NewAction | Actions]},
+run({whenfail,NewAction,Prop}, #ctx{actions = Actions} = Ctx)->
+    NewCtx = Ctx#ctx{actions = [NewAction | Actions]},
     force(Prop, NewCtx);
 run({timeout,Limit,Prop}, Ctx) ->
     Self = self(),
@@ -810,7 +752,7 @@ run({timeout,Limit,Prop}, Ctx) ->
 	unlink(Child),
 	exit(Child, kill),
 	clear_mailbox(),
-	create_failed_result(Ctx, time_out)
+	create_fail_result(Ctx, time_out)
     end.
 
 -spec force(delayed_test(), ctx()) -> run_result().
@@ -832,25 +774,31 @@ apply_args(Args, Prop, Ctx) ->
 	    Trace = erlang:get_stacktrace(),
 	    case ErrReason =:= function_clause
 		 andalso threw_exception(Prop, Trace) of
-		true  -> {error, type_mismatch};
-		false -> create_failed_result(Ctx, {exception,error,ErrReason,
-						    Trace})
+		true ->
+		    {error, type_mismatch};
+		false ->
+		    create_fail_result(Ctx, {exception,error,ErrReason,Trace})
 	    end;
 	throw:'$cant_generate' ->
 	    {error, cant_generate};
 	throw:{'$typeserver',SubReason} ->
 	    {error, {typeserver,SubReason}};
 	ExcKind:ExcReason ->
-	    create_failed_result(Ctx, {exception,ExcKind,ExcReason,
-				       erlang:get_stacktrace()})
+	    Trace = erlang:get_stacktrace(),
+	    create_fail_result(Ctx, {exception,ExcKind,ExcReason,Trace})
     end.
 
--spec create_failed_result(ctx(), fail_reason()) ->
-	  {'failed', counterexample(), fail_actions()}.
-create_failed_result(#ctx{bound = Bound, fail_actions = Actions}, Reason) ->
-    CExm = #cexm{fail_reason = Reason, bound = lists:reverse(Bound),
-		 size = get_size(), fun_state = proper_funserver:get_state()},
-    {failed, CExm, lists:reverse(Actions)}.
+-spec create_pass_result(ctx(), pass_reason()) ->
+	  #pass{performed :: 'undefined'}.
+create_pass_result(#ctx{samples = Samples, printers = Printers}, Reason) ->
+    #pass{reason = Reason, samples = lists:reverse(Samples),
+	  printers = lists:reverse(Printers)}.
+
+-spec create_fail_result(ctx(), fail_reason()) ->
+	  #fail{performed :: 'undefined'}.
+create_fail_result(#ctx{bound = Bound, actions = Actions}, Reason) ->
+    #fail{reason = Reason, bound = lists:reverse(Bound),
+	  actions = lists:reverse(Actions)}.
 
 -spec child(pid(), delayed_test(), ctx()) -> 'ok'.
 child(Father, Prop, Ctx) ->
@@ -877,7 +825,7 @@ threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) ->
 	       end,
     FunMod =:= TopMod andalso FunName =:= TopName andalso FunArity =:= TopArity.
 
--spec clean_testcase(imm_testcase()) -> clean_testcase().
+-spec clean_testcase(imm_testcase()) -> counterexample().
 clean_testcase(ImmTestCase) ->
     [proper_gen:clean_instance(I) || I <- ImmTestCase].
 
@@ -891,17 +839,14 @@ clean_testcase(ImmTestCase) ->
 		  fail_reason()) -> boolean().
 still_fails(ImmInstance, TestTail, Prop, OldReason) ->
     Instance = proper_gen:clean_instance(ImmInstance),
-    Ctx = #ctx{try_shrunk = true, to_try = TestTail},
+    Ctx = #ctx{mode = try_shrunk, bound = TestTail},
     case force(Instance, Prop, Ctx) of
-	%% We check that it's the same fault that caused the crash.
-	{failed, #cexm{fail_reason = NewReason}, _Actions} ->
+	#fail{reason = NewReason} ->
 	    same_fail_reason(OldReason, NewReason);
 	_ ->
 	    false
     end.
 
-%% We don't consider two exceptions different if they have a different
-%% stacktrace.
 -spec same_fail_reason(fail_reason(), fail_reason()) -> boolean().
 same_fail_reason({exception,SameExcKind,SameExcReason,_StackTrace1},
 		 {exception,SameExcKind,SameExcReason,_StackTrace2}) ->
@@ -918,7 +863,7 @@ skip_to_next(false) ->
     false;
 skip_to_next({forall,RawType,Prop}) ->
     Type = proper_types:cook_outer(RawType),
-    {Type,Prop};
+    {Type, Prop};
 skip_to_next({implies,true,Prop}) ->
     force_skip(Prop);
 skip_to_next({implies,false,_Prop}) ->
@@ -928,7 +873,7 @@ skip_to_next({sample,_Sample,_Printer,Prop}) ->
 skip_to_next({whenfail,_Action,Prop}) ->
     force_skip(Prop);
 skip_to_next({timeout,_Limit,_Prop}) ->
-    false. % This is OK, since ?TIMEOUT cannot contain any other wrappers.
+    false. %% This is OK, since ?TIMEOUT cannot contain any other wrappers.
 
 -spec force_skip(delayed_test()) -> stripped_test().
 force_skip(Prop) ->
@@ -955,95 +900,94 @@ apply_skip(Args, Prop) ->
 %%-----------------------------------------------------------------------------
 
 -spec report_imm_result(imm_result(), opts()) -> 'ok'.
-report_imm_result({passed,Passed,Samples,Printers},
+report_imm_result(#pass{samples = Samples, printers = Printers,
+			performed = Performed},
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("Error: no test failed.~n", []);
-	false -> Print("OK, passed ~b test(s).~n", [Passed])
+	true  -> Print("Failed: All tests passed when a failure was expected."
+		       "~n", []);
+	false -> Print("OK: Passed ~b test(s).~n", [Performed])
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
-    lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Passed, Print) end,
+    lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Performed, Print) end,
 		  proper_arith:safe_zip(Printers, SortedSamples)),
     ok;
-report_imm_result({failed,Performed,_CExm,_Actions},
-		  #opts{expect_fail = true, output_fun = Print}) ->
-    Print("OK, failed as expected, after ~b test(s).~n", [Performed]);
-report_imm_result({failed,Performed,#cexm{fail_reason = Reason, bound = Bound},
-		   Actions}, #opts{expect_fail = false, output_fun = Print}) ->
-    Print("Failed, after ~b test(s).~n", [Performed]),
-    report_fail_reason(Reason, Print, false),
-    print_bound(Bound, Print),
+report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
+			performed = Performed},
+		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
+    case ExpectF of
+	true ->
+	    Print("OK: Failed as expected, after ~b test(s).~n", [Performed]);
+	false ->
+	    Print("Failed: After ~b test(s).~n", [Performed])
+    end,
+    report_fail_reason(Reason, Print),
+    print_imm_bound(Bound, Print),
     execute_actions(Actions);
 report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
     report_error(Reason, Print).
 
--spec report_rerun_result(run_result(), fail_reason(), output_fun()) -> 'ok'.
-report_rerun_result({passed,true_prop,_Samples,_Printers}, _OldReason, Print) ->
-    Print("The input passed the test.~n", []);
-report_rerun_result({passed,didnt_crash,_Samples,_Printers},OldReason,Print) ->
-    case OldReason of
-	{exception,_ExcKind,_ExcReason,_StackTrace} ->
-	    Print("The input didn't raise an early exception.~n", []);
-	_ ->
-	    report_error(too_few_instances, Print)
-    end;
-report_rerun_result({failed,#cexm{fail_reason = NewReason},Actions}, OldReason,
-		    Print) ->
-    Print("The input still fails the test", []),
-    case same_fail_reason(OldReason, NewReason) of
-	true ->
-	    Print(".~n", []),
-	    report_fail_reason(NewReason, Print, false);
-	false ->
-	    Print(", but for a different reason:~n", []),
-	    report_fail_reason(NewReason, Print, true)
+-spec report_rerun_result(run_result(), opts()) -> 'ok'.
+report_rerun_result(#pass{reason = Reason},
+		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
+    case ExpectF of
+	true  -> Print("Failed: ", []);
+	false -> Print("OK: ", [])
     end,
+    case Reason of
+	true_prop   -> Print("The input passed the test.~n", []);
+	didnt_crash -> Print("The input didn't raise an early exception.~n", [])
+    end;
+report_rerun_result(#fail{reason = Reason, actions = Actions},
+		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
+    case ExpectF of
+	true  -> Print("OK: ", []);
+	false -> Print("Failed: ", [])
+    end,
+    Print("The input still fails the test.~n", []),
+    report_fail_reason(Reason, Print),
     execute_actions(Actions);
-report_rerun_result({error,Reason}, _OldReason, Print) ->
+report_rerun_result({error,Reason}, #opts{output_fun = Print}) ->
     report_error(Reason, Print).
 
 %% @private
--spec report_error(rerun_error_reason() | error_reason(), output_fun()) -> 'ok'.
+-spec report_error(error_reason(), output_fun()) -> 'ok'.
 report_error(cant_generate, Print) ->
-    Print("Error: couldn't produce an instance that satisfies all strict "
+    Print("Error: Couldn't produce an instance that satisfies all strict "
 	  "constraints after ~b tries.~n", [get('$constraint_tries')]);
-report_error(type_mismatch, Print) ->
-    Print("Error: the variables' and types' structures inside a ?FORALL don't "
-	  "match.~n", []);
-report_error({typeserver,SubReason}, Print) ->
-    Print("Error: The typeserver encountered an error: ~w~n", [SubReason]);
-report_error(wrong_type, Print) ->
-    Print(?MISMATCH_MSG ++ "the instances don't match the types.~n", []);
-report_error(rejected, Print) ->
-    Print(?MISMATCH_MSG ++ "it failed an ?IMPLIES check.~n", []);
-report_error(too_many_instances, Print) ->
-    Print(?MISMATCH_MSG ++ "it's too long.~n", []); %% that's what she said
-report_error(too_few_instances, Print) ->
-    Print(?MISMATCH_MSG ++ "it's too short.~n", []);
 report_error(cant_satisfy, Print) ->
-    Print("Error: no valid test could be generated.~n", []);
+    Print("Error: No valid test could be generated.~n", []);
+report_error(rejected, Print) ->
+    Print(?MISMATCH_MSG ++ "It failed an ?IMPLIES check.~n", []);
+report_error(too_many_instances, Print) ->
+    Print(?MISMATCH_MSG ++ "It's too long.~n", []); %% that's what she said
+report_error(type_mismatch, Print) ->
+    Print("Error: The variables' and types' structures inside a ?FORALL don't "
+	  "match.~n", []);
+report_error(wrong_type, Print) ->
+    Print("Internal error: 'wrong_type' error reached toplevel.~n"
+	  "Please notify the maintainers about this error.~n", []);
+report_error({typeserver,SubReason}, Print) ->
+    Print("Error: The typeserver encountered an error: ~w.~n", [SubReason]);
 report_error({unexpected,Unexpected}, Print) ->
-    Print("Internal error: the last run returned an unexpected result:~n~w~n"
-	  "Please notify the maintainers about this error~n", [Unexpected]);
+    Print("Internal error: The last run returned an unexpected result:~n~w~n"
+	  "Please notify the maintainers about this error.~n", [Unexpected]);
 report_error({unrecognized_option,UserOpt}, Print) ->
-    Print("Error: Unrecognized option: ~w~n", [UserOpt]).
+    Print("Error: Unrecognized option: ~w.~n", [UserOpt]).
 
--spec report_fail_reason(fail_reason(), output_fun(), boolean()) -> 'ok'.
-report_fail_reason(false_prop, _Print, false) ->
+-spec report_fail_reason(fail_reason(), output_fun()) -> 'ok'.
+report_fail_reason(false_prop, _Print) ->
     ok;
-report_fail_reason(false_prop, Print, true) ->
-    Print("The property was falsified.~n", []);
-report_fail_reason(time_out, Print, _ReportFalseProp) ->
+report_fail_reason(time_out, Print) ->
     Print("Test execution timed out.~n", []);
-report_fail_reason({exception,ExcKind,ExcReason,_StackTrace}, Print,
-		   _ReportFalseProp) ->
+report_fail_reason({exception,ExcKind,ExcReason,_StackTrace}, Print) ->
     %% TODO: print stacktrace too?
     Print("An exception was raised: ~w:~w.~n", [ExcKind,ExcReason]).
 
--spec print_bound(imm_testcase(), output_fun()) -> 'ok'.
-print_bound(ImmInstances, Print) ->
-    Instances = clean_testcase(ImmInstances),
-    lists:foreach(fun(I) -> Print("~w~n", [I]) end, Instances),
+-spec print_imm_bound(imm_testcase(), output_fun()) -> 'ok'.
+print_imm_bound(ImmTestCase, Print) ->
+    TestCase = clean_testcase(ImmTestCase),
+    lists:foreach(fun(I) -> Print("~w~n", [I]) end, TestCase),
     ok.
 
 -spec execute_actions(fail_actions()) -> 'ok'.
@@ -1055,7 +999,7 @@ execute_actions(Actions) ->
 		       output_fun()) -> 'ok'.
 report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
     Print("(~b time(s))~n", [Shrinks]),
-    print_bound(MinImmTestCase, Print),
+    print_imm_bound(MinImmTestCase, Print),
     execute_actions(MinActions).
 
 

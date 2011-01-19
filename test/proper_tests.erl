@@ -30,120 +30,146 @@
 
 
 %%------------------------------------------------------------------------------
-%% Helper functions and macros
+%% Helper macros
 %%------------------------------------------------------------------------------
 
--define(SHRINK_TEST_OPTS, [{start_size,10},{max_shrinks,10000}]).
-
--define(_perfectRun(Test),
-	?_perfectRun(Test, [])).
-
--define(_perfectRun(Test, Opts),
-	?_assertRun(true, {passed,100,[]}, Test, Opts)).
-
--define(_assertRun(ExpShortResult, ExpLongResult, Test, Opts),
-	?_test(begin
-		   ?assertEqual(ExpShortResult, proper:quickcheck(Test,Opts)),
-		   proper:clean_garbage(),
-		   ?assert(state_is_clean()),
-		   ?assertMatch(ExpLongResult,
-				proper:quickcheck(Test,[long_result|Opts])),
-		   proper:clean_garbage(),
-		   ?assert(state_is_clean())
-		end)).
-
--define(_assertReRun(ExpShortResult, Test, CExm, Opts),
-	?_test(begin
-		   ?assertEqual(ExpShortResult, proper:check(Test,CExm,Opts)),
-		   ?assert(state_is_clean())
-		end)).
-
-cexm(FailReason, Bound) ->
-    {cexm, FailReason, Bound, 10, {state,'$temp_mod',[],1}}.
+%% NOTE: Never add long_result to Opts for these macros.
 
 state_is_clean() ->
     get() =:= [].
-
--define(_failsWithReason(ExpReason, Test),
-	?_failRun(ExpReason, _, _, none, Test, [noshrink])).
-
--define(_failsWith(ExpShrunk, Test),
-	?_failsWith(_, ExpShrunk, Test)).
-
--define(_failsWith(ExpReason, ExpShrunk, Test),
-	?_failRun(ExpReason, _, ExpShrunk, none, Test, [])).
-
--define(_failsWithOneOf(AllShrunk, Test),
-	?_failsWithOneOf(_, AllShrunk, Test)).
-
--define(_failsWithOneOf(ExpReason, AllShrunk, Test),
-	?_failRun(ExpReason, _, _, AllShrunk, Test, [])).
-
--define(_shrinksTo(ExpShrunkInstance, Type),
-	?_failRun(false_prop, _, [ExpShrunkInstance], none,
-		  ?FORALL(_X,Type,false), ?SHRINK_TEST_OPTS)).
-
--define(_nativeShrinksTo(ExpShrunkInstance, TypeStr),
-	?_failRun(false_prop, _, [ExpShrunkInstance], none,
-		  ?FORALL(_X,assert_can_translate(?MODULE, TypeStr),false),
-		  ?SHRINK_TEST_OPTS)).
-
--define(_shrinksToOneOf(AllShrunkInstances, Type),
-	?_failRun(false_prop, _, _, [[X] || X <- AllShrunkInstances],
-		  ?FORALL(_X,Type,false), ?SHRINK_TEST_OPTS)).
-
--define(cExmMatches(ExpReason, ExpBound, AllBound, CExm),
-	begin
-	    ?assertMatch(ExpReason, proper:get_fail_reason(CExm)),
-	    ?assertMatch(ExpBound, proper:get_bound(CExm)),
-	    assertEqualsOneOf(proper:get_bound(CExm), AllBound)
-	end).
 
 assertEqualsOneOf(_X, none) ->
     ok;
 assertEqualsOneOf(X, List) ->
     ?assert(lists:any(fun(Y) -> Y =:= X end, List)).
 
--define(_failRun(ExpReason, ExpTestCase, ExpShrunk, AllShrunk, Test, Opts),
-	?_test(begin
-		   ?assertEqual(exp_short_result(Opts),
-				proper:quickcheck(Test, Opts)),
-		   {ok,CExm1} = proper:get_counterexample(),
-		   proper:clean_garbage(),
-		   ?assert(state_is_clean()),
-		   ?assertEqual(exp_short_result(Opts),
-				proper:check(Test, CExm1, Opts)),
-		   {ok,CExm2} = proper:get_counterexample(),
-		   proper:clean_garbage(),
-		   ?assert(state_is_clean()),
-		   {failed,_,CExm3,Shrinks,CExm4} =
-		       proper:quickcheck(Test, [long_result | Opts]),
-		   proper:clean_garbage(),
-		   ?assert(state_is_clean()),
-		   {failed,_,CExm5} =
-		       proper:check(Test, CExm3, [long_result | Opts]),
-		   proper:clean_garbage(),
-		   ?assert(state_is_clean()),
-		   case lists:member(fails,Opts)
-			orelse lists:member(noshrink,Opts) of
-		       true ->
-			   ?assertEqual(Shrinks, 0),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm1),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm2),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm3),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm4),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm5);
-		       false ->
-			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm1),
-			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm2),
-			   ?cExmMatches(ExpReason, ExpTestCase, none, CExm3),
-			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm4),
-			   ?cExmMatches(ExpReason, ExpShrunk, AllShrunk, CExm5)
-		   end
-	       end)).
+-define(_passes(Test),
+	?_passes(Test, [])).
 
-exp_short_result(Opts) ->
-    lists:member(fails, Opts).
+-define(_passes(Test, Opts),
+	?_assertRun(true, Test, Opts)).
+
+-define(_errorsOut(ExpReason, Test),
+	?_errorsOut(ExpReason, Test, [])).
+
+-define(_errorsOut(ExpReason, Test, Opts),
+	?_assertRun({error,ExpReason}, Test, Opts)).
+
+-define(_assertRun(ExpResult, Test, Opts),
+	?_test(begin
+	    ?assertMatch(ExpResult, proper:quickcheck(Test,Opts)),
+	    proper:clean_garbage(),
+	    ?assert(state_is_clean()),
+	    ?assertMatch(ExpResult, proper:quickcheck(Test,[long_result|Opts])),
+	    proper:clean_garbage(),
+	    ?assert(state_is_clean())
+	end)).
+
+-define(_assertCheck(ExpShortResult, CExm, Test),
+	?_assertCheck(ExpShortResult, CExm, Test, [])).
+
+-define(_assertCheck(ExpShortResult, CExm, Test, Opts),
+	?_test(?assertCheck(ExpShortResult, CExm, Test, Opts))).
+
+-define(assertCheck(ExpShortResult, CExm, Test, Opts),
+	begin
+	    ?assertMatch(ExpShortResult, proper:check(Test,CExm,Opts)),
+	    ?assert(state_is_clean())
+	end).
+
+-define(_fails(Test),
+	?_fails(Test, [])).
+
+-define(_fails(Test, Opts),
+	?_failsWith(_, Test, Opts)).
+
+-define(_failsWith(ExpCExm, Test),
+	?_failsWith(ExpCExm, Test, [])).
+
+-define(_failsWith(ExpCExm, Test, Opts),
+	?_assertFailRun(ExpCExm, none, Test, Opts)).
+
+-define(_failsWithOneOf(AllCExms, Test),
+	?_failsWithOneOf(AllCExms, Test, [])).
+
+-define(_failsWithOneOf(AllCExms, Test, Opts),
+	?_assertFailRun(_, AllCExms, Test, Opts)).
+
+-define(SHRINK_TEST_OPTS, [{start_size,10},{max_shrinks,10000}]).
+
+-define(_shrinksTo(ExpShrunk, Type),
+	?_assertFailRun([ExpShrunk], none, ?FORALL(_X,Type,false),
+			?SHRINK_TEST_OPTS)).
+
+-define(_shrinksToOneOf(AllShrunk, Type),
+	?_assertFailRun(_, [[X] || X <- AllShrunk], ?FORALL(_X,Type,false),
+			?SHRINK_TEST_OPTS)).
+
+-define(_nativeShrinksTo(ExpShrunk, TypeStr),
+	?_assertFailRun([ExpShrunk], none,
+			?FORALL(_X,assert_can_translate(?MODULE,TypeStr),false),
+			?SHRINK_TEST_OPTS)).
+
+-define(_nativeShrinksToOneOf(AllShrunk, TypeStr),
+	?_assertFailRun(_, [[X] || X <- AllShrunk],
+			?FORALL(_X,assert_can_translate(?MODULE,TypeStr),false),
+			?SHRINK_TEST_OPTS)).
+
+-define(_assertFailRun(ExpCExm, AllCExms, Test, Opts),
+	?_test(begin
+	    ShortResult = proper:quickcheck(Test, Opts),
+	    CExm1 = get_cexm(),
+	    ?checkCExm(CExm1, ExpCExm, AllCExms, Test, Opts),
+	    ?assertEqual(false, ShortResult),
+	    LongResult = proper:quickcheck(Test, [long_result|Opts]),
+	    CExm2 = get_cexm(),
+	    ?checkCExm(CExm2, ExpCExm, AllCExms, Test, Opts),
+	    ?checkCExm(LongResult, ExpCExm, AllCExms, Test, Opts)
+	end)).
+
+get_cexm() ->
+    CExm = proper:counterexample(),
+    proper:clean_garbage(),
+    ?assert(state_is_clean()),
+    CExm.
+
+-define(checkCExm(CExm, ExpCExm, AllCExms, Test, Opts),
+	begin
+	    ?assertCheck(false, CExm, Test, Opts),
+	    ?assertMatch(ExpCExm, CExm),
+	    assertEqualsOneOf(CExm, AllCExms)
+	end).
+
+-define(_assertTempBecomesN(N, ExpShortResult, Prop),
+	?_assertTempBecomesN(N, ExpShortResult, Prop, [])).
+
+-define(_assertTempBecomesN(N, ExpShortResult, Prop, Opts),
+	?_test(begin
+	    ?assertMatch(ExpShortResult, proper:quickcheck(Prop,Opts)),
+	    ?assertEqual(N, get_temp()),
+	    erase_temp(),
+	    proper:clean_garbage(),
+	    ?assert(state_is_clean())
+	end)).
+
+inc_temp() ->
+    case get(temp) of
+	undefined -> put(temp,1);
+	X         -> put(temp,X + 1)
+    end,
+    ok.
+
+get_temp() ->
+    get(temp).
+
+erase_temp() ->
+    erase(temp),
+    ok.
+
+
+%%------------------------------------------------------------------------------
+%% Helper Functions
+%%------------------------------------------------------------------------------
 
 assert_type_works({Type,Are,_Target,Arent,TypeStr}, IsSimple) ->
     case Type of
@@ -213,14 +239,7 @@ assert_function_type_works(FunType) ->
     {ok,F} = proper_gen:pick(FunType),
     %% TODO: this isn't exception-safe
     ?assert(proper_types:is_instance(F, FunType)),
-    Results1 = assert_is_pure_function(F),
-    FunState = proper_funserver:get_state(),
-    proper:global_state_erase(),
-    ?assert(state_is_clean()),
-    proper:global_state_init_size(10),
-    proper_funserver:set_state(FunState),
-    Results2 = assert_is_pure_function(F),
-    ?assertEqual(Results1,Results2),
+    assert_is_pure_function(F),
     proper:global_state_erase(),
     ?assert(state_is_clean()).
 
@@ -228,41 +247,8 @@ assert_is_pure_function(F) ->
     {arity,Arity} = erlang:fun_info(F, arity),
     ArgsList = [lists:duplicate(Arity,0), lists:duplicate(Arity,1),
 		lists:seq(1,Arity), lists:seq(0,Arity-1)],
-    [begin
-	 Result = apply(F,Args),
-	 ?assertEqual(Result, apply(F,Args)),
-	 Result
-     end || Args <- ArgsList].
-
-inc_temp() ->
-    case get(temp) of
-	undefined -> put(temp,1);
-	X         -> put(temp,X + 1)
-    end,
-    ok.
-
-get_temp() ->
-    get(temp).
-
-erase_temp() ->
-    erase(temp),
-    ok.
-
-smaller_lengths_than_my_own(L) ->
-    lists:seq(0,length(L)).
-
-correct_smaller_length_aggregation(Tests, SmallerLens) ->
-    {Zeros,Larger} = lists:partition(fun(X) -> X =:= 0 end, SmallerLens),
-    length(Zeros) =:= Tests
-    andalso correct_smaller_length_aggregation(Tests, Larger, 1).
-
-correct_smaller_length_aggregation(0, SmallerLens, _Len) ->
-    SmallerLens =:= [];
-correct_smaller_length_aggregation(NotMoreThan, SmallerLens, Len) ->
-    {Lens,Larger} = lists:partition(fun(X) -> X =:= Len end, SmallerLens),
-    Num = length(Lens),
-    Num =< NotMoreThan
-    andalso correct_smaller_length_aggregation(Num, Larger, Len+1).
+    lists:foreach(fun(Args) -> ?assertEqual(apply(F,Args),apply(F,Args)) end,
+		  ArgsList).
 
 
 %%------------------------------------------------------------------------------
@@ -528,7 +514,7 @@ undefined_symb_calls() ->
 %% TODO: defined option precedence
 %% TODO: conversion of maybe_improper_list
 %% TODO: use demo_is_instance and demo_translate_type
-
+%% TODO: debug option to output tests passed, fail reason, etc.
 
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].
@@ -577,31 +563,29 @@ random_functions_test_() ->
      || {FunType,TypeStr} <- function_types()].
 
 parse_transform_test_() ->
-    [?_perfectRun(auto_export_test1:prop_1()),
+    [?_passes(auto_export_test1:prop_1()),
      ?_assertError(undef, auto_export_test2:prop_1()),
      ?_assertError(undef, no_native_parse_test:prop_1()),
      ?_assertError(undef, no_out_of_forall_test:prop_1())].
 
 native_type_props_test_() ->
-    [?_perfectRun(?FORALL({X,Y},
-			  {my_native_type(),my_proper_type()},
-			  is_integer(X) andalso is_atom(Y))),
-     ?_perfectRun(?FORALL([X,Y,Z],
-			  [my_native_type(),my_proper_type(),my_native_type()],
-			  is_integer(X) andalso is_atom(Y)
-			  andalso is_integer(Z))),
-     ?_perfectRun(?FORALL([Y,X,{Z,W}],
-			  [my_proper_type() | [my_native_type()]] ++
-			  [{my_native_type(),my_proper_type()}],
-			  is_integer(X) andalso is_atom(Y)
-			  andalso is_integer(Z) andalso is_atom(W))),
-     ?_perfectRun(?FORALL([X|Y], [my_native_type()|my_native_type()],
-			  is_integer(X) andalso is_integer(Y))),
-     ?_perfectRun(?FORALL(X, type_and_fun(), is_atom(X))),
-     ?_perfectRun(?FORALL(X, type_only(), is_integer(X))),
-     ?_perfectRun(?FORALL(L, [integer()], length(L) =:= 1)),
-     ?_failsWithReason(false_prop, ?FORALL(L,id([integer()]),length(L) =:= 1)),
-     ?_perfectRun(?FORALL(_, types_test1:exp1(), true)),
+    [?_passes(?FORALL({X,Y}, {my_native_type(),my_proper_type()},
+		      is_integer(X) andalso is_atom(Y))),
+     ?_passes(?FORALL([X,Y,Z],
+		      [my_native_type(),my_proper_type(),my_native_type()],
+		      is_integer(X) andalso is_atom(Y) andalso is_integer(Z))),
+     ?_passes(?FORALL([Y,X,{Z,W}],
+		      [my_proper_type() | [my_native_type()]] ++
+		      [{my_native_type(),my_proper_type()}],
+		      is_integer(X) andalso is_atom(Y) andalso is_integer(Z)
+		      andalso is_atom(W))),
+     ?_passes(?FORALL([X|Y], [my_native_type()|my_native_type()],
+		      is_integer(X) andalso is_integer(Y))),
+     ?_passes(?FORALL(X, type_and_fun(), is_atom(X))),
+     ?_passes(?FORALL(X, type_only(), is_integer(X))),
+     ?_passes(?FORALL(L, [integer()], length(L) =:= 1)),
+     ?_fails(?FORALL(L, id([integer()]), length(L) =:= 1)),
+     ?_passes(?FORALL(_, types_test1:exp1(), true)),
      ?_assertError(undef, ?FORALL(_,types_test1:rec1(),true)),
      ?_assertError(undef, ?FORALL(_,no_such_module:some_call(),true)),
      {setup, fun() -> code:purge(to_remove),
@@ -611,142 +595,113 @@ native_type_props_test_() ->
 				  "tests/to_remove.bak") end,
 	     fun(_) -> file:rename("tests/to_remove.bak",
 				   "tests/to_remove.beam") end,
-	     ?_perfectRun(?FORALL(_, to_remove:exp1(), true))},
-      ?_perfectRun(rec_props_test1:prop_1()),
-      ?_perfectRun(rec_props_test2:prop_2()),
-      ?_perfectRun(?FORALL(L, vector(2,my_native_type()),
-			   length(L) =:= 2 andalso
-			   lists:all(fun erlang:is_integer/1, L))),
-      ?_perfectRun(?FORALL(F, function(0,my_native_type()),
-			   is_integer(F()))),
-      ?_perfectRun(?FORALL(X, union([my_proper_type(),my_native_type()]),
-			   is_integer(X) orelse is_atom(X))),
-      ?_assertError(undef, begin
-			       Vector5 = fun(T) -> vector(5,T) end,
-			       ?FORALL(V, Vector5(types_test1:exp1()),
-				       length(V) =:= 5)
-			   end),
-      ?_perfectRun(?FORALL(X, ?SUCHTHAT(Y,types_test1:exp1(),is_atom(Y)),
-			   is_atom(X))),
-      ?_perfectRun(?FORALL(L,non_empty(lof()),length(L) > 0)),
-      ?_perfectRun(?FORALL(X, ?LET(L,lof(),lists:min([99999.9|L])),
-			   is_float(X))),
-      ?_shrinksTo(0, ?LETSHRINK([X],[my_native_type()],{'tag',X})),
-      ?_perfectRun(weird_types:prop_export_all_works()),
-      ?_perfectRun(weird_types:prop_no_auto_import_works())].
+	     ?_passes(?FORALL(_, to_remove:exp1(), true))},
+     ?_passes(rec_props_test1:prop_1()),
+     ?_passes(rec_props_test2:prop_2()),
+     ?_passes(?FORALL(L, vector(2,my_native_type()),
+		      length(L) =:= 2
+		      andalso lists:all(fun erlang:is_integer/1, L))),
+     ?_passes(?FORALL(F, function(0,my_native_type()), is_integer(F()))),
+     ?_passes(?FORALL(X, union([my_proper_type(),my_native_type()]),
+		      is_integer(X) orelse is_atom(X))),
+     ?_assertError(undef, begin
+			    Vector5 = fun(T) -> vector(5,T) end,
+			    ?FORALL(V, Vector5(types_test1:exp1()),
+				    length(V) =:= 5)
+			end),
+     ?_passes(?FORALL(X, ?SUCHTHAT(Y,types_test1:exp1(),is_atom(Y)),
+		      is_atom(X))),
+     ?_passes(?FORALL(L,non_empty(lof()),length(L) > 0)),
+     ?_passes(?FORALL(X, ?LET(L,lof(),lists:min([99999.9|L])),
+		      is_float(X))),
+     ?_shrinksTo(0, ?LETSHRINK([X],[my_native_type()],{'tag',X})),
+     ?_passes(weird_types:prop_export_all_works()),
+     ?_passes(weird_types:prop_no_auto_import_works())].
 
 true_props_test_() ->
-    [?_perfectRun(?FORALL(X,integer(),X < X + 1)),
-     ?_perfectRun(?FORALL(X,atom(),list_to_atom(atom_to_list(X)) =:= X)),
-     ?_perfectRun(?FORALL(L,list(integer()),is_sorted(L,quicksort(L)))),
-     ?_perfectRun(?FORALL(L,ulist(integer()),is_sorted(L,lists:usort(L)))),
-     ?_perfectRun(?FORALL(L,non_empty(list(integer())),L =/= [])),
-     ?_assertRun(true, {passed,_,[]},
-		 ?FORALL({I,L}, {integer(),list(integer())},
-			 ?IMPLIES(no_duplicates(L),
-				  not lists:member(I,lists:delete(I,L)))), []),
-     ?_perfectRun(?FORALL(L, ?SIZED(Size,resize(Size div 5,list(integer()))),
-			  length(L) =< 20)),
-     ?_test(begin
-		Prop = ?FORALL(L, list(integer()),
-			   collect(length(L), collect(L =:= [],
-			       lists:reverse(lists:reverse(L)) =:= L))),
-		{passed,100,[Lengths,IsEmpty]} =
-		    proper:quickcheck(Prop, long_result),
-		proper:clean_garbage(),
-		?assert(state_is_clean()),
-		?assertEqual(100, length(Lengths)),
-		?assertEqual(100, length(IsEmpty)),
-		?assertEqual(length([X || X <- Lengths, X =:= 0]),
-			     length([X || X <- IsEmpty, X =:= true]))
-	    end),
-     ?_test(begin
-		Prop = ?FORALL(L, list(integer()),
-			    aggregate(smaller_lengths_than_my_own(L), true)),
-		{passed,100,[SmallerLens]} =
-		    proper:quickcheck(Prop, long_result),
-		proper:clean_garbage(),
-		?assert(state_is_clean()),
-		?assert(correct_smaller_length_aggregation(100, SmallerLens))
-	    end),
-     ?_assertRun(true, {passed,300,[]}, numtests(300,?FORALL(_,1,true)), []),
-     ?_perfectRun(?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X))),
-     ?_perfectRun(?FORALL(X, integer(), ?IMPLIES(X >= 0, true))),
-     ?_perfectRun(?FORALL({X,Lim},{int(),?SIZED(Size,Size)},abs(X) =< Lim)),
-     ?_perfectRun(?FORALL({X,Lim},{nat(),?SIZED(Size,Size)},X =< Lim)),
-     ?_perfectRun(?FORALL(L,orderedlist(integer()),is_sorted(L)))].
+    [?_passes(?FORALL(X,integer(),X < X + 1)),
+     ?_passes(?FORALL(X,atom(),list_to_atom(atom_to_list(X)) =:= X)),
+     ?_passes(?FORALL(L,list(integer()),is_sorted(L,quicksort(L)))),
+     ?_passes(?FORALL(L,ulist(integer()),is_sorted(L,lists:usort(L)))),
+     ?_passes(?FORALL(L,non_empty(list(integer())),L =/= [])),
+     ?_passes(?FORALL({I,L}, {integer(),list(integer())},
+		      ?IMPLIES(no_duplicates(L),
+			       not lists:member(I,lists:delete(I,L))))),
+     ?_passes(?FORALL(L, ?SIZED(Size,resize(Size div 5,list(integer()))),
+		      length(L) =< 20)),
+     %% TODO: check that the samples are collected correctly
+     ?_passes(?FORALL(L, list(integer()),
+		      collect(length(L), collect(L =:= [],
+			      lists:reverse(lists:reverse(L)) =:= L)))),
+     ?_passes(?FORALL(L, list(integer()),
+		      aggregate(smaller_lengths_than_my_own(L), true))),
+     ?_assertTempBecomesN(300, true,
+			  numtests(300,?FORALL(_,1,begin inc_temp(),true end))),
+     ?_passes(?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X))),
+     ?_passes(?FORALL(X, integer(), ?IMPLIES(X >= 0, true))),
+     ?_passes(?FORALL({X,Lim},{int(),?SIZED(Size,Size)},abs(X) =< Lim)),
+     ?_passes(?FORALL({X,Lim},{nat(),?SIZED(Size,Size)},X =< Lim)),
+     ?_passes(?FORALL(L,orderedlist(integer()),is_sorted(L)))].
 
 false_props_test_() ->
-    [?_failsWith(false_prop, [[_Same,_Same]],
+    [?_failsWith([[_Same,_Same]],
 		 ?FORALL(L,list(integer()),is_sorted(L,lists:usort(L)))),
-     ?_failsWith(false_prop, [[_Same,_Same],_Same],
+     ?_failsWith([[_Same,_Same],_Same],
 		 ?FORALL(L, non_empty(list(union([a,b,c,d]))),
 			 ?FORALL(X, elements(L),
 				 not lists:member(X,lists:delete(X,L))))),
-     ?_failsWith(false_prop, ['\000\000\000\000'],
+     ?_failsWith(['\000\000\000\000'],
 		 ?FORALL(A, atom(), length(atom_to_list(A)) < 4)),
-     ?_failsWith({exception,throw,not_zero,_}, [1],
-		 ?FORALL(X, non_neg_integer(),
-			 case X > 0 of
-			     true  -> throw(not_zero);
-			     false -> true
-			 end)),
-     ?_failsWithReason({exception,error,function_clause,_},
-		       ?FORALL(_,1,lists:min([]) > 0)),
-     ?_failsWith({exception,exit,you_got_it,_}, [[12,42]],
-		 ?FORALL(L, [12,42|list(integer())],
-			 case lists:member(42, L) of
-			     true  -> erlang:exit(you_got_it);
-			     false -> true
-			 end)),
-     ?_failsWith(time_out, _,
-		  ?FORALL(_, integer(),
-			  ?TIMEOUT(100,timer:sleep(150) =:= ok))),
-     ?_assertRun(false, {failed,5,SameCExm,0,SameCExm},
-		 ?FORALL(X,?SIZED(Size,integer(Size,Size)),X < 5), []),
-     ?_test(begin
-		proper:quickcheck(?FORALL(L, list(atom()),
-					  ?WHENFAIL(inc_temp(),length(L) < 5))),
-		?assertEqual(2, get_temp()),
-		erase_temp(),
-		proper:clean_garbage(),
-		?assert(state_is_clean())
-	    end),
-     ?_failsWithOneOf(false_prop, [[{true,false}],[{false,true}]],
+     %% TODO: check that these only run once
+     ?_failsWith([1], ?FORALL(X, non_neg_integer(),
+			      case X > 0 of
+				  true  -> throw(not_zero);
+				  false -> true
+			      end)),
+     ?_fails(?FORALL(_,1,lists:min([]) > 0)),
+     ?_failsWith([[12,42]], ?FORALL(L, [12,42|list(integer())],
+				    case lists:member(42, L) of
+					true  -> erlang:exit(you_got_it);
+					false -> true
+				    end)),
+     ?_fails(?FORALL(_, integer(), ?TIMEOUT(100,timer:sleep(150) =:= ok))),
+     ?_assertTempBecomesN(7, false,
+			  ?FORALL(X, ?SIZED(Size,integer(Size,Size)),
+				  begin inc_temp(), X < 5 end)),
+     %% it runs 2 more times: one while shrinking (recursing into the property)
+     %% and one when the minimal input is rechecked
+     ?_assertTempBecomesN(2, false,
+			  ?FORALL(L, list(atom()),
+				  ?WHENFAIL(inc_temp(),length(L) < 5))),
+     ?_failsWithOneOf([[{true,false}],[{false,true}]],
 		      ?FORALL({B1,B2}, {boolean(),boolean()}, equals(B1,B2))),
-     ?_failsWith(false_prop, [2,1],
+     ?_failsWith([2,1],
 		 ?FORALL(X,integer(1,10),?FORALL(Y,integer(1,10),X =< Y))),
-     ?_failsWith(false_prop, [1,2],
+     ?_failsWith([1,2],
 		 ?FORALL(Y,integer(1,10),?FORALL(X,integer(1,10),X =< Y))),
-     ?_failsWithOneOf(false_prop, [[[0,1]],[[0,-1]],[[1,0]],[[-1,0]]],
+     ?_failsWithOneOf([[[0,1]],[[0,-1]],[[1,0]],[[-1,0]]],
 		      ?FORALL(L, list(integer()), lists:reverse(L) =:= L)),
-     ?_failsWith(false_prop, [[1,2,3,4,5,6,7,8,9,10]],
+     ?_failsWith([[1,2,3,4,5,6,7,8,9,10]],
 		 ?FORALL(_L,shuffle(lists:seq(1,10)),false)),
-     ?_assertRun(false, {failed,1,_,0,_}, ?FORALL(_,integer(0,0),false), []),
-     ?_assertRun(false, {failed,1,_,0,_}, ?FORALL(_,float(0.0,0.0),false), []),
-     ?_assertRun(true, {failed,_,_,0,_}, fails(?FORALL(_,integer(),false)), []),
-     ?_failsWith(false_prop, [16], ?FORALL(X,?LET(Y,integer(),Y*Y),X < 15)),
-     ?_failsWith(false_prop, [0.0],
+     %% TODO: check that these don't shrink
+     ?_fails(?FORALL(_,integer(0,0),false)),
+     ?_fails(?FORALL(_,float(0.0,0.0),false)),
+     ?_fails(fails(?FORALL(_,integer(),false))),
+     ?_failsWith([16], ?FORALL(X,?LET(Y,integer(),Y*Y),X < 15)),
+     ?_failsWith([0.0],
 		 ?FORALL(_, ?LETSHRINK([A,B],[float(),atom()],{A,B}), false))].
 
 error_props_test_() ->
-    [?_assertRun({error,cant_generate}, {error,cant_generate},
-		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X =< 0),true), []),
-     ?_assertRun({error,cant_satisfy}, {error,cant_satisfy},
-		 ?FORALL(X,pos_integer(),?IMPLIES(X =< 0,true)), []),
-     ?_assertRun({error,type_mismatch}, {error,type_mismatch},
-		 ?FORALL({X,Y}, [integer(),integer()], X < Y), []),
-     ?_assertReRun({error,wrong_type}, ?FORALL(X,pos_integer(),X < 0),
-		   cexm(false_prop,[1.2]), []),
-     ?_assertReRun({error,rejected}, ?FORALL(X,integer(),?IMPLIES(X > 5,X < 6)),
-		   cexm(false_prop,[2]), []),
-     ?_assertReRun({error,too_many_instances}, ?FORALL(X,pos_integer(),X < 0),
-		   cexm(false_prop,[1,ab]), []),
-     ?_assertReRun({error,too_few_instances}, ?FORALL(X,pos_integer(),X < 0),
-		   cexm(false_prop,[]), []),
-     ?_assertReRun({error,too_few_instances},
-		   ?FORALL(X,pos_integer(),?FORALL(Y,pos_integer(),X*Y =< 0)),
-		   cexm(false_prop,[42]), [])].
+    [?_errorsOut(cant_generate,
+		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X =< 0),true)),
+     ?_errorsOut(cant_satisfy,
+		 ?FORALL(X,pos_integer(),?IMPLIES(X =< 0,true))),
+     ?_errorsOut(type_mismatch,
+		 ?FORALL({X,Y}, [integer(),integer()], X < Y)),
+     ?_assertCheck({error,rejected}, [2],
+		   ?FORALL(X,integer(),?IMPLIES(X > 5,X < 6))),
+     ?_assertCheck({error,too_many_instances}, [1,ab],
+		   ?FORALL(X,pos_integer(),X < 0))].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))
@@ -761,35 +716,31 @@ not_defined_test_() ->
      || SymbCall <- undefined_symb_calls()].
 
 options_test_() ->
-    [?_assertRun(true, {passed,300,[]}, ?FORALL(_,1,true), [{numtests,300}]),
-     ?_assertRun(true, {passed,300,[]}, ?FORALL(_,1,true), [300]),
-     ?_assertRun(false, {failed,1,_,0,_},
-		 ?FORALL(L, list(float()),
-			 ?IMPLIES(length(L) > 4, L =:= [])), [noshrink]),
-     ?_failRun(false_prop, [42], [42], none,
-	       ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
-     ?_failRun(false_prop, _, _, none, ?FORALL(_,integer(),false), [fails]),
-     ?_assertRun({error,cant_generate}, {error,cant_generate},
+    [?_assertTempBecomesN(300, true,
+			  ?FORALL(_,1,begin inc_temp(),true end),
+			  [{numtests,300}]),
+     ?_assertTempBecomesN(300, true,
+			  ?FORALL(_,1,begin inc_temp(),true end),
+			  [300]),
+     ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
+     ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
+     ?_fails(?FORALL(_,integer(),false), [fails]),
+     ?_assertRun({error,cant_generate},
 		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X > 0),true),
 		 [{constraint_tries,0}]),
-     ?_failRun(false_prop, [12], _, none,
-	       ?FORALL(_,?SIZED(Size,integer(Size,Size)),false),
-	       [{start_size,12}])].
+     ?_failsWith([12],
+		 ?FORALL(_,?SIZED(Size,integer(Size,Size)),false),
+		 [{start_size,12}])].
 
 adts_test_() ->
-    [?_assertRun(true, _,
-		 ?FORALL({X,S},{integer(),set()},
-			 sets:is_element(X,sets:add_element(X,S))),
-		 [20]),
-     ?_assertRun(true, _,
-		 ?FORALL({X,Y,D},
-			 {integer(),float(),dict(integer(),float())},
-			 dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y),
-		 [30]),
-     ?_failsWithReason(false_prop,
-		       ?FORALL({X,D},
-			       {boolean(),dict(boolean(),integer())},
-			       dict:erase(X, dict:store(X,42,D)) =:= D))].
+    [?_passes(?FORALL({X,S},{integer(),set()},
+		      sets:is_element(X,sets:add_element(X,S))), [20]),
+     ?_passes(?FORALL({X,Y,D},
+		      {integer(),float(),dict(integer(),float())},
+		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30]),
+     ?_fails(?FORALL({X,D},
+	     {boolean(),dict(boolean(),integer())},
+	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
 
 %%------------------------------------------------------------------------------
@@ -837,6 +788,9 @@ equal_ignoring_chars(Str1 = [Char1|Rest1], Str2 = [Char2|Rest2], Ignore) ->
 		    false
 	    end
     end.
+
+smaller_lengths_than_my_own(L) ->
+    lists:seq(0,length(L)).
 
 
 %%------------------------------------------------------------------------------
@@ -1036,3 +990,15 @@ gen_tree(ElemType, Size) ->
 %     ?FORALL({F,L},
 % 	    {function(1,integer(1,100)), list(integer())},
 % 	    lists:all(fun(X) -> F(X) =/= 42 end, L));
+% correct_smaller_length_aggregation(Tests, SmallerLens) ->
+%     {Zeros,Larger} = lists:partition(fun(X) -> X =:= 0 end, SmallerLens),
+%     length(Zeros) =:= Tests
+%     andalso correct_smaller_length_aggregation(Tests, Larger, 1).
+%
+% correct_smaller_length_aggregation(0, SmallerLens, _Len) ->
+%     SmallerLens =:= [];
+% correct_smaller_length_aggregation(NotMoreThan, SmallerLens, Len) ->
+%     {Lens,Larger} = lists:partition(fun(X) -> X =:= Len end, SmallerLens),
+%     Num = length(Lens),
+%     Num =< NotMoreThan
+%     andalso correct_smaller_length_aggregation(Num, Larger, Len+1).
