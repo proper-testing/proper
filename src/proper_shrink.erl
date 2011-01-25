@@ -25,11 +25,11 @@
 
 -module(proper_shrink).
 
--export([shrink/5]).
+-export([shrink/3]).
 -export([number_shrinker/4, union_first_choice_shrinker/3,
 	 union_recursive_shrinker/3]).
 
--export_type([shrinker/0]).
+-export_type([state/0, shrinker/0]).
 
 -include("proper_internal.hrl").
 
@@ -47,83 +47,19 @@
 %% Main shrinking functions
 %%------------------------------------------------------------------------------
 
--spec shrink(proper:imm_testcase(), proper:stripped_test(),
-	     proper:fail_reason(), non_neg_integer(), proper:output_fun()) ->
-    {non_neg_integer(),proper:imm_testcase()}.
-shrink(TestCase, Test, Reason, Shrinks, Print) ->
-    fix_shrink(TestCase, Test, Reason, 0, Shrinks, Print).
-
--spec fix_shrink(proper:imm_testcase(), proper:stripped_test(),
-		 proper:fail_reason(), non_neg_integer(), non_neg_integer(),
-		 proper:output_fun()) ->
-	  {non_neg_integer(),proper:imm_testcase()}.
-%% TODO: is it too much that we try to reach an equilibrium by repeating all the
-%%	 shrinkers?
-%% TODO: is it possible to get stuck in an infinite loop (unions are the most
-%%	 dangerous)? should we check if the returned values have been
-%%	 encountered before?
-fix_shrink(FailedTestCase, _Test, _Reason, TotalShrinks, 0, _Print) ->
-    {TotalShrinks, FailedTestCase};
-fix_shrink(FailedTestCase, Test, Reason, TotalShrinks, ShrinksLeft, Print) ->
-    {Shrinks, MinTestCase} =
-	shrink([], FailedTestCase, Test, Reason, 0, ShrinksLeft, init, Print),
-    case Shrinks of
-	0 -> {TotalShrinks, MinTestCase};
-	N -> fix_shrink(MinTestCase, Test, Reason,
-			TotalShrinks + N, ShrinksLeft - N, Print)
-    end.
-
--spec shrink(proper:imm_testcase(), proper:imm_testcase(),
-	     proper:stripped_test(), proper:fail_reason(), non_neg_integer(),
-	     non_neg_integer(), state(), proper:output_fun()) ->
-	  {non_neg_integer(),proper:imm_testcase()}.
-%% TODO: 'tries_left' instead of 'shrinks_left'?
-shrink(Shrunk, TestTail, error, _Reason,
-       Shrinks, _ShrinksLeft, _State, _Print) ->
-    io:format("~nInternal Error: skip_to_next returned error~n", []),
-    {Shrinks, lists:reverse(Shrunk) ++ TestTail};
-shrink(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Print) ->
-    {Shrinks, lists:reverse(Shrunk) ++ TestTail};
-shrink(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Print) ->
-    {Shrinks, lists:reverse(Shrunk)};
-shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
-       Shrinks, ShrinksLeft, done, Print) ->
-    Instance = proper_gen:clean_instance(ImmInstance),
-    NewTest = proper:force_skip(Instance, Prop),
-    shrink([ImmInstance | Shrunk], Rest, NewTest, Reason,
-	   Shrinks, ShrinksLeft, init, Print);
-shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
-       Shrinks, ShrinksLeft, State, Print) ->
-    {NewImmInstances,NewState} = shrink_one(ImmInstance, Type, State),
-    %% TODO: Should we try fixing the nested ?FORALLs while shrinking? We could
-    %%       also just produce new test tails.
-    IsValid = fun(I) ->
-		  I =/= ImmInstance andalso
-		  proper:still_fails(I, Rest, Prop, Reason)
-	      end,
-    case proper_arith:find_first(IsValid, NewImmInstances) of
-	none ->
-	    shrink(Shrunk, TestTail, Test, Reason,
-		   Shrinks, ShrinksLeft, NewState, Print);
-	{Pos, ShrunkImmInstance} ->
-	    Print(".", []),
-	    shrink(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
-		   Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Print)
-    end.
-
--spec shrink_one(proper_gen:imm_instance(), proper_types:type(), state()) ->
+-spec shrink(proper_gen:imm_instance(), proper_types:type(), state()) ->
 	  {[proper_gen:imm_instance()],state()}.
 %% We reject all shrunk instances that don't satisfy all constraints. A full
 %% is_instance check is not necessary if we assume that generators and shrinkers
 %% always return valid instances of the base type.
-shrink_one(ImmInstance, Type, init) ->
+shrink(ImmInstance, Type, init) ->
     Shrinkers = get_shrinkers(Type),
-    shrink_one(ImmInstance, Type, {shrinker,Shrinkers,dummy,init});
-shrink_one(_ImmInstance, _Type, {shrinker,[],_Lookup,init}) ->
+    shrink(ImmInstance, Type, {shrinker,Shrinkers,dummy,init});
+shrink(_ImmInstance, _Type, {shrinker,[],_Lookup,init}) ->
     {[], done};
-shrink_one(ImmInstance, Type, {shrinker,[_Shrinker | Rest],_Lookup,done}) ->
-    shrink_one(ImmInstance, Type, {shrinker,Rest,dummy,init});
-shrink_one(ImmInstance, Type, {shrinker,Shrinkers,_Lookup,State}) ->
+shrink(ImmInstance, Type, {shrinker,[_Shrinker | Rest],_Lookup,done}) ->
+    shrink(ImmInstance, Type, {shrinker,Rest,dummy,init});
+shrink(ImmInstance, Type, {shrinker,Shrinkers,_Lookup,State}) ->
     [Shrinker | _Rest] = Shrinkers,
     {DirtyImmInstances,NewState} = Shrinker(ImmInstance, Type, State),
     SatisfiesAll =
@@ -134,10 +70,10 @@ shrink_one(ImmInstance, Type, {shrinker,Shrinkers,_Lookup,State}) ->
     {NewImmInstances,NewLookup} =
 	proper_arith:filter(SatisfiesAll, DirtyImmInstances),
     {NewImmInstances, {shrinker,Shrinkers,NewLookup,NewState}};
-shrink_one(ImmInstance, Type, {shrunk,N,{shrinker,Shrinkers,Lookup,State}}) ->
+shrink(ImmInstance, Type, {shrunk,N,{shrinker,Shrinkers,Lookup,State}}) ->
     ActualN = lists:nth(N, Lookup),
-    shrink_one(ImmInstance, Type,
-	       {shrinker,Shrinkers,dummy,{shrunk,ActualN,State}}).
+    shrink(ImmInstance, Type,
+	   {shrinker,Shrinkers,dummy,{shrunk,ActualN,State}}).
 
 -spec get_shrinkers(proper_types:type()) -> [shrinker()].
 get_shrinkers(Type) ->
@@ -221,7 +157,7 @@ parts_shrinker(_Instance, _Type, {parts,_PartsType,_Lookup,done}) ->
     {[], done};
 parts_shrinker({'$used',ImmParts,ImmInstance}, Type,
 	       {parts,PartsType,_Lookup,PartsState}) ->
-    {NewImmParts,NewPartsState} = shrink_one(ImmParts, PartsType, PartsState),
+    {NewImmParts,NewPartsState} = shrink(ImmParts, PartsType, PartsState),
     Combine = proper_types:get_prop(combine, Type),
     DirtyInstances = [try_combine(P, ImmInstance, Combine) || P <- NewImmParts],
     NotError = fun({ok,_}) -> true; (error) -> false end,
@@ -296,12 +232,11 @@ in_shrinker(_Instance, _Type, {_Decl,_RecType,done}) ->
 in_shrinker({'$used',ImmParts,ImmInstance}, _Type,
 	    {inner,InnerType,InnerState}) ->
     {NewImmInstances,NewInnerState} =
-	shrink_one(ImmInstance, InnerType, InnerState),
+	shrink(ImmInstance, InnerType, InnerState),
     NewInstances = [{'$used',ImmParts,I} || I <- NewImmInstances],
     {NewInstances, {inner,InnerType,NewInnerState}};
 in_shrinker({'$to_part',ImmInstance}, _Type, {part_rec,PartType,PartState}) ->
-    {NewImmInstances,NewPartState} =
-	shrink_one(ImmInstance, PartType, PartState),
+    {NewImmInstances,NewPartState} = shrink(ImmInstance, PartType, PartState),
     NewInstances = [{'$to_part',I} || I <- NewImmInstances],
     {NewInstances, {part_rec,PartType,NewPartState}};
 in_shrinker(Instance, Type, {shrunk,N,{Decl,RecType,InnerState}}) ->
@@ -447,7 +382,7 @@ elements_shrinker(Instance, Type,
     Update = proper_types:get_prop(update, Type),
     ImmElem = Retrieve(Index, Instance),
     InnerType = GetElemType(Index),
-    {NewImmElems,NewInnerState} = shrink_one(ImmElem, InnerType, InnerState),
+    {NewImmElems,NewInnerState} = shrink(ImmElem, InnerType, InnerState),
     NewInstances = [Update(Index, E, Instance) || E <- NewImmElems],
     {NewInstances, {inner,Indices,GetElemType,NewInnerState}};
 elements_shrinker(Instance, Type,
@@ -550,7 +485,7 @@ union_recursive_shrinker(Instance, Choices, init) ->
 union_recursive_shrinker(_Instance, _Choices, {inner,_N,_Type,done}) ->
     {[],done};
 union_recursive_shrinker(Instance, _Choices, {inner,N,Type,InnerState}) ->
-    {NewInstances,NewInnerState} = shrink_one(Instance, Type, InnerState),
+    {NewInstances,NewInnerState} = shrink(Instance, Type, InnerState),
     {NewInstances, {inner,N,Type,NewInnerState}};
 union_recursive_shrinker(Instance, Choices,
 			 {shrunk,Pos,{inner,N,Type,InnerState}}) ->

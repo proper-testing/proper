@@ -167,23 +167,23 @@ sampleshrink(RawType, Size) ->
     Type = proper_types:cook_outer(RawType),
     case safe_generate(Type) of
 	{ok,ImmInstance} ->
-	    Shrunk = keep_shrinking([ImmInstance], Type),
-	    lists:foreach(fun(I) -> io:format("~p~n",[clean_instance(I)]) end,
-			  Shrunk);
+	    Shrunk = keep_shrinking(ImmInstance, [], Type),
+	    PrintInst = fun(I) -> io:format("~p~n",[clean_instance(I)]) end,
+	    lists:foreach(PrintInst, Shrunk);
 	{error,_Reason} ->
-	    io:format("Error: couldn't generate.~n", [])
+	    io:format("Error: Couldn't generate.~n", [])
     end,
     proper:global_state_erase(),
     ok.
 
--spec keep_shrinking([imm_instance(),...], proper_types:type()) -> [imm_instance(),...].
-keep_shrinking([ImmInstance|_Rest] = Acc, Type) ->
-    case proper_shrink:shrink([ImmInstance], {Type,fun(_) -> false end},
-			      false_prop, 1, fun(_,_) -> ok end) of
-	{0,_} ->
-	    lists:reverse(Acc);
-	{1,[ShrunkImmInstance]} ->
-	    keep_shrinking([ShrunkImmInstance|Acc], Type)
+-spec keep_shrinking(imm_instance(), [imm_instance()], proper_types:type()) ->
+	  [imm_instance(),...].
+keep_shrinking(ImmInstance, Acc, Type) ->
+    case proper_shrink:shrink(ImmInstance, Type, init) of
+	{[], _NewState} ->
+	    lists:reverse([ImmInstance|Acc]);
+	{[Shrunk|_Rest], _NewState} ->
+	    keep_shrinking(Shrunk, [ImmInstance|Acc], Type)
     end.
 
 -spec contains_fun(term()) -> boolean().

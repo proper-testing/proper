@@ -859,6 +859,10 @@ occurs. Normaly, a message is also printed on screen describing the error.
   constraint(s). This error should only be encountered during normal operation.
 * 'rejected': Only encountered during re-checking, the counterexample does not
   match the property, since the counterexample doesn't pass an ?IMPLIES check.
+* 'shrinking_error': An error occured during shrinking. If you ever get this
+  error, it means that you have found a bug in PropEr - please send an error
+  report to the maintainers and remember to include both the failing test case
+  and the output of the program, if possible.
 * 'too_many_instances': Only encountered during re-checking, the counterexample
   does not match the property, since the counterexample contains more instances
   than there are ?FORALLs in the property.

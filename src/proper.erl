@@ -33,13 +33,8 @@
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
 -export([forall/2, implies/2, whenfail/2, timeout/2]).
--export([still_fails/4, force_skip/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0]).
--export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
-%% @private_type imm_testcase
-%% @private_type stripped_test
-%% @private_type fail_reason
 
 -include("proper_internal.hrl").
 
@@ -166,9 +161,9 @@
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
 -type error_reason() :: 'cant_generate' | 'cant_satisfy' | 'rejected'
-		      | 'too_many_instances' | 'type_mismatch' | 'wrong_type'
-		      | {'typeserver',term()} | {'unexpected',any()}
-		      | {'unrecognized_option',term()}.
+		      | 'shrinking_error' | 'too_many_instances'
+		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
+		      | {'unexpected',any()} | {'unrecognized_option',term()}.
 
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
@@ -599,9 +594,15 @@ cook_test({spec,MFA}, #opts{spec_timeout = SpecTimeout}) ->
 get_result(#pass{}, _Test, _Opts) ->
     {true, true};
 get_result(#fail{reason = Reason, bound = Bound}, Test, Opts) ->
-    MinTestCase = clean_testcase(shrink(Test, Reason, Bound, Opts)),
-    save_counterexample(MinTestCase),
-    {false, MinTestCase};
+    case shrink(Bound, Test, Reason, Opts) of
+	{ok,MinImmTestCase} ->
+	    MinTestCase = clean_testcase(MinImmTestCase),
+	    save_counterexample(MinTestCase),
+	    {false, MinTestCase};
+	{error,ErrorReason} = Error ->
+	    report_error(ErrorReason, Opts#opts.output_fun),
+	    {Error, Error}
+    end;
 get_result({error,_Reason} = ErrorResult, _Test, _Opts) ->
     {ErrorResult, ErrorResult}.
 
@@ -612,20 +613,6 @@ get_rerun_result(#fail{}) ->
     false;
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
-
--spec shrink(test(), fail_reason(), imm_testcase(), opts()) -> imm_testcase().
-shrink(Test, Reason, ImmTestCase,
-       #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
-	     output_fun = Print}) ->
-    Print("Shrinking ", []),
-    StrTest = skip_to_next(Test),
-    {Shrinks,MinImmTestCase} =
-	proper_shrink:shrink(ImmTestCase, StrTest, Reason, MaxShrinks, Print),
-    #fail{actions = MinActions} = rerun(Test, true, MinImmTestCase),
-    report_shrinking(Shrinks, MinImmTestCase, MinActions, Print),
-    MinImmTestCase;
-shrink(_Test, _Reason, ImmTestCase, _Opts) ->
-    ImmTestCase.
 
 -spec perform(non_neg_integer(), test(), output_fun()) -> imm_result().
 perform(NumTests, Test, Print) ->
@@ -831,10 +818,80 @@ clean_testcase(ImmTestCase) ->
 
 
 %%-----------------------------------------------------------------------------
-%% Shrinking callback functions
+%% Shrinking functions
 %%-----------------------------------------------------------------------------
 
-%% @private
+-spec shrink(imm_testcase(), test(), fail_reason(), opts()) ->
+	  {'ok',imm_testcase()} | error().
+shrink(ImmTestCase, Test, Reason,
+       #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
+	     output_fun = Print} = Opts) ->
+    Print("Shrinking ", []),
+    StrTest = skip_to_next(Test),
+    case fix_shrink(ImmTestCase, StrTest, Reason, 0, MaxShrinks, Opts) of
+	{Shrinks,MinImmTestCase} ->
+	    #fail{actions = MinActions} = rerun(Test, true, MinImmTestCase),
+	    report_shrinking(Shrinks, MinImmTestCase, MinActions, Print),
+	    {ok, MinImmTestCase};
+	error ->
+	    Print("~n", []),
+	    {error, shrinking_error}
+    end;
+shrink(ImmTestCase, _Test, _Reason, _Opts) ->
+    {ok, ImmTestCase}.
+
+-spec fix_shrink(imm_testcase(), stripped_test(), fail_reason(),
+		 non_neg_integer(), non_neg_integer(), opts()) ->
+	  {non_neg_integer(),imm_testcase()} | 'error'.
+fix_shrink(ImmTestCase, _StrTest, _Reason, Shrinks, 0, _Opts) ->
+    {Shrinks, ImmTestCase};
+fix_shrink(ImmTestCase, StrTest, Reason, Shrinks, ShrinksLeft, Opts) ->
+    case shrink([], ImmTestCase, StrTest, Reason, 0, ShrinksLeft, init, Opts) of
+	{0,_MinImmTestCase} ->
+	    {Shrinks, ImmTestCase};
+	{MoreShrinks,MinImmTestCase} ->
+	    fix_shrink(MinImmTestCase, StrTest, Reason, Shrinks + MoreShrinks,
+		       ShrinksLeft - MoreShrinks, Opts);
+	error ->
+	    error
+    end.
+
+-spec shrink(imm_testcase(), imm_testcase(), stripped_test(), fail_reason(),
+	     non_neg_integer(), non_neg_integer(), proper_shrink:state(),
+	     opts()) -> {non_neg_integer(),imm_testcase()} | 'error'.
+%% TODO: 'tries_left' instead of 'shrinks_left'?
+shrink(_Shrunk, _TestTail, error, _Reason,
+       _Shrinks, _ShrinksLeft, _State, _Opts) ->
+    error;
+shrink(Shrunk, TestTail, _StrTest, _Reason, Shrinks, 0, _State, _Opts) ->
+    {Shrinks, lists:reverse(Shrunk) ++ TestTail};
+shrink(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Opts) ->
+    {Shrinks, lists:reverse(Shrunk)};
+shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
+       Shrinks, ShrinksLeft, done, Opts) ->
+    Instance = proper_gen:clean_instance(ImmInstance),
+    NewStrTest = force_skip(Instance, Prop),
+    shrink([ImmInstance | Shrunk], Rest, NewStrTest, Reason,
+	   Shrinks, ShrinksLeft, init, Opts);
+shrink(Shrunk, [ImmInstance | Rest] = TestTail, {Type,Prop} = StrTest, Reason,
+       Shrinks, ShrinksLeft, State, Opts) ->
+    {NewImmInstances,NewState} = proper_shrink:shrink(ImmInstance, Type, State),
+    %% TODO: Should we try fixing the nested ?FORALLs while shrinking? We could
+    %%       also just produce new test tails.
+    IsValid = fun(I) ->
+		  I =/= ImmInstance andalso
+		  still_fails(I, Rest, Prop, Reason)
+	      end,
+    case proper_arith:find_first(IsValid, NewImmInstances) of
+	none ->
+	    shrink(Shrunk, TestTail, StrTest, Reason,
+		   Shrinks, ShrinksLeft, NewState, Opts);
+	{Pos, ShrunkImmInstance} ->
+	    (Opts#opts.output_fun)(".", []),
+	    shrink(Shrunk, [ShrunkImmInstance | Rest], StrTest, Reason,
+		   Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Opts)
+    end.
+
 -spec still_fails(proper_gen:imm_instance(), imm_testcase(), dependent_test(),
 		  fail_reason()) -> boolean().
 still_fails(ImmInstance, TestTail, Prop, OldReason) ->
@@ -879,7 +936,6 @@ skip_to_next({timeout,_Limit,_Prop}) ->
 force_skip(Prop) ->
     apply_skip([], Prop).
 
-%% @private
 -spec force_skip(proper_gen:instance(), dependent_test()) -> stripped_test().
 force_skip(Arg, Prop) ->
     apply_skip([proper_symb:internal_eval(Arg)], Prop).
@@ -959,6 +1015,9 @@ report_error(cant_satisfy, Print) ->
     Print("Error: No valid test could be generated.~n", []);
 report_error(rejected, Print) ->
     Print(?MISMATCH_MSG ++ "It failed an ?IMPLIES check.~n", []);
+report_error(shrinking_error, Print) ->
+    Print("Internal error: An error occured while shrinking.~n"
+	  "Please notify the maintainers about this error.~n", []);
 report_error(too_many_instances, Print) ->
     Print(?MISMATCH_MSG ++ "It's too long.~n", []); %% that's what she said
 report_error(type_mismatch, Print) ->
