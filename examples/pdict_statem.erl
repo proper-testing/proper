@@ -12,21 +12,17 @@
 
 -define(KEYS, [a,b,c,d]).
 prop_pdict() ->
-    ?FORALL(Cmds,more_commands(2,commands(?MODULE)),
-	    ?FORALL([A,B,C,D],[integer(),integer(),integer(),integer()],
-		    begin
-			lists:map(fun({K,V})->erlang:put(K,V) end,
-				  [{a,A},{b,B},{c,C},{d,D}]),
-			{_H,_S,Res} = proper_statem:run_commands(?MODULE,Cmds,[{x,42}]),
-			lists:map(fun(Key) -> erlang:erase(Key) end,?KEYS),
-			%?WHENFAIL(io:format("History: ~p\nState: ~p\nRes: ~p\n",
-			%		    [_H,_S,Res]),
-			%	  Result == ok)
-			aggregate(command_names(Cmds),Res == ok)
-		    end)).
+    ?FORALL(Cmds,more_commands(4,commands(?MODULE)),	   
+       begin
+	   {_H,_S,Res} = run_commands(?MODULE,Cmds),
+	   %?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n",
+			       %[_H,_S,Res]),
+		    % Res == ok)
+	   aggregate(command_names(Cmds),Res == ok)
+       end).
 
 key() ->
-    oneof(?KEYS).
+    elements(?KEYS).
 
 initial_state() -> lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
                                  erlang:get()).
@@ -34,9 +30,8 @@ initial_state() -> lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
 command([]) ->
     {call, erlang, put, [key(), integer()]};
 command(Props) ->
-    ?LET({Key,Value}, frequency([{5, elements(Props)},
-				 {1, {key(),integer()}},
-				 {10, {key(),{var,x}}}]),
+    ?LET({Key,Value}, weighted_union([{5, elements(Props)},
+				      {1, {key(),integer()}}]),
 	 oneof([{call, erlang, put,   [Key, Value]},
 		{call, erlang, get,   [Key]},
 		{call, erlang, erase, [Key]}

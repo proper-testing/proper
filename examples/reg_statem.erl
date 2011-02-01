@@ -6,6 +6,9 @@
 	       regs=[]  % list of {Name,Pid} in the registry
 	      }).
 
+test() ->
+    proper:quickcheck(?MODULE:prop_registry()).
+
 %% Initialize the state
 initial_state() ->
     #state{}.
@@ -29,23 +32,12 @@ pid(S) ->
 next_state(S,V,{call,_,spawn,_}) ->
     S#state{pids=[V|S#state.pids]};
 next_state(S,_V,{call,_,register,[Name,Pid]}) ->
-   % S#state{pids=lists:delete(Pid,S#state.pids),
-   % regs=[{Name,Pid}|S#state.regs]};
     S#state{regs=[{Name,Pid}|S#state.regs]};    
 next_state(S,_V,{call,_,unregister,[Name]}) ->
-    %case proplists:get_value(Name,S#state.regs) of
-%	undefined -> 
-%	    S;
-%	Pid ->
-%	    S#state{pids=[Pid|S#state.pids],regs=proplists:delete(Name,S#state.regs)}
-%    end;
     S#state{regs=proplists:delete(Name,S#state.regs)};
 next_state(S,_V,{call,_,_,_}) -> S.
 
 %% Precondition, checked before command is added to the command sequence
-%precondition(S,{call,_,register,[Name,_Pid]}) ->
-%    not proplists:is_defined(Name,S#state.regs);
-
 precondition(_S,{call,_,_,_}) ->
     true.
 
@@ -58,8 +50,7 @@ postcondition(S,{call,_,unregister,[Name]},Res) ->
 	true ->
 	    unregister_ok(S,Name)
     end;
-%postcondition(_S,{call,_,whereis,[d]},_Res) ->
-%    false;
+
 postcondition(_S,{call,_,_,_},_Res) ->
     true.
 

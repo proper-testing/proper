@@ -26,9 +26,9 @@
 -export([is_inst/2, is_inst/3]).
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
-	 bitstring/1,commands/1,commands/2,list/1, vector/2, union/1, 
-	 weighted_union/1,tuple/1, loose_tuple/1, exactly/1, fixed_list/1, 
-	 function/2, any/0]).
+	 bitstring/1, list/1, vector/2, union/1, weighted_union/1,tuple/1, 
+	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0,
+	 commands/1, commands/2, parallel_commands/1, parallel_commands/2]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
@@ -42,7 +42,8 @@
 	 from_binary/1, get_prop/2, find_prop/2, safe_is_instance/2,
 	 is_instance/2, unwrap/1, weakly/1, strongly/1, satisfies_all/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
-	 native_type/2, distlist/3, more_commands/2]).
+	 native_type/2, distlist/3, more_commands/2, with_parameter/3,
+	with_parameters/2, parameter/1]).
 
 -export_type([type/0, raw_type/0]).
 
@@ -86,12 +87,12 @@
 -define(SUBTYPE(Type,PropList), subtype(PropList,Type)).
 -define(COMMANDS(PropList), new_type(PropList,commands)).
 
-
 %%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
 
--type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | 'commands'.
+-type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | 'commands'
+		     |'parameter'.
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean()).
 -type index() :: pos_integer().
 -type value() :: term().
@@ -105,7 +106,7 @@
 			| 'shrinkers' | 'noshrink' | 'internal_type'
 			| 'internal_types' | 'get_length' | 'split' | 'join'
 			| 'get_indices' | 'remove' | 'retrieve' | 'update'
-			| 'constraints'.
+			| 'constraints' | 'content' | 'default'.
 
 -type type_prop_value() :: term().
 -type type_prop() ::
@@ -147,11 +148,11 @@
 		       value() | type())}
     | {'update', fun((index(),value(),proper_gen:imm_instance()) ->
 		     proper_gen:imm_instance())}
-    | {'constraints', [{constraint_fun(), boolean()}]}.
+    | {'constraints', [{constraint_fun(), boolean()}]}
       %% A list of constraints on instances of this type: each constraint is a
       %% tuple of a fun that must return 'true' for each valid instance and a
       %% boolean field that specifies whether the condition is strict.
-  
+    |{'parameters',[{atom(),value()}]}. 
 
 
 %%------------------------------------------------------------------------------
@@ -371,6 +372,18 @@ satisfies_all(Instance, Type) ->
 %% Type definition functions
 %%------------------------------------------------------------------------------
 
+-spec with_parameter(atom(),value(),proper_types:type()) -> proper_types:type().
+with_parameter(Param,Value,Type_gen) ->
+    add_prop(parameters,[{Param,Value}],Type_gen).
+
+-spec with_parameters([{atom(),value()}],proper_types:type()) -> proper_types:type().
+with_parameters(PVlist,Type_gen) ->
+    add_prop(parameters,PVlist,Type_gen).  
+
+-spec parameter(atom()) -> proper_types:type().
+parameter(Param) ->
+   exactly({var,Param}).
+    
 %% @private
 -spec lazy(proper_gen:nosize_generator()) -> proper_types:type().
 lazy(Gen) ->
@@ -382,7 +395,7 @@ lazy(Gen) ->
 -spec sized(proper_gen:sized_generator()) -> proper_types:type().
 sized(Gen) ->
     ?WRAPPER([
-	{generator, Gen}
+        {generator, Gen}
     ]).
 
 %% @private
@@ -538,7 +551,7 @@ commands(Module) ->
 commands(Module,StartState) ->
     ?COMMANDS([
 	{generator, fun(Size) -> proper_statem:gen_commands(Module,StartState,Size) end},
-	{is_instance, fun(X) -> proper_statem:command_test(X) end},
+	{is_instance, fun(X) -> proper_statem:commands_test(X) end},
 	{get_indices, fun list_get_indices/1},
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
@@ -548,6 +561,44 @@ commands(Module,StartState) ->
 			    proper_statem:split_shrinker(Module,StartState,Cmds,T,S) end,
 		    fun(Cmds,T,S) -> 
 			    proper_statem:remove_shrinker(Module,StartState,Cmds,T,S) end]}
+	      ]).
+
+-spec parallel_commands(mod_name()) -> proper_types:type().		       
+parallel_commands(Module) ->
+    ?COMMANDS([
+	{generator, fun(Size) -> proper_statem:gen_parallel_commands(Module,Size) end},
+	{is_instance, fun(X) -> proper_statem:parallel_commands_test(X) end},    
+	{get_indices, fun list_get_indices/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{remove, fun proper_arith:list_remove/2},
+	{shrinkers, [fun(Cmds,T,S) -> 
+			     proper_statem:split_shrinker(Module,Module:initial_state(),
+							  Cmds,T,S) end,
+		     fun(Cmds,T,S) -> 
+			     proper_statem:remove_shrinker(Module,Module:initial_state(),
+							   Cmds,T,S) end]}
+	      ]).
+
+-spec parallel_commands(mod_name(),proper_statem:symbolic_state()) -> proper_types:type(). 
+parallel_commands(Module, StartState) ->
+    ?COMMANDS([
+	{generator,fun(Size) -> 
+			   proper_statem:gen_parallel_commands(Module,StartState,Size) 
+		   end},
+	{is_instance, fun(X) -> proper_statem:parallel_commands_test(X) end},    
+	{get_indices, fun list_get_indices/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{remove, fun proper_arith:list_remove/2},
+	{shrinkers, [fun(Cmds,T,S) -> 
+			     proper_statem:split_shrinker(Module,StartState,Cmds,T,S) 
+		     end,
+		     fun(Cmds,T,S) -> 
+			     proper_statem:remove_shrinker(Module,StartState,Cmds,T,S) 
+		     end]}
 	      ]).
 
 -spec more_commands(integer(),proper_types:type()) ->  proper_types:type().
@@ -570,6 +621,8 @@ list(RawElemType) ->
 	{retrieve, fun lists:nth/2},
 	{update, fun proper_arith:list_update/3}
     ]).
+
+
 
 -spec list_test(proper_gen:imm_instance(), proper_types:type()) -> boolean().
 list_test(X, ElemType) ->

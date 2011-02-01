@@ -152,7 +152,7 @@ symb_walk(VarValues, {var,VarId},
 	    %%       [{a,{call,m,f,[{var,a}]}}], {var,a}
 	    SymbWalk(VarValue);
 	false ->
-	    HandleTerm({HandleTerm(var),SymbWalk(VarId)})
+	    HandleTerm({var,SymbWalk(VarId)})
     end;
 symb_walk(VarValues, SymbTerm, HandleInfo) ->
     symb_walk_gen(VarValues, SymbTerm, HandleInfo).

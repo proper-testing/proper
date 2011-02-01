@@ -65,8 +65,15 @@ shrink(TestCase, Test, Reason, Shrinks, Print) ->
 fix_shrink(FailedTestCase, _Test, _Reason, TotalShrinks, 0, _Print) ->
     {TotalShrinks, FailedTestCase};
 fix_shrink(FailedTestCase, Test, Reason, TotalShrinks, ShrinksLeft, Print) ->
+    Print("FailedTestCase: ~w~n",[FailedTestCase]),
+ %Print("Test: ~w~n",[Test]),
+ %Print("Reason: ~w~n",[Reason]),
+ %Print("TotalShrinks: ~w~n",[TotalShrinks]),
+%Print("ShrinksLeft: ~w~n",[ShrinksLeft]),
     {Shrinks, MinTestCase} =
 	shrink([], FailedTestCase, Test, Reason, 0, ShrinksLeft, init, Print),
+     %Print("Shrinks: ~w~n",[Shrinks]),
+     %Print("MinTestCase: ~w~n",[MinTestCase]),
     case Shrinks of
 	0 -> {TotalShrinks, MinTestCase};
 	N -> fix_shrink(MinTestCase, Test, Reason,
@@ -86,13 +93,13 @@ shrink(Shrunk, TestTail, _Test, _Reason, Shrinks, 0, _State, _Print) ->
     {Shrinks, lists:reverse(Shrunk) ++ TestTail};
 shrink(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Print) ->
     {Shrinks, lists:reverse(Shrunk)};
-shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
+shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop,_NumTries}, Reason,
        Shrinks, ShrinksLeft, done, Print) ->
     Instance = proper_gen:clean_instance(ImmInstance),
-    NewTest = proper:force_skip(Instance, Prop),
+    NewTest = proper:force_skip(Instance, Prop, 1),
     shrink([ImmInstance | Shrunk], Rest, NewTest, Reason,
 	   Shrinks, ShrinksLeft, init, Print);
-shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
+shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop,NumTries} = Test, Reason,
        Shrinks, ShrinksLeft, State, Print) -> 
     {NewImmInstances,NewState} = shrink_one(ImmInstance, Type, State),
  
@@ -100,7 +107,7 @@ shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
     %%       also just produce new test tails.
     IsValid = fun(I) ->
 		  I =/= ImmInstance  andalso
-		  proper:still_fails(I, Rest, Prop, Reason)
+		  proper:still_fails(I, Rest, Prop, Reason,NumTries)
 	      end,
     case proper_arith:find_first(IsValid, NewImmInstances) of
 	none -> 
@@ -108,7 +115,7 @@ shrink(Shrunk, TestTail = [ImmInstance | Rest], {Type,Prop} = Test, Reason,
 		   Shrinks, ShrinksLeft, NewState, Print);
 	{Pos, ShrunkImmInstance} ->
 	    Print(".", []),
-	    % Print("shrunkInstance: ~w\n", [ShrunkImmInstance]),
+	    %Print("shrunkInstance: ~w\n", [ShrunkImmInstance]),
 	    shrink(Shrunk, [ShrunkImmInstance | Rest], Test, Reason,
 		   Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Print)
     end.

@@ -84,7 +84,11 @@ safe_generate(RawType) ->
 	ImmInstance -> {ok, ImmInstance}
     catch
 	throw:'$cant_generate'          -> {error, cant_generate};
-	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
+	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}};
+	throw:{'$cant_generate_commands',Mod,State} -> 
+						{error,{cant_generate_commands,Mod,State}};
+	throw:{'$cmd_domain',Reason} -> {error,{cmd_domain,Reason}};
+	throw:{'$gen_commands',Reason} -> {error,{gen_commands,Reason}}
     end.
 
 -spec generate(proper_types:raw_type()) -> imm_instance().
@@ -219,7 +223,7 @@ normal_or_str_gen(Type) ->
 %% @private
 -spec normal_gen(proper_types:type()) -> imm_instance().
 normal_gen(Type) ->
-    call_gen(proper_types:get_prop(generator,Type), Type).
+    call_gen(proper_types:get_prop(generator,Type),Type).
 
 -spec call_gen(generator() | straight_gen(), proper_types:type()) ->
 	  imm_instance() | {'ok',instance()} | 'error'.

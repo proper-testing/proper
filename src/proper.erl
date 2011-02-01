@@ -33,7 +33,8 @@
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
 -export([forall/2, implies/2, whenfail/2, timeout/2, trapexit/1]).
--export([still_fails/4, force_skip/2]).
+-export([always/2, sometimes/2]).
+-export([still_fails/5, force_skip/3]).
 -export([spawn_link_migrate/1]).
 
 -export_type([test/0, outer_test/0, counterexample/0]).
@@ -81,16 +82,16 @@
 	      | sample_clause()
 	      | whenfail_clause()
 	      | trapexit_clause()
-	      | timeout_clause().
-	      %%| always_clause()
-	      %%| sometimes_clause()
+	      | timeout_clause()
+	      | always_clause()
+	      | sometimes_clause().
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
 -type raw_test_kind() :: 'test' | 'spec'.
 -type raw_test() :: {'test',test()} | {'spec',mfa()}.
 -type stripped_test() :: 'false' | 'error' | stripped_forall().
--type stripped_forall()	:: {proper_types:type(), dependent_test()}.
+-type stripped_forall()	:: {proper_types:type(), dependent_test(),pos_integer()}.
 
 -type numtests_clause() :: {'numtests', pos_integer(), outer_test()}.
 -type fails_clause() :: {'fails', outer_test()}.
@@ -102,8 +103,8 @@
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
 -type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
 -type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
-%%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
-%%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
+-type always_clause() :: {'always', pos_integer(), delayed_test()}.
+-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
 
 %%-----------------------------------------------------------------------------
@@ -180,8 +181,12 @@
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
+-type statem_error_reason() :: {'cant_generate_commands',mod_name(),term()}
+			       |{'gen_commands',term()}
+			       |{'cmd_domain',term()}.
 -type common_error_reason() :: 'cant_generate' | 'type_mismatch'
-			     | {'typeserver',term()}.
+			       | {'typeserver',term()}
+			       | statem_error_reason().
 -type single_run_error_reason() :: common_error_reason() | 'wrong_type'
 				 | 'rejected' | 'too_many_instances'.
 -type error_reason() :: common_error_reason() | 'cant_satisfy'
@@ -485,6 +490,14 @@ on_output(Print, Test) ->
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
 
+-spec always(pos_integer(),delayed_test()) -> always_clause().
+always(N, DTest) ->
+    {always, N, DTest}.
+
+-spec sometimes(pos_integer(),delayed_test()) -> sometimes_clause().
+sometimes(N, DTest) ->
+    {sometimes, N, DTest}.		     
+
 %% @private
 -spec implies(boolean(), delayed_test()) -> implies_clause().
 implies(Pre, DTest) ->
@@ -684,7 +697,9 @@ shrink(Test, #cexm{fail_reason = Reason, bound = ImmTestCase},
        #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
 	     output_fun = Print}) ->
     Print("Shrinking ", []),
-    StrTest = skip_to_next(Test),
+    %Print("Test: ~w~n", [Test]),
+    StrTest = skip_to_next(Test,1),
+    %Print("StrTest: ~w~n", [StrTest]),
     {Shrinks,MinImmTestCase} =
 	proper_shrink:shrink(ImmTestCase, StrTest, Reason, MaxShrinks, Print),
     {failed,MinCExm,MinActions} = rerun(Test, MinImmTestCase),
@@ -728,6 +743,12 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
 	{error, type_mismatch} = Error ->
 	    Error;
 	{error, {typeserver,_SubReason}} = Error ->
+	    Error;
+	{error, {cant_generate_commands,_M,_S}} = Error ->
+	    Error;
+	{error, {gen_commands,_Reason}} = Error ->
+	    Error;
+	{error, {cmd_domain,_Reason}} = Error ->
 	    Error;
 	{error, rejected} ->
 	    Print("x", []),
@@ -794,6 +815,21 @@ run({forall,RawType,Prop},
 		{error,_Reason} = Error ->
 		    Error
 	    end
+    end;
+run({always,1,Prop}, Ctx) ->
+    force(Prop, Ctx);
+run({always,N,Prop}, Ctx) -> 
+    case force(Prop, Ctx) of
+	{passed,_,_,_} -> run({always,N-1,Prop},Ctx);
+	Other -> Other
+    end; 
+run({sometimes,1,Prop}, Ctx) ->
+    force(Prop, Ctx);
+run({sometimes,N,Prop}, Ctx) -> 
+    case force(Prop, Ctx) of
+	{failed,_,_} -> run({sometimes,N-1,Prop},Ctx);
+	{passed,_,_,_}=Res -> Res;
+	Other -> Other
     end;
 run({implies,true,Prop}, Ctx) ->
     force(Prop, Ctx);
@@ -894,8 +930,9 @@ clean_testcase(ImmTestCase) ->
 
 %% @private
 -spec still_fails(proper_gen:imm_instance(), imm_testcase(), dependent_test(),
-		  fail_reason()) -> boolean().
-still_fails(ImmInstance, TestTail, Prop, OldReason) ->
+		  fail_reason(), pos_integer()) -> boolean().
+still_fails(ImmInstance, TestTail, Prop, OldReason, NumTries) ->
+    %io:format("NumTries: ~w ",[NumTries]),
     Instance = proper_gen:clean_instance(ImmInstance),
     Ctx = #ctx{try_shrunk = true, to_try = TestTail},
     case force(Instance, Prop, Ctx) of
@@ -903,7 +940,10 @@ still_fails(ImmInstance, TestTail, Prop, OldReason) ->
 	{failed, #cexm{fail_reason = NewReason}, _Actions} ->
 	   same_fail_reason(OldReason, NewReason);
 	_ ->
-	    false
+	    case NumTries > 1 of
+		true -> still_fails(Instance,TestTail,Prop,OldReason,NumTries-1);
+		_ -> false
+	    end
     end.
 
 %% We don't consider two exceptions different if they have a different
@@ -917,40 +957,47 @@ same_fail_reason(SameReason, SameReason) ->
 same_fail_reason(_, _) ->
     false.
 
--spec skip_to_next(test()) -> stripped_test().
-skip_to_next(true) ->
+-spec skip_to_next(test(),pos_integer()) -> stripped_test().
+skip_to_next(true,_N) ->
     error;
-skip_to_next(false) ->
+skip_to_next(false,_N) ->
     false;
-skip_to_next({forall,RawType,Prop}) ->
+skip_to_next({forall,RawType,Prop},N) ->
+    %io:format("~n skip_to_next forall: ~w~n", [N]),
     Type = proper_types:cook_outer(RawType),
-    {Type,Prop};
-skip_to_next({implies,true,Prop}) ->
-    force_skip(Prop);
-skip_to_next({implies,false,_Prop}) ->
+    {Type,Prop,N};
+skip_to_next({always,N,Prop},_N1) ->
+    %io:format("~n skip_to_next always: ~w~n", [N]),
+    force_skip(Prop,N);
+
+%%TODO: fix skip_to_next for ?SOMETIMES
+skip_to_next({sometimes,_N,Prop},_N1) ->
+    %io:format("~n skip_to_next sometimes: ~w~n", [N]),
+    force_skip(Prop,1);
+skip_to_next({implies,true,Prop},N) ->
+    force_skip(Prop,N);
+skip_to_next({implies,false,_Prop},_N) ->
     error;
-skip_to_next({sample,_Sample,_Printer,Prop}) ->
-    skip_to_next(Prop);
-skip_to_next({whenfail,_Action,Prop}) ->
-    force_skip(Prop);
-skip_to_next({timeout,_Limit,_Prop}) ->
+skip_to_next({sample,_Sample,_Printer,Prop},N) ->
+    skip_to_next(Prop,N);
+skip_to_next({whenfail,_Action,Prop},N) ->
+    force_skip(Prop,N);
+skip_to_next({timeout,_Limit,_Prop},_N) ->
     false. % This is OK, since ?TIMEOUT cannot contain any other wrappers.
 
-
-
--spec force_skip(delayed_test()) -> stripped_test().
-force_skip(Prop) ->
-    apply_skip([], Prop).
+-spec force_skip(delayed_test(), pos_integer()) -> stripped_test().
+force_skip(Prop, NumTries) ->
+    apply_skip([], Prop, NumTries).
 
 %% @private
--spec force_skip(proper_gen:instance(), dependent_test()) -> stripped_test().
-force_skip(Arg, Prop) ->
-    apply_skip([proper_symb:internal_eval(Arg)], Prop).
+-spec force_skip(proper_gen:instance(),dependent_test(),pos_integer()) -> stripped_test().
+force_skip(Arg, Prop, NumTries) ->
+    apply_skip([proper_symb:internal_eval(Arg)], Prop, NumTries).
 
--spec apply_skip([proper_gen:instance()], lazy_test()) -> stripped_test().
-apply_skip(Args, Prop) ->
+-spec apply_skip([proper_gen:instance()], lazy_test(), pos_integer()) -> stripped_test().
+apply_skip(Args, Prop, NumTries) ->
     try
-	skip_to_next(apply(Prop, Args))
+	skip_to_next(apply(Prop, Args),NumTries)
     catch
 	%% Should be OK to catch everything here, since we have already tested
 	%% at this point that the test still fails.
@@ -1020,6 +1067,13 @@ report_error(type_mismatch, Print) ->
 	  "match.~n", []);
 report_error({typeserver,SubReason}, Print) ->
     Print("Error: The typeserver encountered an error: ~w~n", [SubReason]);
+report_error({cmd_domain,SubReason}, Print) ->
+    Print("Error: Could not produce command instance:~n ~w~n", [SubReason]);
+report_error({gen_commands,SubReason}, Print) ->
+    Print("Error: Problems encountered during command generation:~n ~w~n", [SubReason]);
+report_error({cant_generate_commands,_Mod,State}, Print) ->
+    Print("Error: couldn't produce a command that satisfies the precondition "
+	  "in state ~w after ~b tries. ~n", [State,get('$constaraint_tries')]);
 report_error(wrong_type, Print) ->
     Print(?MISMATCH_MSG ++ "the instances don't match the types.~n", []);
 report_error(rejected, Print) ->
