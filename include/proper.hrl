@@ -27,7 +27,7 @@
 %% Test generation functions
 %%------------------------------------------------------------------------------
 
--import(proper, [numtests/2, fails/1, on_output/2]).
+-import(proper, [numtests/2, fails/1, on_output/2, conjunction/1]).
 -import(proper, [collect/2, collect/3, aggregate/2, aggregate/3, classify/3,
 		 measure/3, with_title/1, equals/2]).
 

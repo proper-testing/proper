@@ -114,6 +114,12 @@ wrapping such a boolean expression with one or more of the following wrappers:
     the wrapped property <Prop>. When a ?FORALL wrapper is encountered, a random
     instance of <Xs_type> is produced and each variable in <Xs> is replaced
     inside <Prop> by its corresponding instance.
+conjunction([{Tag1,Prop1},...,{TagN,PropN}])
+    This property is true only if all of the sub-properties Prop1,...,PropN are
+    true. The tags Tag1,...,TagN must be distinct atoms. These are used when
+    reporting the failure of a property (each failing sub-property is reported
+    using its tag) and inside counterexamples (see the 'Counterexamples' section
+    for details).
 ?IMPLIES(<Precondition>, <Prop>)
     This wrapper only makes sense when in the scope of at least one ?FORALL. The
     <Precondition> field must be a boolean expression or a statement block that
@@ -241,7 +247,9 @@ Counterexamples
 A counterexample for a property is represented as a list of terms; each such
 term corresponds to the type in a ?FORALL. The instances are provided in the
 same order as the ?FORALL wrappers in the property, i.e. the instance at the
-head of the list corresponds to the outermost ?FORALL etc.
+head of the list corresponds to the outermost ?FORALL etc. Instances generated
+inside a failing sub-property of a conjunction are marked with the
+sub-property's tag.
 
 The last (simplest) counterexample produced by PropEr during a (failing) run can
 be retrieved after testing has finished, by running proper:counterexample().

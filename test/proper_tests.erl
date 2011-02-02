@@ -641,7 +641,12 @@ true_props_test_() ->
      ?_passes(?FORALL(X, integer(), ?IMPLIES(X >= 0, true))),
      ?_passes(?FORALL({X,Lim},{int(),?SIZED(Size,Size)},abs(X) =< Lim)),
      ?_passes(?FORALL({X,Lim},{nat(),?SIZED(Size,Size)},X =< Lim)),
-     ?_passes(?FORALL(L,orderedlist(integer()),is_sorted(L)))].
+     ?_passes(?FORALL(L,orderedlist(integer()),is_sorted(L))),
+     ?_passes(conjunction([
+		  {one, ?FORALL(_, integer(), true)},
+		  {two, ?FORALL(X, integer(), collect(X > 0, true))},
+		  {three, conjunction([{a,true},{b,true}])}
+	      ]))].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
@@ -689,7 +694,32 @@ false_props_test_() ->
      ?_fails(fails(?FORALL(_,integer(),false))),
      ?_failsWith([16], ?FORALL(X,?LET(Y,integer(),Y*Y),X < 15)),
      ?_failsWith([0.0],
-		 ?FORALL(_, ?LETSHRINK([A,B],[float(),atom()],{A,B}), false))].
+		 ?FORALL(_, ?LETSHRINK([A,B],[float(),atom()],{A,B}), false)),
+     ?_failsWith([], conjunction([{some,true},{thing,false}])),
+     ?_failsWith([{2,1},[{group,[[{sub_group,[1]}]]},{stupid,[1]}]],
+	 ?FORALL({X,Y}, {pos_integer(),pos_integer()},
+		 conjunction([
+		     {add_next, ?IMPLIES(X > Y, X + 1 > Y)},
+		     {symmetry,
+			 conjunction([
+			     {add_sym, collect(X+Y, X+Y =:= Y+X)},
+			     {sub_sym,
+			      ?WHENFAIL(io:format("'-' isn't symmetric!~n",[]),
+					X-Y =:= Y-X)}
+			 ])},
+		     {group,
+		      conjunction([
+			  {add_group,
+			   ?WHENFAIL(io:format("This shouldn't happen!~n",[]),
+				     ?FORALL(Z, pos_integer(),
+					     (X+Y)+Z =:= X+(Y+Z)))},
+			  {sub_group,
+			   ?WHENFAIL(io:format("'-' doesn't group!~n",[]),
+				     ?FORALL(W, pos_integer(),
+					     (X-Y)-W =:= X-(Y-W)))}
+		      ])},
+		     {stupid, ?FORALL(_, pos_integer(), throw(woot))}
+		 ])))].
 
 error_props_test_() ->
     [?_errorsOut(cant_generate,
