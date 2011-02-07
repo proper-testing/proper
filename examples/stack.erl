@@ -72,3 +72,4 @@ prop_push_pop() ->
 		{Y,_} = pop(push(X,S)),
 		X =:= Y
 	    end).
+

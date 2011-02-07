@@ -15,10 +15,10 @@ prop_pdict() ->
     ?FORALL(Cmds,more_commands(4,commands(?MODULE)),	   
        begin
 	   {_H,_S,Res} = run_commands(?MODULE,Cmds),
-	   %?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n",
-			       %[_H,_S,Res]),
-		    % Res == ok)
-	   aggregate(command_names(Cmds),Res == ok)
+	   ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n",
+			       [_H,_S,Res]),
+		     Res == ok)
+	   %aggregate(command_names(Cmds),Res == ok)
        end).
 
 key() ->
@@ -59,9 +59,9 @@ postcondition(_,_,_) ->
 
 next_state(Props, _Var, {call, erlang, put, [Key,Value]}) ->
     %% correct model
-    [{Key,Value}| proplists:delete(Key,Props)];
+    %[{Key,Value}| proplists:delete(Key,Props)];
     %% wrong model
-    %[{Key,Value}| Props];
+    [{Key,Value}| Props];
 next_state(Props, _Var, {call, erlang, erase, [Key]}) ->
     proplists:delete(Key,Props);
 next_state(Props, _Var, {call, erlang, get, [_]}) ->

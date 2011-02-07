@@ -65,11 +65,11 @@ shrink(TestCase, Test, Reason, Shrinks, Print) ->
 fix_shrink(FailedTestCase, _Test, _Reason, TotalShrinks, 0, _Print) ->
     {TotalShrinks, FailedTestCase};
 fix_shrink(FailedTestCase, Test, Reason, TotalShrinks, ShrinksLeft, Print) ->
-    Print("FailedTestCase: ~w~n",[FailedTestCase]),
+ %Print("FailedTestCase: ~w~n",[FailedTestCase]),
  %Print("Test: ~w~n",[Test]),
  %Print("Reason: ~w~n",[Reason]),
  %Print("TotalShrinks: ~w~n",[TotalShrinks]),
-%Print("ShrinksLeft: ~w~n",[ShrinksLeft]),
+ %Print("ShrinksLeft: ~w~n",[ShrinksLeft]),
     {Shrinks, MinTestCase} =
 	shrink([], FailedTestCase, Test, Reason, 0, ShrinksLeft, init, Print),
      %Print("Shrinks: ~w~n",[Shrinks]),

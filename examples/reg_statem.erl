@@ -17,8 +17,8 @@ initial_state() ->
 command(S) ->
     oneof([{call,erlang,register,[name(),pid(S)]} || S#state.pids=/=[]] ++
 	  [{call,?MODULE,unregister,[name()]},
-	  {call,erlang,whereis,[name()]},
-	  {call,?MODULE,spawn,[]}
+	   {call,erlang,whereis,[name()]},
+	   {call,?MODULE,spawn,[]}
 	  ]).
 
 -define(names,[a,b,c,d]).

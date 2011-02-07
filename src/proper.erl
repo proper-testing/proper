@@ -35,7 +35,7 @@
 -export([forall/2, implies/2, whenfail/2, timeout/2, trapexit/1]).
 -export([always/2, sometimes/2]).
 -export([still_fails/5, force_skip/3]).
--export([spawn_link_migrate/1]).
+-export([spawn_link_migrate/1, erase_non_reserved/1]).
 
 -export_type([test/0, outer_test/0, counterexample/0]).
 -export_type([imm_testcase/0, stripped_test/0, fail_reason/0, output_fun/0]).
@@ -51,6 +51,10 @@
 %%-----------------------------------------------------------------------------
 
 -define(MISMATCH_MSG, "Error: the input doesn't correspond to this property: ").
+
+-define(PDICT_KEYS, ['$size', '$any_type', '$constraint_tries', 
+		     '$funserver_pid', '$typeserver_pid', random_seed,
+		     '$counterexample', '$counterexamples', '$PDict']).
 
 
 %%-----------------------------------------------------------------------------
@@ -316,6 +320,20 @@ get_fail_reason(#cexm{fail_reason = Reason}) ->
 -spec get_bound(counterexample()) -> clean_testcase().
 get_bound(#cexm{bound = ImmTestCase}) ->
     clean_testcase(ImmTestCase).
+
+-spec erase_non_reserved(term()) -> 'ok'.
+erase_non_reserved(Key) ->
+    case lists:member(Key, ?PDICT_KEYS) of
+	true ->
+	    ok;
+	false ->
+	    erase(Key),
+	    ok
+    end.
+
+-spec reserved_not(term()) -> boolean().
+reserved_not(Key) ->
+    not lists:member(Key, ?PDICT_KEYS).
 
 
 %%-----------------------------------------------------------------------------
@@ -798,7 +816,7 @@ run({forall,RawType,Prop},
 		true ->
 		    Instance = proper_gen:clean_instance(ImmInstance),
 		    NewCtx = Ctx#ctx{to_try = Rest,
-				     bound = [ImmInstance | Bound]},
+				     bound = [ImmInstance | Bound]},		  
 		    force(Instance, Prop, NewCtx);
 		false ->
 		    %% TODO: could try to fix the instances here
@@ -853,14 +871,41 @@ run({timeout,Limit,Prop}, Ctx) ->
 	exit(Child, kill),
 	clear_mailbox(),
 	create_failed_result(Ctx, time_out)
-    end.
+    end;
+%% TODO: shrinking disabled in Prop enclosed in ?TRAPEXIT
+run({trapexit,Prop}, Ctx) ->
+    WasTrap = process_flag(trap_exit, true),
+    Self = self(),
+    Child = spawn_link_migrate(fun() -> child(Self,Prop,Ctx) end),
+    receive 
+	{result, Result} -> 
+	    unlink(Child),
+	    process_flag(trap_exit, WasTrap),
+	    clear_mailbox(),
+	    Result;
+	{'EXIT', Child, Reason} ->
+	    process_flag(trap_exit, WasTrap),
+	    clear_mailbox(),
+	    create_failed_result(Ctx, {trapexit,Reason})
+    end.	
 
 -spec force(delayed_test(), ctx()) -> run_result().
 force(Prop, Ctx) ->
     apply_args([], Prop, Ctx).
 
 -spec force(proper_gen:instance(), dependent_test(), ctx()) -> run_result().
-force(Arg, Prop, Ctx) ->
+force(Arg, Prop, #ctx{try_shrunk = TryShrunk} = Ctx) ->
+    case TryShrunk of
+	true ->
+	    PDictNow = erlang:get(),
+	    lists:foreach(fun({K,_V}) -> erase_non_reserved(K) end, PDictNow),
+	    PDictRun = erlang:get('$PDict'),
+	    lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun);
+	false ->
+	    PDictStuff = lists:filter(fun({K,_V}) -> reserved_not(K) end, 
+				      erlang:get()),
+	    put('$PDict',PDictStuff)
+    end,
     apply_args([proper_symb:internal_eval(Arg)], Prop, Ctx).
 
 -spec apply_args([proper_gen:instance()], lazy_test(), ctx()) -> run_result().
@@ -1097,6 +1142,8 @@ report_fail_reason(false_prop, Print, true) ->
     Print("The property was falsified.~n", []);
 report_fail_reason(time_out, Print, _ReportFalseProp) ->
     Print("Test execution timed out.~n", []);
+report_fail_reason({trapexit,Reason}, Print, _ReportFalseProp) ->
+    Print("An exception was raised in linked process: ~w.~n", [Reason]);
 report_fail_reason({exception,ExcKind,ExcReason,_StackTrace}, Print,
 		   _ReportFalseProp) ->
     %% TODO: print stacktrace too?

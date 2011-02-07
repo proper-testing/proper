@@ -540,11 +540,9 @@ commands(Module) ->
 	{join, fun lists:append/2},
 	{remove, fun proper_arith:list_remove/2},
 	{shrinkers, [fun(Cmds,T,S) -> 
-			     proper_statem:split_shrinker(Module,Module:initial_state(),
-							  Cmds,T,S) end,
+			     proper_statem:split_shrinker(Module,Cmds,T,S) end,
 		     fun(Cmds,T,S) -> 
-			     proper_statem:remove_shrinker(Module,Module:initial_state(),
-							   Cmds,T,S) end]}
+			     proper_statem:remove_shrinker(Module,Cmds,T,S) end]}
 	      ]).
 
 -spec commands(mod_name(),proper_statem:symbolic_state()) -> proper_types:type().
@@ -558,9 +556,9 @@ commands(Module,StartState) ->
 	{join, fun lists:append/2},
 	{remove, fun proper_arith:list_remove/2},
 	{shrinkers,[fun(Cmds,T,S) -> 
-			    proper_statem:split_shrinker(Module,StartState,Cmds,T,S) end,
+			    proper_statem:split_shrinker(Module,Cmds,T,S) end,
 		    fun(Cmds,T,S) -> 
-			    proper_statem:remove_shrinker(Module,StartState,Cmds,T,S) end]}
+			    proper_statem:remove_shrinker(Module,Cmds,T,S) end]}
 	      ]).
 
 -spec parallel_commands(mod_name()) -> proper_types:type().		       
@@ -572,13 +570,7 @@ parallel_commands(Module) ->
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
-	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, [fun(Cmds,T,S) -> 
-			     proper_statem:split_shrinker(Module,Module:initial_state(),
-							  Cmds,T,S) end,
-		     fun(Cmds,T,S) -> 
-			     proper_statem:remove_shrinker(Module,Module:initial_state(),
-							   Cmds,T,S) end]}
+	{remove, fun proper_arith:list_remove/2}
 	      ]).
 
 -spec parallel_commands(mod_name(),proper_statem:symbolic_state()) -> proper_types:type(). 
@@ -592,13 +584,7 @@ parallel_commands(Module, StartState) ->
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
-	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, [fun(Cmds,T,S) -> 
-			     proper_statem:split_shrinker(Module,StartState,Cmds,T,S) 
-		     end,
-		     fun(Cmds,T,S) -> 
-			     proper_statem:remove_shrinker(Module,StartState,Cmds,T,S) 
-		     end]}
+	{remove, fun proper_arith:list_remove/2}
 	      ]).
 
 -spec more_commands(integer(),proper_types:type()) ->  proper_types:type().
