@@ -670,6 +670,7 @@ false_props_test_() ->
 					false -> true
 				    end)),
      ?_fails(?FORALL(_, integer(), ?TIMEOUT(100,timer:sleep(150) =:= ok))),
+     ?_failsWith([20], ?FORALL(X, pos_integer(), ?TRAPEXIT(creator(X) =:= ok))),
      ?_assertTempBecomesN(7, false,
 			  ?FORALL(X, ?SIZED(Size,integer(Size,Size)),
 				  begin inc_temp(), X < 5 end)),
@@ -842,6 +843,19 @@ quicksort([]) -> [];
 quicksort([H|T]) ->
     {Lower, Higher} = partition(H, T),
     quicksort(Lower) ++ [H] ++ quicksort(Higher).
+
+creator(X) ->
+    Self = self(),
+    spawn_link(fun() -> destroyer(X,Self) end),
+    receive
+	_ -> ok
+    end.
+
+destroyer(X, Father) ->
+    if
+	X < 20 -> Father ! not_yet;
+	true   -> exit(this_is_the_end)
+    end.
 
 
 %%------------------------------------------------------------------------------

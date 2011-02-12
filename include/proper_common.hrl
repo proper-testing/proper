@@ -26,7 +26,7 @@
 -define(FORALL(X,RawType,Prop), proper:forall(RawType,fun(X) -> Prop end)).
 -define(IMPLIES(Pre,Prop), proper:implies(Pre,?DELAY(Prop))).
 -define(WHENFAIL(Action,Prop), proper:whenfail(?DELAY(Action),?DELAY(Prop))).
-%% TODO: -define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).
+-define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).
 -define(TIMEOUT(Limit,Prop), proper:timeout(Limit,?DELAY(Prop))).
 %% TODO: -define(ALWAYS(Tests,Prop), proper:always(Tests,?DELAY(Prop))).
 %% TODO: -define(SOMETIMES(Tests,Prop), proper:sometimes(Tests,?DELAY(Prop))).

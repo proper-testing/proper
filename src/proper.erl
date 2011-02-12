@@ -32,7 +32,7 @@
 -export([clean_garbage/0, global_state_erase/0]).
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
--export([forall/2, implies/2, whenfail/2, timeout/2]).
+-export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0]).
 
@@ -86,7 +86,7 @@
 	      | implies_clause()
 	      | sample_clause()
 	      | whenfail_clause()
-	      %%| trapexit_clause()
+	      | trapexit_clause()
 	      | timeout_clause().
 	      %%| always_clause()
 	      %%| sometimes_clause()
@@ -108,7 +108,7 @@
 -type implies_clause() :: {'implies', boolean(), delayed_test()}.
 -type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
-%%-type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
+-type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
 -type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
@@ -169,7 +169,7 @@
 -type error() :: {'error', error_reason()}.
 
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
--type fail_reason() :: 'false_prop' | 'time_out'
+-type fail_reason() :: 'false_prop' | 'time_out' | {'trapped',exc_reason()}
 		     | {'exception',exc_kind(),exc_reason(),stacktrace()}
 		     | {'sub_props',[{tag(),fail_reason()},...]}.
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
@@ -508,6 +508,11 @@ whenfail(Action, DTest) ->
     {whenfail, Action, DTest}.
 
 %% @private
+-spec trapexit(fun(() -> boolean())) -> trapexit_clause().
+trapexit(DTest) ->
+    {trapexit, DTest}.
+
+%% @private
 -spec timeout(time_period(), fun(() -> boolean())) -> timeout_clause().
 timeout(Limit, DTest) ->
     {timeout, Limit, DTest}.
@@ -766,11 +771,24 @@ run({sample,NewSample,NewPrinter,Prop}, #ctx{samples = Samples,
 run({whenfail,NewAction,Prop}, #ctx{actions = Actions} = Ctx)->
     NewCtx = Ctx#ctx{actions = [NewAction | Actions]},
     force(Prop, NewCtx);
+run({trapexit,Prop}, Ctx) ->
+    OldFlag = process_flag(trap_exit, true),
+    Self = self(),
+    Child = spawn_link_migrate(fun() -> child(Self,Prop,Ctx) end),
+    Result =
+	receive
+	    {result, RecvResult} ->
+		RecvResult;
+	    {'EXIT', Child, ExcReason} ->
+		create_fail_result(Ctx, {trapped,ExcReason})
+	end,
+    true = process_flag(trap_exit, OldFlag),
+    Result;
 run({timeout,Limit,Prop}, Ctx) ->
     Self = self(),
     Child = spawn_link_migrate(fun() -> child(Self,Prop,Ctx) end),
     receive
-	{result, Result} -> Result
+	{result, RecvResult} -> RecvResult
     after Limit ->
 	unlink(Child),
 	exit(Child, kill),
@@ -1101,8 +1119,11 @@ skip_to_next({sample,_Sample,_Printer,Prop}) ->
     skip_to_next(Prop);
 skip_to_next({whenfail,_Action,Prop}) ->
     force_skip(Prop);
+%% The following 2 clauses assume that _Prop cannot contain any other wrappers.
+skip_to_next({trapexit,_Prop}) ->
+    false;
 skip_to_next({timeout,_Limit,_Prop}) ->
-    false. %% This is OK, since ?TIMEOUT cannot contain any other wrappers.
+    false.
 
 -spec force_skip(delayed_test()) -> stripped_test().
 force_skip(Prop) ->
@@ -1211,6 +1232,8 @@ report_fail_reason(false_prop, _Prefix, _Print) ->
     ok;
 report_fail_reason(time_out, Prefix, Print) ->
     Print(Prefix ++ "Test execution timed out.~n", []);
+report_fail_reason({trapped,ExcReason}, Prefix, Print) ->
+    Print(Prefix ++ "A linked process died with reason ~w.~n", [ExcReason]);
 report_fail_reason({exception,ExcKind,ExcReason,_StackTrace}, Prefix, Print) ->
     %% TODO: print stacktrace too?
     Print(Prefix ++ "An exception was raised: ~w:~w.~n", [ExcKind,ExcReason]);
