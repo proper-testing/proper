@@ -570,7 +570,7 @@ multi_test(Mod, RawTestKind,
 	case MaybeMFAs of
 	    {ok,MFAs} ->
 		RawLRes = [{MFA,mfa_test(MFA,RawTestKind,Opts)} || MFA <- MFAs],
-		LRes = [{MFA,Res} || {MFA,Res} <- RawLRes, is_list(Res)],
+		LRes = [T || {_MFA,Res} = T <- RawLRes, is_list(Res)],
 		SRes = [MFA || {MFA,_Res} <- LRes],
 		save_counterexamples(LRes),
 		{SRes, LRes};
