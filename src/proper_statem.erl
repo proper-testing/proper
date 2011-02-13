@@ -312,7 +312,8 @@ run_parallel_commands(Module,{Sequential,Parallel},Env) ->
 				 true ->  
 				     {Seq_history,Parallel_history,ok};
 				 _ ->
-				     {Seq_history,Parallel_history,no_possible_interleaving}
+				     {Seq_history,Parallel_history,
+				      no_possible_interleaving}
 			     end;
 		        %% if Parallel_history is not a list, then an exception was raised
 			true ->
@@ -512,20 +513,12 @@ execute(Commands, Env, Module, History) ->
 			    {[command_list()],proper_shrink:state()}. 
 split_shrinker(Module,[{init,StartState}|Commands], Type,State) ->
     {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
-    PDictNow = erlang:get(),
-    lists:foreach(fun({K,_V}) -> proper:erase_non_reserved(K) end, PDictNow),
-    PDictRun = erlang:get('$PDict'),
-    lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun),
     IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
     {lists:map(fun(L) -> [{init,StartState}|L] end,lists:filter(IsValid,Slices)),
      NewState};
 
 split_shrinker(Module, Commands, Type,State) ->
     {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
-    PDictNow = erlang:get(),
-    lists:foreach(fun({K,_V}) -> proper:erase_non_reserved(K) end, PDictNow),
-    PDictRun = erlang:get('$PDict'),
-    lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun),
     StartState = Module:initial_state(),
     IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
     {lists:filter(IsValid,Slices),NewState}.
@@ -538,10 +531,6 @@ remove_shrinker(Module,[{init,StartState}|Commands]=Cmds,Type,State) ->
    case CommandList of
        [] -> {[],NewState};
        [NewCommands] ->
-	   PDictNow = erlang:get(),
-	   lists:foreach(fun({K,_V}) -> proper:erase_non_reserved(K) end, PDictNow),
-	   PDictRun = erlang:get('$PDict'),
-	   lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun),
 	   case validate(Module,StartState,NewCommands,[]) of
 	       true -> 
 		   {[[{init,StartState}|NewCommands]],NewState};
@@ -555,10 +544,6 @@ remove_shrinker(Module,Commands,Type,State) ->
    case CommandList of
        [] -> {[],NewState};
        [NewCommands] ->
-	   PDictNow = erlang:get(),
-	   lists:foreach(fun({K,_V}) -> proper:erase_non_reserved(K) end, PDictNow),
-	   PDictRun = erlang:get('$PDict'),
-	   lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun),
 	   StartState = Module:initial_state(),
 	   case validate(Module,StartState,NewCommands,[]) of
 	       true -> {[NewCommands],NewState};

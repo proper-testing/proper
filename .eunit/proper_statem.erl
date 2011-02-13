@@ -312,7 +312,8 @@ run_parallel_commands(Module,{Sequential,Parallel},Env) ->
 				 true ->  
 				     {Seq_history,Parallel_history,ok};
 				 _ ->
-				     {Seq_history,Parallel_history,no_possible_interleaving}
+				     {Seq_history,Parallel_history,
+				      no_possible_interleaving}
 			     end;
 		        %% if Parallel_history is not a list, then an exception was raised
 			true ->
