@@ -26,13 +26,10 @@
 -module(proper_funserver).
 -behaviour(gen_server).
 
--export([start/0, stop/0, get_state/0, set_state/1, reset_state/0,
-	 create_fun/3]).
+-export([start/0, stop/0, reset/0, create_fun/3]).
 -export([get_ret_type/1, function_body/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
-
--export_type([state/0]).
 
 -include("proper_internal.hrl").
 
@@ -48,9 +45,9 @@
 		next_fun_num = 1                   :: pos_integer()}).
 -opaque state() :: #state{}.
 
--type server_call() :: 'get_state' | {'set_state',state()} | 'reset_state'
+-type server_call() :: 'reset'
 		     | {'create_fun',arity(),proper_types:type(),fun_seed()}.
--type server_response() :: state() | 'ok' | 'ok' | function().
+-type server_response() :: 'ok' | function().
 
 
 %%------------------------------------------------------------------------------
@@ -71,20 +68,10 @@ stop() ->
     erase('$funserver_pid'),
     gen_server:cast(FunserverPid, stop).
 
--spec get_state() -> state().
-get_state() ->
+-spec reset() -> 'ok'.
+reset() ->
     FunserverPid = get('$funserver_pid'),
-    gen_server:call(FunserverPid, get_state).
-
--spec set_state(state()) -> 'ok'.
-set_state(State) ->
-    FunserverPid = get('$funserver_pid'),
-    gen_server:call(FunserverPid, {set_state,State}).
-
--spec reset_state() -> 'ok'.
-reset_state() ->
-    FunserverPid = get('$funserver_pid'),
-    gen_server:call(FunserverPid, reset_state).
+    gen_server:call(FunserverPid, reset).
 
 -spec create_fun(arity(), proper_types:type(), fun_seed()) -> function().
 create_fun(Arity, RetType, FunSeed) ->
@@ -102,13 +89,7 @@ init(_) ->
 
 -spec handle_call(server_call(), _, state()) ->
 	  {'reply',server_response(),state()}.
-handle_call(get_state, _From, State) ->
-    {reply, State, State};
-handle_call({set_state,NewState}, _From, State) ->
-    remove_temp_mod(State),
-    reload_temp_mod(NewState),
-    {reply, ok, NewState};
-handle_call(reset_state, _From, State) ->
+handle_call(reset, _From, State) ->
     %% TODO: To make PropEr multi-threaded, this should erase only those
     %%       functions that have been created for the calling process, then
     %%       reload temp_mod with all the remaining functions.
