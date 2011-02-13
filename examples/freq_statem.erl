@@ -123,7 +123,6 @@ prop_parallel() ->
 		start(),
 		{Seq,P,Res} = run_parallel_commands(?MODULE,Cmds),
 		stop(),
-		?WHENFAIL(
-		   io:format("Sequential: ~p\nParallel: ~p\nRes: ~p\n",[Seq,P,Res]),
-		   Res =:= ok)
+		io:format("Sequential: ~p\nParallel: ~p\nRes: ~p\n",[Seq,P,Res]),
+		equals(Res, ok)
 	    end).

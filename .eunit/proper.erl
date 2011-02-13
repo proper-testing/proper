@@ -886,10 +886,10 @@ run({trapexit,Prop}, Ctx) ->
 	    process_flag(trap_exit, WasTrap),
 	    clear_mailbox(),
 	    Result;
-	{'EXIT', Child, _Reason} ->
+	{'EXIT', Child, Reason} ->
 	    process_flag(trap_exit, WasTrap),
 	    clear_mailbox(),
-	    create_failed_result(Ctx, trapexit)
+	    create_failed_result(Ctx, {trapexit,Reason})
     end.	
 
 -spec force(delayed_test(), ctx()) -> run_result().
@@ -1032,9 +1032,7 @@ skip_to_next({sample,_Sample,_Printer,Prop},N) ->
 skip_to_next({whenfail,_Action,Prop},N) ->
     force_skip(Prop,N);
 skip_to_next({timeout,_Limit,_Prop},_N) ->
-    false; % This is OK, since ?TIMEOUT cannot contain any other wrappers.
-skip_to_next({trapexit,_Prop},_N) ->
-    false. % Shrinking disabled in ?FORALLs enclosed in ?TRAPEXIT
+    false. % This is OK, since ?TIMEOUT cannot contain any other wrappers.
 
 -spec force_skip(delayed_test(), pos_integer()) -> stripped_test().
 force_skip(Prop, NumTries) ->
@@ -1148,8 +1146,8 @@ report_fail_reason(false_prop, Print, true) ->
     Print("The property was falsified.~n", []);
 report_fail_reason(time_out, Print, _ReportFalseProp) ->
     Print("Test execution timed out.~n", []);
-report_fail_reason(trapexit, Print, _ReportFalseProp) ->
-    Print("An exception was raised in linked process.~n", []);
+report_fail_reason({trapexit,Reason}, Print, _ReportFalseProp) ->
+    Print("An exception was raised in linked process: ~w.~n", [Reason]);
 report_fail_reason({exception,ExcKind,ExcReason,_StackTrace}, Print,
 		   _ReportFalseProp) ->
     %% TODO: print stacktrace too?

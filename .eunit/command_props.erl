@@ -19,6 +19,14 @@ list_check([X|Rest], Left, Elems) ->
     lists:member(X, Elems)
     andalso list_check(Rest, Left - 1, Elems).
 
+pow(X, Y) ->
+    pow_tr(X, Y, 1).
+
+pow_tr(_X, 0, Acc) ->
+    Acc;
+pow_tr(X, Y, Acc) ->
+    pow_tr(X, Y - 1, X * Acc).
+
 no_duplicates(L) -> length(L) =:= length(lists:usort(L)).
 
 short_list(ElemType) ->

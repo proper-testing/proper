@@ -15,9 +15,9 @@ initial_state() ->
 %% Command generator
 command(S) ->
     oneof([{call,?MODULE,spawn,[]}] ++
-	  [{call,?MODULE,register,[name(),elements(S#state.pids)]}
+	  [{call,?MODULE,catch_register,[name(),elements(S#state.pids)]}
 	   || S#state.pids =/= []] ++
-	  [{call,?MODULE,unregister,[name()]}] ++
+	  [{call,?MODULE,catch_unregister,[name()]}] ++
 	  [{call,erlang,whereis,[name()]}]).
 
 -define(names,[a,b,c,d]).
@@ -27,14 +27,14 @@ name() ->
 %% Next state transformation, S is the current state
 next_state(S,V,{call,_,spawn,_}) ->
     S#state{pids=[V|S#state.pids]};
-next_state(S,_V,{call,_,register,[Name,Pid]}) ->
+next_state(S,_V,{call,_,catch_register,[Name,Pid]}) ->
     case register_ok(S,Name,Pid) of
 	true ->
 	    S#state{regs=[{Name,Pid}|S#state.regs]};
 	false ->
 	    S
     end;
-next_state(S,_V,{call,_,unregister,[Name]}) ->
+next_state(S,_V,{call,_,catch_unregister,[Name]}) ->
     S#state{regs=lists:keydelete(Name,1,S#state.regs)};
 next_state(S,_V,{call,_,whereis,[_]}) ->
     S.
@@ -50,7 +50,7 @@ precondition(_S,{call,_,_,_}) ->
 
 %% Postcondition, checked after command has been evaluated
 %% OBS: S is the state before next_state(S,_,<command>)
-postcondition(S,{call,_,register,[Name,Pid]},Res) ->
+postcondition(S,{call,_,catch_register,[Name,Pid]},Res) ->
     case Res of
 	true ->
 	    register_ok(S,Name,Pid);
@@ -58,7 +58,7 @@ postcondition(S,{call,_,register,[Name,Pid]},Res) ->
 	    not register_ok(S,Name,Pid)
     end;
  
-postcondition(S,{call,_,unregister,[Name]},Res) ->
+postcondition(S,{call,_,catch_unregister,[Name]},Res) ->
     case Res of
 	true ->
 	    unregister_ok(S,Name);
@@ -91,13 +91,13 @@ prop_proc_reg_parallel() ->
 
 
 cleanup() ->
-    [reg_parallel:unregister(Name) || Name <- ?names].
+    [catch_unregister(Name) || Name <- ?names].
 
 %% Exception-catching versions of the API under test
-unregister(Name) ->
+catch_unregister(Name) ->
     catch erlang:unregister(Name).
 
-register(Name,Pid) ->
+catch_register(Name,Pid) ->
     catch erlang:register(Name,Pid).
 
 %% Spawn a dummy process to use as test data. Processes die after 5

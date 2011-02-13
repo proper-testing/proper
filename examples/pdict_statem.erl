@@ -1,5 +1,5 @@
 -module(pdict_statem).
--export([prop_pdict/0]).
+-export([test/0]).
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
 	next_state/3]).
 
@@ -9,6 +9,9 @@
 %% A simple statem test for the process dictionary; tests the
 %% operations erlang:put/2, erlang:get/1 and and erlang:erase/1.
 %%
+
+test() ->
+    proper:quickcheck(?MODULE:prop_pdict()).
 
 -define(KEYS, [a,b,c,d]).
 prop_pdict() ->
@@ -59,9 +62,9 @@ postcondition(_,_,_) ->
 
 next_state(Props, _Var, {call, erlang, put, [Key,Value]}) ->
     %% correct model
-    %[{Key,Value}| proplists:delete(Key,Props)];
+    [{Key,Value}| proplists:delete(Key,Props)];
     %% wrong model
-    [{Key,Value}| Props];
+    %[{Key,Value}| Props];
 next_state(Props, _Var, {call, erlang, erase, [Key]}) ->
     proplists:delete(Key,Props);
 next_state(Props, _Var, {call, erlang, get, [_]}) ->
