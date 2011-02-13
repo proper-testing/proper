@@ -18,17 +18,23 @@ prop_pdict() ->
     ?FORALL(Cmds,more_commands(4,commands(?MODULE)),	   
        begin
 	   {_H,_S,Res} = run_commands(?MODULE,Cmds),
-	   ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n",
-			       [_H,_S,Res]),
-		     Res == ok)
-	   %aggregate(command_names(Cmds),Res == ok)
+	   clean_up(),
+	   %% ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n",
+	   %%		          [_H,_S,Res]),
+	   %%	        Res == ok)
+	   aggregate(command_names(Cmds),Res == ok)
        end).
 
 key() ->
     elements(?KEYS).
 
-initial_state() -> lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
-                                 erlang:get()).
+clean_up() ->
+    lists:foreach(fun(Key) -> erlang:erase(Key) end,
+		  ?KEYS).
+
+initial_state() -> 
+    lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
+		 erlang:get()).
 
 command([]) ->
     {call, erlang, put, [key(), integer()]};
