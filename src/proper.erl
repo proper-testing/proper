@@ -1083,6 +1083,9 @@ still_fails(ImmInstance, TestTail, Prop, OldReason) ->
     end.
 
 -spec same_fail_reason(fail_reason(), fail_reason()) -> boolean().
+same_fail_reason({trapped,{SameExcReason,_StackTrace1}},
+		 {trapped,{SameExcReason,_StackTrace2}}) ->
+    true;
 same_fail_reason({exception,SameExcKind,SameExcReason,_StackTrace1},
 		 {exception,SameExcKind,SameExcReason,_StackTrace2}) ->
     true;
