@@ -8,7 +8,7 @@ Papadakis (manopapad@gmail.com) and Kostis Sagonas (kostis@cs.ntua.gr).
 
 Most of the source code of PropEr is written mainly by Manolis Papadakis.
 
-Copyright 2010 by Manolis Papadakis and Kostis Sagonas.
+Copyright 2010-2011 by Manolis Papadakis and Kostis Sagonas.
 
 This program is distributed under the GPL, version 3 or later. Please see the
 COPYING file for details.
@@ -22,7 +22,7 @@ Quickstart guide
   documentation).
 * Add PropEr's base directory to your ERL_LIBS environment variable - An easy
   way to do this is to add the following line to your ~/.bashrc file:
-     export ERL_LIBS=~/path/to/proper
+     export ERL_LIBS=/full/path/to/proper
 * Add the following include line to all source files containing properties you
   wish to test:
      -include_lib("proper/include/proper.hrl").
