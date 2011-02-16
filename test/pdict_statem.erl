@@ -2,6 +2,7 @@
 -export([test/0]).
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
 	next_state/3]).
+-export([set_up/0, clean_up/0]).
 
 -include_lib("proper/include/proper.hrl").
 
@@ -27,6 +28,9 @@ prop_pdict() ->
 
 key() ->
     elements(?KEYS).
+
+set_up() ->
+    ok.
 
 clean_up() ->
     lists:foreach(fun(Key) -> erlang:erase(Key) end,

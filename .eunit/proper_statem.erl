@@ -6,6 +6,7 @@
 	 run_parallel_commands/2, run_parallel_commands/3]).
 
 -export([all_selections/2, index/2, all_insertions/3, insert_all/2]).
+-export([validate/4]).
 
 -export_type([symbolic_state/0]).
 
@@ -16,8 +17,8 @@
 %% Type declarations
 %% -----------------------------------------------------------------------------
 
--opaque symbolic_state() :: term().
--opaque dynamic_state() :: term().
+-type symbolic_state() :: term().
+-type dynamic_state() :: term().
 
 -type command() :: {'init',symbolic_state()}
 		   |{'set',proper_symb:symb_var(),{'call',mod_name(),fun_name(),[term()]}}.
@@ -48,8 +49,10 @@
 gen_commands(Mod,StartState,Size) ->
     Len = proper_arith:rand_int(0,Size),
     try gen_commands(Mod, StartState,[],Len,Len,get('$constraint_tries')) of
-	CmdList ->
-	    [{init,StartState}|CmdList]
+	{ok, CmdList} ->
+	    [{init,StartState}|CmdList];
+	{false_prec, State} ->
+	    throw({'$cant_generate_commands',State})
     catch
 	_Exc:Reason ->
 	    throw({'$gen_commands',{_Exc,Reason,erlang:get_stacktrace()}})
@@ -59,40 +62,41 @@ gen_commands(Mod,StartState,Size) ->
 gen_commands(Mod,Size) ->
     Len = proper_arith:rand_int(0,Size),
     try gen_commands(Mod,Mod:initial_state(),[],Len,Len,get('$constraint_tries')) of 
-	CmdList ->
-	    CmdList
+	{ok,CmdList} ->
+	    CmdList;
+	{false_prec, State} ->
+	    throw({'$cant_generate_commands',State})
     catch
-	_Exc:Reason ->
-	    throw({'$gen_commands',{_Exc,Reason,erlang:get_stacktrace()}})
+	Exc:Reason ->
+	    throw({'$gen_commands',{Exc,Reason,erlang:get_stacktrace()}})
     end.
 
 -spec gen_commands(mod_name(),symbolic_state(),command_list(),size(),non_neg_integer(),
-		   non_neg_integer()) -> command_list().
+		   non_neg_integer()) -> 
+			  {'ok', command_list()}
+			  |{'false_prec', symbolic_state()}.
 gen_commands(_Module,_,Commands,_,0,_) ->
-        lists:reverse(Commands);
+    {ok, lists:reverse(Commands)};
 
-gen_commands(Module,State,_,_,_,0) ->
-    throw({'$cant_generate_commands',Module,State});
+gen_commands(_Module,State,_,_,_,0) ->
+    {false_prec, State};
 
 gen_commands(Module,State,Commands,Len,Count,Tries) ->  
     Cmd = Module:command(State),
-    if Cmd =/= stop ->
-       case proper_gen:clean_instance(proper_gen:safe_generate(Cmd)) of
-	   {ok,Instance} ->
-	       case Module:precondition(State,Instance) of
-		   true ->
-		       Var = {var,Len-Count},
-		       NextState = Module:next_state(State,Var,Instance),
-		       Command= {set,Var,Instance},
-		       gen_commands(Module,NextState,[Command|Commands],
-				    Len, Count-1, get('$constraint_tries'));
-		   _ ->
-		       gen_commands(Module,State,Commands,Len,Count,Tries-1)
-	       end;
-	   {error,Reason} -> throw({'$cmd_domain',Reason})
-       end;
-    true ->
-        lists:reverse(Commands)
+    {ok,Instance} = proper_gen:clean_instance(proper_gen:safe_generate(Cmd)), 
+    if Instance =/= stop ->
+	    case Module:precondition(State,Instance) of
+		true ->
+		    Var = {var,Len-Count},
+		    NextState = Module:next_state(State,Var,Instance),
+		    Command= {set,Var,Instance},
+		    gen_commands(Module,NextState,[Command|Commands],
+				 Len, Count-1, get('$constraint_tries'));
+		_ ->
+		    gen_commands(Module,State,Commands,Len,Count,Tries-1)
+	    end;
+       true ->
+	    {ok, lists:reverse(Commands)}
     end.    
 	    
 
@@ -250,7 +254,9 @@ do_run_command(Commands, Env, Module, History, State) ->
 				    History2 = [{State,Res}|History],
 				    do_run_command(Rest, Env2, Module, History2, State2);
 				_Other ->
-				    {lists:reverse(History), State,
+				    State2 = Module:next_state(State,Res,Call),
+				    History2 = [{State,Res}|History],
+				    {lists:reverse(History2), State2,
 				      {postcondition,_Other}}
 			    catch
 				Kind:Reason ->
@@ -513,20 +519,12 @@ execute(Commands, Env, Module, History) ->
 			    {[command_list()],proper_shrink:state()}. 
 split_shrinker(Module,[{init,StartState}|Commands], Type,State) ->
     {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
-    PDictNow = erlang:get(),
-    lists:foreach(fun({K,_V}) -> proper:erase_non_reserved(K) end, PDictNow),
-    PDictRun = erlang:get('$PDict'),
-    lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun),
     IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
     {lists:map(fun(L) -> [{init,StartState}|L] end,lists:filter(IsValid,Slices)),
      NewState};
 
 split_shrinker(Module, Commands, Type,State) ->
     {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
-    PDictNow = erlang:get(),
-    lists:foreach(fun({K,_V}) -> proper:erase_non_reserved(K) end, PDictNow),
-    PDictRun = erlang:get('$PDict'),
-    lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun),
     StartState = Module:initial_state(),
     IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
     {lists:filter(IsValid,Slices),NewState}.
@@ -539,10 +537,6 @@ remove_shrinker(Module,[{init,StartState}|Commands]=Cmds,Type,State) ->
    case CommandList of
        [] -> {[],NewState};
        [NewCommands] ->
-	   PDictNow = erlang:get(),
-	   lists:foreach(fun({K,_V}) -> proper:erase_non_reserved(K) end, PDictNow),
-	   PDictRun = erlang:get('$PDict'),
-	   lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun),
 	   case validate(Module,StartState,NewCommands,[]) of
 	       true -> 
 		   {[[{init,StartState}|NewCommands]],NewState};
@@ -556,10 +550,6 @@ remove_shrinker(Module,Commands,Type,State) ->
    case CommandList of
        [] -> {[],NewState};
        [NewCommands] ->
-	   PDictNow = erlang:get(),
-	   lists:foreach(fun({K,_V}) -> proper:erase_non_reserved(K) end, PDictNow),
-	   PDictRun = erlang:get('$PDict'),
-	   lists:foreach(fun({K,V}) -> put(K,V) end, PDictRun),
 	   StartState = Module:initial_state(),
 	   case validate(Module,StartState,NewCommands,[]) of
 	       true -> {[NewCommands],NewState};

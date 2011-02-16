@@ -468,6 +468,33 @@ undefined_symb_calls() ->
      {call,lists,reverse,[<<12,13>>]},
      {call,erlang,'+',[1,2,3]}].
 
+valid_command_sequences() ->
+    [{pdict_statem, [{set,{var,0},{call,erlang,put,[a,0]}},
+		     {set,{var,1},{call,erlang,put,[b,1]}},
+		     {set,{var,2},{call,erlang,erase,[a]}},
+		     {set,{var,3},{call,erlang,get,[b]}},
+		     {set,{var,4},{call,erlang,erase,[b]}},
+		     {set,{var,5},{call,erlang,put,[a,{var,3}]}},
+		     {set,{var,6},{call,erlang,put,[a,42]}}],
+     [{a,42}]},
+     {pdict_statem, [{init,[{a,42}]},
+		     {set,{var,0},{call,erlang,put,[b,42]}},
+		     {set,{var,3},{call,erlang,erase,[b]}}],
+      [{a,42}]}].
+
+invalid_command_sequences() ->
+    invalid_precondition() ++ invalid_var().
+
+invalid_precondition() -> 
+     [{pdict_statem, [{set,{var,0},{call,erlang,put,[a,0]}},
+		     {set,{var,1},{call,erlang,put,[b,1]}},
+		     {set,{var,2},{call,erlang,erase,[a]}},
+		     {set,{var,3},{call,erlang,get,[a]}}]}].
+
+invalid_var() ->
+      [{pdict_statem, [{set,{var,1},{call,erlang,put,[b,{var,0}]}}]}].
+     
+     
 
 %%------------------------------------------------------------------------------
 %% Unit tests
@@ -773,11 +800,52 @@ adts_test_() ->
 	     {boolean(),dict(boolean(),integer())},
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
+valid_cmds_test_() ->
+    [?_assert(proper_statem:validate(Module,[],Cmds,[])) 
+     || {Module,Cmds} <- valid_command_sequences()].
+
+invalid_cmds_test_() ->
+    [?_assertNot(proper_statem:validate(Module,[],Cmds,[])) 
+     || {Module,Cmds} <- invalid_command_sequences()].
+    
+state_after_test_() ->
+    [?_assertEqual(proper_statem:state_after(Module,Cmds),StateAfter)
+     || {Module,Cmds,StateAfter} <- valid_command_sequences()].
+
+cannot_generate_commands1_test_() ->
+    [?_test(assert_cant_generate(proper_types:commands(Module))) 
+     || Module <- [false_prec]].
+
+cannot_generate_commands2_test_() ->
+    [?_test(assert_cant_generate(proper_types:commands(Module,StartState))) 
+     || {Module,StartState} <- [{false_prec,off}, {false_prec,on}]].
+
+can_generate_commands1_test_() ->
+    [?_test(assert_can_generate(proper_types:commands(Module),true)) 
+     || Module <- [pdict_statem, freq_statem, reg_statem, switch_statem]].
+
+can_generate_commands2_test_() ->
+    [?_test(assert_can_generate(proper_types:commands(Module,StartState),true)) 
+     || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
+
+run_valid_commands_test_() ->
+    [?_assertMatch({_H,_S,ok}, setup_run_commands(Module,Cmds))
+     || {Module,Cmds} <- valid_command_sequences()].
+
+run_invalid_commands_test_() ->
+    [?_assertMatch({_H,_S,{precondition,false}},setup_run_commands(Module,Cmds))
+     || {Module,Cmds} <- invalid_precondition()].
 
 %%------------------------------------------------------------------------------
 %% Helper Predicates
 %%------------------------------------------------------------------------------
 
+setup_run_commands(Module, Cmds) ->
+    Module:set_up(),
+    Res = proper_statem:run_commands(Module,Cmds),
+    Module:clean_up(),
+    Res.
+     
 no_duplicates(L) ->
     length(lists:usort(L)) =:= length(L).
 
@@ -827,6 +895,7 @@ smaller_lengths_than_my_own(L) ->
 %%------------------------------------------------------------------------------
 %% Functions to test
 %%------------------------------------------------------------------------------
+
 
 partition(Pivot, List) ->
     partition_tr(Pivot, List, [], []).

@@ -382,7 +382,7 @@ with_parameters(PVlist,Type_gen) ->
 
 -spec parameter(atom()) -> proper_types:type().
 parameter(Param) ->
-   exactly({var,Param}).
+    {var,Param}.
     
 %% @private
 -spec lazy(proper_gen:nosize_generator()) -> proper_types:type().

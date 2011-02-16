@@ -85,9 +85,8 @@ safe_generate(RawType) ->
     catch
 	throw:'$cant_generate'          -> {error, cant_generate};
 	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}};
-	throw:{'$cant_generate_commands',Mod,State} -> 
-						{error,{cant_generate_commands,Mod,State}};
-	throw:{'$cmd_domain',Reason} -> {error,{cmd_domain,Reason}};
+	throw:{'$cant_generate_commands',State} -> 
+	    {error,{cant_generate_commands,State}};
 	throw:{'$gen_commands',Reason} -> {error,{gen_commands,Reason}}
     end.
 

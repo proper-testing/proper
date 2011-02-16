@@ -180,7 +180,8 @@
 -type error_reason() :: 'cant_generate' | 'cant_satisfy' | 'rejected'
 		      | 'shrinking_error' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
-		      | {'unexpected',any()} | {'unrecognized_option',term()}.
+		      | {'unexpected',any()} | {'unrecognized_option',term()}
+		      | {'cant_generate_commands',term()} | {'gen_commands',term()}.
 
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
@@ -682,11 +683,9 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
 	    Error;
 	{error, {typeserver,_SubReason}} = Error ->
 	    Error;
-    {error, {cant_generate_commands,_M,_S}} = Error ->
+	{error, {cant_generate_commands,_S}} = Error ->
 	    Error;
 	{error, {gen_commands,_Reason}} = Error ->
-	    Error;
-	{error, {cmd_domain,_Reason}} = Error ->
 	    Error;
 	Unexpected ->
 	    {error, {unexpected,Unexpected}}
@@ -1227,13 +1226,11 @@ report_error(too_many_instances, Print) ->
 report_error(type_mismatch, Print) ->
     Print("Error: The variables' and types' structures inside a ?FORALL don't "
 	  "match.~n", []);
-report_error({cmd_domain,SubReason}, Print) ->
-    Print("Error: Could not produce command instance:~n ~w~n", [SubReason]);
 report_error({gen_commands,SubReason}, Print) ->
     Print("Error: Problems encountered during command generation:~n ~w~n", [SubReason]);
-report_error({cant_generate_commands,_Mod,State}, Print) ->
+report_error({cant_generate_commands,State}, Print) ->
     Print("Error: couldn't produce a command that satisfies the precondition "
-	  "in state ~w after ~b tries. ~n", [State,get('$constaraint_tries')]);
+	  "in state ~w after ~b tries. ~n", [State,get('$constraint_tries')]);
 report_error(wrong_type, Print) ->
     Print("Internal error: 'wrong_type' error reached toplevel.~n"
 	  "Please notify the maintainers about this error.~n", []);
