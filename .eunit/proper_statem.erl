@@ -217,7 +217,7 @@ safe_eval_init(Env,[{init,SymbState}|_],_Module) ->
 	    {ok,DynState}
     catch
 	_Exception:_Reason ->
-	    {error,'initialization_error'}
+	    {error, initialization_error}
     end; 
 safe_eval_init(Env,_Cmds,Module) ->
     try proper_symb:eval(Env,Module:initial_state()) of
@@ -225,7 +225,7 @@ safe_eval_init(Env,_Cmds,Module) ->
 	    {ok,DynState}
     catch
 	_Exception:_Reason ->
-	    {error,'initialization_error'}
+	    {error, initialization_error}
     end.
  
 -spec do_run_command(command_list(),proper_symb:var_values(),mod_name(),
@@ -248,7 +248,6 @@ do_run_command(Commands, Env, Module, History, State) ->
 			true ->
 			    try Module:postcondition(State,Call,Res) of
 				true ->
-				    %Env2 = [{V,Res}|proplists:delete(V,Env)],
 				    Env2 = [{V,Res}|Env],
 				    State2 = Module:next_state(State,Res,Call),
 				    History2 = [{State,Res}|History],
@@ -606,7 +605,6 @@ command_names(Cmds) ->
     GetName = fun({set,_Var,{call,M,F,Args}}) -> {M,F,length(Args)} end,
     lists:map(GetName,Cmds).
     
-
 -spec zip([A],[B]) -> [{A,B}].
 zip(X,Y) ->
     Lx = length(X),

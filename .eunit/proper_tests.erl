@@ -166,7 +166,6 @@ erase_temp() ->
     erase(temp),
     ok.
 
-
 %%------------------------------------------------------------------------------
 %% Helper Functions
 %%------------------------------------------------------------------------------
@@ -230,6 +229,10 @@ assert_native_can_generate(Mod, TypeStr, CheckIsInstance) ->
 
 assert_cant_generate(Type) ->
     ?assertEqual(error, proper_gen:pick(Type)),
+    ?assert(state_is_clean()).
+
+assert_cant_generate_nonempty(Type, N) ->
+    ?assertEqual(error, proper_gen:pick(?SUCHTHAT(T, Type, length(T) > N))),
     ?assert(state_is_clean()).
 
 assert_not_is_instance(X, Type) ->
@@ -469,6 +472,7 @@ undefined_symb_calls() ->
      {call,erlang,'+',[1,2,3]}].
 
 valid_command_sequences() ->
+%% {module, command_sequence, symbolic_state_after, dynamic_state_after, environment}
     [{pdict_statem, [{set,{var,0},{call,erlang,put,[a,0]}},
 		     {set,{var,1},{call,erlang,put,[b,1]}},
 		     {set,{var,2},{call,erlang,erase,[a]}},
@@ -476,11 +480,24 @@ valid_command_sequences() ->
 		     {set,{var,4},{call,erlang,erase,[b]}},
 		     {set,{var,5},{call,erlang,put,[a,{var,3}]}},
 		     {set,{var,6},{call,erlang,put,[a,42]}}],
-     [{a,42}]},
+     [{a,42}], [{a,42}], []},
      {pdict_statem, [{init,[{a,42}]},
 		     {set,{var,0},{call,erlang,put,[b,42]}},
-		     {set,{var,3},{call,erlang,erase,[b]}}],
-      [{a,42}]}].
+		     {set,{var,1},{call,erlang,erase,[b]}}],
+      [{a,42}], [{a,42}], []},
+     {pdict_statem, [{set,{var,0},{call,erlang,put,[a,{var,start_value}]}},
+		     {set,{var,1},{call,erlang,put,[b,{var,another_start_value}]}},
+		     {set,{var,2},{call,erlang,get,[b]}},
+		     {set,{var,3},{call,erlang,get,[b]}}],
+      [{b,{var, another_start_value}}, {a, {var, start_value}}], [{b,-1}, {a, 0}],
+      [{start_value, 0}, {another_start_value, -1}]}].
+
+symbolic_init_invalid_sequences() ->
+%% {module, command_sequence, environment}
+    [{pdict_statem, [{init,[{a,{call,foo,bar,[some_arg]}}]},
+		     {set,{var,0},{call,erlang,put,[b,42]}},
+		     {set,{var,1},{call,erlang,get,[b]}}],
+      [{some_arg, 0}]}].
 
 invalid_command_sequences() ->
     invalid_precondition() ++ invalid_var().
@@ -493,8 +510,24 @@ invalid_precondition() ->
 
 invalid_var() ->
       [{pdict_statem, [{set,{var,1},{call,erlang,put,[b,{var,0}]}}]}].
+
+exception_command_sequences() ->
+    [{reg_statem,  [{set,{var,0},{call,reg_statem,spawn,[]}},
+		    {set,{var,1},{call,reg_statem,spawn,[]}},
+		    {set,{var,2},{call,erlang,register,[a,{var,0}]}},
+		    {set,{var,3},{call,erlang,register,[b,{var,1}]}},
+		    {set,{var,2},{call,erlang,register,[c,{var,0}]}}]},
+     {reg_statem,  [{set,{var,0},{call,reg_statem,spawn,[]}},
+		    {set,{var,1},{call,reg_statem,spawn,[]}},
+		    {set,{var,2},{call,erlang,register,[a,{var,0}]}},
+		    {set,{var,3},{call,erlang,register,[a,{var,1}]}},
+		    {set,{var,2},{call,reg_statem,unregister,[a]}}]}].
      
-     
+postcondition_false_command_sequences() -> 
+     [{switch_statem, [{set,{var,0},{call,switch_statem,release,[]}},
+		      {set,{var,1},{call,switch_statem,press,[]}},
+		      {set,{var,2},{call,switch_statem,dummy,[on]}},
+		      {set,{var,3},{call,switch_statem,release,[]}}]}].    
 
 %%------------------------------------------------------------------------------
 %% Unit tests
@@ -542,6 +575,7 @@ invalid_var() ->
 %% TODO: conversion of maybe_improper_list
 %% TODO: use demo_is_instance and demo_translate_type
 %% TODO: debug option to output tests passed, fail reason, etc.
+
 
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].
@@ -801,48 +835,60 @@ adts_test_() ->
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
 valid_cmds_test_() ->
-    [?_assert(proper_statem:validate(Module,[],Cmds,[])) 
-     || {Module,Cmds} <- valid_command_sequences()].
+    [?_assert(proper_statem:validate(Module,Module:initial_state(),Cmds,Env)) 
+     || {Module,Cmds,_,_,Env} <- valid_command_sequences()].
 
 invalid_cmds_test_() ->
-    [?_assertNot(proper_statem:validate(Module,[],Cmds,[])) 
+    [?_assertNot(proper_statem:validate(Module,Module:initial_state(),Cmds,[])) 
      || {Module,Cmds} <- invalid_command_sequences()].
     
 state_after_test_() ->
     [?_assertEqual(proper_statem:state_after(Module,Cmds),StateAfter)
-     || {Module,Cmds,StateAfter} <- valid_command_sequences()].
+     || {Module,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
-cannot_generate_commands1_test_() ->
-    [?_test(assert_cant_generate(proper_types:commands(Module))) 
+cannot_generate_commands0_test_() ->
+    [?_test(assert_cant_generate_nonempty(proper_types:commands(Module),0)) 
      || Module <- [false_prec]].
 
-cannot_generate_commands2_test_() ->
-    [?_test(assert_cant_generate(proper_types:commands(Module,StartState))) 
+cannot_generate_commands1_test_() ->
+    [?_test(assert_cant_generate_nonempty(proper_types:commands(Module,StartState),1)) 
      || {Module,StartState} <- [{false_prec,off}, {false_prec,on}]].
 
-can_generate_commands1_test_() ->
+can_generate_commands0_test_() ->
     [?_test(assert_can_generate(proper_types:commands(Module),true)) 
      || Module <- [pdict_statem, freq_statem, reg_statem, switch_statem]].
 
-can_generate_commands2_test_() ->
+can_generate_commands1_test_() ->
     [?_test(assert_can_generate(proper_types:commands(Module,StartState),true)) 
      || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
 
 run_valid_commands_test_() ->
-    [?_assertMatch({_H,_S,ok}, setup_run_commands(Module,Cmds))
-     || {Module,Cmds} <- valid_command_sequences()].
+    [?_assertMatch({_H,DynState,ok}, setup_run_commands(Module,Cmds,Env))
+     || {Module,Cmds,_,DynState,Env} <- valid_command_sequences()].
 
-run_invalid_commands_test_() ->
-    [?_assertMatch({_H,_S,{precondition,false}},setup_run_commands(Module,Cmds))
+run_invalid_precondition_test_() ->
+    [?_assertMatch({_H,_S,{precondition,false}},setup_run_commands(Module,Cmds,[]))
      || {Module,Cmds} <- invalid_precondition()].
+
+run_false_postcondition_test_() ->
+    [?_assertMatch({_H,_S,{postcondition,false}},setup_run_commands(Module,Cmds,[]))
+     || {Module,Cmds} <- postcondition_false_command_sequences()].
+
+run_exception_raising_test_() ->
+    [?_assertMatch({_H,_S,{exception,error,_,_}},setup_run_commands(Module,Cmds,[]))
+     || {Module,Cmds} <- exception_command_sequences()].
+
+run_init_error_test_() ->
+    [?_assertMatch({_H,_S,initialization_error},setup_run_commands(Module,Cmds,Env))
+     || {Module,Cmds,Env} <- symbolic_init_invalid_sequences()].
 
 %%------------------------------------------------------------------------------
 %% Helper Predicates
 %%------------------------------------------------------------------------------
 
-setup_run_commands(Module, Cmds) ->
+setup_run_commands(Module, Cmds, Env) ->
     Module:set_up(),
-    Res = proper_statem:run_commands(Module,Cmds),
+    Res = proper_statem:run_commands(Module,Cmds,Env),
     Module:clean_up(),
     Res.
      

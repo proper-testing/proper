@@ -50,7 +50,6 @@ postcondition(S,{call,_,unregister,[Name]},Res) ->
 	true ->
 	    unregister_ok(S,Name)
     end;
-
 postcondition(_S,{call,_,_,_},_Res) ->
     true.
 
@@ -63,13 +62,16 @@ prop_registry() ->
     ?FORALL(Cmds,commands(?MODULE),
 	    begin
 		{H,S,Res} = run_commands(?MODULE,Cmds),
-		cleanup(),
+		clean_up(),
 		?WHENFAIL(
 		   io:format("History: ~p\nState: ~p\nRes: ~p\n",[H,S,Res]),
 		   Res == ok)
 	    end).
 
-cleanup() ->
+set_up() ->
+    ok.
+
+clean_up() ->
     [catch erlang:unregister(Name) || Name <- ?names].
 
 %% Exception-catching versions of the API under test
