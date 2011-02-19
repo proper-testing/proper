@@ -20,9 +20,14 @@ Quickstart guide
 
 * Compile PropEr: run 'make' (or 'make all', if you also want to build the
   documentation).
-* Add PropEr's base directory to your ERL_LIBS environment variable - An easy
-  way to do this is to add the following line to your ~/.bashrc file:
-     export ERL_LIBS=/full/path/to/proper
+* Add PropEr's base directory to your Erlang code path by choosing one
+  of the following ways:
+  1. ERL_LIBS environment variable - An easy way to do this is to add
+     the following line to your ~/.bashrc file:
+       export ERL_LIBS=/full/path/to/proper
+  2. Erlang resource file - An easy way to do this is to add the
+     following line to your ~/.erlang file:
+       code:load_abs("/full/path/to/proper").
 * Add the following include line to all source files containing properties you
   wish to test:
      -include_lib("proper/include/proper.hrl").
