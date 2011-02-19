@@ -847,19 +847,19 @@ state_after_test_() ->
      || {Module,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
 cannot_generate_commands0_test_() ->
-    [?_test(assert_cant_generate_nonempty(proper_types:commands(Module),0)) 
+    [?_test(assert_cant_generate_nonempty(proper_statem:commands(Module),0)) 
      || Module <- [false_prec]].
 
 cannot_generate_commands1_test_() ->
-    [?_test(assert_cant_generate_nonempty(proper_types:commands(Module,StartState),1)) 
+    [?_test(assert_cant_generate_nonempty(proper_statem:commands(Module,StartState),1)) 
      || {Module,StartState} <- [{false_prec,off}, {false_prec,on}]].
 
 can_generate_commands0_test_() ->
-    [?_test(assert_can_generate(proper_types:commands(Module),true)) 
+    [?_test(assert_can_generate(proper_statem:commands(Module),true)) 
      || Module <- [pdict_statem, freq_statem, reg_statem, switch_statem]].
 
 can_generate_commands1_test_() ->
-    [?_test(assert_can_generate(proper_types:commands(Module,StartState),true)) 
+    [?_test(assert_can_generate(proper_statem:commands(Module,StartState),true)) 
      || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
 
 run_valid_commands_test_() ->

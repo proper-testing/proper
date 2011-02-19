@@ -1,5 +1,7 @@
 -module(proper_statem).
 
+-export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
+	 more_commands/2]).
 -export([gen_commands/2, gen_commands/3, run_commands/2, run_commands/3, state_after/2,
 	 remove_shrinker/4, split_shrinker/4, command_names/1, zip/2, commands_test/1,
 	 gen_parallel_commands/2, gen_parallel_commands/3, parallel_commands_test/1,
@@ -44,6 +46,44 @@
 %% Sequential command generation
 %% -----------------------------------------------------------------------------
 
+
+-define(COMMANDS(PropList), proper_types:new_type(PropList,commands)).
+
+-spec commands(mod_name()) -> proper_types:type().		       
+commands(Module) ->
+    ?COMMANDS([
+	{generator, fun(Size) -> gen_commands(Module,Size) end},
+	{is_instance, fun(X) -> commands_test(X) end},    
+	{get_indices, fun proper_types:list_get_indices/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{remove, fun proper_arith:list_remove/2},
+	{shrinkers, [fun(Cmds,T,S) -> 
+			     split_shrinker(Module,Cmds,T,S) end,
+		     fun(Cmds,T,S) -> 
+			     remove_shrinker(Module,Cmds,T,S) end]}
+	      ]).
+
+-spec commands(mod_name(),symbolic_state()) -> proper_types:type().
+commands(Module,StartState) ->
+    ?COMMANDS([
+	{generator, fun(Size) -> gen_commands(Module,StartState,Size) end},
+	{is_instance, fun(X) -> commands_test(X) end},
+	{get_indices, fun proper_types:list_get_indices/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{remove, fun proper_arith:list_remove/2},
+	{shrinkers,[fun(Cmds,T,S) -> 
+			    split_shrinker(Module,Cmds,T,S) end,
+		    fun(Cmds,T,S) -> 
+			    remove_shrinker(Module,Cmds,T,S) end]}
+	      ]).
+
+-spec more_commands(integer(),proper_types:type()) ->  proper_types:type().
+more_commands(N,Gen) ->			    
+    ?SIZED(Size, proper_types:resize(Size * N, Gen)).
 
 -spec gen_commands(mod_name(),symbolic_state(),size()) -> command_list().
 gen_commands(Mod,StartState,Size) ->
@@ -104,6 +144,32 @@ gen_commands(Module,State,Commands,Len,Count,Tries) ->
 %% Parallel command generation
 %% -----------------------------------------------------------------------------
 
+
+-spec parallel_commands(mod_name()) -> proper_types:type().		       
+parallel_commands(Module) ->
+    ?COMMANDS([
+	{generator, fun(Size) -> gen_parallel_commands(Module,Size) end},
+	{is_instance, fun(X) -> parallel_commands_test(X) end},    
+	{get_indices, fun proper_types:list_get_indices/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{remove, fun proper_arith:list_remove/2}
+	      ]).
+
+-spec parallel_commands(mod_name(),symbolic_state()) -> proper_types:type(). 
+parallel_commands(Module, StartState) ->
+    ?COMMANDS([
+	{generator,fun(Size) -> 
+			   gen_parallel_commands(Module,StartState,Size) 
+		   end},
+	{is_instance, fun(X) -> parallel_commands_test(X) end},    
+	{get_indices, fun proper_types:list_get_indices/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{remove, fun proper_arith:list_remove/2}
+	      ]).
 
 -spec gen_parallel_commands(mod_name(),symbolic_state(),size()) -> parallel_test_case().
 gen_parallel_commands(Mod,StartState,Size) ->
