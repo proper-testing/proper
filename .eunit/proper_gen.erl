@@ -93,7 +93,40 @@ safe_generate(RawType) ->
 -spec generate(proper_types:raw_type()) -> imm_instance().
 generate(RawType) ->
     Type = proper_types:cook_outer(RawType),
-    generate(Type, get('$constraint_tries'), none).
+    ok = add_parameters(Type),
+    Instance = generate(Type, get('$constraint_tries'), none),
+    ok = remove_parameters(Type),
+    Instance.
+
+-spec add_parameters(proper_types:type()) -> 'ok'.			     
+add_parameters(Type) ->
+    case proper_types:find_prop(parameters, Type) of
+	{ok, Params} ->
+	    OldParams = erlang:get('$parameters'),
+	    if OldParams =:= undefined ->
+		    erlang:put('$parameters', Params);
+	       true ->
+		    erlang:put('$parameters', Params ++ OldParams)
+	    end,
+	    ok;
+	_ ->
+	    ok
+    end.
+
+-spec remove_parameters(proper_types:type()) -> 'ok'.
+remove_parameters(Type) ->
+    case proper_types:find_prop(parameters, Type) of
+	{ok, Params} ->
+	    AllParams = erlang:get('$parameters'),
+	    if AllParams =:= Params ->
+		    erlang:erase('$parameters');
+	       true ->
+		    erlang:put('$parameters', AllParams -- Params)
+	    end,
+	    ok;
+	_ ->
+	    ok
+    end.
 
 -spec generate(proper_types:type(), non_neg_integer(),
 	       'none' | {'ok',imm_instance()}) -> imm_instance().

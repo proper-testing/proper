@@ -40,10 +40,10 @@
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, to_binary/1,
 	 from_binary/1, get_prop/2, find_prop/2, safe_is_instance/2,
 	 is_instance/2, unwrap/1, weakly/1, strongly/1, satisfies_all/2,
-	 new_type/2]).
+	 new_type/2, list_get_indices/1]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
 	 native_type/2, distlist/3, with_parameter/3, with_parameters/2, 
-	 parameter/1]).
+	 parameter/1, parameter/2]).
 
 -export_type([type/0, raw_type/0]).
 
@@ -90,8 +90,7 @@
 %% Types
 %%------------------------------------------------------------------------------
 
--type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | 'commands'
-		     |'parameter'.
+-type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | atom().
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean()).
 -type index() :: pos_integer().
 -type value() :: term().
@@ -371,6 +370,7 @@ satisfies_all(Instance, Type) ->
 %% Type definition functions
 %%------------------------------------------------------------------------------
 
+
 -spec with_parameter(atom(),value(),proper_types:type()) -> proper_types:type().
 with_parameter(Param,Value,Type_gen) ->
     add_prop(parameters,[{Param,Value}],Type_gen).
@@ -381,7 +381,12 @@ with_parameters(PVlist,Type_gen) ->
 
 -spec parameter(atom()) -> proper_types:type().
 parameter(Param) ->
-    {var,Param}.
+    parameter(Param, undefined).
+
+-spec parameter(atom(), term()) -> proper_types:type().
+parameter(Param, Default) ->
+    Parameters = erlang:get('$parameters'),
+    proplists:get_value(Param, Parameters, Default).
     
 %% @private
 -spec lazy(proper_gen:nosize_generator()) -> proper_types:type().

@@ -16,13 +16,14 @@ test() ->
 
 -define(KEYS, [a,b,c,d]).
 prop_pdict() ->
-    ?FORALL(Cmds,more_commands(4,commands(?MODULE)),	   
+    ?FORALL(Cmds,with_parameters([{x,42}, {y,43}], commands(?MODULE)),	   
        begin
 	   {_H,_S,Res} = run_commands(?MODULE,Cmds),
 	   clean_up(),
 	   %% ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n",
 	   %%		          [_H,_S,Res]),
 	   %%	        Res == ok)
+	   io:format("History: ~w\n", [_H]),		     
 	   aggregate(command_names(Cmds),Res == ok)
        end).
 
@@ -44,7 +45,7 @@ command([]) ->
     {call, erlang, put, [key(), integer()]};
 command(Props) ->
     ?LET({Key,Value}, weighted_union([{5, elements(Props)},
-				      {1, {key(),integer()}}]),
+				      {1, {key(), integer()}}]),
 	 oneof([{call, erlang, put,   [Key, Value]},
 		{call, erlang, get,   [Key]},
 		{call, erlang, erase, [Key]}

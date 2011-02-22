@@ -493,41 +493,57 @@ valid_command_sequences() ->
       [{start_value, 0}, {another_start_value, -1}]}].
 
 symbolic_init_invalid_sequences() ->
-%% {module, command_sequence, environment}
+%% {module, command_sequence, environment, shrunk}
     [{pdict_statem, [{init,[{a,{call,foo,bar,[some_arg]}}]},
 		     {set,{var,0},{call,erlang,put,[b,42]}},
 		     {set,{var,1},{call,erlang,get,[b]}}],
-      [{some_arg, 0}]}].
-
-invalid_command_sequences() ->
-    invalid_precondition() ++ invalid_var().
+      [{some_arg, 0}],  
+      [{init,[{a,{call,foo,bar,[some_arg]}}]}]}].
 
 invalid_precondition() -> 
+%% {module, command_sequence, environment, shrunk}
      [{pdict_statem, [{set,{var,0},{call,erlang,put,[a,0]}},
-		     {set,{var,1},{call,erlang,put,[b,1]}},
-		     {set,{var,2},{call,erlang,erase,[a]}},
-		     {set,{var,3},{call,erlang,get,[a]}}]}].
+		      {set,{var,1},{call,erlang,put,[b,1]}},
+		      {set,{var,2},{call,erlang,erase,[a]}},
+		      {set,{var,3},{call,erlang,get,[a]}}],
+       [], [{set,{var,3},{call,erlang,get,[a]}}]}].
 
 invalid_var() ->
-      [{pdict_statem, [{set,{var,1},{call,erlang,put,[b,{var,0}]}}]}].
+      [{pdict_statem, [{set,{var,1},{call,erlang,put,[b,{var,0}]}}]},
+       {pdict_statem, [{set,{var,0},{call,erlang,put,[b,9]}},
+		       {set,{var,5},{call,erlang,put,[a,3]}},
+		       {set,{var,6},{call,erlang,get,[{var,1}]}}]}].
 
 exception_command_sequences() ->
+%% {module, command_sequence, environment, shrunk}
     [{reg_statem,  [{set,{var,0},{call,reg_statem,spawn,[]}},
 		    {set,{var,1},{call,reg_statem,spawn,[]}},
 		    {set,{var,2},{call,erlang,register,[a,{var,0}]}},
 		    {set,{var,3},{call,erlang,register,[b,{var,1}]}},
-		    {set,{var,2},{call,erlang,register,[c,{var,0}]}}]},
+		    {set,{var,4},{call,erlang,register,[c,{var,0}]}}],
+      [], [{set,{var,0},{call,reg_statem,spawn,[]}},
+	   {set,{var,2},{call,erlang,register,[a,{var,0}]}},
+	   {set,{var,4},{call,erlang,register,[c,{var,0}]}}]},
      {reg_statem,  [{set,{var,0},{call,reg_statem,spawn,[]}},
 		    {set,{var,1},{call,reg_statem,spawn,[]}},
-		    {set,{var,2},{call,erlang,register,[a,{var,0}]}},
-		    {set,{var,3},{call,erlang,register,[a,{var,1}]}},
-		    {set,{var,2},{call,reg_statem,unregister,[a]}}]}].
-     
+		    {set,{var,2},{call,erlang,whereis,[b]}},
+		    {set,{var,3},{call,erlang,whereis,[a]}},
+		    {set,{var,4},{call,reg_statem,unregister,[a]}},
+		    {set,{var,5},{call,erlang,register,[a,{var,0}]}},
+		    {set,{var,6},{call,erlang,register,[a,{var,1}]}},
+		    {set,{var,7},{call,reg_statem,unregister,[a]}}],
+      [], [{set,{var,0},{call,reg_statem,spawn,[]}},
+	   {set,{var,1},{call,reg_statem,spawn,[]}},
+	   {set,{var,5},{call,erlang,register,[a,{var,0}]}},
+	   {set,{var,6},{call,erlang,register,[a,{var,1}]}}]}].
+		   
 postcondition_false_command_sequences() -> 
-     [{switch_statem, [{set,{var,0},{call,switch_statem,release,[]}},
+%% {module, command_sequence, environment, shrunk}
+    [{switch_statem, [{set,{var,0},{call,switch_statem,release,[]}},
 		      {set,{var,1},{call,switch_statem,press,[]}},
 		      {set,{var,2},{call,switch_statem,dummy,[on]}},
-		      {set,{var,3},{call,switch_statem,release,[]}}]}].    
+		      {set,{var,3},{call,switch_statem,release,[]}}],
+      [], [{set,{var,2},{call,switch_statem,dummy,[on]}}]}].    
 
 %%------------------------------------------------------------------------------
 %% Unit tests
@@ -840,7 +856,9 @@ valid_cmds_test_() ->
 
 invalid_cmds_test_() ->
     [?_assertNot(proper_statem:validate(Module,Module:initial_state(),Cmds,[])) 
-     || {Module,Cmds} <- invalid_command_sequences()].
+     || {Module,Cmds,_,_} <- invalid_precondition()] ++
+    [?_assertNot(proper_statem:validate(Module,Module:initial_state(),Cmds,[])) 
+     || {Module,Cmds} <- invalid_var()].
     
 state_after_test_() ->
     [?_assertEqual(proper_statem:state_after(Module,Cmds),StateAfter)
@@ -867,20 +885,20 @@ run_valid_commands_test_() ->
      || {Module,Cmds,_,DynState,Env} <- valid_command_sequences()].
 
 run_invalid_precondition_test_() ->
-    [?_assertMatch({_H,_S,{precondition,false}},setup_run_commands(Module,Cmds,[]))
-     || {Module,Cmds} <- invalid_precondition()].
+    [?_assertMatch({_H,_S,{precondition,false}},setup_run_commands(Module,Cmds,Env))
+     || {Module,Cmds,Env,_Shrunk} <- invalid_precondition()].
 
 run_false_postcondition_test_() ->
-    [?_assertMatch({_H,_S,{postcondition,false}},setup_run_commands(Module,Cmds,[]))
-     || {Module,Cmds} <- postcondition_false_command_sequences()].
+    [?_assertMatch({_H,_S,{postcondition,false}},setup_run_commands(Module,Cmds,Env))
+     || {Module,Cmds,Env,_Shrunk} <- postcondition_false_command_sequences()].
 
 run_exception_raising_test_() ->
-    [?_assertMatch({_H,_S,{exception,error,_,_}},setup_run_commands(Module,Cmds,[]))
-     || {Module,Cmds} <- exception_command_sequences()].
+    [?_assertMatch({_H,_S,{exception,error,_,_}},setup_run_commands(Module,Cmds,Env))
+     || {Module,Cmds,Env,_Shrunk} <- exception_command_sequences()].
 
 run_init_error_test_() ->
     [?_assertMatch({_H,_S,initialization_error},setup_run_commands(Module,Cmds,Env))
-     || {Module,Cmds,Env} <- symbolic_init_invalid_sequences()].
+     || {Module,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
 
 %%------------------------------------------------------------------------------
 %% Helper Predicates

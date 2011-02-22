@@ -104,7 +104,7 @@ get_shrinkers(Type) ->
 		    container ->
 			[fun split_shrinker/3, fun remove_shrinker/3,
 			 fun elements_shrinker/3];	    
-		    commands ->
+		    _Other ->
 			[]
 		end,
 	    CustomShrinkers ++ StandardShrinkers

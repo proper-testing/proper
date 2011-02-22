@@ -2,10 +2,11 @@
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
 	 more_commands/2]).
--export([gen_commands/2, gen_commands/3, run_commands/2, run_commands/3, state_after/2,
-	 remove_shrinker/4, split_shrinker/4, command_names/1, zip/2, commands_test/1,
-	 gen_parallel_commands/2, gen_parallel_commands/3, parallel_commands_test/1,
-	 run_parallel_commands/2, run_parallel_commands/3]).
+-export([gen_commands/2, gen_commands/3, run_commands/2, run_commands/3,
+	 gen_parallel_commands/2, gen_parallel_commands/3, run_parallel_commands/2,
+	 run_parallel_commands/3]).
+-export([state_after/2, command_names/1, zip/2, 
+	 commands_test/1, parallel_commands_test/1]).
 
 -export([all_selections/2, index/2, all_insertions/3, insert_all/2]).
 -export([validate/4]).
@@ -154,7 +155,20 @@ parallel_commands(Module) ->
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
-	{remove, fun proper_arith:list_remove/2}
+	{remove, fun proper_arith:list_remove/2},
+	{shrinkers, [fun(Parallel_Cmds,T,S) -> 
+			     split_P1_shrinker(Module,Parallel_Cmds,T,S) end,
+		     fun(Parallel_Cmds,T,S) -> 
+			     remove_P1_shrinker(Module,Parallel_Cmds,T,S) end,
+		     fun(Parallel_Cmds,T,S) -> 
+			     split_P2_shrinker(Module,Parallel_Cmds,T,S) end,
+		     fun(Parallel_Cmds,T,S) -> 
+			     remove_P2_shrinker(Module,Parallel_Cmds,T,S) end,
+		     fun(Parallel_Cmds,T,S) -> 
+			     split_Seq_shrinker(Module,Parallel_Cmds,T,S) end
+		    %% fun(Parallel_Cmds,T,S) -> 
+		%%	     remove_Seq_shrinker(Module,Parallel_Cmds,T,S) end
+		    ]}
 	      ]).
 
 -spec parallel_commands(mod_name(),symbolic_state()) -> proper_types:type(). 
@@ -199,7 +213,7 @@ gen_parallel_commands(Mod,Size) ->
 			  parallel_test_case().
 gen_parallel(Mod,StartState,Size) ->
     Len1 = proper_arith:rand_int(2,Size),
-    CmdList = gen_commands(Mod, StartState,[],Len1,Len1,get('$constraint_tries')),
+    {ok, CmdList} = gen_commands(Mod, StartState,[],Len1,Len1,get('$constraint_tries')),
     Len = length(CmdList),
     {Seq,P} = if Len == 2 ->
 		      {[],CmdList};
@@ -591,8 +605,86 @@ split_shrinker(Module,[{init,StartState}|Commands], Type,State) ->
 split_shrinker(Module, Commands, Type,State) ->
     {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
     StartState = Module:initial_state(),
-    IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
+    IsValid = fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
     {lists:filter(IsValid,Slices),NewState}.
+
+split_P1_shrinker(Module, {Sequential,[P1,P2]}, Type, State) ->
+    Len = length(Sequential),
+    SeqEnv = lists:zip(lists:duplicate(Len, var), lists:seq(0, Len-1)),
+    SymbState = state_after(Module, Sequential),
+    {Slices,NewState} = proper_shrink:split_shrinker(P1, Type, State), 
+    IsValid = fun(CommandSeq) -> validate(Module,SymbState,CommandSeq,SeqEnv) end,
+    {lists:map(fun(Slice) -> {Sequential,[Slice,P2]} end, lists:filter(IsValid,Slices)),
+     NewState}.
+
+split_P2_shrinker(Module, {Sequential,[P1,P2]}, Type, State) ->
+    Len = length(Sequential),
+    SeqEnv = lists:zip(lists:duplicate(Len, var), lists:seq(0, Len-1)),
+    SymbState = state_after(Module, Sequential),
+    {Slices,NewState} = proper_shrink:split_shrinker(P2, Type, State), 
+    IsValid = fun(CommandSeq) -> validate(Module,SymbState,CommandSeq,SeqEnv) end,
+    {lists:map(fun(Slice) -> {Sequential,[P1,Slice]} end, lists:filter(IsValid,Slices)),
+     NewState}.
+
+split_Seq_shrinker(Module, {Sequential,[P1,P2]}, Type, State) ->
+    {Slices,NewState} = proper_shrink:split_shrinker(Sequential, Type, State),
+    SymbState = Module:initial_state(),
+    IsValid = fun(CommandSeq) -> 
+		      validate(Module,SymbState,CommandSeq ++ P1,[])
+			  andalso validate(Module,SymbState,CommandSeq ++ P2,[])
+	      end,
+    {lists:map(fun(Slice) -> {Slice,[P1,P2]} end, lists:filter(IsValid,Slices)),
+     NewState}.
+
+remove_P1_shrinker(Module, {Sequential,[P1,P2]}, Type, State) ->
+    Len = length(Sequential),
+    SeqEnv = lists:zip(lists:duplicate(Len, var), lists:seq(0, Len-1)),
+    SymbState = state_after(Module, Sequential),
+    {CommandList,NewState} =  proper_shrink:remove_shrinker(P1,Type,State),
+   case CommandList of
+       [] -> {[{Sequential,[[],P2]}],NewState};
+       [NewCommands] ->
+	   case validate(Module,SymbState,NewCommands,SeqEnv) of
+	       true -> {[{Sequential,[NewCommands,P2]}],NewState};
+	        _ ->
+		   remove_P1_shrinker(Module,{Sequential,[P1,P2]},Type,NewState)
+	   end
+   end.
+
+remove_P2_shrinker(Module, {Sequential,[P1,P2]}, Type, State) ->
+    Len = length(Sequential),
+    SeqEnv = lists:zip(lists:duplicate(Len, var), lists:seq(0, Len-1)),
+    SymbState = state_after(Module, Sequential),
+    {CommandList,NewState} =  proper_shrink:remove_shrinker(P2,Type,State),
+   case CommandList of
+       [] -> {[{Sequential,[P1,[]]}],NewState};
+       [NewCommands] ->
+	   case validate(Module,SymbState,NewCommands,SeqEnv) of
+	       true -> {[{Sequential,[P1,NewCommands]}],NewState};
+	        _ ->
+		   remove_P2_shrinker(Module,{Sequential,[P1,P2]},Type,NewState)
+	   end
+   end. 
+
+remove_Seq_shrinker(Module, {Sequential,[P1,P2]}, Type, State) ->
+    {CommandList,NewState} =  proper_shrink:remove_shrinker(Sequential,Type,State),
+    NewCommands = case CommandList of
+		      [] -> [];
+		      [Cmds] -> Cmds
+		  end,
+    SymbState = Module:initial_state(),
+    case {validate(Module,SymbState,NewCommands ++ P1,[]),
+	  validate(Module,SymbState,NewCommands ++ P2,[])} of
+	{true,true} -> 
+	    {[{NewCommands,[P1,P2]}],NewState};
+	_ ->
+	    remove_Seq_shrinker(Module,{Sequential,[P1,P2]},Type,NewState)
+    end. 
+
+%parallel_move_shrinker(Module, {Sequential,Parallel}, Type, State) ->
+%    [[H1|Rest1], [H2|Rest2]] = Parallel,
+%    {[{Sequential ++ [H1], [Rest1, [H2|Rest2]]},
+%      {Sequential ++ [H2], [[H1|Rest1], Rest2]}],State}.
 
 -spec remove_shrinker(mod_name(),command_list(),
 		      proper_types:type(),proper_shrink:state()) ->
