@@ -40,6 +40,8 @@
 			 |{'postcondition',boolean()}
 			 |{'exception',exc_kind(),exc_reason(),stacktrace()}
 			 |'no_possible_interleaving'.
+
+%%-type p_size() :: 2..
 			 
 
 
@@ -149,7 +151,7 @@ gen_commands(Module,State,Commands,Len,Count,Tries) ->
 -spec parallel_commands(mod_name()) -> proper_types:type().		       
 parallel_commands(Module) ->
     ?COMMANDS([
-	{generator, fun(Size) -> gen_parallel_commands(Module,Size) end},
+	{generator, fun(Size) -> gen_parallel_commands(Module,Size+2) end},
 	{is_instance, fun(X) -> parallel_commands_test(X) end},    
 	{get_indices, fun proper_types:list_get_indices/1},
 	{get_length, fun erlang:length/1},
@@ -175,7 +177,7 @@ parallel_commands(Module) ->
 parallel_commands(Module, StartState) ->
     ?COMMANDS([
 	{generator,fun(Size) -> 
-			   gen_parallel_commands(Module,StartState,Size) 
+			   gen_parallel_commands(Module,StartState,Size+2) 
 		   end},
 	{is_instance, fun(X) -> parallel_commands_test(X) end},    
 	{get_indices, fun proper_types:list_get_indices/1},
@@ -187,30 +189,23 @@ parallel_commands(Module, StartState) ->
 
 -spec gen_parallel_commands(mod_name(),symbolic_state(),size()) -> parallel_test_case().
 gen_parallel_commands(Mod,StartState,Size) ->
-    NewSize = if Size<2 -> Size+2;
-		 true -> Size
-	      end,
-    try gen_parallel(Mod, StartState, NewSize) of
+    try gen_parallel(Mod, StartState, Size) of
 	{Sequential,Parallel} -> {[{init,StartState}|Sequential],Parallel}
     catch
-	_Exc:Reason ->
-	    throw({'$gen_commands',{_Exc,Reason,erlang:get_stacktrace()}})
+	Exc:Reason ->
+	    throw({'$gen_commands',{Exc,Reason,erlang:get_stacktrace()}})
     end.
 
 -spec gen_parallel_commands(mod_name(), size()) -> parallel_test_case().
 gen_parallel_commands(Mod,Size) ->
-    NewSize = if Size<2 -> Size+2;
-		 true -> Size
-	      end,
-    try gen_parallel(Mod, Mod:initial_state(), NewSize) of
+    try gen_parallel(Mod, Mod:initial_state(), Size) of
 	{_Sequential,_Parallel}=Res -> Res
     catch
-	_Exc:Reason ->
-	    throw({'$gen_commands',{_Exc,Reason,erlang:get_stacktrace()}})
+	Exc:Reason ->
+	    throw({'$gen_commands',{Exc,Reason,erlang:get_stacktrace()}})
     end.
 	    
--spec gen_parallel(mod_name(),symbolic_state(),size()) -> 
-			  parallel_test_case().
+-spec gen_parallel(mod_name(),symbolic_state(),size()) -> parallel_test_case().
 gen_parallel(Mod,StartState,Size) ->
     Len1 = proper_arith:rand_int(2,Size),
     {ok, CmdList} = gen_commands(Mod, StartState,[],Len1,Len1,get('$constraint_tries')),
@@ -358,7 +353,7 @@ do_run_command(Commands, Env, Module, History, State) ->
 	    end
     end.
 
-
+      
 %% -----------------------------------------------------------------------------
 %% Parallel command execution
 %% -----------------------------------------------------------------------------

@@ -6,7 +6,7 @@
 
 
 test() ->
-    proper:quickcheck(?MODULE:prop_proc_reg_parallel(),noshrink).
+    proper:quickcheck(?MODULE:prop_proc_reg_parallel()).
 
 %% Initialize the state
 initial_state() ->
@@ -80,17 +80,17 @@ unregister_ok(S,Name) ->
 
 
 %% The main property.
-prop_proc_reg_parallel() ->
-    ?FORALL(Cmds,proper_types:parallel_commands(?MODULE),
+prop_reg_parallel() ->
+    ?FORALL(Cmds,parallel_commands(?MODULE),
 	    begin
-		{Seq,P,Res} = proper_statem:run_parallel_commands(?MODULE,Cmds),
-		cleanup(),
+		{Seq,P,Res} = run_parallel_commands(?MODULE,Cmds),
+		clean_up(),
 		?WHENFAIL(io:format("Seq:~w~nPar:~w~nRes:~w~n", [Seq,P,Res]),
 			  Res =:= ok)
 	    end).
 
 
-cleanup() ->
+clean_up() ->
     [catch_unregister(Name) || Name <- ?names].
 
 %% Exception-catching versions of the API under test
