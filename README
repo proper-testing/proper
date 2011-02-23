@@ -342,7 +342,10 @@ The available options are:
     wrappers in the actual property will overwrite this setting.
 {'start_size', <Size>}
     Specifies the initial value of the 'size' parameter (default is 1), see the
-    'Basic types' section for details.
+    'How to construct types' section for details.
+{'max_size', <Size>}
+    Specifies the maximum value of the 'size' parameter (default is 42), see the
+    'How to construct types' section for details.
 {'max_shrinks', <Non_negative_number>}
     Specifies the maximum number of times a failing test case should be shrunk
     before returning. Note that the shrinking may stop before so many shrinks
