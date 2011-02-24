@@ -130,7 +130,7 @@ gen_commands(Module,State,Commands,Len,Count,Tries) ->
     if Instance =/= stop ->
 	    case Module:precondition(State,Instance) of
 		true ->
-		    Var = {var,Len-Count},
+		    Var = {var,Len-Count+1},
 		    NextState = Module:next_state(State,Var,Instance),
 		    Command= {set,Var,Instance},
 		    gen_commands(Module,NextState,[Command|Commands],

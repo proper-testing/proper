@@ -516,34 +516,34 @@ invalid_var() ->
 
 exception_command_sequences() ->
 %% {module, command_sequence, environment, shrunk}
-    [{reg_statem,  [{set,{var,0},{call,reg_statem,spawn,[]}},
-		    {set,{var,1},{call,reg_statem,spawn,[]}},
-		    {set,{var,2},{call,erlang,register,[a,{var,0}]}},
-		    {set,{var,3},{call,erlang,register,[b,{var,1}]}},
-		    {set,{var,4},{call,erlang,register,[c,{var,0}]}}],
-      [], [{set,{var,0},{call,reg_statem,spawn,[]}},
-	   {set,{var,2},{call,erlang,register,[a,{var,0}]}},
-	   {set,{var,4},{call,erlang,register,[c,{var,0}]}}]},
-     {reg_statem,  [{set,{var,0},{call,reg_statem,spawn,[]}},
-		    {set,{var,1},{call,reg_statem,spawn,[]}},
-		    {set,{var,2},{call,erlang,whereis,[b]}},
-		    {set,{var,3},{call,erlang,whereis,[a]}},
-		    {set,{var,4},{call,reg_statem,unregister,[a]}},
-		    {set,{var,5},{call,erlang,register,[a,{var,0}]}},
+    [{reg_statem,  [{set,{var,1},{call,reg_statem,spawn,[]}},
+		    {set,{var,2},{call,reg_statem,spawn,[]}},
+		    {set,{var,3},{call,erlang,register,[a,{var,1}]}},
+		    {set,{var,4},{call,erlang,register,[b,{var,2}]}},
+		    {set,{var,5},{call,erlang,register,[c,{var,1}]}}],
+      [], [{set,{var,1},{call,reg_statem,spawn,[]}},
+	   {set,{var,3},{call,erlang,register,[a,{var,1}]}},
+	   {set,{var,5},{call,erlang,register,[c,{var,1}]}}]},
+     {reg_statem,  [{set,{var,1},{call,reg_statem,spawn,[]}},
+		    {set,{var,2},{call,reg_statem,spawn,[]}},
+		    {set,{var,3},{call,erlang,whereis,[b]}},
+		    {set,{var,4},{call,erlang,whereis,[a]}},
+		    {set,{var,5},{call,reg_statem,unregister,[a]}},
 		    {set,{var,6},{call,erlang,register,[a,{var,1}]}},
-		    {set,{var,7},{call,reg_statem,unregister,[a]}}],
-      [], [{set,{var,0},{call,reg_statem,spawn,[]}},
-	   {set,{var,1},{call,reg_statem,spawn,[]}},
-	   {set,{var,5},{call,erlang,register,[a,{var,0}]}},
-	   {set,{var,6},{call,erlang,register,[a,{var,1}]}}]}].
+		    {set,{var,7},{call,erlang,register,[a,{var,2}]}},
+		    {set,{var,8},{call,reg_statem,unregister,[a]}}],
+      [], [{set,{var,1},{call,reg_statem,spawn,[]}},
+	   {set,{var,2},{call,reg_statem,spawn,[]}},
+	   {set,{var,6},{call,erlang,register,[a,{var,1}]}},
+	   {set,{var,7},{call,erlang,register,[a,{var,2}]}}]}].
 		   
 postcondition_false_command_sequences() -> 
 %% {module, command_sequence, environment, shrunk}
-    [{switch_statem, [{set,{var,0},{call,switch_statem,release,[]}},
-		      {set,{var,1},{call,switch_statem,press,[]}},
-		      {set,{var,2},{call,switch_statem,dummy,[on]}},
-		      {set,{var,3},{call,switch_statem,release,[]}}],
-      [], [{set,{var,2},{call,switch_statem,dummy,[on]}}]}].    
+    [{switch_statem, [{set,{var,1},{call,switch_statem,release,[]}},
+		      {set,{var,2},{call,switch_statem,press,[]}},
+		      {set,{var,3},{call,switch_statem,dummy,[on]}},
+		      {set,{var,4},{call,switch_statem,release,[]}}],
+      [], [{set,{var,3},{call,switch_statem,dummy,[on]}}]}].    
 
 %%------------------------------------------------------------------------------
 %% Unit tests
