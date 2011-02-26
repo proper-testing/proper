@@ -353,7 +353,9 @@ do_run_command(Commands, Env, Module, History, State) ->
 				      {postcondition,_Other}}
 			    catch
 				Kind:Reason ->
-				    {lists:reverse(History), State, 
+				    State2 = Module:next_state(State,Res,Call),
+				    History2 = [{State,Res}|History],
+				    {lists:reverse(History2), State2, 
 				     {postcondition,
 				      {exception,Kind,Reason,erlang:get_stacktrace()}}}
 			    end;

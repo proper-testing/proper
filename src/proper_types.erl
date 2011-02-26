@@ -369,24 +369,6 @@ satisfies_all(Instance, Type) ->
 %%------------------------------------------------------------------------------
 %% Type definition functions
 %%------------------------------------------------------------------------------
-
-
--spec with_parameter(atom(),value(),proper_types:type()) -> proper_types:type().
-with_parameter(Param,Value,Type_gen) ->
-    add_prop(parameters,[{Param,Value}],Type_gen).
-
--spec with_parameters([{atom(),value()}],proper_types:type()) -> proper_types:type().
-with_parameters(PVlist,Type_gen) ->
-    add_prop(parameters,PVlist,Type_gen).  
-
--spec parameter(atom()) -> proper_types:type().
-parameter(Param) ->
-    parameter(Param, undefined).
-
--spec parameter(atom(), term()) -> proper_types:type().
-parameter(Param, Default) ->
-    Parameters = erlang:get('$parameters'),
-    proplists:get_value(Param, Parameters, Default).
     
 %% @private
 -spec lazy(proper_gen:nosize_generator()) -> proper_types:type().
@@ -913,3 +895,20 @@ non_empty(RawListType) ->
 -spec noshrink(raw_type()) -> proper_types:type().
 noshrink(RawType) ->
     add_prop(noshrink, true, cook_outer(RawType)).
+
+-spec with_parameter(atom(),value(),raw_type()) -> proper_types:type().
+with_parameter(Param,Value,Type_gen) ->
+    add_prop(parameters,[{Param,Value}],cook_outer(Type_gen)).
+
+-spec with_parameters([{atom(),value()}],raw_type()) -> proper_types:type().
+with_parameters(PVlist,Type_gen) ->
+    add_prop(parameters,PVlist,cook_outer(Type_gen)).  
+
+-spec parameter(atom()) -> value().
+parameter(Param) ->
+    parameter(Param, undefined).
+
+-spec parameter(atom(), value()) -> value().
+parameter(Param, Default) ->
+    Parameters = erlang:get('$parameters'),
+    proplists:get_value(Param, Parameters, Default).

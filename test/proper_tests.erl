@@ -545,6 +545,10 @@ postcondition_false_command_sequences() ->
 		      {set,{var,4},{call,switch_statem,release,[]}}],
       [], [{set,{var,3},{call,switch_statem,dummy,[on]}}]}].    
 
+modules_and_properties() ->
+    [{pdict_statem, prop_pdict}, {reg_parallel, prop_reg_parallel},
+     {freq_statem, prop_freq}].
+
 %%------------------------------------------------------------------------------
 %% Unit tests
 %%------------------------------------------------------------------------------
@@ -723,7 +727,8 @@ true_props_test_() ->
 		  {one, ?FORALL(_, integer(), true)},
 		  {two, ?FORALL(X, integer(), collect(X > 0, true))},
 		  {three, conjunction([{a,true},{b,true}])}
-	      ]))].
+	      ])),
+     [?_passes(apply(Module,Prop,[])) || {Module,Prop} <- modules_and_properties()]].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
