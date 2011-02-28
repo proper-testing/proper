@@ -283,6 +283,7 @@ counterexamples() ->
 clean_garbage() ->
     erase('$counterexample'),
     erase('$counterexamples'),
+    erase('$initial_state'),
     ok.
 
 

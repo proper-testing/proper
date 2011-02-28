@@ -37,7 +37,8 @@
 -type statem_result() :: 'ok'
 			 |'initialization_error'
 			 |{'precondition',boolean()}
-			 |{'postcondition',boolean()}
+			 |{'postcondition',
+			   boolean() | {'exception',exc_kind(),exc_reason(),stacktrace()}}
 			 |{'exception',exc_kind(),exc_reason(),stacktrace()}
 			 |'no_possible_interleaving'.
 
@@ -56,16 +57,16 @@
 commands(Module) ->
     ?COMMANDS([
 	{generator, fun(Size) -> gen_commands(Module,Size) end},
-	{is_instance, fun(X) -> commands_test(X) end},    
+	{is_instance, fun(X) -> commands_test(X) end},
 	{get_indices, fun proper_types:list_get_indices/1},
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
 	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, [fun(Cmds,T,S) -> 
-			     split_shrinker(Module,Cmds,T,S) end,
-		     fun(Cmds,T,S) -> 
-			     remove_shrinker(Module,Cmds,T,S) end]}
+	{shrinkers,[fun(Cmds,T,S) -> 
+			    split_shrinker(Module,Cmds,T,S) end,
+		    fun(Cmds,T,S) -> 
+			    remove_shrinker(Module,Cmds,T,S) end]}
 	      ]).
 
 -spec commands(mod_name(),symbolic_state()) -> proper_types:type().
@@ -104,7 +105,9 @@ gen_commands(Mod,StartState,Size) ->
 -spec gen_commands(mod_name(),size()) -> command_list().
 gen_commands(Mod,Size) ->
     Len = proper_arith:rand_int(0,Size),
-    try gen_commands(Mod,Mod:initial_state(),[],Len,Len,get('$constraint_tries')) of 
+    InitialState = Mod:initial_state(),
+    erlang:put('$initial_state', InitialState),
+    try gen_commands(Mod,InitialState,[],Len,Len,get('$constraint_tries')) of 
 	{ok,CmdList} ->
 	    CmdList;
 	{false_prec, State} ->
@@ -151,7 +154,9 @@ gen_commands(Module,State,Commands,Len,Count,Tries) ->
 -spec parallel_commands(mod_name()) -> proper_types:type().		       
 parallel_commands(Module) ->
     ?COMMANDS([
-	{generator, fun(Size) -> gen_parallel_commands(Module,Size+2) end},
+	{generator,fun(Size) -> 
+			   gen_parallel_commands(Module,Size+2) 
+		   end},
 	{is_instance, fun(X) -> parallel_commands_test(X) end},    
 	{get_indices, fun proper_types:list_get_indices/1},
 	{get_length, fun erlang:length/1},
@@ -296,16 +301,16 @@ run_commands(Module,Cmds) ->
 -spec run_commands(mod_name(),command_list(),proper_symb:var_values()) ->
 			  {history(),dynamic_state(),statem_result()}.
 run_commands(Module,Commands,Env) ->
-    case safe_eval_init(Env,Commands,Module) of
+    case safe_eval_init(Env,Commands) of
 	{ok,DynState} -> 
 	    do_run_command(Commands,Env,Module,[],DynState); 
 	{error,Reason} ->
 	    {[],[],Reason}
     end.					       
 
--spec safe_eval_init(proper_symb:var_values(),command_list(),mod_name()) -> 
+-spec safe_eval_init(proper_symb:var_values(),command_list()) -> 
 			    {'ok',dynamic_state()} | {'error',statem_result()}.
-safe_eval_init(Env,[{init,SymbState}|_],_Module) ->
+safe_eval_init(Env,[{init,SymbState}|_]) ->
     try proper_symb:eval(Env,SymbState) of
 	DynState -> 
 	    {ok,DynState}
@@ -313,8 +318,9 @@ safe_eval_init(Env,[{init,SymbState}|_],_Module) ->
 	_Exception:_Reason ->
 	    {error, initialization_error}
     end; 
-safe_eval_init(Env,_Cmds,Module) ->
-    try proper_symb:eval(Env,Module:initial_state()) of
+safe_eval_init(Env,_Cmds) ->
+    InitialState = erlang:get('$initial_state'),
+    try proper_symb:eval(Env, InitialState) of
 	DynState -> 
 	    {ok,DynState}
     catch
@@ -388,7 +394,7 @@ run_parallel_commands(Module,{_Sequential,_Parallel}=Cmds) ->
 -spec run_parallel_commands(mod_name(),parallel_test_case(),proper_symb:var_values()) ->
 				   {history(),[command_history()],statem_result()}.
 run_parallel_commands(Module,{Sequential,Parallel},Env) ->
-     case safe_eval_init(Env,Sequential,Module) of
+     case safe_eval_init(Env,Sequential) of
 	{ok,DynState} -> 
 	     case safe_run_sequential(Sequential,Env,Module,[],DynState) of 
 		 {ok,{{Seq_history,State,ok},Env1}} -> 

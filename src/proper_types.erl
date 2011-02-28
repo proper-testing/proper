@@ -898,11 +898,11 @@ noshrink(RawType) ->
 
 -spec with_parameter(atom(),value(),raw_type()) -> proper_types:type().
 with_parameter(Param,Value,Type_gen) ->
-    add_prop(parameters,[{Param,Value}],cook_outer(Type_gen)).
+    add_prop(parameters,[{Param,Value}],cook_outer((Type_gen))).
 
 -spec with_parameters([{atom(),value()}],raw_type()) -> proper_types:type().
 with_parameters(PVlist,Type_gen) ->
-    add_prop(parameters,PVlist,cook_outer(Type_gen)).  
+    add_prop(parameters,PVlist,cook_outer((Type_gen))).  
 
 -spec parameter(atom()) -> value().
 parameter(Param) ->
@@ -910,5 +910,9 @@ parameter(Param) ->
 
 -spec parameter(atom(), value()) -> value().
 parameter(Param, Default) ->
-    Parameters = erlang:get('$parameters'),
+    Parameters = 
+	case erlang:get('$parameters') of
+	    undefined -> [];
+	    List -> List
+	end,
     proplists:get_value(Param, Parameters, Default).

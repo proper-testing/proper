@@ -218,6 +218,7 @@ assert_can_generate(Type, CheckIsInstance) ->
 
 try_generate(Type, Size, CheckIsInstance) ->
     {ok,Instance} = proper_gen:pick(Type, Size),
+    proper:clean_garbage(),
     ?assert(state_is_clean()),
     case CheckIsInstance of
 	true  -> assert_is_instance(Instance, Type);
@@ -229,10 +230,12 @@ assert_native_can_generate(Mod, TypeStr, CheckIsInstance) ->
 
 assert_cant_generate(Type) ->
     ?assertEqual(error, proper_gen:pick(Type)),
+    proper:clean_garbage(),
     ?assert(state_is_clean()).
 
 assert_cant_generate_nonempty(Type, N) ->
     ?assertEqual(error, proper_gen:pick(?SUCHTHAT(T, Type, length(T) > N))),
+    proper:clean_garbage(),   
     ?assert(state_is_clean()).
 
 assert_not_is_instance(X, Type) ->
@@ -473,46 +476,46 @@ undefined_symb_calls() ->
 
 valid_command_sequences() ->
 %% {module, command_sequence, symbolic_state_after, dynamic_state_after, environment}
-    [{pdict_statem, [{set,{var,0},{call,erlang,put,[a,0]}},
-		     {set,{var,1},{call,erlang,put,[b,1]}},
-		     {set,{var,2},{call,erlang,erase,[a]}},
-		     {set,{var,3},{call,erlang,get,[b]}},
-		     {set,{var,4},{call,erlang,erase,[b]}},
-		     {set,{var,5},{call,erlang,put,[a,{var,3}]}},
-		     {set,{var,6},{call,erlang,put,[a,42]}}],
+    [{pdict_statem, [{set,{var,1},{call,erlang,put,[a,0]}},
+		     {set,{var,2},{call,erlang,put,[b,1]}},
+		     {set,{var,3},{call,erlang,erase,[a]}},
+		     {set,{var,4},{call,erlang,get,[b]}},
+		     {set,{var,5},{call,erlang,erase,[b]}},
+		     {set,{var,6},{call,erlang,put,[a,{var,4}]}},
+		     {set,{var,7},{call,erlang,put,[a,42]}}],
      [{a,42}], [{a,42}], []},
      {pdict_statem, [{init,[{a,42}]},
-		     {set,{var,0},{call,erlang,put,[b,42]}},
-		     {set,{var,1},{call,erlang,erase,[b]}}],
+		     {set,{var,1},{call,erlang,put,[b,42]}},
+		     {set,{var,2},{call,erlang,erase,[b]}}],
       [{a,42}], [{a,42}], []},
-     {pdict_statem, [{set,{var,0},{call,erlang,put,[a,{var,start_value}]}},
-		     {set,{var,1},{call,erlang,put,[b,{var,another_start_value}]}},
-		     {set,{var,2},{call,erlang,get,[b]}},
-		     {set,{var,3},{call,erlang,get,[b]}}],
+     {pdict_statem, [{set,{var,1},{call,erlang,put,[a,{var,start_value}]}},
+		     {set,{var,2},{call,erlang,put,[b,{var,another_start_value}]}},
+		     {set,{var,3},{call,erlang,get,[b]}},
+		     {set,{var,4},{call,erlang,get,[b]}}],
       [{b,{var, another_start_value}}, {a, {var, start_value}}], [{b,-1}, {a, 0}],
       [{start_value, 0}, {another_start_value, -1}]}].
 
 symbolic_init_invalid_sequences() ->
 %% {module, command_sequence, environment, shrunk}
     [{pdict_statem, [{init,[{a,{call,foo,bar,[some_arg]}}]},
-		     {set,{var,0},{call,erlang,put,[b,42]}},
-		     {set,{var,1},{call,erlang,get,[b]}}],
+		     {set,{var,1},{call,erlang,put,[b,42]}},
+		     {set,{var,2},{call,erlang,get,[b]}}],
       [{some_arg, 0}],  
       [{init,[{a,{call,foo,bar,[some_arg]}}]}]}].
 
 invalid_precondition() -> 
 %% {module, command_sequence, environment, shrunk}
-     [{pdict_statem, [{set,{var,0},{call,erlang,put,[a,0]}},
-		      {set,{var,1},{call,erlang,put,[b,1]}},
-		      {set,{var,2},{call,erlang,erase,[a]}},
-		      {set,{var,3},{call,erlang,get,[a]}}],
-       [], [{set,{var,3},{call,erlang,get,[a]}}]}].
+     [{pdict_statem, [{set,{var,1},{call,erlang,put,[a,0]}},
+		      {set,{var,2},{call,erlang,put,[b,1]}},
+		      {set,{var,3},{call,erlang,erase,[a]}},
+		      {set,{var,4},{call,erlang,get,[a]}}],
+       [], [{set,{var,4},{call,erlang,get,[a]}}]}].
 
 invalid_var() ->
-      [{pdict_statem, [{set,{var,1},{call,erlang,put,[b,{var,0}]}}]},
-       {pdict_statem, [{set,{var,0},{call,erlang,put,[b,9]}},
+      [{pdict_statem, [{set,{var,2},{call,erlang,put,[b,{var,1}]}}]},
+       {pdict_statem, [{set,{var,1},{call,erlang,put,[b,9]}},
 		       {set,{var,5},{call,erlang,put,[a,3]}},
-		       {set,{var,6},{call,erlang,get,[{var,1}]}}]}].
+		       {set,{var,6},{call,erlang,get,[{var,2}]}}]}].
 
 exception_command_sequences() ->
 %% {module, command_sequence, environment, shrunk}
@@ -546,7 +549,7 @@ postcondition_false_command_sequences() ->
       [], [{set,{var,3},{call,switch_statem,dummy,[on]}}]}].    
 
 modules_and_properties() ->
-    [{pdict_statem, prop_pdict}, {reg_parallel, prop_reg_parallel},
+    [{pdict_statem, prop_pdict},
      {freq_statem, prop_freq}].
 
 %%------------------------------------------------------------------------------
@@ -885,14 +888,14 @@ can_generate_commands1_test_() ->
     [?_test(assert_can_generate(proper_statem:commands(Module,StartState),true)) 
      || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
 
-can_generate_parallel_commands0_test_() ->
-    [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
-     || Module <- [reg_parallel]].
+%can_generate_parallel_commands0_test_() ->
+%    [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
+%     || Module <- [reg_parallel]].
 
-can_generate_parallel_commands1_test_() ->
-    [?_test(assert_can_generate(
-	      proper_statem:parallel_commands(Module,Module:initial_state()),true)) 
-     || Module <- [reg_parallel]].
+%can_generate_parallel_commands1_test_() ->
+%    [?_test(assert_can_generate(
+%	      proper_statem:parallel_commands(Module,Module:initial_state()),true)) 
+%     || Module <- [reg_parallel]].
 
 run_valid_commands_test_() ->
     [?_assertMatch({_H,DynState,ok}, setup_run_commands(Module,Cmds,Env))
@@ -920,8 +923,10 @@ run_init_error_test_() ->
 
 setup_run_commands(Module, Cmds, Env) ->
     Module:set_up(),
+    put('$initial_state',Module:initial_state()),
     Res = proper_statem:run_commands(Module,Cmds,Env),
     Module:clean_up(),
+    erase('$initial_state'),
     Res.
      
 no_duplicates(L) ->
