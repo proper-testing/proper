@@ -222,7 +222,9 @@ gen_parallel_commands(Mod,StartState,Size) ->
 
 -spec gen_parallel_commands(mod_name(), size()) -> parallel_test_case().
 gen_parallel_commands(Mod,Size) ->
-    try gen_parallel(Mod, Mod:initial_state(), Size) of
+    InitialState = Mod:initial_state(),
+    erlang:put('$initial_state', InitialState),
+    try gen_parallel(Mod, InitialState, Size) of
 	{_Sequential,_Parallel}=Res -> Res
     catch
 	Exc:Reason ->
@@ -247,7 +249,7 @@ gen_parallel(Mod,StartState,Size) ->
     Env = if LenSeq == 0 -> 
 		  [];
 	     true ->
-		  lists:map(fun(N) -> {var,N} end, lists:seq(0,LenSeq-1))
+		  lists:map(fun(N) -> {var,N} end, lists:seq(1,LenSeq))
 	  end,
     {Seq,fix_gen(LenPar div 2,P,Mod,State,Env)}.
 

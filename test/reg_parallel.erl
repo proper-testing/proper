@@ -6,7 +6,10 @@
 
 
 test() ->
-    proper:quickcheck(?MODULE:prop_reg_parallel()).
+    test(100).
+
+test(NumTests) ->
+    proper:quickcheck(?MODULE:prop_reg_parallel(),NumTests).
 
 %% Initialize the state
 initial_state() ->
