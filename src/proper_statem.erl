@@ -411,15 +411,22 @@ run_parallel_commands(Module,{Sequential,Parallel},Env) ->
 			 end,
 		     Children = lists:map(Parallel_test, Parallel),
 		     Parallel_history = receive_loop(Children,[],2),
+
 		     if is_list(Parallel_history)==true ->
 			     {P1,P2} = list_to_tuple(Parallel_history),
-			     case check(Module,State,Env1,P1,P2,[]) of
-				 true ->  
-				     {Seq_history,Parallel_history,ok};
-				 false ->
-				     {Seq_history,Parallel_history,
-				      no_possible_interleaving}
-			     end;
+			     ok = init_ets_table(check_tab),
+			     R = case check_mem(Module,State,Env1,P1,P2,[]) of
+				     true ->  
+					 {Seq_history,Parallel_history,ok};
+				     false ->
+					 {Seq_history,Parallel_history,
+					  no_possible_interleaving}
+				 end,
+
+			     %% TODO: delete the table here or after shrinking?
+			     true = ets:delete(check_tab),
+			     R;
+
 		        %% if Parallel_history is not a list, then an exception was raised
 			true ->
 			     io:format("Error during parallel execution~n"),
@@ -461,12 +468,23 @@ receive_loop(Pid_list,ResultsReceived,N) when N>0 ->
 	    end	    
     end.		             
 
-%%TODO: more efficient checking
+-spec check_mem(mod_name(),dynamic_state(),proper_symb:var_values(),
+		command_history(),command_history(),command_history()) -> boolean().
+check_mem(Mod,State,Env,P1,P2,Accum) ->
+    case ets:lookup(check_tab,{State,P1,P2}) of
+	[{{State,P1,P2},V}] when is_boolean(V) ->
+	    V;
+	[] ->
+	    V = check(Mod,State,Env,P1,P2,Accum),
+	    memoize(check_tab,{State,P1,P2},V),
+	    V
+    end.
+
 -spec check(mod_name(),dynamic_state(),proper_symb:var_values(),
 	    command_history(),command_history(),command_history()) -> boolean().
 check(_Mod,_State,_Env,[],[],_Accum) -> true;
 
-check(Mod,State,Env,[],[Head|Rest],Accum) ->
+check(Mod,State,Env,[],[Head|Rest]=P2,Accum) ->
     {{set,{var,N},{call,M,F,A}},Res} = Head, 
     M2 = proper_symb:eval(Env,M), 
     F2 = proper_symb:eval(Env,F), 
@@ -476,12 +494,15 @@ check(Mod,State,Env,[],[Head|Rest],Accum) ->
 	true ->
 	    Env2 = [{N,Res}|Env],
 	    NextState = Mod:next_state(State,Res,Call),
-	    check(Mod,NextState,Env2,[],Rest,[Head|Accum]);
+	    V = check_mem(Mod,NextState,Env2,[],Rest,[Head|Accum]),
+	    memoize(check_tab,{NextState,[],Rest},V),
+	    V;
 	false -> 
+	    memoize(check_tab,{State,[],P2},false),
 	    false
     end;
 
-check(Mod,State,Env,[Head|Rest],[],Accum) ->
+check(Mod,State,Env,[Head|Rest]=P1,[],Accum) ->
     {{set,{var,N},{call,M,F,A}},Res} = Head, 
     M2 = proper_symb:eval(Env,M), 
     F2 = proper_symb:eval(Env,F), 
@@ -491,12 +512,15 @@ check(Mod,State,Env,[Head|Rest],[],Accum) ->
 	true ->
 	    Env2 = [{N,Res}|Env],
 	    NextState = Mod:next_state(State,Res,Call),
-	    check(Mod,NextState,Env2,Rest,[],[Head|Accum]);
+	    V = check_mem(Mod,NextState,Env2,Rest,[],[Head|Accum]),
+	    memoize(check_tab,{NextState,Rest,[]},V),
+	    V;
 	false ->
+	    memoize(check_tab,{State,P1,[]},false),
 	    false
     end;
 
-check(Mod,State,Env,[H1|Rest1],[H2|Rest2],Accum) ->
+check(Mod,State,Env,[H1|Rest1]=P1,[H2|Rest2]=P2,Accum) ->
     {{set,{var,N1},{call,M1,F1,A1}},Res1} = H1,
     {{set,{var,N2},{call,M2,F2,A2}},Res2} = H2,
     M1_ = proper_symb:eval(Env,M1), 
@@ -511,22 +535,32 @@ check(Mod,State,Env,[H1|Rest1],[H2|Rest2],Accum) ->
 	{true,false} -> 
 	    Env2 = [{N1,Res1}|Env],
 	    NextState = Mod:next_state(State,Res1,Call1),
-	    check(Mod,NextState,Env2,Rest1,[H2|Rest2],[H1|Accum]);
+	    V = check_mem(Mod,NextState,Env2,Rest1,P2,[H1|Accum]),
+	    memoize(check_tab,{NextState,Rest1,P2},V),
+	    V;
 	{false,true} -> 
 	    Env2 = [{N2,Res2}|Env],
 	    NextState = Mod:next_state(State,Res2,Call2),
-	    check(Mod,NextState,Env2,[H1|Rest1],Rest2,[H1|Accum]);
+	    V = check_mem(Mod,NextState,Env2,P1,Rest2,[H1|Accum]),
+	    memoize(check_tab,{NextState,P1,Rest2},V),
+	    V;
 	{true,true} -> 
 	    NextState1 = Mod:next_state(State,Res1,Call1),
 	    NextState2 = Mod:next_state(State,Res2,Call2),
 	    Env1 = [{N1,Res1}|Env],
 	    Env2 = [{N2,Res2}|Env],
-	    case check(Mod,NextState1,Env1,Rest1,[H2|Rest2],[H1|Accum]) of
-		true -> true;
+	    case check_mem(Mod,NextState1,Env1,Rest1,P2,[H1|Accum]) of
+		true -> 
+		    memoize(check_tab,{NextState1,Rest1,P2},true),
+		    true;
 		false ->
-		    check(Mod,NextState2,Env2,[H1|Rest1],Rest2,[H2|Accum])
+		    memoize(check_tab,{NextState1,Rest1,P2},false),
+		    V = check_mem(Mod,NextState2,Env2,[H1|Rest1],Rest2,[H2|Accum]),
+		    memoize(check_tab,{NextState2,P1,Rest2},V),
+		    V
 	    end;
 	{false,false} -> 
+	    memoize(check_tab,{State,P1,P2},false),
 	    false
     end.
 		
@@ -874,3 +908,17 @@ all_selections(Take, [Head|Tail], Len) ->
 update_list(I,X,List) ->	     
     array:to_list(array:set(I-1, X, array:from_list(List))).
     
+-spec memoize(atom(), term(), term()) -> 'ok'.		     
+memoize(Tab, Key, Value) ->
+    ets:insert(Tab, {Key,Value}),
+    ok.
+
+-spec init_ets_table(atom()) -> 'ok'.
+init_ets_table(Tab) ->
+    case ets:info(Tab) of
+	undefined->
+	    ets:new(Tab, [named_table]),
+	    ok;
+	_ -> 
+	    ok
+    end.
