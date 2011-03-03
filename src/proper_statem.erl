@@ -410,9 +410,8 @@ run_parallel_commands(Module,{Sequential,Parallel},Env) ->
 				   end)
 			 end,
 		     Children = lists:map(Parallel_test, Parallel),
-		     Parallel_history = receive_loop(Children,[],2),
-
-		     if is_list(Parallel_history)==true ->
+		     Parallel_history = receive_loop(Children, [], 2),
+		     if is_list(Parallel_history) ->
 			     {P1,P2} = list_to_tuple(Parallel_history),
 			     ok = init_ets_table(check_tab),
 			     R = case check_mem(Module,State,Env1,P1,P2,[]) of
@@ -427,18 +426,19 @@ run_parallel_commands(Module,{Sequential,Parallel},Env) ->
 			     true = ets:delete(check_tab),
 			     R;
 
-		        %% if Parallel_history is not a list, then an exception was raised
+		        %% if Parallel_history is not a list, then an
+		        %% exception was raised
 			true ->
 			     io:format("Error during parallel execution~n"),
 			     exit(error)
 			     %%{Seq_history,[],Parallel_history}
 		     end;
-			    
-		 {error,_Reason} ->  
+
+		 {error,_Reason} ->
 		     io:format("Error during sequential execution~n"),
 		     exit(error)
 		     %%{[],[],Reason}
-	     end;	    
+	     end;
 	 {error,Reason} ->
 	     {[],[],Reason}
      end.
@@ -786,13 +786,13 @@ validate(Module,State,[{set,Var,{call,_M,_F,A}=Call}|Commands],Env) ->
 	_ -> false
     end.
 
--spec args_defined([term()],[proper_symb:symb_var()]) -> boolean().			  
+-spec args_defined([term()], [proper_symb:symb_var()]) -> boolean().
 args_defined(A,Env) ->
     lists:all(fun ({var,I}) when is_integer(I) -> lists:member({var,I},Env);
 		  (_V) -> true 
 	      end, A).      
 
--spec state_after(mod_name(),command_list()) -> symbolic_state().		   
+-spec state_after(mod_name(), command_list()) -> symbolic_state().
 state_after(Module,Commands) ->
     NextState = fun(S,V,C) -> Module:next_state(S,V,C) end,
     lists:foldl(fun({init,S}, _) ->
@@ -832,7 +832,8 @@ parallel_commands_test({S,P}) ->
 	lists:foldl(fun(X,Y) -> X andalso Y end,
 		    true,
 		    lists:map(fun(Elem) -> 
-				      lists:all(fun is_command/1,Elem)end,P));
+				      lists:all(fun is_command/1,Elem)
+			      end, P));
 parallel_commands_test(_) -> false.
 
 -spec is_command(proper_gen:imm_instance()) -> boolean().			
@@ -844,8 +845,9 @@ is_command({init,_S}) ->
 is_command(_Other) ->
     false.
 
-%% Returns all possible insertions of the elements of the first list, preserving their
-%% order, inside the second list, i.e. all possible command interleavings
+%% Returns all possible insertions of the elements of the first list,
+%% preserving their order, inside the second list, i.e. all possible
+%% command interleavings
 
 -spec insert_all([term()],[term()]) -> [[term()]].
 insert_all([], List) ->
@@ -895,7 +897,7 @@ all_selections(N, List) when N >= 1 ->
 	    all_selections(N, List, Len)
     end.
 
--spec all_selections(pos_integer(),[term()],pos_integer()) -> [[term()]].	     
+-spec all_selections(pos_integer(), [term()], pos_integer()) -> [[term()]].
 all_selections(1, List, _Len) ->
     [[X] || X <- List];
 all_selections(_Len, List, _Len) ->
@@ -904,8 +906,8 @@ all_selections(Take, [Head|Tail], Len) ->
     [[Head|Rest] || Rest <- all_selections(Take - 1, Tail, Len - 1)]
     ++ all_selections(Take, Tail, Len - 1).     
 
--spec update_list(pos_integer(),term(),[term()]) -> [term()].			 
-update_list(I,X,List) ->	     
+-spec update_list(pos_integer(), term(), [term()]) -> [term()].
+update_list(I, X, List) ->
     array:to_list(array:set(I-1, X, array:from_list(List))).
     
 -spec memoize(atom(), term(), term()) -> 'ok'.		     
@@ -916,8 +918,8 @@ memoize(Tab, Key, Value) ->
 -spec init_ets_table(atom()) -> 'ok'.
 init_ets_table(Tab) ->
     case ets:info(Tab) of
-	undefined->
-	    ets:new(Tab, [named_table]),
+	undefined ->
+	    Tab = ets:new(Tab, [named_table]),
 	    ok;
 	_ -> 
 	    ok
