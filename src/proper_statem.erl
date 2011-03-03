@@ -218,33 +218,31 @@ gen_parallel_commands(Mod,Size) ->
 	    
 -spec gen_parallel(mod_name(), symbolic_state(), size()) -> parallel_test_case().
 gen_parallel(Mod, StartState, Size) ->
-    Len1 = proper_arith:rand_int(2,Size),
+    Len1 = proper_arith:rand_int(2, Size),
     {ok, CmdList} = gen_commands(Mod, StartState, [], Len1, Len1, get('$constraint_tries')),
     Len = length(CmdList),
-    {Seq,P} = if Len =:= 2 ->
-		      {[],CmdList};
-		 Len =< 32 ->
-		      lists:split(Len div 2, CmdList);
-		 Len > 32 ->
-		      lists:split(Len-16, CmdList)
-	      end,
-    State = state_after(Mod,Seq),
+    {Seq, P} = if Len =:= 2 -> {[], CmdList};
+		  Len =< 32 -> lists:split(Len div 2, CmdList);
+		  Len > 32 ->  lists:split(Len - 16, CmdList)
+	       end,
+    State = state_after(Mod, Seq),
     LenSeq = length(Seq),
     LenPar = Len - LenSeq,
-    Env = if LenSeq =:= 0 -> 
+    Env = if LenSeq =:= 0 ->
 		  [];
 	     true ->
 		  lists:map(fun(N) -> {var,N} end, lists:seq(1, LenSeq))
 	  end,
     {Seq, fix_gen(LenPar div 2, P, Mod, State, Env)}.
 
-%%TODO: more efficient parallelization   
+%% TODO: more efficient parallelization
+%% XXX: Inconsistent pos_integer() declaration and the N >= 0 test?
 -spec fix_gen(pos_integer(),command_list(),mod_name(),symbolic_state(),
 	      proper_symb:var_values()) -> [command_list()].		     
 fix_gen(N, Initial, Mod, State, Env) when N >= 0 ->
-    Selections = all_selections(N,Initial),
-    case (safe_parallelize(Selections,Initial,Mod,State,Env)) of
-	{ok,Result} ->
+    Selections = all_selections(N, Initial),
+    case safe_parallelize(Selections, Initial, Mod, State, Env) of
+	{ok, Result} ->
 	    tuple_to_list(Result);
 	error ->
 	    fix_gen(N-1, Initial, Mod, State, Env)
@@ -259,7 +257,7 @@ safe_parallelize([C1|Selections], Initial, Mod, State, Env) ->
     C2 = Initial -- C1,
     case parallelize(Mod, State, {C1,C2}, Env) of
 	{ok,_R} = Result -> Result;   
-	error -> safe_parallelize(Selections,Initial,Mod,State,Env)
+	error -> safe_parallelize(Selections, Initial, Mod, State, Env)
     end.	   
 
 -spec parallelize(mod_name(), symbolic_state(),
@@ -649,16 +647,16 @@ remove_shrinker(Module,[{init,StartState}|Commands]=Cmds,Type,State) ->
 	   end
    end;
 
-remove_shrinker(Module,Commands,Type,State) ->
+remove_shrinker(Module, Commands, Type, State) ->
    {CommandList,NewState} = proper_shrink:remove_shrinker(Commands,Type,State),
    case CommandList of
        [] -> {[],NewState};
        [NewCommands] ->
 	   StartState = Module:initial_state(),
-	   case validate(Module,StartState,NewCommands,[]) of
+	   case validate(Module, StartState, NewCommands, []) of
 	       true -> {[NewCommands],NewState};
-	        _ ->
-		   remove_shrinker(Module,Commands,Type,NewState)
+	       _ ->
+		   remove_shrinker(Module, Commands, Type, NewState)
 	   end
    end.
 
@@ -670,9 +668,8 @@ split_parallel_shrinker(I, Module, {Sequential,Parallel}, Type, State) ->
     SeqEnv = lists:zip(lists:duplicate(Len, var), lists:seq(0, Len-1)),
     SymbState = state_after(Module, Sequential),
     {Slices,NewState} = proper_shrink:split_shrinker(lists:nth(I,Parallel),Type,State), 
-    IsValid = fun(CommandSeq) -> validate(Module,SymbState,CommandSeq,SeqEnv) end,
-    {lists:map(fun(Slice) -> {Sequential,update_list(I,Slice,Parallel)} end, 
-	       lists:filter(IsValid,Slices)),
+    {[{Sequential, update_list(I, S, Parallel)}
+      || S <- Slices, validate(Module, SymbState, S, SeqEnv)],
      NewState}.
 
 -spec remove_parallel_shrinker(pos_integer(), mod_name(), parallel_test_case(),
@@ -687,7 +684,7 @@ remove_parallel_shrinker(I, Module, {Sequential,Parallel} = SP, Type, State) ->
     case CommandList of
        [] -> {[{Sequential, update_list(I,[],Parallel)}],NewState};
        [NewCommands] ->
-	   case validate(Module,SymbState,NewCommands,SeqEnv) of
+	   case validate(Module, SymbState, NewCommands, SeqEnv) of
 	       true ->
 		   {[{Sequential, update_list(I,NewCommands,Parallel)}],NewState};
 	        _ ->
@@ -726,8 +723,8 @@ remove_seq_shrinker(Module, {Sequential,[P1,P2]=Parallel}, Type, State) ->
 		    [{init,S}|_] -> S;
 		    _CmdList -> Module:initial_state()
 		end,
-    case {validate(Module,SymbState,NewCommands ++ P1,[]),
-	  validate(Module,SymbState,NewCommands ++ P2,[])} of
+    case {validate(Module, SymbState, NewCommands ++ P1, []),
+	  validate(Module, SymbState, NewCommands ++ P2, [])} of
 	{true,true} -> 
 	    {[{NewCommands,Parallel}],NewState};
 	_ ->
@@ -749,10 +746,10 @@ move_shrinker({_, [_,[]]}=TestCase, _Type, _State) ->
 %% -----------------------------------------------------------------------------
 
 -spec validate(mod_name(), symbolic_state(), command_list(), [symb_var()]) -> boolean().
-validate(_Mod,_State,[],_Env) -> true;
-validate(Module,_State,[{init,S}|Commands],_Env) ->
-    validate(Module,S,Commands,_Env);
-validate(Module,State,[{set,Var,{call,_M,_F,A}=Call}|Commands],Env) ->
+validate(_Mod, _State, [], _Env) -> true;
+validate(Module, _State, [{init,S}|Commands], _Env) ->
+    validate(Module, S, Commands, _Env);
+validate(Module, State, [{set,Var,{call,_M,_F,A}=Call}|Commands], Env) ->
     case Module:precondition(State, Call) of
 	true ->
 	    case args_defined(A, Env) of
@@ -806,12 +803,9 @@ commands_test(_X) -> false.
 
 -spec parallel_commands_test(proper_gen:imm_instance()) -> boolean().
 parallel_commands_test({S,P}) ->
-    lists:all(fun is_command/1,S) andalso 
-	lists:foldl(fun(X,Y) -> X andalso Y end,
-		    true,
-		    lists:map(fun(Elem) -> 
-				      lists:all(fun is_command/1,Elem)
-			      end, P));
+    lists:all(fun is_command/1, S) andalso
+	lists:foldl(fun(X, Y) -> X andalso Y end, true,
+		    [lists:all(fun is_command/1, E) || E <- P]);
 parallel_commands_test(_) -> false.
 
 -spec is_command(proper_gen:imm_instance()) -> boolean().			
@@ -831,7 +825,7 @@ is_command(_Other) ->
 insert_all([], List) ->
     [List];
 insert_all([X], List) ->
-    all_insertions(X,length(List)+1,List);
+    all_insertions(X, length(List) + 1, List);
 
 insert_all([X|[Y|Rest]], List) ->
     [L2 || L1 <- insert_all([Y|Rest], List), 
@@ -841,8 +835,8 @@ insert_all([X|[Y|Rest]], List) ->
 all_insertions(X, Limit, List) ->
     all_insertions_tr(X, Limit, 0, [], List, []).
 
--spec all_insertions_tr(term(),pos_integer(),non_neg_integer(),[term()],[term()],
-			[[term()]]) -> [[term()]].
+-spec all_insertions_tr(term(), pos_integer(), non_neg_integer(),
+			[term()], [term()], [[term()]]) -> [[term()]].
 all_insertions_tr(X, Limit, LengthFront, Front, [], Acc) ->
     case LengthFront < Limit of
 	true ->
