@@ -10,7 +10,7 @@
 -export([validate/4]).
 
 -include("proper_internal.hrl").
-
+-define(WORKERS, 2).
 
 %% -----------------------------------------------------------------------------
 %% Type declarations
@@ -182,12 +182,12 @@ parallel_commands(Module, StartState) ->
 			   fun(Parallel_Cmds,T,S) -> 
 				   split_parallel_shrinker(I,Module,Parallel_Cmds,T,S) 
 			   end
-		   end, lists:seq(1,2)) ++
+		   end, lists:seq(1,?WORKERS)) ++
 	     lists:map(fun(I) ->
 			       fun(Parallel_Cmds,T,S) -> 
 				       remove_parallel_shrinker(I,Module,Parallel_Cmds,T,S) 
 			       end
-		       end, lists:seq(1,2)) ++
+		       end, lists:seq(1,?WORKERS)) ++
 	     [fun(Parallel_Cmds,T,S) -> 
 		      split_seq_shrinker(Module,Parallel_Cmds,T,S) end,
 	      fun(Parallel_Cmds,T,S) -> 
@@ -626,16 +626,15 @@ execute(Commands, Env, Module, History) ->
 			    {[command_list()],proper_shrink:state()}. 
 split_shrinker(Module,[{init,StartState}|Commands], Type,State) ->
     {Slices,NewState} = proper_shrink:split_shrinker(Commands,Type,State),
-    IsValid = fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
-    {lists:map(fun(L) -> [{init,StartState}|L] end,lists:filter(IsValid,Slices)),
+    {[[{init, StartState} | X] || X <- Slices, validate(Module, StartState, X, [])],
      NewState};
 
 split_shrinker(Module, Commands, Type,State) ->
     {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
     StartState = Module:initial_state(),
-    IsValid = fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
-    {lists:filter(IsValid,Slices),NewState}.
-
+    {[X || X <- Slices, validate(Module, StartState, X, [])],
+    NewState}.
+   
 -spec remove_shrinker(mod_name(),command_list(),
 		      proper_types:type(),proper_shrink:state()) ->
 			     {[command_list()],proper_shrink:state()}. 
