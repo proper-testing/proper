@@ -3,8 +3,8 @@
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
 	 more_commands/2]).
 -export([gen_commands/2, gen_commands/3, run_commands/2, run_commands/3,
-	 gen_parallel_commands/2, gen_parallel_commands/3, run_parallel_commands/2,
-	 run_parallel_commands/3]).
+	 gen_parallel_commands/2, gen_parallel_commands/3,
+	 run_parallel_commands/2, run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2, 
 	 commands_test/1, parallel_commands_test/1]).
 
@@ -24,7 +24,7 @@
 -type dynamic_state() :: term().
 
 -type command() :: {'init',symbolic_state()}
-		   |{'set',proper_symb:symb_var(),{'call',mod_name(),fun_name(),[term()]}}.
+		 | {'set',proper_symb:symb_var(),{'call',mod_name(),fun_name(),[term()]}}.
 -type command_list() :: [command()].
 -type parallel_test_case() :: {command_list(),[command_list()]}.
 -type command_history() :: [{command(),term()}].
@@ -35,62 +35,54 @@
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
 -type statem_result() :: 'ok'
-			 |'initialization_error'
-			 |{'precondition',boolean()}
-			 |{'postcondition',
+		       | 'initialization_error'
+		       | {'precondition',boolean()}
+		       | {'postcondition',
 			   boolean() | {'exception',exc_kind(),exc_reason(),stacktrace()}}
-			 |{'exception',exc_kind(),exc_reason(),stacktrace()}
-			 |'no_possible_interleaving'.
+		       | {'exception',exc_kind(),exc_reason(),stacktrace()}
+		       | 'no_possible_interleaving'.
 
 %%-type p_size() :: 2..
-			 
 
 
 %% -----------------------------------------------------------------------------
 %% Sequential command generation
 %% -----------------------------------------------------------------------------
 
-
--define(COMMANDS(PropList), proper_types:new_type(PropList,commands)).
+-define(COMMANDS(PropList), proper_types:new_type(PropList, commands)).
 
 -spec commands(mod_name()) -> proper_types:type().		       
 commands(Module) ->
-    ?COMMANDS([
-	{generator, fun(Size) -> gen_commands(Module,Size) end},
+    ?COMMANDS(
+       [{generator, fun(Size) -> gen_commands(Module,Size) end},
 	{is_instance, fun(X) -> commands_test(X) end},
 	{get_indices, fun proper_types:list_get_indices/1},
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
 	{remove, fun proper_arith:list_remove/2},
-	{shrinkers,[fun(Cmds,T,S) -> 
-			    split_shrinker(Module,Cmds,T,S) end,
-		    fun(Cmds,T,S) -> 
-			    remove_shrinker(Module,Cmds,T,S) end]}
-	      ]).
+	{shrinkers, [fun(Cmds,T,S) -> split_shrinker(Module,Cmds,T,S) end,
+		     fun(Cmds,T,S) -> remove_shrinker(Module,Cmds,T,S) end]}]).
 
 -spec commands(mod_name(),symbolic_state()) -> proper_types:type().
-commands(Module,StartState) ->
-    ?COMMANDS([
-	{generator, fun(Size) -> gen_commands(Module,StartState,Size) end},
+commands(Module, StartState) ->
+    ?COMMANDS(
+       [{generator, fun(Size) -> gen_commands(Module,StartState,Size) end},
 	{is_instance, fun(X) -> commands_test(X) end},
 	{get_indices, fun proper_types:list_get_indices/1},
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
 	{remove, fun proper_arith:list_remove/2},
-	{shrinkers,[fun(Cmds,T,S) -> 
-			    split_shrinker(Module,Cmds,T,S) end,
-		    fun(Cmds,T,S) -> 
-			    remove_shrinker(Module,Cmds,T,S) end]}
-	      ]).
+	{shrinkers, [fun(Cmds,T,S) -> split_shrinker(Module,Cmds,T,S) end,
+		     fun(Cmds,T,S) -> remove_shrinker(Module,Cmds,T,S) end]}]).
 
--spec more_commands(integer(),proper_types:type()) ->  proper_types:type().
-more_commands(N,Gen) ->			    
+-spec more_commands(integer(), proper_types:type()) -> proper_types:type().
+more_commands(N, Gen) ->
     ?SIZED(Size, proper_types:resize(Size * N, Gen)).
 
 -spec gen_commands(mod_name(),symbolic_state(),size()) -> command_list().
-gen_commands(Mod,StartState,Size) ->
+gen_commands(Mod, StartState, Size) ->
     Len = proper_arith:rand_int(0,Size),
     try gen_commands(Mod, StartState,[],Len,Len,get('$constraint_tries')) of
 	{ok, CmdList} ->
@@ -117,16 +109,13 @@ gen_commands(Mod,Size) ->
 	    throw({'$gen_commands',{Exc,Reason,erlang:get_stacktrace()}})
     end.
 
--spec gen_commands(mod_name(),symbolic_state(),command_list(),size(),non_neg_integer(),
-		   non_neg_integer()) -> 
-			  {'ok', command_list()}
-			  |{'false_prec', symbolic_state()}.
+-spec gen_commands(mod_name(), symbolic_state(), command_list(),
+		   size(), non_neg_integer(), non_neg_integer()) ->
+	{'ok', command_list()} | {'false_prec', symbolic_state()}.
 gen_commands(_Module,_,Commands,_,0,_) ->
     {ok, lists:reverse(Commands)};
-
 gen_commands(_Module,State,_,_,_,0) ->
     {false_prec, State};
-
 gen_commands(Module,State,Commands,Len,Count,Tries) ->  
     Cmd = Module:command(State),
     {ok,Instance} = proper_gen:clean_instance(proper_gen:safe_generate(Cmd)), 
@@ -143,21 +132,17 @@ gen_commands(Module,State,Commands,Len,Count,Tries) ->
 	    end;
        true ->
 	    {ok, lists:reverse(Commands)}
-    end.    
-	    
+    end.
 
 %% -----------------------------------------------------------------------------
 %% Parallel command generation
 %% -----------------------------------------------------------------------------
 
-
 -spec parallel_commands(mod_name()) -> proper_types:type().		       
 parallel_commands(Module) ->
-    ?COMMANDS([
-	{generator,fun(Size) -> 
-			   gen_parallel_commands(Module,Size+2) 
-		   end},
-	{is_instance, fun(X) -> parallel_commands_test(X) end},    
+    ?COMMANDS(
+       [{generator, fun(Size) -> gen_parallel_commands(Module, Size+2) end},
+	{is_instance, fun(X) -> parallel_commands_test(X) end},
 	{get_indices, fun proper_types:list_get_indices/1},
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
@@ -174,19 +159,19 @@ parallel_commands(Module) ->
 			      remove_parallel_shrinker(I,Module,Parallel_Cmds,T,S) 
 		      end
 		   end, lists:seq(1,2)) ++
-	 [fun(Parallel_Cmds,T,S) -> 
-		  split_seq_shrinker(Module,Parallel_Cmds,T,S) end,
-	  fun(Parallel_Cmds,T,S) -> 
-		  remove_seq_shrinker(Module,Parallel_Cmds,T,S) end,
-	  fun move_shrinker/3]}
-	      ]).
+	     [fun(Parallel_Cmds,T,S) -> 
+		      split_seq_shrinker(Module,Parallel_Cmds,T,S) end,
+	      fun(Parallel_Cmds,T,S) -> 
+		      remove_seq_shrinker(Module,Parallel_Cmds,T,S) end,
+	      fun move_shrinker/3]}
+       ]).
 
 -spec parallel_commands(mod_name(),symbolic_state()) -> proper_types:type(). 
 parallel_commands(Module, StartState) ->
-    ?COMMANDS([
-	{generator,fun(Size) -> 
-			   gen_parallel_commands(Module,StartState,Size+2) 
-		   end},
+    ?COMMANDS(
+       [{generator, fun(Size) -> 
+			    gen_parallel_commands(Module,StartState,Size+2) 
+		    end},
 	{is_instance, fun(X) -> parallel_commands_test(X) end},    
 	{get_indices, fun proper_types:list_get_indices/1},
 	{get_length, fun erlang:length/1},
@@ -195,23 +180,23 @@ parallel_commands(Module, StartState) ->
 	{remove, fun proper_arith:list_remove/2},
 	{shrinkers, 
 	 lists:map(fun(I) ->
-		      fun(Parallel_Cmds,T,S) -> 
-			      split_parallel_shrinker(I,Module,Parallel_Cmds,T,S) 
-		      end
+			   fun(Parallel_Cmds,T,S) -> 
+				   split_parallel_shrinker(I,Module,Parallel_Cmds,T,S) 
+			   end
 		   end, lists:seq(1,2)) ++
-	 lists:map(fun(I) ->
-		      fun(Parallel_Cmds,T,S) -> 
-			      remove_parallel_shrinker(I,Module,Parallel_Cmds,T,S) 
-		      end
-		   end, lists:seq(1,2)) ++
-	 [fun(Parallel_Cmds,T,S) -> 
-		  split_seq_shrinker(Module,Parallel_Cmds,T,S) end,
-	  fun(Parallel_Cmds,T,S) -> 
-		  remove_seq_shrinker(Module,Parallel_Cmds,T,S) end,
-	  fun move_shrinker/3]}
-	      ]).
+	     lists:map(fun(I) ->
+			       fun(Parallel_Cmds,T,S) -> 
+				       remove_parallel_shrinker(I,Module,Parallel_Cmds,T,S) 
+			       end
+		       end, lists:seq(1,2)) ++
+	     [fun(Parallel_Cmds,T,S) -> 
+		      split_seq_shrinker(Module,Parallel_Cmds,T,S) end,
+	      fun(Parallel_Cmds,T,S) -> 
+		      remove_seq_shrinker(Module,Parallel_Cmds,T,S) end,
+	      fun move_shrinker/3]}
+       ]).
 
--spec gen_parallel_commands(mod_name(),symbolic_state(),size()) -> parallel_test_case().
+-spec gen_parallel_commands(mod_name(), symbolic_state(), size()) -> parallel_test_case().
 gen_parallel_commands(Mod,StartState,Size) ->
     try gen_parallel(Mod, StartState, Size) of
 	{Sequential,Parallel} -> {[{init,StartState}|Sequential],Parallel}
@@ -231,43 +216,43 @@ gen_parallel_commands(Mod,Size) ->
 	    throw({'$gen_commands',{Exc,Reason,erlang:get_stacktrace()}})
     end.
 	    
--spec gen_parallel(mod_name(),symbolic_state(),size()) -> parallel_test_case().
-gen_parallel(Mod,StartState,Size) ->
+-spec gen_parallel(mod_name(), symbolic_state(), size()) -> parallel_test_case().
+gen_parallel(Mod, StartState, Size) ->
     Len1 = proper_arith:rand_int(2,Size),
-    {ok, CmdList} = gen_commands(Mod, StartState,[],Len1,Len1,get('$constraint_tries')),
+    {ok, CmdList} = gen_commands(Mod, StartState, [], Len1, Len1, get('$constraint_tries')),
     Len = length(CmdList),
-    {Seq,P} = if Len == 2 ->
+    {Seq,P} = if Len =:= 2 ->
 		      {[],CmdList};
 		 Len =< 32 ->
-		      lists:split(Len div 2,CmdList);
+		      lists:split(Len div 2, CmdList);
 		 Len > 32 ->
-		      lists:split(Len-16,CmdList)
+		      lists:split(Len-16, CmdList)
 	      end,
     State = state_after(Mod,Seq),
     LenSeq = length(Seq),
     LenPar = Len - LenSeq,
-    Env = if LenSeq == 0 -> 
+    Env = if LenSeq =:= 0 -> 
 		  [];
 	     true ->
-		  lists:map(fun(N) -> {var,N} end, lists:seq(1,LenSeq))
+		  lists:map(fun(N) -> {var,N} end, lists:seq(1, LenSeq))
 	  end,
-    {Seq,fix_gen(LenPar div 2,P,Mod,State,Env)}.
+    {Seq, fix_gen(LenPar div 2, P, Mod, State, Env)}.
 
 %%TODO: more efficient parallelization   
 -spec fix_gen(pos_integer(),command_list(),mod_name(),symbolic_state(),
 	      proper_symb:var_values()) -> [command_list()].		     
-fix_gen(N,Initial,Mod,State,Env) when N>=0 ->
+fix_gen(N, Initial, Mod, State, Env) when N >= 0 ->
     Selections = all_selections(N,Initial),
     case (safe_parallelize(Selections,Initial,Mod,State,Env)) of
 	{ok,Result} ->
 	    tuple_to_list(Result);
 	error ->
-	    fix_gen(N-1,Initial,Mod,State,Env)
+	    fix_gen(N-1, Initial, Mod, State, Env)
     end.
 
--spec safe_parallelize([command_list()],command_list(),mod_name(),symbolic_state(),
-		       proper_symb:symb_var()) -> 
-			      {'ok', {command_list(),command_list()}}|'error'.  
+-spec safe_parallelize([command_list()], command_list(), mod_name(),
+		       symbolic_state(), proper_symb:symb_var()) -> 
+        {'ok', {command_list(), command_list()}} | 'error'.
 safe_parallelize([],_,_,_,_) ->
     error;
 safe_parallelize([C1|Selections],Initial,Mod,State,Env) ->
@@ -278,8 +263,8 @@ safe_parallelize([C1|Selections],Initial,Mod,State,Env) ->
     end.	   
 
 -spec parallelize(mod_name(),symbolic_state(),{command_list(),command_list()},
-		  proper_symb:symb_var()) -> {'ok',{command_list(),command_list()}}
-						 |'error'.
+		  proper_symb:symb_var()) ->
+       {'ok', {command_list(), command_list()}} | 'error'.
 parallelize(Mod,S,{C1,C2},Env) ->
     Val = fun (C) -> validate(Mod,S,C,Env) end,
     case lists:all(Val, insert_all(C1,C2)) of
@@ -288,12 +273,10 @@ parallelize(Mod,S,{C1,C2},Env) ->
 	false -> 
 	    error
     end.			 
-   
- 		       
+
 %% -----------------------------------------------------------------------------
 %% Sequential command execution
 %% -----------------------------------------------------------------------------
-
 
 -spec run_commands(mod_name(),command_list()) -> 
 			  {history(),dynamic_state(),statem_result()}.	  
@@ -332,7 +315,7 @@ safe_eval_init(Env,_Cmds) ->
  
 -spec do_run_command(command_list(),proper_symb:var_values(),mod_name(),
 		     history(),dynamic_state()) -> 
-			    {history(),dynamic_state(),statem_result()}.	   
+			    {history(),dynamic_state(),statem_result()}.
 do_run_command(Commands, Env, Module, History, State) ->
     case Commands of
 	[] -> 
@@ -770,24 +753,22 @@ move_shrinker({_, [_,[]]}=TestCase, _Type, _State) ->
 -spec validate(mod_name(),symbolic_state(),command_list(),
 	       [proper_symb:symb_var()]) -> boolean().
 validate(_Mod,_State,[],_Env) -> true;
-
 validate(Module,_State,[{init,S}|Commands],_Env) ->
     validate(Module,S,Commands,_Env);
-
 validate(Module,State,[{set,Var,{call,_M,_F,A}=Call}|Commands],Env) ->
-    case Module:precondition(State,Call) of
+    case Module:precondition(State, Call) of
 	true ->
-	    case args_defined(A,Env) of
+	    case args_defined(A, Env) of
 		true ->
 		    NextState = Module:next_state(State, Var, Call),
-		    validate(Module,NextState,Commands,[Var|Env]);
+		    validate(Module, NextState, Commands, [Var|Env]);
 		_ -> false
 	    end;
 	_ -> false
     end.
 
 -spec args_defined([term()], [proper_symb:symb_var()]) -> boolean().
-args_defined(A,Env) ->
+args_defined(A, Env) ->
     lists:all(fun ({var,I}) when is_integer(I) -> lists:member({var,I},Env);
 		  (_V) -> true 
 	      end, A).      
@@ -809,7 +790,7 @@ command_names(Cmds) ->
     GetName = fun({set,_Var,{call,M,F,Args}}) -> {M,F,length(Args)} end,
     lists:map(GetName,Cmds).
     
--spec zip([A],[B]) -> [{A,B}].
+-spec zip([A], [B]) -> [{A,B}].
 zip(X,Y) ->
     Lx = length(X),
     Ly = length(Y),
@@ -823,7 +804,7 @@ zip(X,Y) ->
     
 -spec commands_test(proper_gen:imm_instance()) -> boolean().
 commands_test(X) when is_list(X) ->
-    lists:all(fun is_command/1,X);
+    lists:all(fun is_command/1, X);
 commands_test(_X) -> false.
 
 -spec parallel_commands_test(proper_gen:imm_instance()) -> boolean().
@@ -837,8 +818,8 @@ parallel_commands_test({S,P}) ->
 parallel_commands_test(_) -> false.
 
 -spec is_command(proper_gen:imm_instance()) -> boolean().			
-is_command({set,{var,V},{call,M,F,A}}) 
-  when is_integer(V) andalso is_atom(M) andalso is_atom(F) andalso is_list(A) ->
+is_command({set,{var,V},{call,M,F,A}}) when is_integer(V), is_atom(M),
+					    is_atom(F), is_list(A) ->
     true;
 is_command({init,_S}) ->
     true;
@@ -849,7 +830,7 @@ is_command(_Other) ->
 %% preserving their order, inside the second list, i.e. all possible
 %% command interleavings
 
--spec insert_all([term()],[term()]) -> [[term()]].
+-spec insert_all([term()], [term()]) -> [[term()]].
 insert_all([], List) ->
     [List];
 insert_all([X], List) ->
@@ -859,8 +840,8 @@ insert_all([X|[Y|Rest]], List) ->
     [L2 || L1 <- insert_all([Y|Rest], List), 
 	   L2 <- all_insertions(X,index(Y,L1),L1)].
 
--spec all_insertions(term(),pos_integer(),[term()]) -> [[term()]].
-all_insertions(X,Limit,List) ->
+-spec all_insertions(term(), pos_integer(), [term()]) -> [[term()]].
+all_insertions(X, Limit, List) ->
     all_insertions_tr(X, Limit, 0, [], List, []).
 
 -spec all_insertions_tr(term(),pos_integer(),non_neg_integer(),[term()],[term()],
@@ -873,19 +854,19 @@ all_insertions_tr(X, Limit, LengthFront, Front, [], Acc) ->
 	    Acc
     end;
 all_insertions_tr(X, Limit, LengthFront, Front, Back = [BackHead|BackTail], Acc) ->
-    case LengthFront < Limit of 
+    case LengthFront < Limit of
 	true ->
 	    all_insertions_tr(X, Limit, LengthFront+1, Front ++ [BackHead], BackTail,
 			      [Front ++ [X] ++ Back | Acc]);
 	false -> Acc     
     end.
 
--spec index(term(),[term()]) -> pos_integer().
-index(X,List) ->
-    length(lists:takewhile(fun(Y) -> X=/=Y end,List)) + 1.
+-spec index(term(), [term()]) -> pos_integer().
+index(X, List) ->
+    length(lists:takewhile(fun(Y) -> X =/= Y end, List)) + 1.
 
 %% Returns all possible selections of 'N' elements from list 'List'.
--spec all_selections(non_neg_integer(),[term()]) -> [[term()]].		    
+-spec all_selections(non_neg_integer(), [term()]) -> [[term()]].
 all_selections(0, _List) ->
     [[]];
 all_selections(N, List) when N >= 1 ->
@@ -904,12 +885,12 @@ all_selections(_Len, List, _Len) ->
     [List];
 all_selections(Take, [Head|Tail], Len) ->
     [[Head|Rest] || Rest <- all_selections(Take - 1, Tail, Len - 1)]
-    ++ all_selections(Take, Tail, Len - 1).     
+    ++ all_selections(Take, Tail, Len - 1).
 
 -spec update_list(pos_integer(), term(), [term()]) -> [term()].
 update_list(I, X, List) ->
     array:to_list(array:set(I-1, X, array:from_list(List))).
-    
+
 -spec memoize(atom(), term(), term()) -> 'ok'.		     
 memoize(Tab, Key, Value) ->
     ets:insert(Tab, {Key,Value}),
@@ -921,6 +902,6 @@ init_ets_table(Tab) ->
 	undefined ->
 	    Tab = ets:new(Tab, [named_table]),
 	    ok;
-	_ -> 
+	_ ->
 	    ok
     end.
