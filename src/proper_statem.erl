@@ -2,16 +2,12 @@
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
 	 more_commands/2]).
--export([gen_commands/2, gen_commands/3, run_commands/2, run_commands/3,
-	 gen_parallel_commands/2, gen_parallel_commands/3,
-	 run_parallel_commands/2, run_parallel_commands/3]).
--export([state_after/2, command_names/1, zip/2, 
-	 commands_test/1, parallel_commands_test/1]).
+-export([run_commands/2, run_commands/3, run_parallel_commands/2,
+	 run_parallel_commands/3]).
+-export([state_after/2, command_names/1, zip/2]).
 
 -export([all_selections/2, index/2, all_insertions/3, insert_all/2]).
 -export([validate/4]).
-
--export_type([symbolic_state/0]).
 
 -include("proper_internal.hrl").
 
@@ -328,22 +324,22 @@ do_run_command(Commands, Env, Module, History, State) ->
 	    M2=proper_symb:eval(Env,M), 
 	    F2=proper_symb:eval(Env,F), 
 	    A2=proper_symb:eval(Env,A),
-	    try apply(M2,F2,A2) of
-		Res ->
-		    Call = {call, M2,F2,A2},
-		    try Module:precondition(State,Call) of
-			true ->
+	    Call = {call, M2,F2,A2},
+	    try Module:precondition(State,Call) of
+		true ->
+		    try apply(M2,F2,A2) of
+			Res ->
 			    try Module:postcondition(State,Call,Res) of
 				true ->
 				    Env2 = [{V,Res}|Env],
 				    State2 = Module:next_state(State,Res,Call),
 				    History2 = [{State,Res}|History],
 				    do_run_command(Rest, Env2, Module, History2, State2);
-				_Other ->
+				false ->
 				    State2 = Module:next_state(State,Res,Call),
 				    History2 = [{State,Res}|History],
 				    {lists:reverse(History2), State2,
-				      {postcondition,_Other}}
+				     {postcondition,false}}
 			    catch
 				Kind:Reason ->
 				    State2 = Module:next_state(State,Res,Call),
@@ -351,23 +347,24 @@ do_run_command(Commands, Env, Module, History, State) ->
 				    {lists:reverse(History2), State2, 
 				     {postcondition,
 				      {exception,Kind,Reason,erlang:get_stacktrace()}}}
-			    end;
-			_Other ->
-			    {lists:reverse(History), State, {precondition, _Other}}
+			    end
 		    catch
-			Kind:Reason ->
+			ExcKind:ExcReason ->
 			    {lists:reverse(History), State, 
-			     {precondition,
-			      {exception,Kind,Reason,erlang:get_stacktrace()}}}
-		    end
-	    catch
-		ExcKind:ExcReason ->
+			     {exception,ExcKind,ExcReason,erlang:get_stacktrace()}}
+		    end;
+		false ->
 		    {lists:reverse(History), State, 
-		     {exception,ExcKind,ExcReason,erlang:get_stacktrace()}}
+		     {precondition,false}}
+	    catch
+ 		Kind:Reason ->
+		    {lists:reverse(History), State, 
+		     {precondition,
+		      {exception,Kind,Reason,erlang:get_stacktrace()}}}
 	    end
     end.
 
-      
+
 %% -----------------------------------------------------------------------------
 %% Parallel command execution
 %% -----------------------------------------------------------------------------
@@ -575,11 +572,11 @@ run_sequential(Commands, Env, Module, History, State) ->
 	    run_sequential(Rest, Env, Module, History, State);
    	[{set, {var,V}, {call,M,F,A}}|Rest] ->
 	    M2=proper_symb:eval(Env,M), 
-	    F2=proper_symb:eval(Env,F), 
+	    F2=proper_symb:eval(Env,F),
 	    A2=proper_symb:eval(Env,A),
-	    Res = apply(M2,F2,A2),
-	    Call = {call, M2,F2,A2},		    
+	    Call = {call, M2,F2,A2},
 	    true = Module:precondition(State,Call),
+	    Res = apply(M2,F2,A2),
 	    true = Module:postcondition(State,Call,Res),
 	    Env2 = [{V,Res}|Env],
 	    State2 = Module:next_state(State,Res,Call),
