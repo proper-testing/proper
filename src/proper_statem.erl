@@ -117,7 +117,8 @@ gen_commands(_Module,State,_,_,_,0) ->
 gen_commands(Module,State,Commands,Len,Count,Tries) ->  
     Cmd = Module:command(State),
     {ok,Instance} = proper_gen:clean_instance(proper_gen:safe_generate(Cmd)), 
-    if Instance =/= stop ->
+    case Instance =/= stop of
+	true ->
 	    case Module:precondition(State,Instance) of
 		true ->
 		    Var = {var,Len-Count+1},
@@ -128,7 +129,7 @@ gen_commands(Module,State,Commands,Len,Count,Tries) ->
 		_ ->
 		    gen_commands(Module,State,Commands,Len,Count,Tries-1)
 	    end;
-       true ->
+       false ->
 	    {ok, lists:reverse(Commands)}
     end.
 
@@ -393,7 +394,8 @@ run_parallel_commands(Module,{Sequential,Parallel},Env) ->
 			 end,
 		     Children = lists:map(Parallel_test, Parallel),
 		     Parallel_history = receive_loop(Children, [], 2),
-		     if is_list(Parallel_history) ->
+		     case is_list(Parallel_history) of
+			 true ->
 			     {P1,P2} = list_to_tuple(Parallel_history),
 			     ok = init_ets_table(check_tab),
 			     R = case check_mem(Module,State,Env1,P1,P2,[]) of
@@ -410,7 +412,7 @@ run_parallel_commands(Module,{Sequential,Parallel},Env) ->
 
 		        %% if Parallel_history is not a list, then an
 		        %% exception was raised
-			true ->
+			false ->
 			     io:format("Error during parallel execution~n"),
 			     exit(error)
 			     %%{Seq_history,[],Parallel_history}
@@ -793,9 +795,9 @@ zip(X,Y) ->
     Ly = length(Y),
     if Lx < Ly ->
 	    lists:zip(X,lists:sublist(Y,Lx));
-       Lx == Ly ->
+       Lx =:= Ly ->
 	    lists:zip(X,Y);
-       true ->
+       Lx > Ly ->
 	    lists:zip(lists:sublist(X,Ly),Y)
     end.
     
