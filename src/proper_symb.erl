@@ -1,5 +1,5 @@
-%%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
-%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
+%%% Copyright 2010-2011 Manolis Papadakis (manopapad@gmail.com)
+%%%                 and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -27,7 +27,7 @@
 	 pretty_print/2]).
 -export([internal_eval/1, internal_well_defined/1]).
 
--export_type([var_id/0,var_values/0]).
+-export_type([var_id/0, var_values/0]).
 
 -include("proper_internal.hrl").
 
@@ -40,7 +40,6 @@
 %% TODO: only atoms are allowed as variable identifiers?
 
 -type var_id() :: integer() | atom().
--type symb_var() :: {'var',var_id()}.
 -type var_values() :: [{var_id(),term()}].
 -type symb_term() :: term().
 -type handled_term() :: term().

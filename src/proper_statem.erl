@@ -23,14 +23,16 @@
 -type symbolic_state() :: term().
 -type dynamic_state() :: term().
 
+-type symb_var() :: {'var',proper_symb:var_id()}.
+
 -type command() :: {'init',symbolic_state()}
-		 | {'set',proper_symb:symb_var(),{'call',mod_name(),fun_name(),[term()]}}.
+		 | {'set',symb_var(),{'call',mod_name(),fun_name(),[term()]}}.
 -type command_list() :: [command()].
 -type parallel_test_case() :: {command_list(),[command_list()]}.
 -type command_history() :: [{command(),term()}].
 -type history() :: [{dynamic_state(),term()}].
 
-%%TODO: import these from proper.erl 
+%% TODO: import these from proper.erl 
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
@@ -251,7 +253,7 @@ fix_gen(N, Initial, Mod, State, Env) when N >= 0 ->
     end.
 
 -spec safe_parallelize([command_list()], command_list(), mod_name(),
-		       symbolic_state(), proper_symb:symb_var()) -> 
+		       symbolic_state(), symb_var()) -> 
         {'ok', {command_list(), command_list()}} | 'error'.
 safe_parallelize([],_,_,_,_) ->
     error;
@@ -263,7 +265,7 @@ safe_parallelize([C1|Selections],Initial,Mod,State,Env) ->
     end.	   
 
 -spec parallelize(mod_name(),symbolic_state(),{command_list(),command_list()},
-		  proper_symb:symb_var()) ->
+		  symb_var()) ->
        {'ok', {command_list(), command_list()}} | 'error'.
 parallelize(Mod,S,{C1,C2},Env) ->
     Val = fun (C) -> validate(Mod,S,C,Env) end,
@@ -624,8 +626,8 @@ execute(Commands, Env, Module, History) ->
 		     proper_types:type(),proper_shrink:state()) ->
 			    {[command_list()],proper_shrink:state()}. 
 split_shrinker(Module,[{init,StartState}|Commands], Type,State) ->
-    {Slices,NewState} =  proper_shrink:split_shrinker(Commands,Type,State),
-    IsValid= fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
+    {Slices,NewState} = proper_shrink:split_shrinker(Commands,Type,State),
+    IsValid = fun (CommandSeq) -> validate(Module,StartState,CommandSeq,[]) end,
     {lists:map(fun(L) -> [{init,StartState}|L] end,lists:filter(IsValid,Slices)),
      NewState};
 
@@ -749,9 +751,7 @@ move_shrinker({_, [_,[]]}=TestCase, _Type, _State) ->
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
-
--spec validate(mod_name(),symbolic_state(),command_list(),
-	       [proper_symb:symb_var()]) -> boolean().
+-spec validate(mod_name(), symbolic_state(), command_list(), symb_var()) -> boolean().
 validate(_Mod,_State,[],_Env) -> true;
 validate(Module,_State,[{init,S}|Commands],_Env) ->
     validate(Module,S,Commands,_Env);
@@ -767,9 +767,9 @@ validate(Module,State,[{set,Var,{call,_M,_F,A}=Call}|Commands],Env) ->
 	_ -> false
     end.
 
--spec args_defined([term()], [proper_symb:symb_var()]) -> boolean().
+-spec args_defined([term()], [symb_var()]) -> boolean().
 args_defined(A, Env) ->
-    lists:all(fun ({var,I}) when is_integer(I) -> lists:member({var,I},Env);
+    lists:all(fun ({var,I}) when is_integer(I) -> lists:member({var,I}, Env);
 		  (_V) -> true 
 	      end, A).      
 
@@ -784,7 +784,7 @@ state_after(Module,Commands) ->
 		Module:initial_state(),
 		Commands).
 
--spec command_names(command_list()) -> 
+-spec command_names(command_list()) ->
 			   [{mod_name(),fun_name(),non_neg_integer()}].
 command_names(Cmds) ->
     GetName = fun({set,_Var,{call,M,F,Args}}) -> {M,F,length(Args)} end,
