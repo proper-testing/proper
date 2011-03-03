@@ -249,7 +249,7 @@ fix_gen(N, Initial, Mod, State, Env) when N >= 0 ->
     end.
 
 -spec safe_parallelize([command_list()], command_list(), mod_name(),
-		       symbolic_state(), symb_var()) -> 
+		       symbolic_state(), [symb_var()]) -> 
         {'ok', {command_list(), command_list()}} | 'error'.
 safe_parallelize([],_,_,_,_) ->
     error;
@@ -261,7 +261,7 @@ safe_parallelize([C1|Selections],Initial,Mod,State,Env) ->
     end.	   
 
 -spec parallelize(mod_name(),symbolic_state(),{command_list(),command_list()},
-		  symb_var()) ->
+		  [symb_var()]) ->
        {'ok', {command_list(), command_list()}} | 'error'.
 parallelize(Mod,S,{C1,C2},Env) ->
     Val = fun (C) -> validate(Mod,S,C,Env) end,
@@ -748,7 +748,7 @@ move_shrinker({_, [_,[]]}=TestCase, _Type, _State) ->
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
--spec validate(mod_name(), symbolic_state(), command_list(), symb_var()) -> boolean().
+-spec validate(mod_name(), symbolic_state(), command_list(), [symb_var()]) -> boolean().
 validate(_Mod,_State,[],_Env) -> true;
 validate(Module,_State,[{init,S}|Commands],_Env) ->
     validate(Module,S,Commands,_Env);
