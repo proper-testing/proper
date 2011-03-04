@@ -153,9 +153,12 @@ get_cexm() ->
 	end)).
 
 inc_temp() ->
+    inc_temp(1).
+
+inc_temp(Inc) ->
     case get(temp) of
-	undefined -> put(temp,1);
-	X         -> put(temp,X + 1)
+	undefined -> put(temp, Inc);
+	X         -> put(temp, X + Inc)
     end,
     ok.
 
@@ -712,7 +715,7 @@ true_props_test_() ->
 		      ?IMPLIES(no_duplicates(L),
 			       not lists:member(I,lists:delete(I,L))))),
      ?_passes(?FORALL(L, ?SIZED(Size,resize(Size div 5,list(integer()))),
-		      length(L) =< 20)),
+		      length(L) =< 20), [{max_size,100}]),
      %% TODO: check that the samples are collected correctly
      ?_passes(?FORALL(L, list(integer()),
 		      collect(length(L), collect(L =:= [],
@@ -721,6 +724,13 @@ true_props_test_() ->
 		      aggregate(smaller_lengths_than_my_own(L), true))),
      ?_assertTempBecomesN(300, true,
 			  numtests(300,?FORALL(_,1,begin inc_temp(),true end))),
+     ?_assertTempBecomesN(30, true, ?FORALL(X, ?SIZED(Size,Size),
+					    begin inc_temp(X),true end),
+			  [{numtests,12},{max_size,4}]),
+     ?_assertTempBecomesN(12, true,
+			  ?FORALL(X, ?SIZED(Size,Size),
+				  begin inc_temp(X),true end),
+			  [{numtests,3},{start_size,4},{max_size,4}]),
      ?_passes(?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X))),
      ?_passes(?FORALL(X, integer(), ?IMPLIES(X >= 0, true))),
      ?_passes(?FORALL({X,Lim},{int(),?SIZED(Size,Size)},abs(X) =< Lim)),
@@ -758,12 +768,17 @@ false_props_test_() ->
      ?_failsWith([20], ?FORALL(X, pos_integer(), ?TRAPEXIT(creator(X) =:= ok))),
      ?_assertTempBecomesN(7, false,
 			  ?FORALL(X, ?SIZED(Size,integer(Size,Size)),
-				  begin inc_temp(), X < 5 end)),
+				  begin inc_temp(), X < 5 end),
+			  [{numtests,5}, {max_size,5}]),
      %% it runs 2 more times: one while shrinking (recursing into the property)
      %% and one when the minimal input is rechecked
      ?_assertTempBecomesN(2, false,
 			  ?FORALL(L, list(atom()),
 				  ?WHENFAIL(inc_temp(),length(L) < 5))),
+     ?_assertTempBecomesN(3, false,
+			  ?FORALL(S, ?SIZED(Size,Size),
+				  begin inc_temp(), S < 20 end),
+			  [{numtests,3},{max_size,40},noshrink]),
      ?_failsWithOneOf([[{true,false}],[{false,true}]],
 		      ?FORALL({B1,B2}, {boolean(),boolean()}, equals(B1,B2))),
      ?_failsWith([2,1],
@@ -849,8 +864,9 @@ options_test_() ->
 		 [{start_size,12}])].
 
 adts_test_() ->
-    [?_passes(?FORALL({X,S},{integer(),set()},
-		      sets:is_element(X,sets:add_element(X,S))), [20]),
+    [{timeout, 20,	% for Kostis' old laptop
+      ?_passes(?FORALL({X,S},{integer(),set()},
+		       sets:is_element(X,sets:add_element(X,S))), [20])},
      ?_passes(?FORALL({X,Y,D},
 		      {integer(),float(),dict(integer(),float())},
 		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30]),

@@ -8,7 +8,7 @@ Papadakis (manopapad@gmail.com) and Kostis Sagonas (kostis@cs.ntua.gr).
 
 Most of the source code of PropEr is written mainly by Manolis Papadakis.
 
-Copyright 2010 by Manolis Papadakis and Kostis Sagonas.
+Copyright 2010-2011 by Manolis Papadakis and Kostis Sagonas.
 
 This program is distributed under the GPL, version 3 or later. Please see the
 COPYING file for details.
@@ -20,9 +20,13 @@ Quickstart guide
 
 * Compile PropEr: run 'make' (or 'make all', if you also want to build the
   documentation).
-* Add PropEr's base directory to your ERL_LIBS environment variable - An easy
-  way to do this is to add the following line to your ~/.bashrc file:
-     export ERL_LIBS=~/path/to/proper
+* Add PropEr's base directory to your Erlang code path by choosing one of the
+  following ways:
+  1. ERL_LIBS environment variable - Add the following line to your shell
+     startup file (~/.bashrc in the case of the Bash shell):
+       export ERL_LIBS=/full/path/to/proper
+  2. Erlang resource file - Add the following line to your ~/.erlang file:
+       code:load_abs("/full/path/to/proper").
 * Add the following include line to all source files containing properties you
   wish to test:
      -include_lib("proper/include/proper.hrl").
@@ -41,13 +45,22 @@ Quickstart guide
        or
      proper_gen:pick(some_type(), <size>).
 
-Note to users of Erlang/OTP R13B03 or older:
 
-PropEr makes heavy use of recursive types, which are unsupported on versions of
-the Erlang/OTP distribution prior to R13B04. To compile PropEr under such a
-system, add {d,NO_TYPES} to erl_opts inside rebar.config. This enables the
-spec+type-stripping parse transform included in PropEr, which fixes the problem
-by stripping all type information from PropEr's source files while compiling.
+--------------------------------------------------------------------------------
+Common Problems
+--------------------------------------------------------------------------------
+
+Using PropEr in conjunction with EUnit:
+    Both systems define a ?LET macro, which can cause a clash. Simply include
+    PropEr's header file before EUnit's header file. That way, any instance of
+    ?LET will count as a PropEr ?LET.
+Using PropEr under Erlang/OTP R13B03 or older:
+    PropEr makes heavy use of recursive types, which are unsupported on versions
+    of the Erlang/OTP distribution prior to R13B04. To compile PropEr under such
+    a system, add {d,NO_TYPES} to erl_opts inside rebar.config. This enables the
+    spec+type-stripping parse transform included in PropEr, which fixes the
+    problem by stripping all type information from PropEr's source files while
+    compiling.
 
 
 --------------------------------------------------------------------------------
@@ -329,7 +342,10 @@ The available options are:
     wrappers in the actual property will overwrite this setting.
 {'start_size', <Size>}
     Specifies the initial value of the 'size' parameter (default is 1), see the
-    'Basic types' section for details.
+    'How to construct types' section for details.
+{'max_size', <Size>}
+    Specifies the maximum value of the 'size' parameter (default is 42), see the
+    'How to construct types' section for details.
 {'max_shrinks', <Non_negative_number>}
     Specifies the maximum number of times a failing test case should be shrunk
     before returning. Note that the shrinking may stop before so many shrinks

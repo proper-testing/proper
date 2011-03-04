@@ -128,6 +128,7 @@
 		  | {'numtests', pos_integer()}
 		  | pos_integer()
 		  | {'start_size',size()}
+		  | {'max_size', size()}
 		  | {'max_shrinks',non_neg_integer()}
 		  | 'noshrink'
 		  | {'constraint_tries',pos_integer()}
@@ -140,6 +141,7 @@
 	       crypto           = false           :: boolean(),
 	       numtests         = 100             :: pos_integer(),
 	       start_size       = 1               :: size(),
+	       max_size         = 42              :: size(),
 	       max_shrinks      = 500             :: non_neg_integer(),
 	       noshrink         = false           :: boolean(),
 	       constraint_tries = 50              :: pos_integer(),
@@ -199,11 +201,45 @@
 %% State handling functions
 %%-----------------------------------------------------------------------------
 
--spec grow_size() -> 'ok'.
-grow_size() ->
+-spec grow_size(opts()) -> 'ok'.
+grow_size(#opts{max_size = MaxSize} = Opts) ->
     Size = get('$size'),
-    put('$size', Size + 1),
-    ok.
+    case Size < MaxSize of
+	true ->
+	    case get('$left') of
+		0 ->
+		    put('$size', Size + 1),
+		    case tests_at_size(Size + 1, Opts) of
+			0 -> grow_size(Opts);
+			N -> put('$left', N - 1), ok
+		    end;
+		Left ->
+		    put('$left', Left - 1),
+		    ok
+	    end;
+	false ->
+	    ok
+    end.
+
+-spec tests_at_size(size(), opts()) -> non_neg_integer().
+tests_at_size(Size, #opts{numtests = NumTests, start_size = StartSize,
+			  max_size = MaxSize}) ->
+    SizesToTest = MaxSize - StartSize + 1,
+    case NumTests >= SizesToTest of
+	true ->
+	    TotalOverflow = NumTests rem SizesToTest,
+	    Overflow = case MaxSize - Size < TotalOverflow of
+			   true  -> 1;
+			   false -> 0
+		       end,
+	    NumTests div SizesToTest + Overflow;
+	false ->
+	    EverySoManySizes = SizesToTest div NumTests,
+	    case (Size - StartSize) rem EverySoManySizes of
+		0 -> 1;
+		_ -> 0
+	    end
+    end.
 
 %% @private
 -spec get_size(proper_types:type()) -> size() | 'undefined'.
@@ -224,10 +260,12 @@ global_state_init_size(Size) ->
     global_state_init(#opts{start_size = Size}).
 
 -spec global_state_init(opts()) -> 'ok'.
-global_state_init(#opts{start_size = Size, constraint_tries = CTries,
-			crypto = Crypto, any_type = AnyType}) ->
+global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
+			crypto = Crypto, any_type = AnyType} = Opts) ->
     clean_garbage(),
-    put('$size', Size),
+    put('$size', StartSize - 1),
+    put('$left', 0),
+    grow_size(Opts),
     put('$constraint_tries', CTries),
     put('$any_type',AnyType),
     proper_arith:rand_start(Crypto),
@@ -236,9 +274,11 @@ global_state_init(#opts{start_size = Size, constraint_tries = CTries,
     ok.
 
 -spec global_state_reset(opts()) -> 'ok'.
-global_state_reset(#opts{start_size = Size}) ->
+global_state_reset(#opts{start_size = StartSize} = Opts) ->
     clean_garbage(),
-    put('$size', Size),
+    put('$size', StartSize - 1),
+    put('$left', 0),
+    grow_size(Opts),
     proper_funserver:reset().
 
 -spec global_state_erase() -> 'ok'.
@@ -248,6 +288,7 @@ global_state_erase() ->
     proper_arith:rand_stop(),
     erase('$any_type'),
     erase('$constraint_tries'),
+    erase('$left'),
     erase('$size'),
     ok.
 
@@ -423,6 +464,7 @@ parse_opt(UserOpt, Opts) ->
 	{numtests,N}         -> Opts#opts{numtests = N};
 	N when is_integer(N) -> Opts#opts{numtests = N};
 	{start_size,Size}    -> Opts#opts{start_size = Size};
+	{max_size,Size}      -> Opts#opts{max_size = Size};
 	{max_shrinks,N}      -> Opts#opts{max_shrinks = N};
 	noshrink             -> Opts#opts{noshrink = true};
 	{constraint_tries,N} -> Opts#opts{constraint_tries = N};
@@ -541,7 +583,7 @@ test(RawTest, Opts) ->
 inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
 			  output_fun = Print} = Opts) ->
     Test = cook_test(RawTest, Opts),
-    ImmResult = perform(NumTests, Test, Print),
+    ImmResult = perform(NumTests, Test, Opts),
     Print("~n", []),
     report_imm_result(ImmResult, Opts),
     {ShortResult,LongResult} = get_result(ImmResult, Test, Opts),
@@ -642,21 +684,22 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
--spec perform(non_neg_integer(), test(), output_fun()) -> imm_result().
-perform(NumTests, Test, Print) ->
-    perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Print).
+-spec perform(non_neg_integer(), test(), opts()) -> imm_result().
+perform(NumTests, Test, Opts) ->
+    perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
 -spec perform(non_neg_integer(), non_neg_integer(), non_neg_integer(), test(),
-	      [sample()] | 'none', [stats_printer()] | 'none', output_fun()) ->
+	      [sample()] | 'none', [stats_printer()] | 'none', opts()) ->
 	  imm_result().
-perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Print) ->
+perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
     case Passed of
 	0 -> {error, cant_satisfy};
 	_ -> #pass{samples = Samples, printers = Printers, performed = Passed}
     end;
-perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Print) ->
+perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass};
-perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
+perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
+	#opts{output_fun = Print} = Opts) ->
     proper_funserver:reset(),
     case run(Test) of
 	#pass{reason = true_prop, samples = MoreSamples,
@@ -667,9 +710,9 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
 			      none -> MorePrinters;
 			      _    -> Printers
 			  end,
-	    grow_size(),
+	    grow_size(Opts),
 	    perform(Passed + 1, ToPass, TriesLeft - 1, Test,
-		    NewSamples, NewPrinters, Print);
+		    NewSamples, NewPrinters, Opts);
 	#fail{} = FailResult ->
 	    Print("!", []),
 	    FailResult#fail{performed = Passed + 1};
@@ -677,9 +720,9 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers, Print) ->
 	    Error;
 	{error, rejected} ->
 	    Print("x", []),
-	    grow_size(),
+	    grow_size(Opts),
 	    perform(Passed, ToPass, TriesLeft - 1, Test,
-		    Samples, Printers, Print);
+		    Samples, Printers, Opts);
 	{error, type_mismatch} = Error ->
 	    Error;
 	{error, {typeserver,_SubReason}} = Error ->
@@ -1091,7 +1134,7 @@ still_fails(ImmInstance, TestTail, Prop, OldReason) ->
     end.
 
 -spec same_fail_reason(fail_reason(), fail_reason()) -> boolean().
-same_fail_reason({trapped,{SameExcReason,_StackTrace1}}, 
+same_fail_reason({trapped,{SameExcReason,_StackTrace1}},
 		 {trapped,{SameExcReason,_StackTrace2}}) ->
     true;
 same_fail_reason({exception,SameExcKind,SameExcReason,_StackTrace1},
