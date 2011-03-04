@@ -875,13 +875,13 @@ adts_test_() ->
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
 valid_cmds_test_() ->
-    [?_assert(proper_statem:validate(Module,Module:initial_state(),Cmds,Env)) 
+    [?_assert(proper_statem:is_valid(Module,Module:initial_state(),Cmds,Env)) 
      || {Module,Cmds,_,_,Env} <- valid_command_sequences()].
 
 invalid_cmds_test_() ->
-    [?_assertNot(proper_statem:validate(Module,Module:initial_state(),Cmds,[])) 
+    [?_assertNot(proper_statem:is_valid(Module,Module:initial_state(),Cmds,[])) 
      || {Module,Cmds,_,_} <- invalid_precondition()] ++
-    [?_assertNot(proper_statem:validate(Module,Module:initial_state(),Cmds,[])) 
+    [?_assertNot(proper_statem:is_valid(Module,Module:initial_state(),Cmds,[])) 
      || {Module,Cmds} <- invalid_var()].
     
 state_after_test_() ->
