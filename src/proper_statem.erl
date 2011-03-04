@@ -237,7 +237,7 @@ gen_parallel(Mod, StartState, Size) ->
 
 %% TODO: more efficient parallelization
 %% XXX: Inconsistent pos_integer() declaration and the N >= 0 test?
--spec fix_gen(pos_integer(),command_list(),mod_name(),symbolic_state(),
+-spec fix_gen(non_neg_integer(),command_list(),mod_name(),symbolic_state(),
 	      proper_symb:var_values()) -> [command_list()].		     
 fix_gen(N, Initial, Mod, State, Env) when N >= 0 ->
     Selections = all_selections(N, Initial),
