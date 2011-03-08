@@ -6,12 +6,13 @@
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
 
--export([all_selections/2, index/2, all_insertions/3, insert_all/2]).
+-export([index/2, all_insertions/3, insert_all/2, possible_interleavings/1]).
 -export([is_valid/4]).
+-export([get_next/5, mk_first_comb/3, fix_gen/7]).
 
 -include("proper_internal.hrl").
 
--define(WORKERS, 2).
+-define(WORKERS, 3).
 -define(LIMIT, 16).
 
 %% -----------------------------------------------------------------------------
@@ -219,40 +220,51 @@ gen_parallel_commands(Mod, Size) ->
 -spec gen_parallel(mod_name(), symbolic_state(), size()) -> parallel_test_case().
 gen_parallel(Mod, StartState, Size) ->
     Len1 = proper_arith:rand_int(?WORKERS, Size),
-    {ok, CmdList} = gen_commands(Mod, StartState, [], Len1, Len1, get('$constraint_tries')),
+    {ok,CmdList} = gen_commands(Mod, StartState, [], Len1, Len1, get('$constraint_tries')),
+  
+    %%TODO: does it make sense for Len to be different from Len1?
     Len = length(CmdList),
     {LenPar, {Seq, P}} = if Len =< ?LIMIT -> {Len, {[], CmdList}};
 			    Len > ?LIMIT ->  {?LIMIT, lists:split(Len - ?LIMIT, CmdList)}
 			 end,
     State = state_after(Mod, Seq),
     Env = mk_env(Seq, 1),
-    {Seq, fix_gen(LenPar div ?WORKERS, P, Mod, State, Env)}.
+    Len2 = LenPar div ?WORKERS,
+    Comb = mk_first_comb(LenPar, Len2, ?WORKERS),
+    LookUp = orddict:from_list(mk_dict(P,1)),
+    {Seq, fix_gen(LenPar, Len2, Comb, LookUp, Mod, State, Env)}.
 
--spec mk_env(command_list(), pos_integer()) -> [{'var', pos_integer()}].
-mk_env([], _) -> [];
-mk_env([_|T], N) -> [{var,N}|mk_env(T, N+1)].
-
-%% TODO: more efficient parallelization
-%% XXX: Inconsistent pos_integer() declaration and the N >= 0 test?
--spec fix_gen(non_neg_integer(),command_list(),mod_name(),symbolic_state(),
-	      proper_symb:var_values()) -> [command_list()].		     
-fix_gen(N, Initial, Mod, State, Env) when N >= 0 ->
-    Combinations = all_combinations(N, Initial, ?WORKERS),
-    case safe_parallelize(Combinations, Mod, State, Env) of
+-spec fix_gen(pos_integer(), non_neg_integer(), [{pos_integer(),[pos_integer()]}]|'done',
+	      orddict:ordered_dictionary(), mod_name(), symbolic_state(),
+	      [symb_var()]) -> [command_list()].
+fix_gen(_, 0, done, _, _, _, _) -> exit(error);
+fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env) when Len>=0 ->
+    Comb = mk_first_comb(MaxIndex, Len-1, ?WORKERS),
+    io:format("f"),
+    fix_gen(MaxIndex, Len-1, Comb , LookUp, Mod, State, Env);	     
+fix_gen(MaxIndex, Len, Comb, LookUp, Mod, State, Env) ->
+    Cs = get_commands(Comb, LookUp),
+    case safe_parallelize(Cs, Mod, State, Env) of
 	{ok, Result} ->
 	    Result;
 	error ->
-	    fix_gen(N-1, Initial, Mod, State, Env)
+	    C1 = proplists:get_value(1, Comb),
+	    C2 = proplists:get_value(2, Comb),
+	    Next = get_next(Comb, Len, MaxIndex, lists:sort(C1 ++ C2), 2),
+	    fix_gen(MaxIndex, Len, Next, LookUp, Mod, State, Env)
     end.
 
--spec safe_parallelize([[command_list()]], mod_name(), symbolic_state(), [symb_var()]) -> 
+-spec safe_parallelize([command_list()], mod_name(), symbolic_state(), [symb_var()]) -> 
 			      {'ok', [command_list()]} | 'error'.
-safe_parallelize([], _, _, _) ->
-    error;
-safe_parallelize([C1|Combinations], Mod, State, Env) ->
-    case parallelize(Mod, State, C1, Env) of
-	{ok,_R} = Result -> Result;   
-	error -> safe_parallelize(Combinations, Mod, State, Env)
+safe_parallelize(Cs, Mod, State, Env) ->
+    case lists:all(fun(C) -> is_valid(Mod, State, C, Env) end, Cs) of
+	true -> 
+	    case parallelize(Mod, State, Cs, Env) of
+		{ok,_R} = Result -> Result;   
+		error -> error
+	    end;
+	false -> 
+	    error
     end.	   
 
 -spec parallelize(mod_name(), symbolic_state(), [command_list()], [symb_var()]) ->
@@ -264,7 +276,8 @@ parallelize(Mod, S, Cs, Env) ->
 	    {ok, Cs};
 	false -> 
 	    error
-    end.			 
+    end.
+
 
 %% -----------------------------------------------------------------------------
 %% Sequential command execution
@@ -407,10 +420,6 @@ run_parallel_commands(Module, {Sequential, Parallel}, Env) ->
 		    Parallel_history = receive_loop(Children, [], ?WORKERS),
 		    case is_list(Parallel_history) of
 			true ->
-			    %% TODO: fix check/6, check_mem/6
-			    %%       since Parallel_history has ?WORKER elements, not 2
-
-			    %% {P1,P2} = list_to_tuple(Parallel_history),
 			    %% ok = init_ets_table(check_tab),
 			    R = case check(Module, State, Env1, Env1, [],
 					   Parallel_history, []) of
@@ -560,8 +569,9 @@ receive_loop(Pid_list, ResultsReceived, N) when N > 0 ->
 %% 	    false
 %%     end.
 
--spec check(mod_name(), dynamic_state(), proper_symb:var_values(), proper_symb:var_values(),
- 	    [command_history()], [command_history()], command_history()) -> boolean().
+-spec check(mod_name(), dynamic_state(), proper_symb:var_values(), 
+	    proper_symb:var_values(), [command_history()], [command_history()],
+	    command_history()) -> boolean().
 check(_Mod, _State, _OldEnv, _Env, [], [], _Accum) ->
     true;
 check(_Mod, _State, Env, Env, _Tried, [], _Accum) ->
@@ -904,43 +914,128 @@ all_insertions_tr(X, Limit, LengthFront, Front, Back = [BackHead|BackTail], Acc)
 	false -> Acc     
     end.
 
--spec index(term(), [term()]) -> pos_integer().
+-spec index(term(), [term(),...]) -> pos_integer().
 index(X, List) ->
-    length(lists:takewhile(fun(Y) -> X =/= Y end, List)) + 1.
+    index(X, List, 1).
 
--spec all_combinations(non_neg_integer(), command_list(), pos_integer()) ->
-			      [[command_list()]].
-all_combinations(N, List, 2) ->
-    [[L1, List -- L1]  || L1 <- all_selections(N, List)];
-all_combinations(N, List, Num) when Num > 2 ->
-    [[L1|L2] || L1 <- all_selections(N, List),  
-		L2 <- all_combinations(N, List -- L1, Num - 1)].
+-spec index(term(), [term(),...], pos_integer()) -> pos_integer().
+index(X, [X|_], N) -> N;
+index(X, [_|Rest], N) -> index(X, Rest, N+1).
 
-%% Returns all possible selections of 'N' elements from list 'List'.
--spec all_selections(non_neg_integer(), [term()]) -> [[term()]].
-all_selections(0, _List) ->
-    [[]];
-all_selections(N, List) when N >= 1 ->
-    Len = length(List),
-    case N > Len of
-	true ->
-	    erlang:error(badarg);
-	false ->
-	    all_selections(N, List, Len)
+%% -spec all_combinations(non_neg_integer(), command_list(), pos_integer()) ->
+%% 			      [[command_list()]].
+%% all_combinations(N, List, 2) ->
+%%     [[L1, List -- L1]  || L1 <- all_selections(N, List)];
+%% all_combinations(N, List, Num) when Num > 2 ->
+%%     [[L1|L2] || L1 <- all_selections(N, List),  
+%% 		L2 <- all_combinations(N, List -- L1, Num - 1)].
+
+%% %% Returns all possible selections of 'N' elements from list 'List'.
+%% -spec all_selections(non_neg_integer(), [term()]) -> [[term()]].
+%% all_selections(0, _List) ->
+%%     [[]];
+%% all_selections(N, List) when N >= 1 ->
+%%     Len = length(List),
+%%     case N > Len of
+%% 	true ->
+%% 	    erlang:error(badarg);
+%% 	false ->
+%% 	    all_selections(N, List, Len)
+%%     end.
+
+%% -spec all_selections(pos_integer(), [term()], pos_integer()) -> [[term()]].
+%% all_selections(1, List, _Len) ->
+%%     [[X] || X <- List];
+%% all_selections(_Len, List, _Len) ->
+%%     [List];
+%% all_selections(Take, [Head|Tail], Len) ->
+%%     [[Head|Rest] || Rest <- all_selections(Take - 1, Tail, Len - 1)]
+%% 	++ all_selections(Take, Tail, Len - 1).
+
+-spec mk_env(command_list(), pos_integer()) -> [{'var', pos_integer()}].
+mk_env([], _) -> [];
+mk_env([_|T], N) -> [{var,N}|mk_env(T, N+1)].
+
+-spec mk_dict(command_list(), pos_integer()) -> [{pos_integer(), command()}].
+mk_dict([], _) -> [];
+mk_dict([H|T], N) -> [{N,H}|mk_dict(T, N+1)].
+
+-spec mk_first_comb(pos_integer(), non_neg_integer(), pos_integer()) -> 
+			   [{pos_integer(),[pos_integer()]}].
+mk_first_comb(N, Len, W) ->
+    mk_first_comb_tr(1, N, Len, [], W).
+
+-spec mk_first_comb_tr(pos_integer(), pos_integer(), non_neg_integer(),
+		       [{pos_integer(),[pos_integer()]}], pos_integer()) -> 
+			      [{pos_integer(),[pos_integer()]}].
+mk_first_comb_tr(Start, N, _Len, Accum, 1) ->
+    [{1,lists:seq(Start, N)}|Accum];
+mk_first_comb_tr(Start, N, Len, Accum, W) ->
+    K = Start + Len,
+    mk_first_comb_tr(K, N, Len, [{W,lists:seq(Start, K-1)}|Accum], W-1).
+
+-spec get_commands_inner([pos_integer()], orddict:ordered_dictionary()) -> command_list().
+get_commands_inner(Indexes, LookUp) ->
+    lists:map(fun(Index) -> orddict:fetch(Index, LookUp) end, Indexes).
+
+-spec get_commands([{pos_integer(),[pos_integer()]}], orddict:ordered_dictionary()) ->
+			  [command_list()].
+get_commands(PropList, LookUp) ->
+    lists:map(fun({_,W}) -> get_commands_inner(W, LookUp) end, PropList).
+
+-spec get_next([{pos_integer(),[pos_integer()]}], non_neg_integer(), pos_integer(),
+	       [pos_integer()], pos_integer()) -> 
+		      [{pos_integer(),[pos_integer()]}] | 'done'.
+get_next(L, _Len, _MaxIndex, Available, 1) ->
+    [{1,Available}|proplists:delete(1, L)];
+get_next(L, Len, MaxIndex, Available, N) ->
+    C = case proplists:is_defined(N, L) of
+	    true ->
+		next_comb(MaxIndex, proplists:get_value(N, L), Available);
+	    false ->
+		lists:sublist(Available, Len)
+	end,
+    case C of
+	done -> 
+	    if N =:= ?WORKERS -> 
+		    done;
+	       N =/= ?WORKERS -> 
+		    C2 = proplists:get_value(N+1, L), 
+		    NewList = [E || {M,_}=E <- L, M > N],
+		    get_next(NewList, Len, MaxIndex, 
+			     lists:sort(C2 ++ Available), N+1)
+	    end;
+	_ ->
+	    get_next([{N,C}|proplists:delete(N, L)], 
+		     Len, MaxIndex, Available -- C, N-1)
     end.
 
--spec all_selections(pos_integer(), [term()], pos_integer()) -> [[term()]].
-all_selections(1, List, _Len) ->
-    [[X] || X <- List];
-all_selections(_Len, List, _Len) ->
-    [List];
-all_selections(Take, [Head|Tail], Len) ->
-    [[Head|Rest] || Rest <- all_selections(Take - 1, Tail, Len - 1)]
-	++ all_selections(Take, Tail, Len - 1).
+-spec next_comb(pos_integer(), [pos_integer()], [pos_integer()]) ->
+			  [pos_integer()] | 'done'.
+next_comb(MaxIndex, Comb, Available) ->
+    Res = next_comb_tr(MaxIndex, lists:reverse(Comb), []),
+    case is_well_defined(Res, Available) of
+	true -> Res;
+	false -> next_comb(MaxIndex, Res, Available)
+    end.
+
+-spec is_well_defined([pos_integer()] | 'done', [pos_integer()]) -> boolean().
+is_well_defined(done, _) -> true;
+is_well_defined(Comb, Available) ->	    
+    lists:usort(Comb) =:= Comb andalso
+	lists:all(fun(X) -> lists:member(X, Available) end, Comb).
+
+-spec next_comb_tr(pos_integer(), [pos_integer()], [pos_integer()]) ->
+			  [pos_integer()] | 'done'.
+next_comb_tr(_MaxIndex, [], _Acc) ->
+    done;
+next_comb_tr(MaxIndex, [MaxIndex | Rest], Acc) ->
+    next_comb_tr(MaxIndex, Rest, [1 | Acc]);
+next_comb_tr(_MaxIndex, [X | Rest], Acc) ->
+    lists:reverse(Rest) ++ [X+1] ++ Acc.			 
 
 -spec update_list(pos_integer(), term(), [term(),...]) -> [term(),...].
 update_list(I, X, List) ->
-    %%array:to_list(array:set(I-1, X, array:from_list(List))).
     update_list(I, X, List, [], 1).
 
 -spec update_list(pos_integer(), term(), [term(),...], [term()], pos_integer()) -> 

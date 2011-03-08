@@ -477,6 +477,24 @@ undefined_symb_calls() ->
      {call,lists,reverse,[<<12,13>>]},
      {call,erlang,'+',[1,2,3]}].
 
+combinations() ->
+    [{[{1,[1,3,5,7,9,10]}, {2,[2,4,6,8,11]}], 5, 11, [1,2,3,4,5,6,7,8,9,10,11], 2,
+      [{1,[1,3,5,7,8,11]}, {2,[2,4,6,9,10]}]},
+     {[{1,[1,3,5]}, {2,[7,8,9]}, {3,[2,4,6]}], 3, 9, [1,3,5,7,8,9], 2,
+      [{1,[6,8,9]}, {2,[1,3,5]}, {3,[2,4,7]}]}].
+
+fix_gen_data() ->
+    [{4,2,[{1,[3,4]}, {2,[1,2]}], 
+      orddict:from_list([{1,{set,{var,1},{call,reg_statem,spawn,[]}}},
+			{2,{set,{var,2},{call,reg_statem,spawn,[]}}},
+			{3,{set,{var,3},{call,erlang,register,[a,{var,1}]}}},
+			{4,{set,{var,4},{call,erlang,register,[b,{var,2}]}}}]),
+      reg_statem, reg_statem:initial_state(), [],
+      [[{set,{var,2},{call,reg_statem,spawn,[]}},
+	{set,{var,4},{call,erlang,register,[b,{var,2}]}}],
+       [{set,{var,1},{call,reg_statem,spawn,[]}},
+	{set,{var,3},{call,erlang,register,[a,{var,1}]}}]]}].
+
 valid_command_sequences() ->
 %% {module, initial_state, command_sequence, symbolic_state_after, dynamic_state_after, 
 %%  environment}
@@ -905,9 +923,10 @@ can_generate_commands1_test_() ->
     [?_test(assert_can_generate(proper_statem:commands(Module, StartState),true)) 
      || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
 
-can_generate_parallel_commands0_test_() ->
-    [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
-     || Module <- [reg_parallel]].
+%% can_generate_parallel_commands0_test_() ->
+%%     {timeout, 60,
+%%      [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
+%%       || Module <- [reg_parallel]]}.
 
 %% can_generate_parallel_commands1_test_() ->
 %%     [?_test(assert_can_generate(
@@ -933,6 +952,19 @@ run_exception_raising_test_() ->
 run_init_error_test_() ->
     [?_assertMatch({_H,_S,initialization_error}, setup_run_commands(Module, Cmds, Env))
      || {Module,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
+
+get_next_test_() ->
+    [?_assertEqual(Expected, proper_statem:get_next(L, Len, MaxIndex, Available, N))
+     || {L, Len, MaxIndex, Available, N, Expected} <- combinations()].
+
+mk_first_comb_test_() ->
+     [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
+      || {N, Len, W, Expected} <- [{10, 3, 3, [{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]}]].
+
+fix_gen_test_() ->
+     [?_assertEqual(Expected, 
+		    proper_statem:fix_gen(N, Len, Comb, LookUp, Mod, State, Env))
+      || {N, Len, Comb, LookUp, Mod, State, Env, Expected}  <- fix_gen_data()].
 
 %%------------------------------------------------------------------------------
 %% Helper Predicates

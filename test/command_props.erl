@@ -85,8 +85,7 @@ prop_insert_all() ->
 			                andalso lists:subtract(L,L2) =:= L1
 				end, AllIns))
        end).
-	   
-	   
+
 	       
 
 
