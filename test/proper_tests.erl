@@ -495,6 +495,27 @@ fix_gen_data() ->
        [{set,{var,1},{call,reg_statem,spawn,[]}},
 	{set,{var,3},{call,erlang,register,[a,{var,1}]}}]]}].
 
+lists_to_zip() ->
+    [{[],[],[]},
+     {[], [dummy, atom], []},
+     {[1, 42, 1, 42, 1, 2 ,3], []},
+     {[a, b, c], lists:seq(1,6), [{a,1}, {b,2}, {c,3}]},
+     {[a, b, c], lists:seq(1,3), [{a,1}, {b,2}, {c,3}]},
+     {[a, b, c, d, d], lists:seq(1,3), [{a,1}, {b,2}, {c,3}]}]. 
+
+command_names() ->    
+    [{[{set,{var,1},{call,erlang,put,[a,0]}},
+       {set,{var,3},{call,erlang,erase,[a]}},
+       {set,{var,4},{call,erlang,get,[b]}}],
+      [{erlang,put,2},
+       {erlang,erase,1},
+       {erlang,get,1}]},
+     {[{set,{var,1},{call,foo,bar,[]}},
+       {set,{var,2},{call,bar,foo,[a,{var,1}]}}],
+      [{foo,bar,0},
+       {bar,foo,2}]},
+     {[],[]}].
+   
 valid_command_sequences() ->
 %% {module, initial_state, command_sequence, symbolic_state_after, dynamic_state_after, 
 %%  environment}
@@ -893,6 +914,14 @@ adts_test_() ->
 	     {boolean(),dict(boolean(),integer())},
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
+zip_test_() ->
+    [?_assertEqual(proper_statem:zip(X, Y), Expected)
+     || {X,Y,Expected} <- lists_to_zip()].
+
+command_names_test_() ->
+    [?_assertEqual(proper_statem:command_names(Cmds), Expected)
+     || {Cmds,Expected} <- command_names()].    
+
 valid_cmds_test_() ->
     [?_assert(proper_statem:is_valid(Module, State, Cmds, Env))
      || {Module,State,Cmds,_,_,Env} <- valid_command_sequences()].
@@ -959,7 +988,7 @@ get_next_test_() ->
 
 mk_first_comb_test_() ->
      [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
-      || {N, Len, W, Expected} <- [{10, 3, 3, [{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]}]].
+      || {N, Len, W, Expected} <- [{10,3,3,[{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]}]].
 
 fix_gen_test_() ->
      [?_assertEqual(Expected, 

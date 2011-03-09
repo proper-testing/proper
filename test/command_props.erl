@@ -2,65 +2,25 @@
 
 -include_lib("proper/include/proper.hrl").
 
-lofl_check(Lofl, NumLists, ListLen, ListElems) ->
-    lofl_check(Lofl, NumLists, ListLen, ListElems, 0).
-
-lofl_check([], NumLists, _ListLen, _ListElems, Acc) ->
-    Acc =:= NumLists;
-lofl_check([List|Rest], NumLists, ListLen, ListElems, Acc) ->
-    list_check(List, ListLen, ListElems)
-    andalso lofl_check(Rest, NumLists, ListLen, ListElems, Acc + 1).
-
-list_check([], 0, _Elems) ->
-    true;
-list_check([], _Left, _Elems) ->
-    false;
-list_check([X|Rest], Left, Elems) ->
-    lists:member(X, Elems)
-    andalso list_check(Rest, Left - 1, Elems).
-
-no_duplicates(L) -> length(L) =:= length(lists:usort(L)).
-
-short_list(ElemType) ->
-    resize(10, list(ElemType)).
-
-short_ne_list(ElemType) ->
-    non_empty(short_list(ElemType)).
+ne_nd_list(ElemType) ->
+    ?LET(L,
+	 non_empty(list(ElemType)),
+	 lists:usort(L)).
 
 short_ne_nd_list(ElemType) ->
     ?LET(L,
-	 resize(7, non_empty(list(ElemType))),
+	 resize(8, non_empty(list(ElemType))),
 	 lists:usort(L)).
 
-num_sels(N, Len) ->
-    fact(Len) div fact(N) div fact(Len - N).
-
-fact(0) ->
-    1;
-fact(N) when N >= 1 ->
-    N * fact(N-1).
-
-prop_all_selections_are_produced() ->
-    ?FORALL(List,
-	    short_ne_list(integer()),
-	    begin
-		Len = length(List),
-		?FORALL(N,
-			range(0,Len),
-			begin
-			    AllSels = proper_statem:all_selections(N, List),
-			    NumAllSels = num_sels(N, Len),
-			    lofl_check(AllSels, NumAllSels, N, List)
-			end)
-	    end).
+no_duplicates(L) -> length(L) =:= length(lists:usort(L)).
 
 prop_index() ->
-    ?FORALL(List, short_ne_nd_list(integer()),
+    ?FORALL(List, ne_nd_list(integer()),
 	    ?FORALL(X, union(List), 
 		    lists:nth(proper_statem:index(X,List),List) =:= X)).
 
 prop_all_insertions() ->
-     ?FORALL(List, short_list(integer()),
+     ?FORALL(List, list(integer()),
         begin
 	    Len = length(List),
 	    ?FORALL(Limit, range(1,Len+1),
@@ -69,8 +29,7 @@ prop_all_insertions() ->
 			   AllIns = proper_statem:all_insertions(X,Limit,List),
 			   length(AllIns) =:= Limit
 		       end))
-	end
-	    ).
+	end).
 
 prop_insert_all() ->
     ?FORALL(List, short_ne_nd_list(integer()),
@@ -86,8 +45,37 @@ prop_insert_all() ->
 				end, AllIns))
        end).
 
-	       
+prop_zip() ->	       
+    ?FORALL({X,Y}, {list(),list()},
+	    begin
+		LenX = length(X),
+		LenY = length(Y),
+		Res = if LenX < LenY -> 
+			      lists:zip(X, lists:sublist(Y, LenX));
+			 LenX =:= LenY ->
+			      lists:zip(X, Y);
+			 LenX > LenY -> 
+			      lists:zip(lists:sublist(X, LenY), Y)
+		      end,
+		equals(zip(X, Y), Res)
+	    end).
 
+%% -define(MOD, reg_parallel).
 
+%% prop_p() ->
+%%     ?FORALL(Workers, 3,
+%% 	    ?FORALL(CmdList, ?SUCHTHAT(X, resize(16, commands(?MOD)), length(X) >= Workers),
+%% 		    begin
+%% 			N = length(CmdList),
+%% 			Len = N div Workers,
+%% 			Comb = proper_statem:mk_first_comb(N, Len, Workers),
+%% 			LookUp =  orddict:from_list(proper_statem:mk_dict(CmdList,1)),
+%% 			State = ?MOD:initial_state(),
+%% 			Res =
+%% 			    proper_statem:fix_gen(N, Len, Comb, LookUp, ?MOD, State, []), 
+%% 			?WHENFAIL(io:format("CmdList: ~w\nResult: ~w\n", [CmdList, Res]),
+%% 				  length(Res) =:= Workers) 
+%% 		    end)).
+	
     
 		   
