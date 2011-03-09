@@ -183,7 +183,7 @@
 		      | 'shrinking_error' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
 		      | {'unexpected',any()} | {'unrecognized_option',term()}
-		      | {'cant_generate_commands',term()} | {'gen_commands',term()}.
+		      | {'gen_commands',term()}.
 
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
@@ -726,8 +726,6 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	{error, type_mismatch} = Error ->
 	    Error;
 	{error, {typeserver,_SubReason}} = Error ->
-	    Error;
-	{error, {cant_generate_commands,_S}} = Error ->
 	    Error;
 	{error, {gen_commands,_Reason}} = Error ->
 	    Error;
@@ -1272,9 +1270,6 @@ report_error(type_mismatch, Print) ->
 	  "match.~n", []);
 report_error({gen_commands,SubReason}, Print) ->
     Print("Error: Problems encountered during command generation:~n ~w~n", [SubReason]);
-report_error({cant_generate_commands,State}, Print) ->
-    Print("Error: couldn't produce a command that satisfies the precondition "
-	  "in state ~w after ~b tries. ~n", [State,get('$constraint_tries')]);
 report_error(wrong_type, Print) ->
     Print("Internal error: 'wrong_type' error reached toplevel.~n"
 	  "Please notify the maintainers about this error.~n", []);

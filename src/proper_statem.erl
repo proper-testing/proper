@@ -53,21 +53,16 @@
 
 -spec commands(mod_name()) -> proper_types:type().
 commands(Module) ->
-    ?COMMANDS(
-       [{generator, fun(Size) -> gen_commands(Module, Size) end},
-	{is_instance, fun commands_test/1},
-	{get_indices, fun proper_types:list_get_indices/1},
-	{get_length, fun erlang:length/1},
-	{split, fun lists:split/2},
-	{join, fun lists:append/2},
-	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, [fun(Cmds, T, S) -> split_shrinker(Module, Cmds, T, S) end,
-		     fun(Cmds, T, S) -> remove_shrinker(Module, Cmds, T, S) end]}]).
+    commands(Module, Module:initial_state(), false).
 
 -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
-commands(Module, StartState) ->
+commands(Module, InitialState) ->
+    commands(Module, InitialState, true).
+
+-spec commands(mod_name(), symbolic_state(), boolean()) -> proper_types:type().
+commands(Module, InitialState, InitFlag) ->
     ?COMMANDS(
-       [{generator, fun(Size) -> gen_commands(Module, StartState, Size) end},
+       [{generator, fun(Size) -> gen_commands(Size, Module, InitialState, InitFlag) end},
 	{is_instance, fun commands_test/1},
 	{get_indices, fun proper_types:list_get_indices/1},
 	{get_length, fun erlang:length/1},
@@ -81,59 +76,41 @@ commands(Module, StartState) ->
 more_commands(N, Type) ->
     ?SIZED(Size, proper_types:resize(Size * N, Type)).
 
--spec gen_commands(mod_name(), symbolic_state(), size()) -> command_list().
-gen_commands(Mod, StartState, Size) ->
+-spec gen_commands(size(), mod_name(), symbolic_state(), boolean()) -> command_list().
+gen_commands(Size, Mod, InitialState, InitFlag) ->
+    %% TODO: choose actual length in a better way
     Len = proper_arith:rand_int(0, Size),
-    try gen_commands(Mod, StartState, [], Len, Len, get('$constraint_tries')) of
-	{ok,CmdList} ->
-	    [{init,StartState}|CmdList];
-	{false_prec,State} ->
-	    throw({'$cant_generate_commands',State})
-    catch
-	_Exc:Reason ->
-	    throw({'$gen_commands', {_Exc,Reason,erlang:get_stacktrace()}})
-    end.
-
--spec gen_commands(mod_name(), size()) -> command_list().
-gen_commands(Mod, Size) ->
-    Len = proper_arith:rand_int(0, Size),
-    InitialState = Mod:initial_state(),
-    erlang:put('$initial_state', InitialState),
-    try gen_commands(Mod, InitialState, [], Len, Len, get('$constraint_tries')) of
-	{ok,CmdList} ->
-	    CmdList;
-	{false_prec,State} ->
-	    throw({'$cant_generate_commands',State})
+    try gen_commands(Mod, InitialState, [], Len, Len) of
+	CmdList ->
+	    case InitFlag of
+		true -> 
+		    [{init,InitialState}|CmdList];
+		false -> 
+		    erlang:put('$initial_state', InitialState),
+		    CmdList
+	    end
     catch
 	Exc:Reason ->
-	    throw({'$gen_commands', {Exc, Reason, erlang:get_stacktrace()}})
+	    throw({'$gen_commands', {Exc,Reason,erlang:get_stacktrace()}})
     end.
 
--spec gen_commands(mod_name(), symbolic_state(), command_list(),
-		   size(), non_neg_integer(), non_neg_integer()) ->
-			  {'ok',command_list()} | {'false_prec',symbolic_state()}.
-gen_commands(_Module, _, Commands, _, 0, _) ->
-    {ok, lists:reverse(Commands)};
-gen_commands(_Module, State, _, _, _, 0) ->
-    {false_prec, State};
-gen_commands(Module, State, Commands, Len, Count, Tries) ->
-    Cmd = Module:command(State),
-    {ok,Instance} = proper_gen:clean_instance(proper_gen:safe_generate(Cmd)),
+-spec gen_commands(mod_name(), symbolic_state(), command_list(), size(),
+		   non_neg_integer()) -> command_list().
+gen_commands(_, _, Commands, _, 0) ->
+    lists:reverse(Commands);
+gen_commands(Module, State, Commands, Len, Count) ->
+    Call = ?SUCHTHAT(X, Module:command(State), Module:precondition(State, X)),
+    {ok,Instance} = proper_gen:clean_instance(proper_gen:safe_generate(Call)),
     case Instance =/= stop of
 	true ->
-	    case Module:precondition(State, Instance) of
-		true ->
-		    Var = {var, Len-Count+1},
-		    NextState = Module:next_state(State, Var, Instance),
-		    Command = {set, Var, Instance},
-		    gen_commands(Module, NextState, [Command|Commands],
-				 Len, Count-1, get('$constraint_tries'));
-		_ ->
-		    gen_commands(Module, State, Commands, Len, Count, Tries-1)
-	    end;
+	    Var = {var, Len-Count+1},
+	    Command = {set, Var, Instance},
+	    NextState = Module:next_state(State, Var, Instance),
+	    gen_commands(Module, NextState, [Command|Commands], Len, Count-1);
 	false ->
-	    {ok, lists:reverse(Commands)}
+	    lists:reverse(Commands)
     end.
+
 
 %% -----------------------------------------------------------------------------
 %% Parallel command generation
@@ -220,7 +197,7 @@ gen_parallel_commands(Mod, Size) ->
 -spec gen_parallel(mod_name(), symbolic_state(), size()) -> parallel_test_case().
 gen_parallel(Mod, StartState, Size) ->
     Len1 = proper_arith:rand_int(?WORKERS, Size),
-    {ok,CmdList} = gen_commands(Mod, StartState, [], Len1, Len1, get('$constraint_tries')),
+    CmdList = gen_commands(Mod, StartState, [], Len1, Len1),
   
     %%TODO: does it make sense for Len to be different from Len1?
     Len = length(CmdList),
@@ -834,22 +811,19 @@ get_initial_state(Cmds) ->
 	_ -> erlang:get('$initial_state')
     end.
 
--spec command_names(command_list()) ->
-			   [{mod_name(),fun_name(),non_neg_integer()}].
+-spec command_names(command_list()) -> [{mod_name(),fun_name(),non_neg_integer()}].
 command_names(Cmds) ->
     [{M, F, length(Args)} || {set, _Var, {call,M,F,Args}} <- Cmds].
 
 -spec zip([A], [B]) -> [{A,B}].
-zip(X,Y) ->
-    Lx = length(X),
-    Ly = length(Y),
-    if Lx < Ly ->
-	    lists:zip(X, lists:sublist(Y, Lx));
-       Lx =:= Ly ->
-	    lists:zip(X, Y);
-       Lx > Ly ->
-	    lists:zip(lists:sublist(X, Ly), Y)
-    end.
+zip(X, Y) ->
+    zip(X, Y, []).
+
+-spec zip([A], [B], [{A,B}]) -> [{A,B}].
+zip([], _, Accum) -> lists:reverse(Accum);
+zip(_, [], Accum) -> lists:reverse(Accum);
+zip([X|Tail1], [Y|Tail2], Accum) ->
+    zip(Tail1, Tail2, [{X,Y}|Accum]).
 
 -spec commands_test(proper_gen:imm_instance()) -> boolean().
 commands_test(X) when is_list(X) ->
@@ -858,9 +832,8 @@ commands_test(_X) -> false.
 
 -spec parallel_commands_test(proper_gen:imm_instance()) -> boolean().
 parallel_commands_test({S,P}) ->
-    lists:all(fun is_command/1, S) andalso
-	lists:foldl(fun(X, Y) -> X andalso Y end, true,
-		    [lists:all(fun is_command/1, E) || E <- P]);
+    commands_test(S) andalso
+	lists:foldl(fun(X, Accum) -> commands_test(X) andalso Accum end, true, P);
 parallel_commands_test(_) -> false.
 
 -spec is_command(proper_gen:imm_instance()) -> boolean().
@@ -921,36 +894,6 @@ index(X, List) ->
 -spec index(term(), [term(),...], pos_integer()) -> pos_integer().
 index(X, [X|_], N) -> N;
 index(X, [_|Rest], N) -> index(X, Rest, N+1).
-
-%% -spec all_combinations(non_neg_integer(), command_list(), pos_integer()) ->
-%% 			      [[command_list()]].
-%% all_combinations(N, List, 2) ->
-%%     [[L1, List -- L1]  || L1 <- all_selections(N, List)];
-%% all_combinations(N, List, Num) when Num > 2 ->
-%%     [[L1|L2] || L1 <- all_selections(N, List),  
-%% 		L2 <- all_combinations(N, List -- L1, Num - 1)].
-
-%% %% Returns all possible selections of 'N' elements from list 'List'.
-%% -spec all_selections(non_neg_integer(), [term()]) -> [[term()]].
-%% all_selections(0, _List) ->
-%%     [[]];
-%% all_selections(N, List) when N >= 1 ->
-%%     Len = length(List),
-%%     case N > Len of
-%% 	true ->
-%% 	    erlang:error(badarg);
-%% 	false ->
-%% 	    all_selections(N, List, Len)
-%%     end.
-
-%% -spec all_selections(pos_integer(), [term()], pos_integer()) -> [[term()]].
-%% all_selections(1, List, _Len) ->
-%%     [[X] || X <- List];
-%% all_selections(_Len, List, _Len) ->
-%%     [List];
-%% all_selections(Take, [Head|Tail], Len) ->
-%%     [[Head|Rest] || Rest <- all_selections(Take - 1, Tail, Len - 1)]
-%% 	++ all_selections(Take, Tail, Len - 1).
 
 -spec mk_env(command_list(), pos_integer()) -> [{'var', pos_integer()}].
 mk_env([], _) -> [];
