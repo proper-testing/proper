@@ -8,11 +8,11 @@
 
 -export([index/2, all_insertions/3, insert_all/2, possible_interleavings/1]).
 -export([is_valid/4]).
--export([get_next/5, mk_first_comb/3, fix_gen/7, mk_dict/2]).
+-export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2]).
 
 -include("proper_internal.hrl").
 
--define(WORKERS, 3).
+-define(WORKERS, 2).
 -define(LIMIT, 16).
 
 %% -----------------------------------------------------------------------------
@@ -161,14 +161,15 @@ parallel_commands(Module, InitialState, InitFlag) ->
 -spec gen_parallel_commands(size(), mod_name(), symbolic_state(), boolean()) ->
 				   parallel_test_case().
 gen_parallel_commands(Size, Mod, InitialState, InitFlag) ->
+    case InitFlag of
+	true -> ok;
+	false -> erlang:put('$initial_state', InitialState)
+    end,
     try gen_parallel(Mod, InitialState, Size) of
 	{Sequential,Parallel} = Res ->
 	    case InitFlag of
-		true ->
-		    {[{init, InitialState}|Sequential], Parallel};
-		false ->
-		    erlang:put('$initial_state', InitialState),
-		    Res
+		true -> {[{init, InitialState}|Sequential], Parallel};
+		false -> Res
 	    end
     catch
 	Exc:Reason ->
@@ -190,16 +191,17 @@ gen_parallel(Mod, InitialState, Size) ->
     Len2 = LenPar div ?WORKERS,
     Comb = mk_first_comb(LenPar, Len2, ?WORKERS),
     LookUp = orddict:from_list(mk_dict(P,1)),
-    {Seq, fix_gen(LenPar, Len2, Comb, LookUp, Mod, State, Env)}.
+    {Seq, fix_gen(LenPar, Len2, Comb, LookUp, Mod, State, Env, ?WORKERS)}.
 
 -spec fix_gen(pos_integer(), non_neg_integer(), combination() | 'done', lookup(),
-	      mod_name(), symbolic_state(), [symb_var()]) -> [command_list()].
-fix_gen(_, 0, done, _, _, _, _) -> exit(error);   %% not supposed to reach here
-fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env) when Len>=0 ->
-    Comb = mk_first_comb(MaxIndex, Len-1, ?WORKERS),
+	      mod_name(), symbolic_state(), [symb_var()], pos_integer()) ->
+		     [command_list()].
+fix_gen(_, 0, done, _, _, _, _, _) -> exit(error);   %% not supposed to reach here
+fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env, W) when Len>=0 ->
+    Comb = mk_first_comb(MaxIndex, Len-1, W),
     io:format("f"),
-    fix_gen(MaxIndex, Len-1, Comb , LookUp, Mod, State, Env);	     
-fix_gen(MaxIndex, Len, Comb, LookUp, Mod, State, Env) ->
+    fix_gen(MaxIndex, Len-1, Comb , LookUp, Mod, State, Env, W);	     
+fix_gen(MaxIndex, Len, Comb, LookUp, Mod, State, Env, W) ->
     Cs = get_commands(Comb, LookUp),
     case safe_parallelize(Cs, Mod, State, Env) of
 	{ok, Result} ->
@@ -207,8 +209,8 @@ fix_gen(MaxIndex, Len, Comb, LookUp, Mod, State, Env) ->
 	error ->
 	    C1 = proplists:get_value(1, Comb),
 	    C2 = proplists:get_value(2, Comb),
-	    Next = get_next(Comb, Len, MaxIndex, lists:sort(C1 ++ C2), 2),
-	    fix_gen(MaxIndex, Len, Next, LookUp, Mod, State, Env)
+	    Next = get_next(Comb, Len, MaxIndex, lists:sort(C1 ++ C2), W, 2),
+	    fix_gen(MaxIndex, Len, Next, LookUp, Mod, State, Env, W)
     end.
 
 -spec safe_parallelize([command_list()], mod_name(), symbolic_state(), [symb_var()]) -> 
@@ -364,73 +366,55 @@ run_parallel_commands(Module, {Sequential, Parallel}, Env) ->
 	{ok, DynState} ->
 	    case safe_run_sequential(Sequential, Env, Module, [], DynState) of
 		{ok, {{Seq_history, State, ok}, Env1}} ->
-		    Self = self(),
-		    Parallel_test =
-			fun(T) ->
-				proper:spawn_link_migrate(
-				  fun() ->
-					  Self ! {self(), 
-						  {result,
-						   safe_execute(T, Env1, Module, [])}}
-				  end)
+		    F = fun(T) -> execute(T, Env1, Module, []) end,
+		    Parallel_history = pmap(F, Parallel),
+		  
+		    %% ok = init_ets_table(check_tab),
+		    R = case check(Module, State, Env1, Env1, [],
+				   Parallel_history, []) of
+			    true ->  
+				{Seq_history, Parallel_history, ok};
+			    false ->
+				{Seq_history, Parallel_history,
+				 no_possible_interleaving}
 			end,
-		    Children = lists:map(Parallel_test, Parallel),
-		    Parallel_history = receive_loop(Children, [], ?WORKERS),
-		    case is_list(Parallel_history) of
-			true ->
-			    %% ok = init_ets_table(check_tab),
-			    R = case check(Module, State, Env1, Env1, [],
-					   Parallel_history, []) of
-				    true ->  
-					{Seq_history, Parallel_history, ok};
-				    false ->
-					{Seq_history, Parallel_history,
-					 no_possible_interleaving}
-				end,
-			    %% TODO: delete the table here or after shrinking?
-			    %% true = ets:delete(check_tab),
-			    R;
-
-		        %% if Parallel_history is not a list, then an
-		        %% exception was raised
-			false ->
-			    io:format("Error during parallel execution~n"),
-			    exit(error)
-			    %%{Seq_history,[],Parallel_history}
-		    end;
-		{error, _Reason} ->
+		    %% TODO: delete the table here or after shrinking?
+		    %% true = ets:delete(check_tab),
+		    R;
+		{error, Reason} ->
 		    io:format("Error during sequential execution~n"),
-		    exit(error)
-		    %%{[],[],Reason}
+		    erlang:error(Reason)
 	    end;
 	{error, Reason} ->
 	    {[], [], Reason}
     end.
 
--spec receive_loop([{pid(), command_list()}], [command_history()], non_neg_integer()) -> 
-			  [command_history()] | statem_result().
-receive_loop(_, ResultsReceived, 0) ->
-    ResultsReceived;
-receive_loop(Pid_list, ResultsReceived, N) when N > 0 ->
-    receive 
-	{Pid, {result, {ok, {H, ok}}}} ->
-	    case lists:member(Pid, Pid_list) of
-		false ->  
-		    io:format("Pid ~w sent message~n", [Pid]),
-		    receive_loop(Pid_list, ResultsReceived, N);
-		true -> 
-		    receive_loop(lists:delete(Pid, Pid_list),
-				 ResultsReceived ++ [H], N-1)
-	    end;
-	{Pid, {result, {error, Other}}} -> 
-	    case lists:member(Pid, Pid_list) of
-		false ->  
-		    io:format("Pid ~w sent message~n", [Pid]),
-		    receive_loop(Pid_list, ResultsReceived, N);
-		true ->
-		    Other
-	    end	    
-    end.		             
+-spec pmap(fun((command_list()) -> command_history()), [command_list()]) ->
+       [command_history()].
+pmap(F, L) ->
+    await(lists:reverse(spawn_jobs(F,L))).
+
+-spec spawn_jobs(fun((command_list()) -> command_history()), [command_list()]) -> [pid()].
+spawn_jobs(F, L) ->
+    Parent = self(),
+    [proper:spawn_link_migrate(fun() -> Parent ! {self(),catch {ok,F(X)}} end) || X <- L].
+
+-spec await([pid()]) -> [command_history()].
+await(Pids) ->
+    await_tr(Pids, []).
+
+-spec await_tr([pid()], [command_history()]) -> [command_history()].
+await_tr([], Accum) -> Accum;
+await_tr([H|T], Accum) ->
+    receive
+	{H, {ok, Res}} -> await_tr(T, [Res|Accum]);
+	{H, {'EXIT',_} = Err} ->
+	    _ = [exit(Pid,kill) || Pid <- T],
+	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
+	    io:format("Error during parallel execution~n"),
+	    erlang:error(Err)
+    end.
+
 
 %% -spec check_mem(mod_name(), dynamic_state(), proper_symb:var_values(),
 %% 		command_history(), command_history(), command_history()) -> boolean().
@@ -598,24 +582,12 @@ run_sequential(Commands, Env, Module, History, State) ->
 	    run_sequential(Rest, Env2, Module, History2, State2)
     end.
 
--spec safe_execute(command_list(), proper_symb:var_values(),
-		   mod_name(), command_history()) -> 
-			  {'ok', {command_history(), statem_result()}} | {'error', term()}.
-safe_execute(Commands,Env,Module,History) ->
-    try execute(Commands, Env, Module, History) of
-	Result ->
-	    {ok,Result}
-    catch
-	ExcKind:ExcReason ->
-	    {error,{exception,ExcKind,ExcReason,erlang:get_stacktrace()}}
-    end. 
-
 -spec execute(command_list(), proper_symb:var_values(), mod_name(), command_history()) -> 
-		     {command_history(), statem_result()}. 
+		     command_history(). 
 execute(Commands, Env, Module, History) ->
     case Commands of
 	[] -> 
-	    {lists:reverse(History), ok};
+	    lists:reverse(History);
 	[{set, {var,V}, {call,M,F,A}} = Cmd|Rest] ->
 	    M2 = proper_symb:eval(Env, M), 
 	    F2 = proper_symb:eval(Env, F), 
@@ -907,10 +879,11 @@ get_commands(PropList, LookUp) ->
     lists:map(fun({_,W}) -> get_commands_inner(W, LookUp) end, PropList).
 
 -spec get_next(combination(), non_neg_integer(), pos_integer(),
-	       [pos_integer()], pos_integer()) -> combination() | 'done'.
-get_next(L, _Len, _MaxIndex, Available, 1) ->
+	       [pos_integer()], pos_integer(), pos_integer()) ->
+		      combination() | 'done'.
+get_next(L, _Len, _MaxIndex, Available, _Workers, 1) ->
     [{1,Available}|proplists:delete(1, L)];
-get_next(L, Len, MaxIndex, Available, N) ->
+get_next(L, Len, MaxIndex, Available, Workers, N) ->
     C = case proplists:is_defined(N, L) of
 	    true ->
 		next_comb(MaxIndex, proplists:get_value(N, L), Available);
@@ -919,17 +892,17 @@ get_next(L, Len, MaxIndex, Available, N) ->
 	end,
     case C of
 	done -> 
-	    if N =:= ?WORKERS -> 
+	    if N =:= Workers -> 
 		    done;
-	       N =/= ?WORKERS -> 
+	       N =/= Workers -> 
 		    C2 = proplists:get_value(N+1, L), 
 		    NewList = [E || {M,_}=E <- L, M > N],
 		    get_next(NewList, Len, MaxIndex, 
-			     lists:sort(C2 ++ Available), N+1)
+			     lists:sort(C2 ++ Available), Workers, N+1)
 	    end;
 	_ ->
 	    get_next([{N,C}|proplists:delete(N, L)], 
-		     Len, MaxIndex, Available -- C, N-1)
+		     Len, MaxIndex, Available -- C, Workers, N-1)
     end.
 
 -spec next_comb(pos_integer(), [pos_integer()], [pos_integer()]) ->

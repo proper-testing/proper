@@ -478,9 +478,9 @@ undefined_symb_calls() ->
      {call,erlang,'+',[1,2,3]}].
 
 combinations() ->
-    [{[{1,[1,3,5,7,9,10]}, {2,[2,4,6,8,11]}], 5, 11, [1,2,3,4,5,6,7,8,9,10,11], 2,
+    [{[{1,[1,3,5,7,9,10]}, {2,[2,4,6,8,11]}], 5, 11, [1,2,3,4,5,6,7,8,9,10,11], 2, 2,
       [{1,[1,3,5,7,8,11]}, {2,[2,4,6,9,10]}]},
-     {[{1,[1,3,5]}, {2,[7,8,9]}, {3,[2,4,6]}], 3, 9, [1,3,5,7,8,9], 2,
+     {[{1,[1,3,5]}, {2,[7,8,9]}, {3,[2,4,6]}], 3, 9, [1,3,5,7,8,9], 3, 2,
       [{1,[6,8,9]}, {2,[1,3,5]}, {3,[2,4,7]}]}].
 
 fix_gen_data() ->
@@ -489,7 +489,7 @@ fix_gen_data() ->
 			{2,{set,{var,2},{call,reg_statem,spawn,[]}}},
 			{3,{set,{var,3},{call,erlang,register,[a,{var,1}]}}},
 			{4,{set,{var,4},{call,erlang,register,[b,{var,2}]}}}]),
-      reg_statem, reg_statem:initial_state(), [],
+      reg_statem, reg_statem:initial_state(), [], 2,
       [[{set,{var,2},{call,reg_statem,spawn,[]}},
 	{set,{var,4},{call,erlang,register,[b,{var,2}]}}],
        [{set,{var,1},{call,reg_statem,spawn,[]}},
@@ -983,8 +983,8 @@ run_init_error_test_() ->
      || {Module,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
 
 get_next_test_() ->
-    [?_assertEqual(Expected, proper_statem:get_next(L, Len, MaxIndex, Available, N))
-     || {L, Len, MaxIndex, Available, N, Expected} <- combinations()].
+    [?_assertEqual(Expected, proper_statem:get_next(L, Len, MaxIndex, Available, W, N))
+     || {L, Len, MaxIndex, Available, W, N, Expected} <- combinations()].
 
 mk_first_comb_test_() ->
      [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
@@ -992,8 +992,8 @@ mk_first_comb_test_() ->
 
 fix_gen_test_() ->
      [?_assertEqual(Expected, 
-		    proper_statem:fix_gen(N, Len, Comb, LookUp, Mod, State, Env))
-      || {N, Len, Comb, LookUp, Mod, State, Env, Expected}  <- fix_gen_data()].
+		    proper_statem:fix_gen(N, Len, Comb, LookUp, Mod, State, Env, W))
+      || {N, Len, Comb, LookUp, Mod, State, Env, W, Expected}  <- fix_gen_data()].
 
 %%------------------------------------------------------------------------------
 %% Helper Predicates

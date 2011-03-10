@@ -60,22 +60,23 @@ prop_zip() ->
 		equals(zip(X, Y), Res)
 	    end).
 
-%% -define(MOD, reg_parallel).
+-define(MOD, reg_parallel).
 
-%% prop_p() ->
-%%     ?FORALL(Workers, 3,
-%% 	    ?FORALL(CmdList, ?SUCHTHAT(X, resize(16, commands(?MOD)), length(X) >= Workers),
-%% 		    begin
-%% 			N = length(CmdList),
-%% 			Len = N div Workers,
-%% 			Comb = proper_statem:mk_first_comb(N, Len, Workers),
-%% 			LookUp =  orddict:from_list(proper_statem:mk_dict(CmdList,1)),
-%% 			State = ?MOD:initial_state(),
-%% 			Res =
-%% 			    proper_statem:fix_gen(N, Len, Comb, LookUp, ?MOD, State, []), 
-%% 			?WHENFAIL(io:format("CmdList: ~w\nResult: ~w\n", [CmdList, Res]),
-%% 				  length(Res) =:= Workers) 
-%% 		    end)).
+prop_p() ->
+    ?FORALL(Workers, range(2, 3),
+	    ?FORALL(CmdList,
+		    ?SUCHTHAT(X, resize(16, commands(?MOD)), length(X) >= Workers),
+		    begin
+			N = length(CmdList),
+			Len = N div Workers,
+			Comb = proper_statem:mk_first_comb(N, Len, Workers),
+			LookUp =  orddict:from_list(proper_statem:mk_dict(CmdList,1)),
+			State = ?MOD:initial_state(),
+			Res = proper_statem:fix_gen(N, Len, Comb, LookUp, ?MOD, State,
+						    [], Workers), 
+			?WHENFAIL(io:format("CmdList: ~w\nResult: ~w\n", [CmdList, Res]),
+				  length(lists:last(Res)) =:= Len) 
+		    end)).
 	
     
 		   
