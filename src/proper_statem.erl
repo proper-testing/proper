@@ -147,15 +147,16 @@ parallel_commands(Module, InitialState, InitFlag) ->
 			   end
 		   end, lists:seq(1, ?WORKERS)) ++
 	 lists:map(fun(I) ->
-			   fun(Parallel_Cmds, T, S) ->
-				   remove_parallel_shrinker(I, Module, Parallel_Cmds, T, S)
-			   end
-		   end, lists:seq(1, ?WORKERS)) ++
+	 		   fun(Parallel_Cmds, T, S) ->
+	 			   remove_parallel_shrinker(I, Module, Parallel_Cmds, T, S)
+	 		   end
+	 	   end, lists:seq(1, ?WORKERS)) ++
 	 [fun(Parallel_Cmds, T, S) ->
-		  split_seq_shrinker(Module, Parallel_Cmds, T, S) end,
+	 	  split_seq_shrinker(Module, Parallel_Cmds, T, S) end,
 	  fun(Parallel_Cmds, T, S) ->
-		  remove_seq_shrinker(Module, Parallel_Cmds, T, S) end,
-	  fun move_shrinker/3]}
+	  	  remove_seq_shrinker(Module, Parallel_Cmds, T, S) end,
+	  fun move_shrinker/3
+	 ]}
        ]).
 
 -spec gen_parallel_commands(size(), mod_name(), symbolic_state(), boolean()) ->
@@ -197,9 +198,12 @@ gen_parallel(Mod, InitialState, Size) ->
 	      mod_name(), symbolic_state(), [symb_var()], pos_integer()) ->
 		     [command_list()].
 fix_gen(_, 0, done, _, _, _, _, _) -> exit(error);   %% not supposed to reach here
-fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env, W) when Len>=0 ->
+fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env, W) ->
     Comb = mk_first_comb(MaxIndex, Len-1, W),
-    io:format("f"),
+    case Len of
+	1 -> io:format("f");
+	_ -> ok
+    end,
     fix_gen(MaxIndex, Len-1, Comb , LookUp, Mod, State, Env, W);	     
 fix_gen(MaxIndex, Len, Comb, LookUp, Mod, State, Env, W) ->
     Cs = get_commands(Comb, LookUp),
@@ -411,7 +415,7 @@ await_tr([H|T], Accum) ->
 	{H, {'EXIT',_} = Err} ->
 	    _ = [exit(Pid,kill) || Pid <- T],
 	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
-	    io:format("Error during parallel execution~n"),
+	    io:format("Error ~w during parallel execution~n", [Err]),
 	    erlang:error(Err)
     end.
 
@@ -595,7 +599,8 @@ execute(Commands, Env, Module, History) ->
 	    Res = apply(M2, F2, A2),
 	    Env2 = [{V,Res}|Env],
 	    History2 = [{Cmd,Res}|History],
-	    execute(Rest, Env2, Module, History2)
+	    execute(Rest, Env2, Module, History2);
+	Other -> io:format("hoho: ~w\n", [Other])
     end.
 
 
@@ -654,7 +659,8 @@ remove_shrinker(Module, Commands, Type, State) ->
 split_parallel_shrinker(I, Module, {Sequential,Parallel}, Type, State) ->
     SeqEnv = mk_env(Sequential, 1),
     SymbState = state_after(Module, Sequential),
-    {Slices, NewState} = proper_shrink:split_shrinker(lists:nth(I, Parallel), Type, State), 
+    {Slices, NewState} =
+	proper_shrink:split_shrinker(lists:nth(I, Parallel), Type, State), 
     {[{Sequential, update_list(I, S, Parallel)}
       || S <- Slices, is_valid(Module, SymbState, S, SeqEnv)],
      NewState}.
@@ -936,7 +942,7 @@ update_list(I, X, List) ->
 -spec update_list(pos_integer(), term(), [term(),...], [term()], pos_integer()) -> 
 			 [term(),...].
 update_list(Index, X, [_H|T], Accum, Index) ->
-    lists:reverse(Accum) ++ X ++ T;
+    lists:reverse(Accum) ++ [X] ++ T;
 update_list(Index, X, [H|T], Accum, N) ->
     update_list(Index, X, T, [H|Accum], N+1).
 
@@ -966,7 +972,7 @@ remove_first_command(I, List) ->
 -spec remove_first_command(pos_integer(), [command_list(),...], [command_list()],
 			   pos_integer()) -> [command_list(),...].
 remove_first_command(Index, [H|T], Accum, Index) ->
-    lists:reverse(Accum) ++ tl(H) ++ T;
+    lists:reverse(Accum) ++ [tl(H)] ++ T;
 remove_first_command(Index, [H|T], Accum, N) -> 
     remove_first_command(Index, T, [H|Accum], N+1).
     
