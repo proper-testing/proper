@@ -8,7 +8,7 @@
 
 -export([index/2, all_insertions/3, insert_all/2, possible_interleavings/1]).
 -export([is_valid/4]).
--export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2]).
+-export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2, move_shrinker/3]).
 
 -include("proper_internal.hrl").
 
@@ -154,8 +154,8 @@ parallel_commands(Module, InitialState, InitFlag) ->
 	 [fun(Parallel_Cmds, T, S) ->
 	 	  split_seq_shrinker(Module, Parallel_Cmds, T, S) end,
 	  fun(Parallel_Cmds, T, S) ->
-	  	  remove_seq_shrinker(Module, Parallel_Cmds, T, S) end,
-	  fun move_shrinker/3
+	  	  remove_seq_shrinker(Module, Parallel_Cmds, T, S) end %%,
+	  %% fun move_shrinker/3
 	 ]}
        ]).
 
@@ -184,9 +184,13 @@ gen_parallel(Mod, InitialState, Size) ->
   
     %%TODO: does it make sense for Len to be different from Len1?
     Len = length(CmdList),
-    {LenPar, {Seq, P}} = if Len =< ?LIMIT -> {Len, {[], CmdList}};
-			    Len > ?LIMIT ->  {?LIMIT, lists:split(Len - ?LIMIT, CmdList)}
-			 end,
+    {LenPar, {Seq, P}} =
+	if Len =< ?LIMIT -> 
+		RandLen = proper_arith:rand_int(?WORKERS, Len),
+		{RandLen, lists:split(Len - RandLen, CmdList)};
+	   Len > ?LIMIT ->
+		{?LIMIT, lists:split(Len - ?LIMIT, CmdList)}
+	end,
     State = state_after(Mod, Seq),
     Env = mk_env(Seq, 1),
     Len2 = LenPar div ?WORKERS,
@@ -206,6 +210,7 @@ fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env, W) ->
     end,
     fix_gen(MaxIndex, Len-1, Comb , LookUp, Mod, State, Env, W);	     
 fix_gen(MaxIndex, Len, Comb, LookUp, Mod, State, Env, W) ->
+    %%io:format("e"),
     Cs = get_commands(Comb, LookUp),
     case safe_parallelize(Cs, Mod, State, Env) of
 	{ok, Result} ->
@@ -415,7 +420,7 @@ await_tr([H|T], Accum) ->
 	{H, {'EXIT',_} = Err} ->
 	    _ = [exit(Pid,kill) || Pid <- T],
 	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
-	    io:format("Error ~w during parallel execution~n", [Err]),
+	    %%io:format("Error ~w during parallel execution~n", [Err]),
 	    erlang:error(Err)
     end.
 
@@ -600,7 +605,7 @@ execute(Commands, Env, Module, History) ->
 	    Env2 = [{V,Res}|Env],
 	    History2 = [{Cmd,Res}|History],
 	    execute(Rest, Env2, Module, History2);
-	Other -> io:format("hoho: ~w\n", [Other])
+	Other -> io:format("bug here: ~w\n", [Other])
     end.
 
 
@@ -667,21 +672,21 @@ split_parallel_shrinker(I, Module, {Sequential,Parallel}, Type, State) ->
 
 -spec remove_parallel_shrinker(pos_integer(), mod_name(), parallel_test_case(),
 			       proper_types:type(), proper_shrink:state()) ->
-				      {[parallel_test_case()],proper_shrink:state()}. 
+				      {[parallel_test_case()],proper_shrink:state()}.
 remove_parallel_shrinker(I, Module, {Sequential,Parallel} = SP, Type, State) ->
+    P = lists:nth(I, Parallel),
     SeqEnv = mk_env(Sequential, 1),
     SymbState = state_after(Module, Sequential),
-    {Slices,NewState} = proper_shrink:remove_shrinker(
-			       lists:nth(I, Parallel), Type, State),
+    {Slices,NewState} = proper_shrink:remove_shrinker(P, Type, State),
     case Slices of
 	[] -> 
-	    {[{Sequential, update_list(I, [], Parallel)}],NewState};
-	[NewCommands] ->
-	    case is_valid(Module, SymbState, NewCommands, SeqEnv) of
-		true ->
-		    {[{Sequential, update_list(I, NewCommands, Parallel)}],NewState};
-	        _ ->
-		    remove_parallel_shrinker(I, Module, SP, Type, NewState)
+	    {[], done};
+	_ ->
+	    L = [{Sequential, update_list(I, S, Parallel)}
+		 || S <- Slices, is_valid(Module, SymbState, S, SeqEnv)],
+	    case L of
+		[] -> remove_parallel_shrinker(I, Module, SP, Type, NewState);
+		_ -> {L,NewState}
 	    end
     end.
 
@@ -698,28 +703,27 @@ split_seq_shrinker(Module, {Sequential,Parallel}, Type, State) ->
 -spec remove_seq_shrinker(mod_name(), parallel_test_case(), proper_types:type(),
 			  proper_shrink:state()) ->
 				 {[parallel_test_case()],proper_shrink:state()}.
-remove_seq_shrinker(_Module, TestCase, _Type, done) ->
-    {[TestCase], done};
-remove_seq_shrinker(Module, {Sequential,Parallel}, Type, State) ->
+remove_seq_shrinker(Module, {Sequential,Parallel} = SP, Type, State) ->
     {Slices,NewState} = remove_shrinker(Module, Sequential, Type, State),
     SymbState = get_initial_state(Sequential),
-    UpdatedSlices = case Slices of
-			[] -> [[]];
-			_ -> Slices
-		    end,
-    L = [{S, Parallel} || S <- UpdatedSlices, P <- Parallel,
-			  is_valid(Module, SymbState, S ++ P, [])],
-    case L of
-	[] -> remove_seq_shrinker(Module, {Sequential,Parallel}, Type, NewState);
-	_ -> {L, NewState}
+    case Slices of
+	[] ->
+	    {[],NewState};
+	_ ->
+	    L = [{S, Parallel} || S <- Slices, P <- Parallel,
+				  is_valid(Module, SymbState, S ++ P, [])],
+	    case L of
+		[] -> remove_seq_shrinker(Module, SP, Type, NewState);
+		_ -> {L, NewState}
+	    end
     end. 
 
 -spec move_shrinker(parallel_test_case(), proper_types:type(), proper_shrink:state()) ->
 			   {[parallel_test_case()],proper_shrink:state()}.
-move_shrinker({Sequential, Parallel} = TestCase, _Type, _State) ->
+move_shrinker({Sequential, Parallel} = SP, _Type, _State) ->
     case get_first_commands(Parallel) of
 	[] -> 
-	    {[TestCase], done};
+	    {[SP], done};
 	List ->
 	    {[{Sequential ++ [H], remove_first_command(Index, Parallel)} 
 	      || {H, Index} <- List], shrunk}
