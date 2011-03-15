@@ -84,7 +84,7 @@ unregister_ok(S,Name) ->
 
 %% The main property.
 prop_reg_parallel() ->
-    ?FORALL(Cmds,parallel_commands(?MODULE),
+    ?FORALL(Cmds,parallel_commands(?MODULE, ?MODULE:initial_state()),
 	    begin
 		{Seq,P,Res} = run_parallel_commands(?MODULE,Cmds),
 		clean_up(),

@@ -65,7 +65,7 @@ prop_zip() ->
 prop_p() ->
     ?FORALL(Workers, range(2, 3),
 	    ?FORALL(CmdList,
-		    ?SUCHTHAT(X, resize(16, commands(?MOD)), length(X) >= Workers),
+		    ?SUCHTHAT(X, resize(12, commands(?MOD)), length(X) >= Workers),
 		    begin
 			N = length(CmdList),
 			Len = N div Workers,
@@ -78,5 +78,19 @@ prop_p() ->
 				  length(lists:last(Res)) =:= Len) 
 		    end)).
 	
-    
+prop_check_true() ->
+    ?FORALL(Cmds, proper_statem:parallel_commands(?MOD),
+	    begin
+		{Seq,Parallel} = Cmds,
+		InitialState = proper_statem:get_initial_state(Seq),
+		{ok,DynState} = proper_statem:safe_eval_init([], InitialState),
+		{ok, {{_, State, ok}, Env1}} =
+		    proper_statem:safe_run_sequential(Seq, [], ?MOD, [], DynState),
+		Res = lists:map(fun(C) -> proper_statem:execute(C, Env1, ?MOD, []) end,
+				Parallel),
+		V = proper_statem:check(?MOD, State, Env1, Env1, [], Res, []),
+                ?MOD:clean_up(),
+		equals(V, true)
+	    end).
+
 		   

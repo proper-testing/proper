@@ -9,11 +9,13 @@
 -export([index/2, all_insertions/3, insert_all/2, possible_interleavings/1]).
 -export([is_valid/4]).
 -export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2, move_shrinker/3]).
+-export([is_parallel/4, execute/4, check/7, safe_run_sequential/5, get_initial_state/1,
+	 safe_eval_init/2]).
 
 -include("proper_internal.hrl").
 
 -define(WORKERS, 2).
--define(LIMIT, 16).
+-define(LIMIT, 12).
 
 %% -----------------------------------------------------------------------------
 %% Type declarations
@@ -155,17 +157,18 @@ parallel_commands(Module, InitialState, InitFlag) ->
 	 	  split_seq_shrinker(Module, Parallel_Cmds, T, S) end,
 	  fun(Parallel_Cmds, T, S) ->
 	  	  remove_seq_shrinker(Module, Parallel_Cmds, T, S) end %%,
-	  %% fun move_shrinker/3
+	  %%fun move_shrinker/3  %%TODO: fix this shrinker
 	 ]}
        ]).
 
 -spec gen_parallel_commands(size(), mod_name(), symbolic_state(), boolean()) ->
 				   parallel_test_case().
 gen_parallel_commands(Size, Mod, InitialState, InitFlag) ->
-    case InitFlag of
-	true -> ok;
-	false -> erlang:put('$initial_state', InitialState)
-    end,
+    %% case InitFlag of
+    %% 	true -> ok;
+    %% 	false -> erlang:put('$initial_state', InitialState)
+    %% end,
+    erlang:put('$initial_state', InitialState),
     try gen_parallel(Mod, InitialState, Size) of
 	{Sequential,Parallel} = Res ->
 	    case InitFlag of
@@ -210,42 +213,33 @@ fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env, W) ->
     end,
     fix_gen(MaxIndex, Len-1, Comb , LookUp, Mod, State, Env, W);	     
 fix_gen(MaxIndex, Len, Comb, LookUp, Mod, State, Env, W) ->
-    %%io:format("e"),
     Cs = get_commands(Comb, LookUp),
-    case safe_parallelize(Cs, Mod, State, Env) of
-	{ok, Result} ->
-	    Result;
-	error ->
+    case is_parallel(Cs, Mod, State, Env) of
+	true ->
+	    Cs;
+	false ->
 	    C1 = proplists:get_value(1, Comb),
 	    C2 = proplists:get_value(2, Comb),
 	    Next = get_next(Comb, Len, MaxIndex, lists:sort(C1 ++ C2), W, 2),
 	    fix_gen(MaxIndex, Len, Next, LookUp, Mod, State, Env, W)
     end.
 
--spec safe_parallelize([command_list()], mod_name(), symbolic_state(), [symb_var()]) -> 
-			      {'ok', [command_list()]} | 'error'.
-safe_parallelize(Cs, Mod, State, Env) ->
+-spec is_parallel([command_list()], mod_name(), symbolic_state(), [symb_var()]) -> 
+			 boolean().
+is_parallel(Cs, Mod, State, Env) ->
     case lists:all(fun(C) -> is_valid(Mod, State, C, Env) end, Cs) of
 	true -> 
-	    case parallelize(Cs, Mod, State, Env) of
-		{ok,_R} = Result -> Result;   
-		error -> error
-	    end;
+	    can_parallelize(Cs, Mod, State, Env);	
 	false -> 
-	    error
+	    false
     end.	   
 
 %%TODO: produce possible interleavings in a lazy way
--spec parallelize([command_list()], mod_name(), symbolic_state(), [symb_var()]) ->
-			 {'ok', [command_list()]} | 'error'.
-parallelize(Cs, Mod, S, Env) ->
+-spec can_parallelize([command_list()], mod_name(), symbolic_state(), [symb_var()]) ->
+			     boolean().
+can_parallelize(Cs, Mod, S, Env) ->
     Val = fun (C) -> is_valid(Mod, S, C, Env) end,
-    case lists:all(Val, possible_interleavings(Cs)) of
-	true ->
-	    {ok, Cs};
-	false -> 
-	    error
-    end.
+    lists:all(Val, possible_interleavings(Cs)).
 
 
 %% -----------------------------------------------------------------------------
@@ -424,102 +418,6 @@ await_tr([H|T], Accum) ->
 	    erlang:error(Err)
     end.
 
-
-%% -spec check_mem(mod_name(), dynamic_state(), proper_symb:var_values(),
-%% 		command_history(), command_history(), command_history()) -> boolean().
-%% check_mem(Mod, State, Env, P1, P2, Accum) ->
-%%     T = {State,P1,P2},
-%%     case ets:lookup(check_tab, T) of
-%% 	[{T, V}] when is_boolean(V) ->
-%% 	    V;
-%% 	[] ->
-%% 	    V = check(Mod, State, Env, P1, P2, Accum),
-%% 	    memoize(check_tab, T, V),
-%% 	    V
-%%     end.
-
-%% -spec check(mod_name(), dynamic_state(), proper_symb:var_values(),
-%% 	    command_history(),command_history(),command_history()) -> boolean().
-%% check(_Mod,_State,_Env,[],[],_Accum) ->
-%%     true;
-%% check(Mod,State,Env,[],[Head|Rest]=P2,Accum) ->
-%%     {{set,{var,N},{call,M,F,A}},Res} = Head, 
-%%     M2 = proper_symb:eval(Env,M), 
-%%     F2 = proper_symb:eval(Env,F), 
-%%     A2 = proper_symb:eval(Env,A),
-%%     Call = {call,M2,F2,A2},
-%%     case Mod:postcondition(State,Call,Res) of 
-%% 	true ->
-%% 	    Env2 = [{N,Res}|Env],
-%% 	    NextState = Mod:next_state(State,Res,Call),
-%% 	    V = check_mem(Mod,NextState,Env2,[],Rest,[Head|Accum]),
-%% 	    memoize(check_tab,{NextState,[],Rest},V),
-%% 	    V;
-%% 	false -> 
-%% 	    memoize(check_tab,{State,[],P2},false),
-%% 	    false
-%%     end;
-%% check(Mod, State, Env, [Head|Rest]=P1, [], Accum) ->
-%%     {{set,{var,N},{call,M,F,A}},Res} = Head, 
-%%     M2 = proper_symb:eval(Env,M), 
-%%     F2 = proper_symb:eval(Env,F), 
-%%     A2 = proper_symb:eval(Env,A),
-%%     Call = {call,M2,F2,A2},
-%%     case Mod:postcondition(State, Call, Res) of
-%% 	true ->
-%% 	    Env2 = [{N,Res}|Env],
-%% 	    NextState = Mod:next_state(State,Res,Call),
-%% 	    V = check_mem(Mod,NextState,Env2,Rest,[],[Head|Accum]),
-%% 	    memoize(check_tab, {NextState,Rest,[]}, V),
-%% 	    V;
-%% 	false ->
-%% 	    memoize(check_tab, {State,P1,[]}, false),
-%% 	    false
-%%     end;
-%% check(Mod,State,Env,[H1|Rest1]=P1,[H2|Rest2]=P2,Accum) ->
-%%     {{set,{var,N1},{call,M1,F1,A1}},Res1} = H1,
-%%     {{set,{var,N2},{call,M2,F2,A2}},Res2} = H2,
-%%     M1_ = proper_symb:eval(Env,M1), 
-%%     F1_ = proper_symb:eval(Env,F1), 
-%%     A1_ = proper_symb:eval(Env,A1),
-%%     Call1 = {call,M1_,F1_,A1_},   
-%%     M2_ = proper_symb:eval(Env,M2), 
-%%     F2_ = proper_symb:eval(Env,F2), 
-%%     A2_ = proper_symb:eval(Env,A2),
-%%     Call2 = {call,M2_,F2_,A2_}, 
-%%     case {Mod:postcondition(State,Call1,Res1),Mod:postcondition(State,Call2,Res2)} of 
-%% 	{true,false} -> 
-%% 	    Env2 = [{N1,Res1}|Env],
-%% 	    NextState = Mod:next_state(State,Res1,Call1),
-%% 	    V = check_mem(Mod,NextState,Env2,Rest1,P2,[H1|Accum]),
-%% 	    memoize(check_tab,{NextState,Rest1,P2},V),
-%% 	    V;
-%% 	{false,true} -> 
-%% 	    Env2 = [{N2,Res2}|Env],
-%% 	    NextState = Mod:next_state(State,Res2,Call2),
-%% 	    V = check_mem(Mod,NextState,Env2,P1,Rest2,[H1|Accum]),
-%% 	    memoize(check_tab,{NextState,P1,Rest2},V),
-%% 	    V;
-%% 	{true,true} -> 
-%% 	    NextState1 = Mod:next_state(State,Res1,Call1),
-%% 	    NextState2 = Mod:next_state(State,Res2,Call2),
-%% 	    Env1 = [{N1,Res1}|Env],
-%% 	    Env2 = [{N2,Res2}|Env],
-%% 	    case check_mem(Mod,NextState1,Env1,Rest1,P2,[H1|Accum]) of
-%% 		true -> 
-%% 		    memoize(check_tab,{NextState1,Rest1,P2},true),
-%% 		    true;
-%% 		false ->
-%% 		    memoize(check_tab,{NextState1,Rest1,P2},false),
-%% 		    V = check_mem(Mod,NextState2,Env2,P1,Rest2,[H2|Accum]),
-%% 		    memoize(check_tab,{NextState2,P1,Rest2},V),
-%% 		    V
-%% 	    end;
-%% 	{false,false} -> 
-%% 	    memoize(check_tab,{State,P1,P2},false),
-%% 	    false
-%%     end.
-
 -spec check(mod_name(), dynamic_state(), proper_symb:var_values(), 
 	    proper_symb:var_values(), [command_history()], [command_history()],
 	    command_history()) -> boolean().
@@ -696,8 +594,9 @@ remove_parallel_shrinker(I, Module, {Sequential,Parallel} = SP, Type, State) ->
 split_seq_shrinker(Module, {Sequential,Parallel}, Type, State) ->
     {Slices,NewState} = split_shrinker(Module, Sequential, Type, State),
     SymbState = get_initial_state(Sequential),
-    {[{S, Parallel} || S <- Slices, P <- Parallel,
-		       is_valid(Module, SymbState, S ++ P, [])],
+    {[{S, Parallel} || S <- Slices,
+		       lists:all(fun(P) -> is_valid(Module, SymbState, S ++ P, []) end,
+				 Parallel)],
      NewState}.
 
 -spec remove_seq_shrinker(mod_name(), parallel_test_case(), proper_types:type(),
@@ -710,8 +609,10 @@ remove_seq_shrinker(Module, {Sequential,Parallel} = SP, Type, State) ->
 	[] ->
 	    {[],NewState};
 	_ ->
-	    L = [{S, Parallel} || S <- Slices, P <- Parallel,
-				  is_valid(Module, SymbState, S ++ P, [])],
+	    L = [{S, Parallel}
+		 || S <- Slices,
+		    lists:all(fun(P) -> is_valid(Module, SymbState, S ++ P, []) end,
+			      Parallel)],
 	    case L of
 		[] -> remove_seq_shrinker(Module, SP, Type, NewState);
 		_ -> {L, NewState}
@@ -720,10 +621,10 @@ remove_seq_shrinker(Module, {Sequential,Parallel} = SP, Type, State) ->
 
 -spec move_shrinker(parallel_test_case(), proper_types:type(), proper_shrink:state()) ->
 			   {[parallel_test_case()],proper_shrink:state()}.
-move_shrinker({Sequential, Parallel} = SP, _Type, _State) ->
+move_shrinker({Sequential, Parallel}, _Type, _State) ->
     case get_first_commands(Parallel) of
 	[] -> 
-	    {[SP], done};
+	    {[], done};
 	List ->
 	    {[{Sequential ++ [H], remove_first_command(Index, Parallel)} 
 	      || {H, Index} <- List], shrunk}
@@ -980,7 +881,100 @@ remove_first_command(Index, [H|T], Accum, Index) ->
 remove_first_command(Index, [H|T], Accum, N) -> 
     remove_first_command(Index, T, [H|Accum], N+1).
     
+%% -spec check_mem(mod_name(), dynamic_state(), proper_symb:var_values(),
+%% 		command_history(), command_history(), command_history()) -> boolean().
+%% check_mem(Mod, State, Env, P1, P2, Accum) ->
+%%     T = {State,P1,P2},
+%%     case ets:lookup(check_tab, T) of
+%% 	[{T, V}] when is_boolean(V) ->
+%% 	    V;
+%% 	[] ->
+%% 	    V = check(Mod, State, Env, P1, P2, Accum),
+%% 	    memoize(check_tab, T, V),
+%% 	    V
+%%     end.
 
+%% -spec check(mod_name(), dynamic_state(), proper_symb:var_values(),
+%% 	    command_history(),command_history(),command_history()) -> boolean().
+%% check(_Mod,_State,_Env,[],[],_Accum) ->
+%%     true;
+%% check(Mod,State,Env,[],[Head|Rest]=P2,Accum) ->
+%%     {{set,{var,N},{call,M,F,A}},Res} = Head, 
+%%     M2 = proper_symb:eval(Env,M), 
+%%     F2 = proper_symb:eval(Env,F), 
+%%     A2 = proper_symb:eval(Env,A),
+%%     Call = {call,M2,F2,A2},
+%%     case Mod:postcondition(State,Call,Res) of 
+%% 	true ->
+%% 	    Env2 = [{N,Res}|Env],
+%% 	    NextState = Mod:next_state(State,Res,Call),
+%% 	    V = check_mem(Mod,NextState,Env2,[],Rest,[Head|Accum]),
+%% 	    memoize(check_tab,{NextState,[],Rest},V),
+%% 	    V;
+%% 	false -> 
+%% 	    memoize(check_tab,{State,[],P2},false),
+%% 	    false
+%%     end;
+%% check(Mod, State, Env, [Head|Rest]=P1, [], Accum) ->
+%%     {{set,{var,N},{call,M,F,A}},Res} = Head, 
+%%     M2 = proper_symb:eval(Env,M), 
+%%     F2 = proper_symb:eval(Env,F), 
+%%     A2 = proper_symb:eval(Env,A),
+%%     Call = {call,M2,F2,A2},
+%%     case Mod:postcondition(State, Call, Res) of
+%% 	true ->
+%% 	    Env2 = [{N,Res}|Env],
+%% 	    NextState = Mod:next_state(State,Res,Call),
+%% 	    V = check_mem(Mod,NextState,Env2,Rest,[],[Head|Accum]),
+%% 	    memoize(check_tab, {NextState,Rest,[]}, V),
+%% 	    V;
+%% 	false ->
+%% 	    memoize(check_tab, {State,P1,[]}, false),
+%% 	    false
+%%     end;
+%% check(Mod,State,Env,[H1|Rest1]=P1,[H2|Rest2]=P2,Accum) ->
+%%     {{set,{var,N1},{call,M1,F1,A1}},Res1} = H1,
+%%     {{set,{var,N2},{call,M2,F2,A2}},Res2} = H2,
+%%     M1_ = proper_symb:eval(Env,M1), 
+%%     F1_ = proper_symb:eval(Env,F1), 
+%%     A1_ = proper_symb:eval(Env,A1),
+%%     Call1 = {call,M1_,F1_,A1_},   
+%%     M2_ = proper_symb:eval(Env,M2), 
+%%     F2_ = proper_symb:eval(Env,F2), 
+%%     A2_ = proper_symb:eval(Env,A2),
+%%     Call2 = {call,M2_,F2_,A2_}, 
+%%     case {Mod:postcondition(State,Call1,Res1),Mod:postcondition(State,Call2,Res2)} of 
+%% 	{true,false} -> 
+%% 	    Env2 = [{N1,Res1}|Env],
+%% 	    NextState = Mod:next_state(State,Res1,Call1),
+%% 	    V = check_mem(Mod,NextState,Env2,Rest1,P2,[H1|Accum]),
+%% 	    memoize(check_tab,{NextState,Rest1,P2},V),
+%% 	    V;
+%% 	{false,true} -> 
+%% 	    Env2 = [{N2,Res2}|Env],
+%% 	    NextState = Mod:next_state(State,Res2,Call2),
+%% 	    V = check_mem(Mod,NextState,Env2,P1,Rest2,[H1|Accum]),
+%% 	    memoize(check_tab,{NextState,P1,Rest2},V),
+%% 	    V;
+%% 	{true,true} -> 
+%% 	    NextState1 = Mod:next_state(State,Res1,Call1),
+%% 	    NextState2 = Mod:next_state(State,Res2,Call2),
+%% 	    Env1 = [{N1,Res1}|Env],
+%% 	    Env2 = [{N2,Res2}|Env],
+%% 	    case check_mem(Mod,NextState1,Env1,Rest1,P2,[H1|Accum]) of
+%% 		true -> 
+%% 		    memoize(check_tab,{NextState1,Rest1,P2},true),
+%% 		    true;
+%% 		false ->
+%% 		    memoize(check_tab,{NextState1,Rest1,P2},false),
+%% 		    V = check_mem(Mod,NextState2,Env2,P1,Rest2,[H2|Accum]),
+%% 		    memoize(check_tab,{NextState2,P1,Rest2},V),
+%% 		    V
+%% 	    end;
+%% 	{false,false} -> 
+%% 	    memoize(check_tab,{State,P1,P2},false),
+%% 	    false
+%%     end.
 %% -spec memoize(atom(), term(), term()) -> 'ok'.		     
 %% memoize(Tab, Key, Value) ->
 %%     ets:insert(Tab, {Key,Value}),

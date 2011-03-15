@@ -515,7 +515,7 @@ command_names() ->
       [{foo,bar,0},
        {bar,foo,2}]},
      {[],[]}].
-   
+
 valid_command_sequences() ->
 %% {module, initial_state, command_sequence, symbolic_state_after, dynamic_state_after, 
 %%  environment}
@@ -952,15 +952,16 @@ can_generate_commands1_test_() ->
     [?_test(assert_can_generate(proper_statem:commands(Module, StartState),true)) 
      || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
 
-%% can_generate_parallel_commands0_test_() ->
-%%     {timeout, 60,
-%%      [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
-%%       || Module <- [reg_parallel]]}.
+can_generate_parallel_commands0_test_() ->
+    {timeout, 20,
+     [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
+      || Module <- [reg_parallel]]}.
 
-%% can_generate_parallel_commands1_test_() ->
-%%     [?_test(assert_can_generate(
-%% 	      proper_statem:parallel_commands(Module, Module:initial_state()),true)) 
-%%      || Module <- [reg_parallel]].
+can_generate_parallel_commands1_test_() ->
+    {timeout, 20,
+     [?_test(assert_can_generate(
+	       proper_statem:parallel_commands(Module, Module:initial_state()),true)) 
+      || Module <- [reg_parallel]]}.
 
 run_valid_commands_test_() ->
     [?_assertMatch({_H,DynState,ok}, setup_run_commands(Module, Cmds, Env))
