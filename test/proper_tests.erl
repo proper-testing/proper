@@ -779,8 +779,9 @@ options_test_() ->
 		 [{start_size,12}])].
 
 adts_test_() ->
-    [?_passes(?FORALL({X,S},{integer(),set()},
-		      sets:is_element(X,sets:add_element(X,S))), [20]),
+    [{timeout, 20,	% for Kostis' old laptop
+      ?_passes(?FORALL({X,S},{integer(),set()},
+		       sets:is_element(X,sets:add_element(X,S))), [20])},
      ?_passes(?FORALL({X,Y,D},
 		      {integer(),float(),dict(integer(),float())},
 		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30]),
