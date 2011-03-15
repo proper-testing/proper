@@ -119,6 +119,7 @@
 %%-----------------------------------------------------------------------------
 
 -type user_opt() :: 'quiet'
+		  | 'verbose'
 		  | {'to_file',file:io_device()}
 		  | {'on_output',output_fun()}
 		  | 'long_result'
@@ -451,6 +452,7 @@ parse_opts([UserOpt | Rest], Opts) ->
 parse_opt(UserOpt, Opts) ->
     case UserOpt of
 	quiet                -> Opts#opts{output_fun = fun(_,_) -> ok end};
+	verbose              -> Opts#opts{output_fun = fun io:format/2};
 	{to_file,IoDev}      -> Opts#opts{output_fun =
 				    fun(S,F) -> io:format(IoDev, S, F) end
 				};

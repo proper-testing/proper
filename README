@@ -318,6 +318,8 @@ The available options are:
 
 'quiet'
     Enables quiet mode - no output is printed on screen while PropEr is running.
+'verbose'
+    Enables verbose mode - this is the default mode of operation.
 {'to_file', <IO_device>}
     Redirects all of PropEr's output to <IO_device>, which should be an IO
     device associated with a file opened for writing.

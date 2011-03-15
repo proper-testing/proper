@@ -477,8 +477,8 @@ undefined_symb_calls() ->
 %%------------------------------------------------------------------------------
 
 %% TODO: write tests for old datatypes, use old tests
-%% TODO: check output redirection, quiet, to_file, on_output/2 (maybe by
-%%	 writing to a string in the process dictionary), statistics printing,
+%% TODO: check output redirection, quiet, verbose, to_file, on_output/2 (maybe
+%%       by writing to a string in the process dictionary), statistics printing,
 %%	 standard verbose behaviour
 %% TODO: fix compiler warnings
 %% TODO: how to test 'crypto' option?
