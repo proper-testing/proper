@@ -6,9 +6,9 @@
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
 
--export([index/2, all_insertions/3, insert_all/2, possible_interleavings/1]).
+-export([index/2, all_insertions/3, insert_all/2]).
 -export([is_valid/4]).
--export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2, move_shrinker/3]).
+-export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2]).
 -export([is_parallel/4, execute/4, check/7, safe_run_sequential/5, get_initial_state/1,
 	 safe_eval_init/2]).
 
@@ -156,8 +156,8 @@ parallel_commands(Module, InitialState, InitFlag) ->
 	 [fun(Parallel_Cmds, T, S) ->
 	 	  split_seq_shrinker(Module, Parallel_Cmds, T, S) end,
 	  fun(Parallel_Cmds, T, S) ->
-	  	  remove_seq_shrinker(Module, Parallel_Cmds, T, S) end %%,
-	  %%fun move_shrinker/3  %%TODO: fix this shrinker
+	  	  remove_seq_shrinker(Module, Parallel_Cmds, T, S) end,
+	  fun move_shrinker/3
 	 ]}
        ]).
 
@@ -385,7 +385,7 @@ run_parallel_commands(Module, {Sequential, Parallel}, Env) ->
 		    %% true = ets:delete(check_tab),
 		    R;
 		{error, Reason} ->
-		    io:format("Error during sequential execution~n"),
+		    %%io:format("Error during sequential execution~n"),
 		    erlang:error(Reason)
 	    end;
 	{error, Reason} ->
@@ -621,14 +621,20 @@ remove_seq_shrinker(Module, {Sequential,Parallel} = SP, Type, State) ->
 
 -spec move_shrinker(parallel_test_case(), proper_types:type(), proper_shrink:state()) ->
 			   {[parallel_test_case()],proper_shrink:state()}.
-move_shrinker({Sequential, Parallel}, _Type, _State) ->
-    case get_first_commands(Parallel) of
+move_shrinker(Instance, Type, init) ->
+    move_shrinker(Instance, Type, {move,1});
+move_shrinker({Sequential, Parallel}, _Type, {move,1}) ->
+     case get_first_commands(Parallel) of
 	[] -> 
 	    {[], done};
 	List ->
-	    {[{Sequential ++ [H], remove_first_command(Index, Parallel)} 
-	      || {H, Index} <- List], shrunk}
-    end.
+	     {[{Sequential ++ [H], remove_first_command(Index, Parallel)}
+		    || {H, Index} <- List], {move,2}}
+     end;
+move_shrinker(_, _, {move,2}) ->
+    {[], done};
+move_shrinker(Instance, Type, {shrunk,_Pos,{move,2}}) ->
+    move_shrinker(Instance, Type, {move,1}).
 
 
 %% -----------------------------------------------------------------------------

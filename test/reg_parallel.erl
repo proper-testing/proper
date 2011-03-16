@@ -9,7 +9,8 @@ test() ->
     test(100).
 
 test(NumTests) ->
-    timer:tc(proper,quickcheck,[?MODULE:prop_reg_parallel(),NumTests]).
+    %% timer:tc(proper,quickcheck,[?MODULE:prop_reg_parallel(),NumTests]).
+    proper:quickcheck(?MODULE:prop_reg_parallel(),NumTests).
 
 %% Initialize the state
 initial_state() ->
@@ -21,7 +22,8 @@ command(S) ->
 	  [{call,?MODULE,catch_register,[name(),elements(S#state.pids)]}
 	   || S#state.pids =/= []] ++
 	  [{call,?MODULE,catch_unregister,[name()]}] ++
-	  [{call,erlang,whereis,[name()]}]).
+	  [{call,erlang,whereis,[name()]}] ++
+	  [{call,?MODULE,spawn_reg,[name()]}]).
 
 -define(names,[a,b,c,d]).
 name() ->
@@ -40,13 +42,23 @@ next_state(S,_V,{call,_,catch_register,[Name,Pid]}) ->
 next_state(S,_V,{call,_,catch_unregister,[Name]}) ->
     S#state{regs=lists:keydelete(Name,1,S#state.regs)};
 next_state(S,_V,{call,_,whereis,[_]}) ->
-    S.
+    S;
+next_state(S, V, {call,_,spawn_reg,[Name]}) ->
+    case is_registered(S,Name) of
+	true ->
+	    S;
+	false ->
+	    S#state{regs=[{Name,V}|S#state.regs],
+		    pids=[V|S#state.pids]}
+    end.
+
+is_registered(S, Name) ->
+    lists:keymember(Name, 1, S#state.regs).
 
 register_ok(S,Name,Pid) ->
     not lists:keymember(Name,1,S#state.regs) andalso
 	not lists:keymember(Pid,2,S#state.regs).
-
-
+	    
 %% Precondition, checked before command is added to the command sequence
 precondition(_S,{call,_,_,_}) ->
     true.
@@ -75,6 +87,17 @@ postcondition(S,{call,_,whereis,[Name]},Res) ->
 	_R ->
 	    lists:member({Name,Res},S#state.regs)
     end;
+postcondition(S,{call,_,spawn_reg,[Name]},Res) ->
+    case is_registered(S,Name) of
+    	true ->
+    	    Pid = proplists:get_value(Name,S#state.regs),
+    	    %%io:format("Name: ~w\nResult: ~w\nPid: ~w\n", [Name, Res, Pid]),
+    	    Res =:= Pid;
+    	false ->
+    	    %%io:format("Name: ~w\nResult: ~w\n", [Name, Res]),
+    	    not lists:member(Res,S#state.pids)
+     end; 
+  
 postcondition(_S,{call,_,_,_},_Res) ->
     true.
 
@@ -84,7 +107,7 @@ unregister_ok(S,Name) ->
 
 %% The main property.
 prop_reg_parallel() ->
-    ?FORALL(Cmds,parallel_commands(?MODULE, ?MODULE:initial_state()),
+    ?FORALL(Cmds,parallel_commands(?MODULE),
 	    begin
 		{Seq,P,Res} = run_parallel_commands(?MODULE,Cmds),
 		clean_up(),
@@ -109,4 +132,13 @@ catch_register(Name,Pid) ->
 spawn() ->
     spawn(timer,sleep,[5000]).
 
-
+spawn_reg(Name) ->
+    case whereis(Name) of
+	undefined ->
+	    Pid = spawn(),
+	    timer:sleep(1),
+	    catch_register(Name, Pid),
+	    Pid;
+	Pid ->
+	    Pid
+    end.
