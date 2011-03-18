@@ -180,9 +180,9 @@ measure(<Title>, <Number> | <List_of_numbers>, <Prop>)
     this test fails, <Action> will be executed. Note that the output of such
     actions is not affected by the verbosity setting of the main application.
 ?TRAPEXIT(<Prop>)
-    If the code inside <Prop> spawns and links to a process that dies abnormaly,
-    PropEr will catch the exit signal and treat it as a test failure, instead of
-    crashing. ?TRAPEXIT cannot contain any more wrappers.
+    If the code inside <Prop> spawns and links to a process that dies
+    abnormally, PropEr will catch the exit signal and treat it as a test
+    failure, instead of crashing. ?TRAPEXIT cannot contain any more wrappers.
 ?TIMEOUT(<Time_limit>, <Prop>)
     Signifies that <Prop> should be considered failing if it takes more than
     <Time_limit> milliseconds to return. The purpose of this wrapper is to test
@@ -311,7 +311,7 @@ Options can be provided as an extra argument to testing functions exported from
 the main proper module (such as proper:quickcheck). A single option can be
 written stand-alone, or multiple options can be provided in a list. When two
 settings conflict, the one that comes first in the list takes precedence.
-Settings given inside extrernal wrappers to a property (see the 'How to write
+Settings given inside external wrappers to a property (see the 'How to write
 properties' section) override any conflicting settings provided as options.
 
 The available options are:
@@ -326,7 +326,7 @@ The available options are:
 {'on_output', <output_function>}
     PropEr will use the supplied function for all output printing. This function
     should accept two arguments in the style of io:format/2.
-    CAUTION: The above three output control options are incompatible with each
+    CAUTION: The above two output control options are incompatible with each
     other.
 'long_result'
     Enables long-result mode (see the 'Counterexamples' section for details).
