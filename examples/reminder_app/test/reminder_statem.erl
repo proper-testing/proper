@@ -6,11 +6,10 @@
 
 -define(SERVER, evserv).
 -define(EVENT, event).
--define(NOW,{{2011,2,14},{12,12,12}}).
+-define(NOW, ?EVENT:now()).
 
 -record(state, {events,        %% list of active #event{} records
-                clients,       %% list of Pids subscribed as clients
-		completed      %% list of completed events 
+                clients        %% list of Pids subscribed as clients
 	       }).
 
 -record(event, {name="",
@@ -19,7 +18,10 @@
 		timeout={{1970,1,1},{0,0,0}}}).
 
 test() ->
-    proper:quickcheck(?MODULE:prop_reminder()).  
+    test(500).
+
+test(N) ->
+    proper:quickcheck(?MODULE:prop_reminder(), N).  
 
 stop() ->
     ?SERVER:terminate().    
@@ -39,22 +41,21 @@ flush() ->
     end. 
 
 prop_reminder() ->
-    ?FORALL(Cmds,commands(?MODULE),
-       ?TRAPEXIT(
-	  begin
-	      ?SERVER:start_link(),
-	      {ok,_Ref} = ?SERVER:subscribe(self()),
-	      {H,S,Res} = run_commands(?MODULE,Cmds),
-	      clean_up(S),
-	      ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n", [H,S,Res]),
-			Res == ok)
-	   %aggregate(command_names(Cmds),Res == ok)
-	  end)).
+    ?FORALL(Cmds, commands(?MODULE),
+	    ?TRAPEXIT( 
+	       begin
+		   ?SERVER:start_link(),
+		   {ok,_Ref} = ?SERVER:subscribe(self()),
+		   {H,S,Res} = run_commands(?MODULE, Cmds),
+		   clean_up(S),
+		   ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n", [H,S,Res]),
+			     Res == ok)
+						%aggregate(command_names(Cmds),Res == ok)
+	       end)).
 
 initial_state() ->
     #state{events=orddict:new(),
-	   clients=[{call,erlang,self,[]}],
-	   completed=[]
+	   clients=[{call,erlang,self,[]}]
 	  }.
 
 command(_S) ->
@@ -73,84 +74,63 @@ name() -> %?SUCHTHAT(S, string(), S=/="").
 description() ->
     "".
 
-
 date_time() ->
-    ?LET({Date,{H,Min,Sec}},?EVENT:now(), 
-	 {Date,{range(H-2,H+2),range(Min-2,Min+2),range(Sec-2,Sec+2)}}).
+    ?LET({Date,{H,Min,Sec}},?NOW, 
+	 {Date,{range(H-1, H+2),range(Min-1, Min+2),range(Sec-1, Sec+2)}}).
 
-next_state(S,_V,{call,_,add_event,[Name,D,TimeOut]}) ->
-    Dict = 
-	case ?SERVER:valid_datetime(TimeOut) of
-	    true ->
-		case orddict:is_key(Name,S#state.events) of
-		    false ->
-			Event =  #event{name=Name,
-					pid=new_pid(),
-					description=D,
-					timeout=TimeOut},
-			orddict:store(Name,Event,S#state.events); 
-		    true ->
-			S#state.events
-		end;
-	    false ->
-		S#state.events
-	end,
-    NewDict = orddict:filter(fun (_Name,X) -> not is_past(X#event.timeout) end,
-			     Dict),
-    Done = orddict:filter(fun (_Name,X) -> is_past(X#event.timeout) end,
-			     Dict),
-    S#state{events=NewDict, 
-	    completed=orddict:fetch_keys(Done) ++ S#state.completed};
-next_state(S,_V,{call,_,cancel,[Name]}) ->
-    Dict = orddict:filter(fun (_Name, X) -> not is_past(X#event.timeout) end,
-			  S#state.events),
-    Done = orddict:filter(fun (_Name,X) -> is_past(X#event.timeout) end,
-			  S#state.events),
-    case orddict:find(Name, Dict) of
-	{ok, _E} ->
-	    S#state{events=orddict:erase(Name, Dict),
-		    completed=[Done|S#state.completed]};
-	error ->
-	    S#state{events=Dict,  
-		    completed=orddict:fetch_keys(Done) ++ S#state.completed}
-    end.
-%next_state(S,_V,{call,_,listen,[_Delay]}) ->
-%    Dict = orddict:filter(fun (_Name, X) -> not is_past(X#event.timeout) end,
-%			  S#state.events),
-%    Done = orddict:filter(fun (_Name,X) -> is_past(X#event.timeout) end,
-%			  S#state.events),
-%    S#state{events=Dict, completed=orddict:fetch_keys(Done) ++ S#state.completed}.
+next_state(S, _V, {call,_,add_event,[Name,D,TimeOut]}) ->
+    Dict = case ?SERVER:valid_datetime(TimeOut) of
+	       true ->
+		   case orddict:is_key(Name, S#state.events) of
+		       false ->
+			   Event =  #event{name=Name,
+					   pid=new_pid(),
+					   description=D,
+					   timeout=TimeOut},
+			   orddict:store(Name, Event, S#state.events); 
+		       true ->
+			   S#state.events
+		   end;
+	       false ->
+		   S#state.events
+	   end,
+    NewDict = orddict:filter(fun(_Name, X) -> not is_past(X#event.timeout) end, Dict),
+    S#state{events=NewDict}; 
+next_state(S, _V, {call,_,cancel,[Name]}) ->
+    Dict = case orddict:find(Name, S#state.events) of
+	       {ok,_E} ->
+		   orddict:erase(Name, S#state.events);
+	       error ->
+		   S#state.events
+	   end,
+    NewDict = orddict:filter(fun(_Name, X) -> not is_past(X#event.timeout) end, Dict),
+    S#state{events=NewDict}.
 
 precondition(_,_) ->		  
     true.
 
-postcondition(S,{call,_,add_event,[Name,_Descr,Timeout]},Res) ->
+postcondition(S, {call,_,add_event,[Name, _Descr, Timeout]}, Res) ->
     case Res of
 	{error,name_clash} ->
-	    orddict:is_key(Name,S#state.events);
+	    orddict:is_key(Name, S#state.events);
 	{error,bad_timeout} ->
 	    not ?SERVER:valid_datetime(Timeout);
 	ok ->
-	    not orddict:is_key(Name,S#state.events);
+	    not orddict:is_key(Name, S#state.events);
 	_Other ->  
 	    false
     end;
-postcondition(_S,{call,_,cancel,_},Res) ->
+postcondition(_S, {call,_,cancel,_}, Res) ->
     Res == ok.
-%postcondition(S,{call,_,listen,[_Delay]},Res) -> 
-   % io:format("~nDict: ~w~nRes: ~w~n", [S#state.completed, 
-%					Res]),
-%    lists:all(fun(X) ->  lists:member(X,S#state.completed) end,
-%	      get_names(Res)).
 
 get_names(L) ->
-    lists:map( fun({done,Name,_}) -> Name end, L).			  
+    lists:map(fun({done,Name,_}) -> Name end, L).			  
 
 spawn() ->
-    spawn(timer,sleep,[5000]).
+    spawn(timer, sleep, [5000]).
 
 is_past(Timeout) ->
     Dif = calendar:datetime_to_gregorian_seconds(Timeout) -
-	calendar:datetime_to_gregorian_seconds(?EVENT:now()),
+	calendar:datetime_to_gregorian_seconds(?NOW),
     Dif =< 0.
 

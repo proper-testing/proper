@@ -5,8 +5,8 @@
 		name="",
 		to_go=0}).
 
--define(NOW, {{2011,2,14},{12,12,12}}).
-
+%%-define(NOW, {{2011,2,14},{12,12,12}}).
+-define(NOW, calendar:local_time()).
 
 start(EventName, Delay) ->
     spawn(?MODULE, init, [self(), EventName, Delay]).

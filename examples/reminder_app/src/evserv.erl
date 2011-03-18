@@ -68,11 +68,16 @@ init() ->
 loop(S = #state{}) ->
     receive
 	{done, Name} ->
-	    E = orddict:fetch(Name, S#state.events),
-	    send_to_clients({done, E#event.name, E#event.description},
-			    S#state.clients),
-	    NewEvents = orddict:erase(Name, S#state.events),
-	    loop(S#state{events=NewEvents});
+	    %% E = orddict:fetch(Name, S#state.events),
+	    case orddict:find(Name, S#state.events) of
+		{ok,E} ->
+		    send_to_clients({done, E#event.name, E#event.description},
+				    S#state.clients),
+		    NewEvents = orddict:erase(Name, S#state.events),
+		    loop(S#state{events=NewEvents});
+		error ->
+		    loop(S)
+	    end;
 	{Pid, MsgRef, {subscribe, Client}} ->
 	    Ref = erlang:monitor(process, Client),
 	    NewClients = orddict:store(Ref, Client, S#state.clients),
