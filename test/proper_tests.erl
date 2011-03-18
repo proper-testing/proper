@@ -483,17 +483,21 @@ combinations() ->
      {[{1,[1,3,5]}, {2,[7,8,9]}, {3,[2,4,6]}], 3, 9, [1,3,5,7,8,9], 3, 2,
       [{1,[6,8,9]}, {2,[1,3,5]}, {3,[2,4,7]}]}].
 
+first_comb() -> [{10,3,3,[{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]},
+		 {11,5,2,[{1,[6,7,8,9,10,11]}, {2,[1,2,3,4,5]}]},
+		 {12,3,4,[{1,[10,11,12]}, {2,[7,8,9]}, {3,[4,5,6]}, {4,[1,2,3]}]}].	
+
 fix_gen_data() ->
     [{4,2,[{1,[3,4]}, {2,[1,2]}], 
-      orddict:from_list([{1,{set,{var,1},{call,reg_statem,spawn,[]}}},
-			{2,{set,{var,2},{call,reg_statem,spawn,[]}}},
-			{3,{set,{var,3},{call,erlang,register,[a,{var,1}]}}},
-			{4,{set,{var,4},{call,erlang,register,[b,{var,2}]}}}]),
-      reg_statem, reg_statem:initial_state(), [], 2,
-      [[{set,{var,2},{call,reg_statem,spawn,[]}},
-	{set,{var,4},{call,erlang,register,[b,{var,2}]}}],
-       [{set,{var,1},{call,reg_statem,spawn,[]}},
-	{set,{var,3},{call,erlang,register,[a,{var,1}]}}]]}].
+      orddict:from_list([{1,{set,{var,1},{call,reg_parallel,spawn,[]}}},
+			 {2,{set,{var,2},{call,reg_parallel,spawn,[]}}},
+			 {3,{set,{var,3},{call,reg_parallel,catch_register,[a,{var,1}]}}},
+			 {4,{set,{var,4},{call,reg_parallel,catch_register,[b,{var,2}]}}}]),
+      reg_parallel, reg_parallel:initial_state(), [], 2,
+      [[{set,{var,2},{call,reg_parallel,spawn,[]}},
+	{set,{var,4},{call,reg_parallel,catch_register,[b,{var,2}]}}],
+       [{set,{var,1},{call,reg_parallel,spawn,[]}},
+	{set,{var,3},{call,reg_parallel,catch_register,[a,{var,1}]}}]]}].
 
 lists_to_zip() ->
     [{[],[],[]},
@@ -517,25 +521,26 @@ command_names() ->
      {[],[]}].
 
 valid_command_sequences() ->
-%% {module, initial_state, command_sequence, symbolic_state_after, dynamic_state_after, 
-%%  environment}
+    %% {module, initial_state, command_sequence, symbolic_state_after, dynamic_state_after, 
+    %%  initial_environment}
     [{pdict_statem, [], [{set,{var,1},{call,erlang,put,[a,0]}},
 			 {set,{var,2},{call,erlang,put,[b,1]}},
 			 {set,{var,3},{call,erlang,erase,[a]}},
 			 {set,{var,4},{call,erlang,get,[b]}},
 			 {set,{var,5},{call,erlang,erase,[b]}},
-			 {set,{var,6},{call,erlang,put,[a,{var,4}]}},
+			 {set,{var,6},{call,erlang,put,[a,4]}},
 			 {set,{var,7},{call,erlang,put,[a,42]}}],
       [{a,42}], [{a,42}], []},
-     {pdict_statem, [], [{init,[{a,42}]},
-			       {set,{var,1},{call,erlang,put,[b,42]}},
-			       {set,{var,2},{call,erlang,erase,[b]}}],
-      [{a,42}], [{a,42}], []},
+     {pdict_statem, [], [{init,[]},
+			 {set,{var,1},{call,erlang,put,[b,5]}},
+			 {set,{var,2},{call,erlang,erase,[b]}},
+			 {set,{var,3},{call,erlang,put,[a,5]}}],
+      [{a,5}], [{a,5}], []},
      {pdict_statem, [], [{set,{var,1},{call,erlang,put,[a,{var,start_value}]}},
 			 {set,{var,2},{call,erlang,put,[b,{var,another_start_value}]}},
 			 {set,{var,3},{call,erlang,get,[b]}},
 			 {set,{var,4},{call,erlang,get,[b]}}],
-      [{b,{var, another_start_value}}, {a, {var, start_value}}], [{b,-1}, {a, 0}],
+      [{b,{var,another_start_value}}, {a,{var,start_value}}], [{b,-1}, {a, 0}],
       [{start_value, 0}, {another_start_value, -1}]}].
 
 symbolic_init_invalid_sequences() ->
@@ -585,15 +590,15 @@ exception_command_sequences() ->
 		   
 postcondition_false_command_sequences() -> 
 %% {module, command_sequence, environment, shrunk}
-    [{switch_statem, [{set,{var,1},{call,switch_statem,release,[]}},
-		      {set,{var,2},{call,switch_statem,press,[]}},
-		      {set,{var,3},{call,switch_statem,dummy,[on]}},
-		      {set,{var,4},{call,switch_statem,release,[]}}],
-      [], [{set,{var,3},{call,switch_statem,dummy,[on]}}]}].    
+    [{foobar_statem, [{set,{var,1},{call,foobar_statem,foo,[]}},
+		      {set,{var,2},{call,foobar_statem,bar,[]}},
+		      {set,{var,3},{call,foobar_statem,history,[]}},
+		      {set,{var,4},{call,foobar_statem,foo,[]}}],
+      [], [{set,{var,3},{call,foobar_statem,history,[]}}]}].    
 
 modules_and_properties() ->
     [{pdict_statem, prop_pdict},
-     {freq_statem, prop_freq}].
+     {freq_statem, prop_parallel}].
 
 %%------------------------------------------------------------------------------
 %% Unit tests
@@ -942,11 +947,11 @@ cannot_generate_commands0_test_() ->
 
 cannot_generate_commands1_test_() ->
     [?_test(assert_cant_generate_nonempty(proper_statem:commands(Module,StartState),1)) 
-     || {Module,StartState} <- [{false_prec,off}, {false_prec,on}]].
+     || {Module,StartState} <- [{false_prec,foo_state}, {false_prec,dummy}]].
 
 can_generate_commands0_test_() ->
     [?_test(assert_can_generate(proper_statem:commands(Module),true)) 
-     || Module <- [pdict_statem, freq_statem, reg_statem, switch_statem]].
+     || Module <- [pdict_statem, freq_statem, reg_statem, foobar_statem]].
 
 can_generate_commands1_test_() ->
     [?_test(assert_can_generate(proper_statem:commands(Module, StartState),true)) 
@@ -955,17 +960,17 @@ can_generate_commands1_test_() ->
 can_generate_parallel_commands0_test_() ->
     {timeout, 20,
      [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
-      || Module <- [reg_parallel]]}.
+      || Module <- [reg_parallel, freq_statem]]}.
 
 can_generate_parallel_commands1_test_() ->
     {timeout, 20,
      [?_test(assert_can_generate(
 	       proper_statem:parallel_commands(Module, Module:initial_state()),true)) 
-      || Module <- [reg_parallel]]}.
+      || Module <- [reg_parallel, freq_statem]]}.
 
 run_valid_commands_test_() ->
     [?_assertMatch({_H,DynState,ok}, setup_run_commands(Module, Cmds, Env))
-     || {Module,Cmds,_,DynState,Env} <- valid_command_sequences()].
+     || {Module,_,Cmds,_,DynState,Env} <- valid_command_sequences()].
 
 run_invalid_precondition_test_() ->
     [?_assertMatch({_H,_S,{precondition,false}}, setup_run_commands(Module, Cmds, Env))
@@ -989,7 +994,7 @@ get_next_test_() ->
 
 mk_first_comb_test_() ->
      [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
-      || {N, Len, W, Expected} <- [{10,3,3,[{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]}]].
+      || {N, Len, W, Expected} <- first_comb()].
 
 fix_gen_test_() ->
      [?_assertEqual(Expected, 
@@ -1002,7 +1007,7 @@ fix_gen_test_() ->
 
 setup_run_commands(Module, Cmds, Env) ->
     Module:set_up(),
-    put('$initial_state',Module:initial_state()),
+    put('$initial_state', Module:initial_state()),
     Res = proper_statem:run_commands(Module,Cmds,Env),
     Module:clean_up(),
     erase('$initial_state'),

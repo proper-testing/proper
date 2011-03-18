@@ -58,8 +58,7 @@ initial_state() ->
 	  }.
 
 command(_S) ->
-    oneof([{call, ?SERVER, add_event, 
-	    [name(),description(),date_time()]},
+    oneof([{call, ?SERVER, add_event, [name(),description(),date_time()]},
 	   {call, ?SERVER, cancel, [name()]}
 	  ]).
 

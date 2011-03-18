@@ -1,30 +1,28 @@
 -module(false_prec).
 
 -export([initial_state/0, command/1, precondition/2, next_state/3]).
--export([press/0, release/0]).
+-export([foo/0, bar/0]).
 
 -include_lib("proper/include/proper.hrl").
 
-press() -> 
-    on.
+foo() -> ok.
 
-release() -> 
-    off.
+bar() -> ok.
 
-initial_state() -> on.
+initial_state() -> oneof([foo_state, bar_state]).
 
 command(S) ->
-    frequency([{10,{call,?MODULE,press,[]}} || S == off] ++
-	      [{10,{call,?MODULE,release,[]}} || S == on]).
+    oneof([{call,?MODULE,foo,[]} || S == foo_state] ++
+	  [{call,?MODULE,bar,[]} || S == bar_state]).
 
-precondition(S,{call,_,press,_}) -> 
-    S == on;
-precondition(S,{call,_,release,_}) -> 
-    S == off.
+precondition(S,{call,_,foo,_}) -> 
+    S == bar_state;
+precondition(S,{call,_,bar,_}) -> 
+    S == foo_state.
 
-next_state(_,_,{call,_,press,_}) -> 
-    on;
-next_state(_,_,{call,_,release,_}) -> 
-    off.
+next_state(_,_,{call,_,foo,_}) -> 
+    bar_state;
+next_state(_,_,{call,_,bar,_}) -> 
+    foo_state.
 
 

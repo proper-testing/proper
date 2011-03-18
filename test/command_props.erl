@@ -60,10 +60,11 @@ prop_zip() ->
 		equals(zip(X, Y), Res)
 	    end).
 
--define(MOD, reg_parallel).
+-define(MOD, ets_counter).
+%% -define(MOD, reg_parallel).
 
 prop_p() ->
-    ?FORALL(Workers, range(2, 3),
+    ?FORALL(Workers, range(2, 4),
 	    ?FORALL(CmdList,
 		    ?SUCHTHAT(X, resize(12, commands(?MOD)), length(X) >= Workers),
 		    begin
@@ -81,6 +82,7 @@ prop_p() ->
 prop_check_true() ->
     ?FORALL(Cmds, proper_statem:parallel_commands(?MOD),
 	    begin
+		?MOD:start(),
 		{Seq,Parallel} = Cmds,
 		InitialState = proper_statem:get_initial_state(Seq),
 		{ok,DynState} = proper_statem:safe_eval_init([], InitialState),

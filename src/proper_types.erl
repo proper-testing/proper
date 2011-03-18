@@ -896,13 +896,13 @@ non_empty(RawListType) ->
 noshrink(RawType) ->
     add_prop(noshrink, true, cook_outer(RawType)).
 
--spec with_parameter(atom(),value(),raw_type()) -> proper_types:type().
-with_parameter(Param,Value,Type_gen) ->
-    add_prop(parameters,[{Param,Value}],cook_outer((Type_gen))).
+-spec with_parameter(atom(), value(), raw_type()) -> proper_types:type().
+with_parameter(Param, Value, Type_gen) ->
+    add_prop(parameters, [{Param,Value}], cook_outer((Type_gen))).
 
--spec with_parameters([{atom(),value()}],raw_type()) -> proper_types:type().
-with_parameters(PVlist,Type_gen) ->
-    add_prop(parameters,PVlist,cook_outer((Type_gen))).  
+-spec with_parameters([{atom(),value()}], raw_type()) -> proper_types:type().
+with_parameters(PVlist, Type_gen) ->
+    add_prop(parameters, PVlist, cook_outer((Type_gen))).
 
 -spec parameter(atom()) -> value().
 parameter(Param) ->

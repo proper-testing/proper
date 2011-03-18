@@ -54,7 +54,7 @@
 		       elements/1, oneof/1, frequency/1, return/1, default/2,
 		       orderedlist/1, function0/1, function1/1, function2/1,
 		       function3/1, function4/1, weighted_default/2, parameter/1,
-		       parameter/2, with_parameters/2, with_parameters/3]).
+		       parameter/2, with_parameter/3, with_parameters/2]).
 
 
 %%------------------------------------------------------------------------------

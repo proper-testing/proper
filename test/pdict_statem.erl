@@ -1,5 +1,5 @@
 -module(pdict_statem).
--export([test/0]).
+-export([test/0, test/1]).
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
 	next_state/3]).
 -export([set_up/0, clean_up/0]).
@@ -12,20 +12,19 @@
 %%
 
 test() ->
-    proper:quickcheck(?MODULE:prop_pdict()).
+    test(100).
+
+test(N) ->
+    proper:quickcheck(?MODULE:prop_pdict(), N).
 
 -define(KEYS, [a,b,c,d]).
 prop_pdict() ->
-    ?FORALL(Cmds,with_parameters([{x,42}, {y,43}], commands(?MODULE)),	   
-       begin
-	   {_H,_S,Res} = run_commands(?MODULE,Cmds),
-	   clean_up(),
-	   %% ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n",
-	   %%		          [_H,_S,Res]),
-	   %%	        Res == ok)
-	   io:format("History: ~w\n", [_H]),		     
-	   aggregate(command_names(Cmds),Res == ok)
-       end).
+    ?FORALL(Cmds, commands(?MODULE),	   
+	    begin
+		{_H,_S,Res} = run_commands(?MODULE,Cmds),
+		clean_up(),
+		aggregate(command_names(Cmds),Res == ok)
+	    end).
 
 key() ->
     elements(?KEYS).
@@ -65,17 +64,14 @@ postcondition(Props, {call, erlang, put, [Key,_]}, undefined) ->
 postcondition(Props, {call, erlang, put, [Key,_]}, Old) ->
     [{Key,Old}] =:= proplists:lookup_all(Key,Props);
 postcondition(Props, {call, erlang, get, [Key]}, Val) ->
-    {Key,Val} =:= proplists:lookup(Key,Props);
+    [{Key,Val}] =:= proplists:lookup_all(Key,Props);
 postcondition(Props, {call, erlang, erase, [Key]}, Val) ->
-    {Key,Val} =:= proplists:lookup(Key,Props);
+    [{Key,Val}] =:= proplists:lookup_all(Key,Props);
 postcondition(_,_,_) ->
     false.
 
 next_state(Props, _Var, {call, erlang, put, [Key,Value]}) ->
-    %% correct model
     [{Key,Value}| proplists:delete(Key,Props)];
-    %% wrong model
-    %[{Key,Value}| Props];
 next_state(Props, _Var, {call, erlang, erase, [Key]}) ->
     proplists:delete(Key,Props);
 next_state(Props, _Var, {call, erlang, get, [_]}) ->
