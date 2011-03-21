@@ -249,7 +249,7 @@ To test all properties exported from a module (a property is a 0-arity function
 whose name begins with "prop_"), you can run:
    proper:module(<Module>).
      or
-   proper:module(<Module>, <option/options>).
+   proper:module(<option/options>, <Module>).
 This returns a list of all failing properties, represented by mfas. Testing
 progress is also printed on screen (unless 'quiet' mode is active). The
 provided options are passed on to each property, except for 'long_result', which
@@ -326,8 +326,7 @@ The available options are:
 {'on_output', <output_function>}
     PropEr will use the supplied function for all output printing. This function
     should accept two arguments in the style of io:format/2.
-    CAUTION: The above two output control options are incompatible with each
-    other.
+    CAUTION: The above output control options are incompatible with each other.
 'long_result'
     Enables long-result mode (see the 'Counterexamples' section for details).
 'crypto'
