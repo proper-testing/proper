@@ -50,7 +50,7 @@ prop_reminder() ->
 		   clean_up(S),
 		   ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n", [H,S,Res]),
 			     Res == ok)
-						%aggregate(command_names(Cmds),Res == ok)
+		   %% aggregate(command_names(Cmds),Res == ok)
 	       end)).
 
 initial_state() ->

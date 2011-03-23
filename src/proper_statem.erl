@@ -226,7 +226,7 @@ gen_parallel_commands(Size, Mod, InitialState, InitFlag) ->
 gen_parallel(Mod, InitialState, Size) ->
     Len1 = proper_arith:rand_int(?WORKERS, Size),
     CmdList = gen_commands(Mod, InitialState, [], Len1, Len1),
-  
+
     %%TODO: does it make sense for Len to be different from Len1?
     Len = length(CmdList),
     {LenPar, {Seq, P}} =
@@ -392,7 +392,7 @@ safe_apply(M, F, A) ->
 	    {error,{exception,Kind,Reason,erlang:get_stacktrace()}}
     end.
 
-	
+
 %% -----------------------------------------------------------------------------
 %% Parallel command execution
 %% -----------------------------------------------------------------------------
@@ -413,7 +413,7 @@ run_parallel_commands(Module, {Sequential, Parallel}, Env) ->
 		{ok, {{Seq_history, State, ok}, Env1}} ->
 		    F = fun(T) -> execute(T, Env1, Module, []) end,
 		    Parallel_history = pmap(F, Parallel),
-		  
+
 		    %% ok = init_ets_table(check_tab),
 		    R = case check(Module, State, Env1, Env1, [],
 				   Parallel_history, []) of
@@ -723,7 +723,7 @@ get_initial_state(Cmds) ->
 	_ -> erlang:get('$initial_state')
     end.
 
--spec command_names(command_list()) -> [{mod_name(),fun_name(),non_neg_integer()}].
+-spec command_names(command_list()) -> [mfa()].
 command_names(Cmds) ->
     [{M, F, length(Args)} || {set, _Var, {call,M,F,Args}} <- Cmds].
 
