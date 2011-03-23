@@ -871,6 +871,166 @@ proper/proper_dict module, which wraps the STDLIB dict ADT.
 
 
 --------------------------------------------------------------------------------
+Incompatibilities with Quviq QuickCheck
+--------------------------------------------------------------------------------
+
+We have generaly tried to keep PropEr's notation and output as compatible as
+possible with Quviq QuickCheck, to allow for the reuse of existing testing code
+written for QuickCheck. However, incompatibilities are to be expected, since
+the two programs probably bear little resemblance under the hood. Here we
+provide a nonexhaustive list of known incompatibilities:
+
+* ?SUCHTHATMAYBE behaves differently in PropEr.
+* proper_gen:pick differs from eqc_gen:pick in return value format.
+* PropEr handles 'size' differently from QuickCheck.
+
+
+--------------------------------------------------------------------------------
+Testing stateful code
+--------------------------------------------------------------------------------
+
+PropEr provides the module proper_statem to facilitate testing of stateful
+systems whose side-effects are specified via an abstract state machine. Given a
+callback module implementing the state machine, PropEr can generate random
+symbolic command sequences subject to the constraints (preconditions) of the
+specification.
+
+The symbolic representation of a command has the following syntax:
+
+* {set,{var,<Integer>},{call,<Module>,<Function>,<Arguments>}}: Binds a
+symbolic variable to the result of a symbolic call.
+
+During command generation we use symbolic variables to bind the results of
+symbolic calls. Therefore, the state of the abstract state machine might (and
+usually does) contain symbolic variables. Thus, we refer to it as symbolic
+state.
+
+As a next step, symbolic command sequences are evaluated in order to check that
+command execution behaves according to the state machine specifications
+(postconditions). During this phase, symbolic variables are replaced by their
+corresponding values, and now we refer to the state as dynamic state.
+
+
+More specifically, the following functions must be exported from the callback
+module implementing the abstract state machine:
+
+* initial_state(): Specifies the (symbolic) initial state of the state machine.
+This state will be evaluated at command execution time to produce the actual
+initial state.
+* command(<Symbolic_state>): Generates a symbolic call to be included in the
+command sequence, given the current <Symbolic_state> of the state machine.
+However, before the call is actually included, a precondition is checked.
+* precondition(<Symbolic_state>, <Symbolic_call>): Specifies the precondition
+that should hold so that <Symbolic_call> can be included in the command
+sequence, given the current <Symbolic_state> of the state machine. In case
+precondition doesn't hold, a new call is chosen using the command/1
+generator. The number of tries is bounded by 'constraint_tries' (see Options).
+* postcondition(<Dynamic_state>, <Symbolic_call>, <Result>): Specifies the
+postcondition that should hold about the <Result> of the evaluation of
+<Symbolic_call>, given the current <Dynamic_state> of the state machine.
+This function is called during command execution time, this is why the state
+is dynamic.
+* next_state(<Symbolic_state> | <Dynamic_state>, <Result>, <Symbolic_call>):
+Specifies the next state of the state machine, given the current state, the
+<Symbolic_call> chosen and its <Result>. This function is called both at
+command generation and command execution time in order to determine the next
+state, therefore the <Result> can be either symbolic (i.e. {var,N}) or dynamic.
+
+ 
+The following functions, automatically imported from the proper_statem module,
+can be used when working with stateful code:
+
+* commands(<Module>): A special PropEr type which generates random command
+sequences, as specified by the absract state machine in <Module>. The initial
+state is specified by <Module>:initial_state().
+* commands(<Module>, <Symbolic_state>): Similar to commands/1, but generated
+command sequences always start at <Symbolic_state>. In this case, the first
+command is always {init,<Symbolic_state>}.
+* more_commands(<N>, <Generator>): Increases the maximum length of command
+sequences generated within Generator by a factor <N>.
+
+* run_commands(<Cmds>, <Module>): This function runs a given command sequence
+<Cmds> according to the state machine specified in <Module>. The result is a
+tuple of the form: {<History>,<Dynamic_state>,<Statem_result>}.
+  - <History> contains the execution history of all commands that were executed
+  without raising an exception. It contains tuples of the form {<Dynamic_state>,
+  <Result>}, specifying the <Dynamic_state> prior to command execution and the
+  actual <Result> of the command.
+  - <Dynamic_state> contains the state of the abstract state machine at the
+  moment when execution stopped.
+  -  <Statem_result> specifies the overall result of command execution. It
+  can be one of the following:
+    * 'ok': all commands were successfully run and all postconditions were
+    true
+    * 'initialization_error': there was an error while evaluating the initial
+    state
+    * {'postcondition', <Boolean> | <Exception>}: a postcondition was false
+    or raised an exception
+    * {'precondition', <Boolean> | <Exception>}: a precondition was false or
+    raised an exception
+    * <Exception>: an exception was raised while running a command
+* run_commands(<Cmds>, <Module>, <Environment>): Similar to run_commands/2,
+but also accepts a list of {<Key>,<Value>} pairs. Keys may be used in symbolic
+variables (i.e. {var,<Key>}) whithin the command sequence <Cmds>. These
+symbolic variables will be replaced by their corresponding <Value> during
+command execution.
+
+* command_names(<Cmds>): Extracts the names of the commands in a given command
+sequence in the form of MFAs. It is useful in combination with functions such
+as aggregate/2,3  in order to collect statistics about command execution.
+* state_after(<Module>, <Cmds>): Returns the symbolic state after running
+the command sequence <Cmds> according to the state machine found in <Module>.
+The commands are not actually executed.
+* zip(<listA>, <listB>): Behaves like lists:zip/2, but listA, listB do no not
+necessarily have equal length. Zipping stops when the shortest list stops. This
+is useful for zipping a command sequence with its (failing) execution history.
+
+An example of a sample property to check can be found at examples/pdict_statem.
+This is a callback module specifying an abstract state machine to test the
+process dictionary.
+
+
+--------------------------------------------------------------------------------
+Parallel testing
+--------------------------------------------------------------------------------
+
+After ensuring that a system's behaviour can be described via an abstract state
+machine when commands are executed sequentially, it is possible to move to
+parallel testing. The same state machine can be used to generate command
+sequences that will be executed concurrently to test for race conditions.
+A parallel testcase consists of a command list, which is run sequentially to put
+the system in a random state, and a list of concurrent tasks. These tasks are
+also command lists, but they are executed concurrently in separate processes.
+After running a parallel testcase, PropEr uses the state machine specification
+to check if the results observed could have been produced by a possible
+serialization of the concurrent tasks. If no such serialization is possible,
+then an atomicity violation is detected.
+
+The following functions, automatically imported from the proper_statem module,
+can be used for parallel testing:
+
+* parallel_commands(<Module>): A special PropEr type which generates parallel
+testcases from the absract state machine specified in <Module>. The initial
+state is specified by <Module>:initial_state().
+* parallel_commands(<Module>, <Symbolic_state): Similar to parallel_commands/1,
+but generated command sequences always start at <Symbolic_state>.
+* run_parallel_commands(<TestCase>, <Module>): This function runs a parallel
+<TestCase> according to the specifications in <Module>. The result is a tuple
+of the form: {<Sequential_history>,<Parallel_history>,<Statem_result>}.
+  - <Sequential_history> contains the execution history of the sequential
+  prefix
+  - <Parallel_history> contains the execution history of each of the
+  concurrent tasks.
+  - <Statem_result> specifies the outcome attempting to serialize command
+  execution, based on the results observed. It can be one of the following:
+    * 'ok'
+    * 'no_possible_interleaving'
+* run_parallel_commands(<TestCase>, <Module>, <Environment>): Similar to
+run_parallel_commands/2, but also accepts an <Environment> used for symbolic
+variable evaluation, exactly as described in run_commands/3.
+
+
+--------------------------------------------------------------------------------
 Errors
 --------------------------------------------------------------------------------
 
@@ -898,6 +1058,9 @@ occurs. Normaly, a message is also printed on screen describing the error.
   match. Please check your properties.
 * {'typeserver', <SubError>}: The typeserver encountered an error. The
   <SubError> field contains specific information regarding the error.
+* {'gen_commands', <SubError>}: An error was encountered during command
+  generation. The <SubError> field contains specific information regarding the
+  error.
 * {'unexpected', <Result>}: A test returned an unexpected result during normal
   operation. If you ever get this error, it means that you have found a bug in
   PropEr - please send an error report to the maintainers and remember to
@@ -920,146 +1083,6 @@ provide a nonexhaustive list of known incompatibilities:
 * proper_gen:pick differs from eqc_gen:pick in return value format.
 * PropEr handles 'size' differently from QuickCheck.
 
-
---------------------------------------------------------------------------------
-Testing stateful code
---------------------------------------------------------------------------------
-
-PropEr provides the module proper_statem to facilitate testing of stateful
-systems whose side-effects are specified via an abstract state machine. Given a
-callback module implementing the state machine, PropEr can generate random
-symbolic command sequences subject to the constraints (preconditions) of the
-specification.
-
-The symbolic representation of a command has the following syntax:
-
-* {set,{var,<Integer>},{call,<Module>,<Function>,<Argumens>}}: Binds a
-symbolic variable to the result of a symbolic call.
-
-During command generation we use symbolic variables to bind the results of
-symbolic calls. Therefore, the state of the abstract state machine might (and
-usually does) contain symbolic variables. Thus, we refer to it as symbolic
-state. 
-
-As a next step, symbolic command sequences are evaluated in order to check that
-command execution behaves according to the state machine specifications.
-During this phase, symbolic variables are replaced by their corresponding
-values, and now we refer to the state as dynamic state.
-
-
-More specifically, the following functions must be exported from the callback
-module implementing the abstract state machine:
-
-* initial_state(): Specifies the (symbolic) initial state of the state machine.
-This state will be evaluated at command execution time to produce the actual
-initial state.
-* command(<Symbolic_state>): Generates a symbolic call to be included in the
-command sequence, given the current <Symbolic_state> of the state machine.
-However, before the call is actually included, a precondition is checked.
-* precondition(<Symbolic_state>, <Symbolic_call>): Specifies the precondition
-that should hold so that <Symbolic_call> can be included in the command
-sequence, given the current <Symbolic_state> of the state machine.
-In case precondition doesn't hold, a new call is chosen using the command/1
-generator. The number of tries is bounded by 'constraint_tries' (see Options).
-* postcondition(<Dynamic_state>, <Symbolic_call>, <Result>): Specifies the
-postcondition that should hold about the <Result> of the evaluation of
-<Symbolic_call>, given the current <Dynamic_state> of the state machine.
-This function is called during command execution time, this is why the state
-is dynamic.
-* next_state(<Symbolic_state> | <Dynamic_state>, <Result>, <Symbolic_call>):
-Specifies the next state of the state machine, given the current state, the
-<Symbolic_call> chosen and its <Result>. This function is called both at
-command generation and command execution time in order to determine the next
-state, therefore the <Result> can be either symbolic (i.e. {var,N}) or dynamic.
-
- 
-The following functions, automatically imported from the proper_statem module,
-can be used when working with stateful code:
-
-* commands(<Module>): A special PropEr type which generates random command
-sequences, as specified by the absract state machine in <Module>. The initial
-state is specified by <Module>:initial_state().
-* commands(<Module>, <Symbolic_state>): Similar to commands/1, but generated
-command sequences always start at <Symbolic_state>. In this case, the first
-command is always {init,<Symbolic_state>}.
-* more_commands(<N>, <Generator>): Increases the length of command sequences
-generated within Generator by a factor <N>.
-
-* run_commands(<Cmds>, <Module>): This function runs a given command sequence
-<Cmds> according to the state machine specified in <Module>. The result is a
-tuple of the form: {<History>,<Dynamic_state>,<Statem_result>}.
-  - <History> contains the execution history of all commands that were executed
-  without raising an exception. It contains tuples of the form {<Dynamic_state>,
-  <Result>}, specifying the <Dynamic_state> prior to command execution and the
-  actual <Result> of the command.
-  - <Dynamic_state> contains the state of the abstract state machine at the
-  moment when execution stopped.
-  -  <Statem_result> specifies the overall result of command execution. It
-  can be one of the following:
-    * 'ok': all commands were successfully run and all postconditions were
-    true
-    * 'initialization_error': there was an error while evaluating the initial
-    state
-    * {'postcondition', <Boolean> | <Exception>}: a postcondition was false
-    or raised an exception
-    * {'precondition', <Boolean> | <Exception>}: a precondition was false or
-    raised an exception
-    * <Exception>: an exception was raised while running a command
-* run_commands(<Cmds>, <Module>, <Environment>): Similar to run_commands/2,
-but also accepts a list of {<Key>,<Value>} pairs. Keys may be used in symbolic
-variables (ie. {var,<Key>}) whithin the command sequence <Cmds>. These symbolic
-variables will be evaluated to their corresponding <Value> during command
-execution.
-
-* command_names(<Cmds>): This function extracts the names of the commands in a
-given command sequence in the form of MFAs. It is useful in combination with
-functions such as aggregate/2,3  in order to collect statistics about command
-execution.
-* state_after(<Module>, <Cmds>): This function returns the symbolic state after
-execution of the command sequence <Cmds> according to the specifications found
-in <Module>.
-* zip(<listA>, <listB>): Behaves like lists:zip/2, but listA, listB do no not
-necessarily have equal length. Zipping stops when the shortest list stops. This
-is useful for zipping a command sequence with its (failing) execution history.
-
-An example of a sample property to check can be found at
-proper/examples/pdict_statem.erl. This is a callback module specifying an
-abstract state machine to test the process dictionary.
-
-
---------------------------------------------------------------------------------
-Parallel testing
---------------------------------------------------------------------------------
-
-The abstract state machine can be used to generate command sequences that will
-be executed concurrently to test for race conditions. A parallel testcase
-consists of a sequential prefix and a list of concurrent tasks. Currently the
-number of concurrent tasks is set to 2. The sequntial prefix is executed first
-to put the system in a random state. Then, the concurrent tasks are executed in
-separate processes. We try to see if commands behave atomically. 
-
-The following functions, automatically imported from the proper_statem module,
-can be used for parallel testing:
-
-* parallel_commands(<Module>): A special PropEr type which generates parallel
-testcases from the absract state machine specified in <Module>. The initial
-state is specified by <Module>:initial_state().
-* parallel_commands(<Module>, <Symbolic_state): Similar to parallel_commands/1,
-but generated command sequences always start at <Symbolic_state>.
-* run_parallel_commands(<TestCase>, <Module>): This function executes a parallel
-<TestCase> according to the specifications in <Module>. The result is a tuple
-of the form: {<Sequential_history>,<Parallel_history>,<Statem_result>}.
-  - <Sequential_history> contains the execution history of the sequential prefix
-  - <Parallel_history> contains the execution history of each of the
-  concurrent tasks. This history has a different form: {<Command>, <Result>}
-  - <Statem_result>  specifies the overall result of command execution. It
-  can be one of the following:
-    * 'ok'
-    * 'no_possible_interleaving'
-    * <Exception> : an exception was raised or a postcondition was false
-* run_parallel_commands(<TestCase>, <Module>, <Environment>): Similar to
-run_parallel_commands/2, but also accepts an <Environment> used for symbolic
-variable evaluation, exactly as described in run_commands/3.
 
 
 
