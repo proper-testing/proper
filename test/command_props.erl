@@ -61,7 +61,6 @@ prop_zip() ->
 	    end).
 
 -define(MOD, ets_counter).
-%% -define(MOD, reg_parallel).
 
 prop_p() ->
     ?FORALL(Workers, range(2, 4),
@@ -82,16 +81,16 @@ prop_p() ->
 prop_check_true() ->
     ?FORALL(Cmds, proper_statem:parallel_commands(?MOD),
 	    begin
+		?MOD:clean_up(),
 		?MOD:start(),
 		{Seq,Parallel} = Cmds,
 		InitialState = proper_statem:get_initial_state(Seq),
 		{ok,DynState} = proper_statem:safe_eval_init([], InitialState),
-		{ok, {{_, State, ok}, Env1}} =
-		    proper_statem:safe_run_sequential(Seq, [], ?MOD, [], DynState),
+		{{_, State, ok}, Env1} = 
+		    proper_statem:run_sequential(Seq, [], ?MOD, [], DynState),
 		Res = lists:map(fun(C) -> proper_statem:execute(C, Env1, ?MOD, []) end,
 				Parallel),
 		V = proper_statem:check(?MOD, State, Env1, Env1, [], Res, []),
-                ?MOD:clean_up(),
 		equals(V, true)
 	    end).
 

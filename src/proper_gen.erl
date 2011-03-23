@@ -84,8 +84,7 @@ safe_generate(RawType) ->
 	ImmInstance -> {ok, ImmInstance}
     catch
 	throw:'$cant_generate'          -> {error, cant_generate};
-	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}};
-	throw:{'$gen_commands',Reason} -> {error,{gen_commands,Reason}}
+	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
     end.
 
 -spec generate(proper_types:raw_type()) -> imm_instance().

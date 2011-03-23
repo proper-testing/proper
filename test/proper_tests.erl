@@ -233,12 +233,10 @@ assert_native_can_generate(Mod, TypeStr, CheckIsInstance) ->
 
 assert_cant_generate(Type) ->
     ?assertEqual(error, proper_gen:pick(Type)),
-    proper:clean_garbage(),
     ?assert(state_is_clean()).
 
 assert_cant_generate_nonempty(Type, N) ->
     ?assertEqual(error, proper_gen:pick(?SUCHTHAT(T, Type, length(T) > N))),
-    proper:clean_garbage(),   
     ?assert(state_is_clean()).
 
 assert_not_is_instance(X, Type) ->
@@ -487,17 +485,17 @@ first_comb() -> [{10,3,3,[{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]},
 		 {11,5,2,[{1,[6,7,8,9,10,11]}, {2,[1,2,3,4,5]}]},
 		 {12,3,4,[{1,[10,11,12]}, {2,[7,8,9]}, {3,[4,5,6]}, {4,[1,2,3]}]}].	
 
-fix_gen_data() ->
-    [{4,2,[{1,[3,4]}, {2,[1,2]}], 
-      orddict:from_list([{1,{set,{var,1},{call,reg_parallel,spawn,[]}}},
-			 {2,{set,{var,2},{call,reg_parallel,spawn,[]}}},
-			 {3,{set,{var,3},{call,reg_parallel,catch_register,[a,{var,1}]}}},
-			 {4,{set,{var,4},{call,reg_parallel,catch_register,[b,{var,2}]}}}]),
-      reg_parallel, reg_parallel:initial_state(), [], 2,
-      [[{set,{var,2},{call,reg_parallel,spawn,[]}},
-	{set,{var,4},{call,reg_parallel,catch_register,[b,{var,2}]}}],
-       [{set,{var,1},{call,reg_parallel,spawn,[]}},
-	{set,{var,3},{call,reg_parallel,catch_register,[a,{var,1}]}}]]}].
+%% fix_gen_data() ->
+%%     [{4,2,[{1,[3,4]}, {2,[1,2]}], 
+%%       orddict:from_list([{1,{set,{var,1},{call,reg_parallel,spawn,[]}}},
+%% 			 {2,{set,{var,2},{call,reg_parallel,spawn,[]}}},
+%% 			 {3,{set,{var,3},{call,reg_parallel,catch_register,[a,{var,1}]}}},
+%% 			 {4,{set,{var,4},{call,reg_parallel,catch_register,[b,{var,2}]}}}]),
+%%       reg_parallel, reg_parallel:initial_state(), [], 2,
+%%       [[{set,{var,2},{call,reg_parallel,spawn,[]}},
+%% 	{set,{var,4},{call,reg_parallel,catch_register,[b,{var,2}]}}],
+%%        [{set,{var,1},{call,reg_parallel,spawn,[]}},
+%% 	{set,{var,3},{call,reg_parallel,catch_register,[a,{var,1}]}}]]}].
 
 lists_to_zip() ->
     [{[],[],[]},
@@ -565,28 +563,28 @@ invalid_var() ->
 		       {set,{var,5},{call,erlang,put,[a,3]}},
 		       {set,{var,6},{call,erlang,get,[{var,2}]}}]}].
 
-exception_command_sequences() ->
-%% {module, command_sequence, environment, shrunk}
-    [{reg_statem,  [{set,{var,1},{call,reg_statem,spawn,[]}},
-		    {set,{var,2},{call,reg_statem,spawn,[]}},
-		    {set,{var,3},{call,erlang,register,[a,{var,1}]}},
-		    {set,{var,4},{call,erlang,register,[b,{var,2}]}},
-		    {set,{var,5},{call,erlang,register,[c,{var,1}]}}],
-      [], [{set,{var,1},{call,reg_statem,spawn,[]}},
-	   {set,{var,3},{call,erlang,register,[a,{var,1}]}},
-	   {set,{var,5},{call,erlang,register,[c,{var,1}]}}]},
-     {reg_statem,  [{set,{var,1},{call,reg_statem,spawn,[]}},
-		    {set,{var,2},{call,reg_statem,spawn,[]}},
-		    {set,{var,3},{call,erlang,whereis,[b]}},
-		    {set,{var,4},{call,erlang,whereis,[a]}},
-		    {set,{var,5},{call,reg_statem,unregister,[a]}},
-		    {set,{var,6},{call,erlang,register,[a,{var,1}]}},
-		    {set,{var,7},{call,erlang,register,[a,{var,2}]}},
-		    {set,{var,8},{call,reg_statem,unregister,[a]}}],
-      [], [{set,{var,1},{call,reg_statem,spawn,[]}},
-	   {set,{var,2},{call,reg_statem,spawn,[]}},
-	   {set,{var,6},{call,erlang,register,[a,{var,1}]}},
-	   {set,{var,7},{call,erlang,register,[a,{var,2}]}}]}].
+%% exception_command_sequences() ->
+%% %% {module, command_sequence, environment, shrunk}
+%%     [{reg_statem,  [{set,{var,1},{call,reg_statem,spawn,[]}},
+%% 		    {set,{var,2},{call,reg_statem,spawn,[]}},
+%% 		    {set,{var,3},{call,erlang,register,[a,{var,1}]}},
+%% 		    {set,{var,4},{call,erlang,register,[b,{var,2}]}},
+%% 		    {set,{var,5},{call,erlang,register,[c,{var,1}]}}],
+%%       [], [{set,{var,1},{call,reg_statem,spawn,[]}},
+%% 	   {set,{var,3},{call,erlang,register,[a,{var,1}]}},
+%% 	   {set,{var,5},{call,erlang,register,[c,{var,1}]}}]},
+%%      {reg_statem,  [{set,{var,1},{call,reg_statem,spawn,[]}},
+%% 		    {set,{var,2},{call,reg_statem,spawn,[]}},
+%% 		    {set,{var,3},{call,erlang,whereis,[b]}},
+%% 		    {set,{var,4},{call,erlang,whereis,[a]}},
+%% 		    {set,{var,5},{call,reg_statem,unregister,[a]}},
+%% 		    {set,{var,6},{call,erlang,register,[a,{var,1}]}},
+%% 		    {set,{var,7},{call,erlang,register,[a,{var,2}]}},
+%% 		    {set,{var,8},{call,reg_statem,unregister,[a]}}],
+%%       [], [{set,{var,1},{call,reg_statem,spawn,[]}},
+%% 	   {set,{var,2},{call,reg_statem,spawn,[]}},
+%% 	   {set,{var,6},{call,erlang,register,[a,{var,1}]}},
+%% 	   {set,{var,7},{call,erlang,register,[a,{var,2}]}}]}].
 		   
 postcondition_false_command_sequences() -> 
 %% {module, command_sequence, environment, shrunk}
@@ -598,7 +596,7 @@ postcondition_false_command_sequences() ->
 
 modules_and_properties() ->
     [{pdict_statem, prop_pdict},
-     {freq_statem, prop_parallel}].
+     {server_statem, prop_parallel}].
 
 %%------------------------------------------------------------------------------
 %% Unit tests
@@ -919,87 +917,87 @@ adts_test_() ->
 	     {boolean(),dict(boolean(),integer())},
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
-zip_test_() ->
-    [?_assertEqual(proper_statem:zip(X, Y), Expected)
-     || {X,Y,Expected} <- lists_to_zip()].
+%% zip_test_() ->
+%%     [?_assertEqual(proper_statem:zip(X, Y), Expected)
+%%      || {X,Y,Expected} <- lists_to_zip()].
 
-command_names_test_() ->
-    [?_assertEqual(proper_statem:command_names(Cmds), Expected)
-     || {Cmds,Expected} <- command_names()].    
+%% command_names_test_() ->
+%%     [?_assertEqual(proper_statem:command_names(Cmds), Expected)
+%%      || {Cmds,Expected} <- command_names()].    
 
-valid_cmds_test_() ->
-    [?_assert(proper_statem:is_valid(Module, State, Cmds, Env))
-     || {Module,State,Cmds,_,_,Env} <- valid_command_sequences()].
+%% valid_cmds_test_() ->
+%%     [?_assert(proper_statem:is_valid(Module, State, Cmds, Env))
+%%      || {Module,State,Cmds,_,_,Env} <- valid_command_sequences()].
 
-invalid_cmds_test_() ->
-    [?_assertNot(proper_statem:is_valid(Module, Module:initial_state(), Cmds, []))
-     || {Module,Cmds,_,_} <- invalid_precondition()] ++
-    [?_assertNot(proper_statem:is_valid(Module,Module:initial_state(), Cmds, []))
-     || {Module,Cmds} <- invalid_var()].
+%% invalid_cmds_test_() ->
+%%     [?_assertNot(proper_statem:is_valid(Module, Module:initial_state(), Cmds, []))
+%%      || {Module,Cmds,_,_} <- invalid_precondition()] ++
+%%     [?_assertNot(proper_statem:is_valid(Module,Module:initial_state(), Cmds, []))
+%%      || {Module,Cmds} <- invalid_var()].
     
-state_after_test_() ->
-    [?_assertEqual(setup_state_after(Module, Cmds), StateAfter)
-     || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
+%% state_after_test_() ->
+%%     [?_assertEqual(setup_state_after(Module, Cmds), StateAfter)
+%%      || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
-cannot_generate_commands0_test_() ->
-    [?_test(assert_cant_generate_nonempty(proper_statem:commands(Module),0)) 
-     || Module <- [false_prec]].
+%% cannot_generate_commands0_test_() ->
+%%     [?_test(assert_cant_generate_nonempty(proper_statem:commands(Module),0)) 
+%%      || Module <- [false_prec]].
 
-cannot_generate_commands1_test_() ->
-    [?_test(assert_cant_generate_nonempty(proper_statem:commands(Module,StartState),1)) 
-     || {Module,StartState} <- [{false_prec,foo_state}, {false_prec,dummy}]].
+%% cannot_generate_commands1_test_() ->
+%%     [?_test(assert_cant_generate_nonempty(proper_statem:commands(Module,StartState),1)) 
+%%      || {Module,StartState} <- [{false_prec,foo_state}, {false_prec,dummy}]].
 
-can_generate_commands0_test_() ->
-    [?_test(assert_can_generate(proper_statem:commands(Module),true)) 
-     || Module <- [pdict_statem, freq_statem, reg_statem, foobar_statem]].
+%% can_generate_commands0_test_() ->
+%%     [?_test(assert_can_generate(proper_statem:commands(Module),true)) 
+%%      || Module <- [pdict_statem, freq_statem, reg_statem, foobar_statem]].
 
-can_generate_commands1_test_() ->
-    [?_test(assert_can_generate(proper_statem:commands(Module, StartState),true)) 
-     || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
+%% can_generate_commands1_test_() ->
+%%     [?_test(assert_can_generate(proper_statem:commands(Module, StartState),true)) 
+%%      || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
 
-can_generate_parallel_commands0_test_() ->
-    {timeout, 20,
-     [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
-      || Module <- [reg_parallel, freq_statem]]}.
+%% can_generate_parallel_commands0_test_() ->
+%%     {timeout, 20,
+%%      [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
+%%       || Module <- [reg_parallel, freq_statem]]}.
 
-can_generate_parallel_commands1_test_() ->
-    {timeout, 20,
-     [?_test(assert_can_generate(
-	       proper_statem:parallel_commands(Module, Module:initial_state()),true)) 
-      || Module <- [reg_parallel, freq_statem]]}.
+%% can_generate_parallel_commands1_test_() ->
+%%     {timeout, 20,
+%%      [?_test(assert_can_generate(
+%% 	       proper_statem:parallel_commands(Module, Module:initial_state()),true)) 
+%%       || Module <- [reg_parallel, freq_statem]]}.
 
-run_valid_commands_test_() ->
-    [?_assertMatch({_H,DynState,ok}, setup_run_commands(Module, Cmds, Env))
-     || {Module,_,Cmds,_,DynState,Env} <- valid_command_sequences()].
+%% run_valid_commands_test_() ->
+%%     [?_assertMatch({_H,DynState,ok}, setup_run_commands(Module, Cmds, Env))
+%%      || {Module,_,Cmds,_,DynState,Env} <- valid_command_sequences()].
 
-run_invalid_precondition_test_() ->
-    [?_assertMatch({_H,_S,{precondition,false}}, setup_run_commands(Module, Cmds, Env))
-     || {Module,Cmds,Env,_Shrunk} <- invalid_precondition()].
+%% run_invalid_precondition_test_() ->
+%%     [?_assertMatch({_H,_S,{precondition,false}}, setup_run_commands(Module, Cmds, Env))
+%%      || {Module,Cmds,Env,_Shrunk} <- invalid_precondition()].
 
-run_false_postcondition_test_() ->
-    [?_assertMatch({_H,_S,{postcondition,false}}, setup_run_commands(Module, Cmds, Env))
-     || {Module,Cmds,Env,_Shrunk} <- postcondition_false_command_sequences()].
+%% run_false_postcondition_test_() ->
+%%     [?_assertMatch({_H,_S,{postcondition,false}}, setup_run_commands(Module, Cmds, Env))
+%%      || {Module,Cmds,Env,_Shrunk} <- postcondition_false_command_sequences()].
 
-run_exception_raising_test_() ->
-    [?_assertMatch({_H,_S,{exception,error,_,_}}, setup_run_commands(Module, Cmds, Env))
-     || {Module,Cmds,Env,_Shrunk} <- exception_command_sequences()].
+%% run_exception_raising_test_() ->
+%%     [?_assertMatch({_H,_S,{exception,error,_,_}}, setup_run_commands(Module, Cmds, Env))
+%%      || {Module,Cmds,Env,_Shrunk} <- exception_command_sequences()].
 
-run_init_error_test_() ->
-    [?_assertMatch({_H,_S,initialization_error}, setup_run_commands(Module, Cmds, Env))
-     || {Module,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
+%% run_init_error_test_() ->
+%%     [?_assertMatch({_H,_S,initialization_error}, setup_run_commands(Module, Cmds, Env))
+%%      || {Module,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
 
-get_next_test_() ->
-    [?_assertEqual(Expected, proper_statem:get_next(L, Len, MaxIndex, Available, W, N))
-     || {L, Len, MaxIndex, Available, W, N, Expected} <- combinations()].
+%% get_next_test_() ->
+%%     [?_assertEqual(Expected, proper_statem:get_next(L, Len, MaxIndex, Available, W, N))
+%%      || {L, Len, MaxIndex, Available, W, N, Expected} <- combinations()].
 
-mk_first_comb_test_() ->
-     [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
-      || {N, Len, W, Expected} <- first_comb()].
+%% mk_first_comb_test_() ->
+%%      [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
+%%       || {N, Len, W, Expected} <- first_comb()].
 
-fix_gen_test_() ->
-     [?_assertEqual(Expected, 
-		    proper_statem:fix_gen(N, Len, Comb, LookUp, Mod, State, Env, W))
-      || {N, Len, Comb, LookUp, Mod, State, Env, W, Expected}  <- fix_gen_data()].
+%% fix_gen_test_() ->
+%%      [?_assertEqual(Expected, 
+%% 		    proper_statem:fix_gen(N, Len, Comb, LookUp, Mod, State, Env, W))
+%%       || {N, Len, Comb, LookUp, Mod, State, Env, W, Expected}  <- fix_gen_data()].
 
 %%------------------------------------------------------------------------------
 %% Helper Predicates

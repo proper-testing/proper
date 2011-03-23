@@ -1058,9 +1058,6 @@ occurs. Normaly, a message is also printed on screen describing the error.
   match. Please check your properties.
 * {'typeserver', <SubError>}: The typeserver encountered an error. The
   <SubError> field contains specific information regarding the error.
-* {'gen_commands', <SubError>}: An error was encountered during command
-  generation. The <SubError> field contains specific information regarding the
-  error.
 * {'unexpected', <Result>}: A test returned an unexpected result during normal
   operation. If you ever get this error, it means that you have found a bug in
   PropEr - please send an error report to the maintainers and remember to

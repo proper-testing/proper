@@ -182,8 +182,7 @@
 -type error_reason() :: 'cant_generate' | 'cant_satisfy' | 'rejected'
 		      | 'shrinking_error' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
-		      | {'unexpected',any()} | {'unrecognized_option',term()}
-		      | {'gen_commands',term()}.
+		      | {'unexpected',any()} | {'unrecognized_option',term()}.
 
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
@@ -727,8 +726,6 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	    Error;
 	{error, {typeserver,_SubReason}} = Error ->
 	    Error;
-	{error, {gen_commands,_Reason}} = Error ->
-	    Error;
 	Unexpected ->
 	    {error, {unexpected,Unexpected}}
     end.
@@ -1268,8 +1265,6 @@ report_error(too_many_instances, Print) ->
 report_error(type_mismatch, Print) ->
     Print("Error: The variables' and types' structures inside a ?FORALL don't "
 	  "match.~n", []);
-report_error({gen_commands,SubReason}, Print) ->
-    Print("Error: Problems encountered during command generation:~n ~w~n", [SubReason]);
 report_error(wrong_type, Print) ->
     Print("Internal error: 'wrong_type' error reached toplevel.~n"
 	  "Please notify the maintainers about this error.~n", []);

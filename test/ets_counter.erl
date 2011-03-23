@@ -33,7 +33,7 @@ prop_ets_counter() ->
 			  Result =:= ok)
 	    end).
 
--define(KEYS, lists:seq(1,1000)).
+-define(KEYS, lists:seq(1,100)).
 
 key() ->
     elements(?KEYS).

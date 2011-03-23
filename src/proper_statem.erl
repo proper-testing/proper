@@ -1,21 +1,49 @@
--module(proper_statem).
+%%% Copyright 2011 Eirini Arvaniti (eirinibob@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
+%%%
+%%% This file is part of PropEr.
+%%%
+%%% PropEr is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% PropEr is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
+%%% @author Eirini Arvaniti <eirinibob@gmail.com>
+%%% @copyright 2011 Eirini Arvaniti and Kostis Sagonas
+%%% @version {@version}
+%%% @doc This module contains functions for testing stateful systems
+
+-module(proper_statem).
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
 	 more_commands/2]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
 
--export([index/2, all_insertions/3, insert_all/2]).
--export([is_valid/4]).
--export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2]).
--export([is_parallel/4, execute/4, check/7, safe_run_sequential/5, get_initial_state/1,
-	 safe_eval_init/2]).
-
 -include("proper_internal.hrl").
 
 -define(WORKERS, 2).
 -define(LIMIT, 12).
+
+
+%% -----------------------------------------------------------------------------
+%% Exported only for testing purposes
+%% -----------------------------------------------------------------------------
+
+-export([index/2, all_insertions/3, insert_all/2]).
+-export([is_valid/4]).
+-export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2]).
+-export([is_parallel/4, execute/4, check/7, run_sequential/5,
+	 get_initial_state/1, safe_eval_init/2]).
+
 
 %% -----------------------------------------------------------------------------
 %% Type declarations
@@ -56,14 +84,6 @@
 
 -define(COMMANDS(PropList), proper_types:new_type(PropList, commands)).
 
-%% -spec commands(mod_name()) -> proper_types:type().
-%% commands(Module) ->
-%%     commands(Module, Module:initial_state(), false).
-
-%% -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
-%% commands(Module, InitialState) ->
-%%     commands(Module, InitialState, true).
-
 -spec commands(mod_name()) -> proper_types:type().
 commands(Module) ->
     ?COMMANDS(
@@ -97,22 +117,14 @@ more_commands(N, Type) ->
 
 -spec gen_commands(size(), mod_name(), symbolic_state(), boolean()) -> command_list().
 gen_commands(Size, Mod, InitialState, InitFlag) ->
-    %% TODO: choose actual length in a better way
     Len = proper_arith:rand_int(0, Size),
     erlang:put('$initial_state', InitialState),
-    try gen_commands(Mod, InitialState, [], Len, Len) of
-	CmdList ->
-	    case InitFlag of
-		true -> 
-		    [{init,InitialState}|CmdList];
-		false -> 
-		    CmdList
-	    end
-    catch
-	Exc:Reason ->
-	    throw({'$gen_commands', {Exc,Reason,erlang:get_stacktrace()}})
+    CmdList = gen_commands(Mod, InitialState, [], Len, Len),
+    case InitFlag of
+	true -> [{init,InitialState}|CmdList];
+	false -> CmdList
     end.
-
+  
 -spec gen_commands(mod_name(), symbolic_state(), command_list(), size(),
 		   non_neg_integer()) -> command_list().
 gen_commands(_, _, Commands, _, 0) ->
@@ -135,20 +147,13 @@ gen_commands(Module, State, Commands, Len, Count) ->
 %% Parallel command generation
 %% -----------------------------------------------------------------------------
 
-%% -spec parallel_commands(mod_name()) -> proper_types:type().		       
-%% parallel_commands(Module) ->
-%%     parallel_commands(Module, Module:initial_state(), false).
-
-%% -spec parallel_commands(mod_name(), symbolic_state()) -> proper_types:type(). 
-%% parallel_commands(Module, InitialState) ->
-%%     parallel_commands(Module, InitialState, true).
-
 -spec parallel_commands(mod_name()) -> proper_types:type().		       
 parallel_commands(Mod) ->
     ?COMMANDS(
        [{generator, 
 	 fun(Size) ->
-		 gen_parallel_commands(Size + ?WORKERS, Mod, Mod:initial_state(), false)
+		 gen_parallel_commands(Size + ?WORKERS, Mod,
+				       Mod:initial_state(), false)
 	 end},
 	{is_instance, fun parallel_commands_test/1},
 	{get_indices, fun proper_types:list_get_indices/1},
@@ -211,24 +216,16 @@ parallel_commands(Mod, InitialState) ->
 				   parallel_test_case().
 gen_parallel_commands(Size, Mod, InitialState, InitFlag) ->
     erlang:put('$initial_state', InitialState),
-    try gen_parallel(Mod, InitialState, Size) of
-	{Sequential,Parallel} = Res ->
-	    case InitFlag of
-		true -> {[{init, InitialState}|Sequential], Parallel};
-		false -> Res
-	    end
-    catch
-	Exc:Reason ->
-	    throw({'$gen_commands', {Exc,Reason, erlang:get_stacktrace()}})
+    {Sequential,Parallel} = gen_parallel(Mod, InitialState, Size),
+    case InitFlag of
+	true -> {[{init, InitialState}|Sequential], Parallel};
+	false -> {Sequential,Parallel}
     end.
 
 -spec gen_parallel(mod_name(), symbolic_state(), size()) -> parallel_test_case().
 gen_parallel(Mod, InitialState, Size) ->
-    Len1 = proper_arith:rand_int(?WORKERS, Size),
-    CmdList = gen_commands(Mod, InitialState, [], Len1, Len1),
-
-    %%TODO: does it make sense for Len to be different from Len1?
-    Len = length(CmdList),
+    Len = proper_arith:rand_int(?WORKERS, Size),
+    CmdList = gen_commands(Mod, InitialState, [], Len, Len),
     {LenPar, {Seq, P}} =
 	if Len =< ?LIMIT -> 
 		RandLen = proper_arith:rand_int(?WORKERS, Len),
@@ -277,8 +274,8 @@ is_parallel(Cs, Mod, State, Env) ->
     end.	   
 
 %%TODO: produce possible interleavings in a lazy way
--spec can_parallelize([command_list()], mod_name(), symbolic_state(), [symb_var()]) ->
-			     boolean().
+-spec can_parallelize([command_list()], mod_name(), symbolic_state(),
+		      [symb_var()]) -> boolean().
 can_parallelize(Cs, Mod, S, Env) ->
     Val = fun (C) -> is_valid(Mod, S, C, Env) end,
     lists:all(Val, possible_interleavings(Cs)).
@@ -307,12 +304,12 @@ run_commands(Module, Commands, Env) ->
 -spec safe_eval_init(proper_symb:var_values(), symbolic_state()) ->
 			    {'ok',dynamic_state()} | {'error',statem_result()}.
 safe_eval_init(Env, SymbState) ->
-    try proper_symb:eval(Env,SymbState) of
-	DynState -> 
+    try proper_symb:eval(Env, SymbState) of
+	DynState ->
 	    {ok,DynState}
     catch
 	_Exception:_Reason ->
-	    {error, initialization_error}
+	    {error,initialization_error}
     end.
 
 -spec do_run_command(command_list(), proper_symb:var_values(), mod_name(),
@@ -338,7 +335,8 @@ do_run_command(Commands, Env, Module, History, State) ->
 				    Env2 = [{V,Res}|Env],
 				    State2 = Module:next_state(State, Res, Call),
 				    History2 = [{State,Res}|History],
-				    do_run_command(Rest, Env2, Module, History2, State2);
+				    do_run_command(Rest, Env2, Module,
+						   History2, State2);
 				false ->
 				    State2 = Module:next_state(State, Res, Call),
 				    History2 = [{State,Res}|History],
@@ -354,11 +352,9 @@ do_run_command(Commands, Env, Module, History, State) ->
 			    {lists:reverse(History),State,Exception}
 		    end;
 		false ->
-		    {lists:reverse(History), State,
-		     {precondition,false}};
+		    {lists:reverse(History),State,{precondition,false}};
 		{exception,_,_,_} = Exception ->
-		    {lists:reverse(History), State,
-		     {precondition,Exception}}
+		    {lists:reverse(History), State,{precondition,Exception}}
 	    end
     end.
 
@@ -409,26 +405,17 @@ run_parallel_commands(Module, {Sequential, Parallel}, Env) ->
     InitialState = get_initial_state(Sequential),
     case safe_eval_init(Env, InitialState) of
 	{ok, DynState} ->
-	    case safe_run_sequential(Sequential, Env, Module, [], DynState) of
-		{ok, {{Seq_history, State, ok}, Env1}} ->
-		    F = fun(T) -> execute(T, Env1, Module, []) end,
-		    Parallel_history = pmap(F, Parallel),
-
-		    %% ok = init_ets_table(check_tab),
-		    R = case check(Module, State, Env1, Env1, [],
-				   Parallel_history, []) of
-			    true ->  
-				{Seq_history, Parallel_history, ok};
-			    false ->
-				{Seq_history, Parallel_history,
-				 no_possible_interleaving}
-			end,
-		    %% TODO: delete the table here or after shrinking?
-		    %% true = ets:delete(check_tab),
-		    R;
-		{error, Reason} ->
-		    %%io:format("Error during sequential execution~n"),
-		    erlang:error(Reason)
+	    {{Seq_history, State, ok}, Env1} =
+		run_sequential(Sequential, Env, Module, [], DynState), 
+	    F = fun(T) -> execute(T, Env1, Module, []) end,
+	    Parallel_history = pmap(F, Parallel),
+	    case check(Module, State, Env1, Env1, [],
+		       Parallel_history, []) of
+		true ->  
+		    {Seq_history, Parallel_history, ok};
+		false ->
+		    {Seq_history, Parallel_history,
+		     no_possible_interleaving}
 	    end;
 	{error, Reason} ->
 	    {[], [], Reason}
@@ -495,19 +482,6 @@ check(Mod, State, OldEnv, Env, Tried, [P|Rest], Accum) ->
 	    end
     end.
 
--spec safe_run_sequential(command_list(), proper_symb:var_values(), mod_name(),
-			  history(), dynamic_state()) ->
-       {'ok', {{history(), dynamic_state(), statem_result()}, proper_symb:var_values()}} 
-       | {'error', term()}.
-safe_run_sequential(Commands, Env, Module, History, State) ->
-    try run_sequential(Commands, Env, Module, History, State) of
-	Result ->
-	    {ok, Result}
-    catch
-	ExcKind:ExcReason ->
-	    {error, {exception, ExcKind, ExcReason, erlang:get_stacktrace()}}
-    end. 
-
 -spec run_sequential(command_list(), proper_symb:var_values(), mod_name(),
 		     history(), dynamic_state()) ->
        {{history(), dynamic_state(), statem_result()}, proper_symb:var_values()}.
@@ -544,8 +518,7 @@ execute(Commands, Env, Module, History) ->
 	    Res = apply(M2, F2, A2),
 	    Env2 = [{V,Res}|Env],
 	    History2 = [{Cmd,Res}|History],
-	    execute(Rest, Env2, Module, History2);
-	Other -> io:format("bug here: ~w\n", [Other])
+	    execute(Rest, Env2, Module, History2)
     end.
 
 
@@ -558,7 +531,8 @@ execute(Commands, Env, Module, History) ->
 			    {[command_list()],proper_shrink:state()}.
 split_shrinker(Module, [{init,InitialState}|Commands], Type, State) ->
     {Slices,NewState} = proper_shrink:split_shrinker(Commands, Type, State),
-    {[[{init, InitialState}|X] || X <- Slices, is_valid(Module, InitialState, X, [])],
+    {[[{init, InitialState}|X] || X <- Slices,
+				  is_valid(Module, InitialState, X, [])],
      NewState};
 
 split_shrinker(Module, Commands, Type, State) ->
@@ -577,7 +551,7 @@ remove_shrinker(Module, [{init,InitialState}|Commands] = Cmds, Type, State) ->
 	    {[],NewState};
 	_ ->
 	    L = [[{init,InitialState}|S] || S <- Slices, 
-					  is_valid(Module, InitialState, S, [])],
+					    is_valid(Module, InitialState, S, [])],
 	    case L of
 		[] -> remove_shrinker(Module, Cmds, Type, NewState);
 		_ -> {L, NewState}
@@ -683,49 +657,17 @@ move_shrinker(Instance, Type, {shrunk,_Pos,{move,2}}) ->
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
--spec is_valid(mod_name(), symbolic_state(), command_list(), [symb_var()]) -> boolean().
-is_valid(_Mod, _State, [], _Env) -> true;
-is_valid(Module, _State, [{init,S}|Commands], _Env) ->
-    is_valid(Module, S, Commands, _Env);
-is_valid(Module, State, [{set,Var,{call,_M,_F,A}=Call}|Commands], Env) ->
-    case Module:precondition(State, Call) of
-	true ->
-	    case args_defined(A, Env) of
-		true ->
-		    NextState = Module:next_state(State, Var, Call),
-		    is_valid(Module, NextState, Commands, [Var|Env]);
-		_ -> false
-	    end;
-	_ -> false
-    end.
-
--spec args_defined([term()], [symb_var()]) -> boolean().
-args_defined(A, Env) ->
-    lists:all(fun ({var,I} = V) when is_integer(I) -> lists:member(V, Env);
-		  (_V) -> true 
-	      end, A).      
-
--spec state_after(mod_name(), command_list()) -> symbolic_state().
-state_after(Module,Commands) ->
-    NextState = fun(S,V,C) -> Module:next_state(S,V,C) end,
-    lists:foldl(fun({init,S}, _) ->
-			S;
-		   ({set,Var,Call},S) ->
-			NextState(S,Var,Call)
-		end,
-		get_initial_state(Commands),
-		Commands).
-
--spec get_initial_state(command_list()) -> symbolic_state().
-get_initial_state(Cmds) ->
-    case Cmds of
-	[{init,S}|_] -> S;
-	_ -> erlang:get('$initial_state')
-    end.
-
 -spec command_names(command_list()) -> [mfa()].
 command_names(Cmds) ->
     [{M, F, length(Args)} || {set, _Var, {call,M,F,Args}} <- Cmds].
+
+-spec state_after(mod_name(), command_list()) -> symbolic_state().
+state_after(Module, Commands) ->
+    NextState = fun(S, V, C) -> Module:next_state(S, V, C) end,
+    lists:foldl(fun({init,S}, _) -> S;
+		   ({set,Var,Call}, S) -> NextState(S, Var, Call) end,
+		get_initial_state(Commands),
+		Commands).
 
 -spec zip([A], [B]) -> [{A,B}].
 zip(X, Y) ->
@@ -736,6 +678,36 @@ zip([], _, Accum) -> lists:reverse(Accum);
 zip(_, [], Accum) -> lists:reverse(Accum);
 zip([X|Tail1], [Y|Tail2], Accum) ->
     zip(Tail1, Tail2, [{X,Y}|Accum]).
+
+-spec is_valid(mod_name(), symbolic_state(), command_list(), [symb_var()]) ->
+		      boolean().
+is_valid(_Mod, _State, [], _Env) -> true;
+is_valid(Module, _State, [{init,S}|Commands], _Env) ->
+    is_valid(Module, S, Commands, _Env);
+is_valid(Module, State, [{set,Var,{call,_M,_F,A}=Call}|Commands], Env) ->
+    case Module:precondition(State, Call) of
+	true ->
+	    case args_defined(A, Env) of
+		true ->
+		    NextState = Module:next_state(State, Var, Call),
+		    is_valid(Module, NextState, Commands, [Var|Env]);
+		false -> false
+	    end;
+	false -> false
+    end.
+
+-spec args_defined([term()], [symb_var()]) -> boolean().
+args_defined(A, Env) ->
+    lists:all(fun ({var,I} = V) when is_integer(I) -> lists:member(V, Env);
+		  (_V) -> true 
+	      end, A).      
+
+-spec get_initial_state(command_list()) -> symbolic_state().
+get_initial_state(Cmds) ->
+    case Cmds of
+	[{init,S}|_] -> S;
+	_ -> erlang:get('$initial_state')
+    end.
 
 -spec commands_test(proper_gen:imm_instance()) -> boolean().
 commands_test(X) when is_list(X) ->
@@ -928,112 +900,3 @@ remove_first_command(Index, [H|T], Accum, Index) ->
     lists:reverse(Accum) ++ [tl(H)] ++ T;
 remove_first_command(Index, [H|T], Accum, N) -> 
     remove_first_command(Index, T, [H|Accum], N+1).
-    
-%% -spec check_mem(mod_name(), dynamic_state(), proper_symb:var_values(),
-%% 		command_history(), command_history(), command_history()) -> boolean().
-%% check_mem(Mod, State, Env, P1, P2, Accum) ->
-%%     T = {State,P1,P2},
-%%     case ets:lookup(check_tab, T) of
-%% 	[{T, V}] when is_boolean(V) ->
-%% 	    V;
-%% 	[] ->
-%% 	    V = check(Mod, State, Env, P1, P2, Accum),
-%% 	    memoize(check_tab, T, V),
-%% 	    V
-%%     end.
-
-%% -spec check(mod_name(), dynamic_state(), proper_symb:var_values(),
-%% 	    command_history(),command_history(),command_history()) -> boolean().
-%% check(_Mod,_State,_Env,[],[],_Accum) ->
-%%     true;
-%% check(Mod,State,Env,[],[Head|Rest]=P2,Accum) ->
-%%     {{set,{var,N},{call,M,F,A}},Res} = Head, 
-%%     M2 = proper_symb:eval(Env,M), 
-%%     F2 = proper_symb:eval(Env,F), 
-%%     A2 = proper_symb:eval(Env,A),
-%%     Call = {call,M2,F2,A2},
-%%     case Mod:postcondition(State,Call,Res) of 
-%% 	true ->
-%% 	    Env2 = [{N,Res}|Env],
-%% 	    NextState = Mod:next_state(State,Res,Call),
-%% 	    V = check_mem(Mod,NextState,Env2,[],Rest,[Head|Accum]),
-%% 	    memoize(check_tab,{NextState,[],Rest},V),
-%% 	    V;
-%% 	false -> 
-%% 	    memoize(check_tab,{State,[],P2},false),
-%% 	    false
-%%     end;
-%% check(Mod, State, Env, [Head|Rest]=P1, [], Accum) ->
-%%     {{set,{var,N},{call,M,F,A}},Res} = Head, 
-%%     M2 = proper_symb:eval(Env,M), 
-%%     F2 = proper_symb:eval(Env,F), 
-%%     A2 = proper_symb:eval(Env,A),
-%%     Call = {call,M2,F2,A2},
-%%     case Mod:postcondition(State, Call, Res) of
-%% 	true ->
-%% 	    Env2 = [{N,Res}|Env],
-%% 	    NextState = Mod:next_state(State,Res,Call),
-%% 	    V = check_mem(Mod,NextState,Env2,Rest,[],[Head|Accum]),
-%% 	    memoize(check_tab, {NextState,Rest,[]}, V),
-%% 	    V;
-%% 	false ->
-%% 	    memoize(check_tab, {State,P1,[]}, false),
-%% 	    false
-%%     end;
-%% check(Mod,State,Env,[H1|Rest1]=P1,[H2|Rest2]=P2,Accum) ->
-%%     {{set,{var,N1},{call,M1,F1,A1}},Res1} = H1,
-%%     {{set,{var,N2},{call,M2,F2,A2}},Res2} = H2,
-%%     M1_ = proper_symb:eval(Env,M1), 
-%%     F1_ = proper_symb:eval(Env,F1), 
-%%     A1_ = proper_symb:eval(Env,A1),
-%%     Call1 = {call,M1_,F1_,A1_},   
-%%     M2_ = proper_symb:eval(Env,M2), 
-%%     F2_ = proper_symb:eval(Env,F2), 
-%%     A2_ = proper_symb:eval(Env,A2),
-%%     Call2 = {call,M2_,F2_,A2_}, 
-%%     case {Mod:postcondition(State,Call1,Res1),Mod:postcondition(State,Call2,Res2)} of 
-%% 	{true,false} -> 
-%% 	    Env2 = [{N1,Res1}|Env],
-%% 	    NextState = Mod:next_state(State,Res1,Call1),
-%% 	    V = check_mem(Mod,NextState,Env2,Rest1,P2,[H1|Accum]),
-%% 	    memoize(check_tab,{NextState,Rest1,P2},V),
-%% 	    V;
-%% 	{false,true} -> 
-%% 	    Env2 = [{N2,Res2}|Env],
-%% 	    NextState = Mod:next_state(State,Res2,Call2),
-%% 	    V = check_mem(Mod,NextState,Env2,P1,Rest2,[H1|Accum]),
-%% 	    memoize(check_tab,{NextState,P1,Rest2},V),
-%% 	    V;
-%% 	{true,true} -> 
-%% 	    NextState1 = Mod:next_state(State,Res1,Call1),
-%% 	    NextState2 = Mod:next_state(State,Res2,Call2),
-%% 	    Env1 = [{N1,Res1}|Env],
-%% 	    Env2 = [{N2,Res2}|Env],
-%% 	    case check_mem(Mod,NextState1,Env1,Rest1,P2,[H1|Accum]) of
-%% 		true -> 
-%% 		    memoize(check_tab,{NextState1,Rest1,P2},true),
-%% 		    true;
-%% 		false ->
-%% 		    memoize(check_tab,{NextState1,Rest1,P2},false),
-%% 		    V = check_mem(Mod,NextState2,Env2,P1,Rest2,[H2|Accum]),
-%% 		    memoize(check_tab,{NextState2,P1,Rest2},V),
-%% 		    V
-%% 	    end;
-%% 	{false,false} -> 
-%% 	    memoize(check_tab,{State,P1,P2},false),
-%% 	    false
-%%     end.
-%% -spec memoize(atom(), term(), term()) -> 'ok'.		     
-%% memoize(Tab, Key, Value) ->
-%%     ets:insert(Tab, {Key,Value}),
-%%     ok.
-
-%% -spec init_ets_table(atom()) -> 'ok'.
-%% init_ets_table(Tab) ->
-%%     case ets:info(Tab) of
-%% 	undefined ->
-%% 	    Tab = ets:new(Tab, [named_table]),
-%% 	    ok;
-%% 	_ ->
-%% 	    ok
-%%     end.
