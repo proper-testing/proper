@@ -28,6 +28,7 @@
 -export([shrink/3]).
 -export([number_shrinker/4, union_first_choice_shrinker/3,
 	 union_recursive_shrinker/3]).
+-export([split_shrinker/3, remove_shrinker/3]).
 
 -export_type([state/0, shrinker/0]).
 
@@ -102,7 +103,9 @@ get_shrinkers(Type) ->
 			end;
 		    container ->
 			[fun split_shrinker/3, fun remove_shrinker/3,
-			 fun elements_shrinker/3]
+			 fun elements_shrinker/3];	    
+		    _Other ->
+			[]
 		end,
 	    CustomShrinkers ++ StandardShrinkers
     end.

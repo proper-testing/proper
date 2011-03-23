@@ -169,7 +169,6 @@ erase_temp() ->
     erase(temp),
     ok.
 
-
 %%------------------------------------------------------------------------------
 %% Helper Functions
 %%------------------------------------------------------------------------------
@@ -519,6 +518,7 @@ undefined_symb_calls() ->
 %% TODO: use demo_is_instance and demo_translate_type
 %% TODO: debug option to output tests passed, fail reason, etc.
 
+
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].
 
@@ -793,7 +793,7 @@ adts_test_() ->
 %%------------------------------------------------------------------------------
 %% Helper Predicates
 %%------------------------------------------------------------------------------
-
+ 
 no_duplicates(L) ->
     length(lists:usort(L)) =:= length(L).
 
@@ -843,6 +843,7 @@ smaller_lengths_than_my_own(L) ->
 %%------------------------------------------------------------------------------
 %% Functions to test
 %%------------------------------------------------------------------------------
+
 
 partition(Pivot, List) ->
     partition_tr(Pivot, List, [], []).

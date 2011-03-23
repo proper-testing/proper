@@ -33,6 +33,7 @@
 
 -export([get_size/1, global_state_init_size/1, report_error/2]).
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
+-export([spawn_link_migrate/1]).
 
 -export_type([test/0, outer_test/0, counterexample/0]).
 
@@ -44,6 +45,7 @@
 %%-----------------------------------------------------------------------------
 
 -define(MISMATCH_MSG, "Error: The input doesn't correspond to this property: ").
+
 
 
 %%-----------------------------------------------------------------------------
@@ -322,6 +324,7 @@ counterexamples() ->
 clean_garbage() ->
     erase('$counterexample'),
     erase('$counterexamples'),
+    erase('$initial_state'),
     ok.
 
 

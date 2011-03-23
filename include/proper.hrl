@@ -37,8 +37,8 @@
 %%------------------------------------------------------------------------------
 
 -import(proper_types, [integer/2, float/2, atom/0, binary/0, binary/1,
-		       bitstring/0, bitstring/1, list/1, vector/2, union/1,
-		       weighted_union/1, tuple/1, loose_tuple/1, exactly/1,
+		       bitstring/0, bitstring/1, list/1, vector/2, union/1, 
+		       weighted_union/1, tuple/1, loose_tuple/1, exactly/1, 
 		       fixed_list/1, function/2, any/0]).
 
 
@@ -53,7 +53,8 @@
 -import(proper_types, [int/0, nat/0, largeint/0, real/0, bool/0, choose/2,
 		       elements/1, oneof/1, frequency/1, return/1, default/2,
 		       orderedlist/1, function0/1, function1/1, function2/1,
-		       function3/1, function4/1, weighted_default/2]).
+		       function3/1, function4/1, weighted_default/2, parameter/1,
+		       parameter/2, with_parameter/3, with_parameters/2]).
 
 
 %%------------------------------------------------------------------------------
@@ -69,6 +70,17 @@
 
 -import(proper_symb, [eval/1, eval/2, defined/1, well_defined/1, pretty_print/1,
 		      pretty_print/2]).
+
+
+%%------------------------------------------------------------------------------
+%% Statem functions
+%%------------------------------------------------------------------------------
+
+-import(proper_statem, [commands/1, commands/2, parallel_commands/1, 
+			parallel_commands/2, more_commands/2]).
+-import(proper_statem, [run_commands/2, run_commands/3,  state_after/2,
+			command_names/1, zip/2, run_parallel_commands/2,
+			run_parallel_commands/3]).
 
 
 %%------------------------------------------------------------------------------
