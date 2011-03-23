@@ -871,21 +871,6 @@ proper/proper_dict module, which wraps the STDLIB dict ADT.
 
 
 --------------------------------------------------------------------------------
-Incompatibilities with Quviq QuickCheck
---------------------------------------------------------------------------------
-
-We have generaly tried to keep PropEr's notation and output as compatible as
-possible with Quviq QuickCheck, to allow for the reuse of existing testing code
-written for QuickCheck. However, incompatibilities are to be expected, since
-the two programs probably bear little resemblance under the hood. Here we
-provide a nonexhaustive list of known incompatibilities:
-
-* ?SUCHTHATMAYBE behaves differently in PropEr.
-* proper_gen:pick differs from eqc_gen:pick in return value format.
-* PropEr handles 'size' differently from QuickCheck.
-
-
---------------------------------------------------------------------------------
 Testing stateful code
 --------------------------------------------------------------------------------
 
@@ -986,7 +971,7 @@ necessarily have equal length. Zipping stops when the shortest list stops. This
 is useful for zipping a command sequence with its (failing) execution history.
 
 An example of a sample property to check can be found at examples/pdict_statem.
-This is a callback module specifying an abstract state machine to test the
+This is a callback module specifying an abstract state machine of the
 process dictionary.
 
 
@@ -1079,7 +1064,3 @@ provide a nonexhaustive list of known incompatibilities:
 * ?SUCHTHATMAYBE behaves differently in PropEr.
 * proper_gen:pick differs from eqc_gen:pick in return value format.
 * PropEr handles 'size' differently from QuickCheck.
-
-
-
-

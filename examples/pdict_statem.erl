@@ -1,3 +1,25 @@
+%%% Copyright 2011 Eirini Arvaniti (eirinibob@gmail.com)
+%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
+%%%
+%%% This file is part of PropEr.
+%%%
+%%% PropEr is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% PropEr is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
+
+%%% File           : pdict_statem.erl
+%%% Original author: Kresten Krab Thorup (krab@trifork.com)
+%%% Description    : Simple statem test for the process dictionary
+
 -module(pdict_statem).
 -export([test/0, test/1]).
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
@@ -59,11 +81,11 @@ precondition(_, _) ->
 postcondition(Props, {call,erlang,put,[Key,_]}, undefined) ->
     not proplists:is_defined(Key, Props);
 postcondition(Props, {call,erlang,put,[Key,_]}, Old) ->
-    [{Key,Old}] =:= proplists:lookup_all(Key, Props);
+    {Key,Old} =:= proplists:lookup(Key, Props);
 postcondition(Props, {call,erlang,get,[Key]}, Val) ->
-    [{Key,Val}] =:= proplists:lookup_all(Key, Props);
+    {Key,Val} =:= proplists:lookup(Key, Props);
 postcondition(Props, {call,erlang,erase,[Key]}, Val) ->
-    [{Key,Val}] =:= proplists:lookup_all(Key, Props);
+    {Key,Val} =:= proplists:lookup(Key, Props);
 postcondition(_, _, _) ->
     false.
 
@@ -71,7 +93,7 @@ next_state(Props, _Var, {call,erlang,put,[Key,Value]}) ->
     %% correct model
     [{Key,Value}|proplists:delete(Key, Props)];
     %% wrong model
-    %% [{Key,Value}|Props];
+    %% Props ++ [{Key,Value}];
 next_state(Props, _Var, {call,erlang,erase,[Key]}) ->
     proplists:delete(Key, Props);
 next_state(Props, _Var, {call,erlang,get,[_]}) ->
