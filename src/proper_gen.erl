@@ -23,7 +23,7 @@
 %%%	 in this module.
 
 -module(proper_gen).
--export([pick/1, pick/2, sampleshrink/1, sampleshrink/2]).
+-export([pick/1, pick/2, sample/1, sample/3, sampleshrink/1, sampleshrink/2]).
 
 -export([safe_generate/1]).
 -export([generate/1, normal_gen/1, alt_gens/1, clean_instance/1]).
@@ -95,7 +95,7 @@ generate(RawType) ->
     ok = remove_parameters(Type),
     Instance.
 
--spec add_parameters(proper_types:type()) -> 'ok'.			     
+-spec add_parameters(proper_types:type()) -> 'ok'.
 add_parameters(Type) ->
     case proper_types:find_prop(parameters, Type) of
 	{ok, Params} ->
@@ -190,6 +190,18 @@ pick(RawType, Size) ->
 	    error
     end.
 
+-spec sample(proper_types:raw_type()) -> 'ok'.
+sample(RawType) ->
+    sample(RawType, 10, 20).
+
+-spec sample(proper_types:raw_type(), size(), size()) -> 'ok'.
+sample(RawType, StartSize, EndSize) when StartSize =< EndSize ->
+    Tests = EndSize - StartSize + 1,
+    Prop = ?FORALL(X, RawType, begin io:format("~p~n",[X]), true end),
+    Opts = [quiet,{start_size,StartSize},{max_size,EndSize},{numtests,Tests}],
+    _ = proper:quickcheck(Prop, Opts),
+    ok.
+
 -spec sampleshrink(proper_types:raw_type()) -> 'ok'.
 sampleshrink(RawType) ->
     sampleshrink(RawType, 10).
@@ -203,8 +215,8 @@ sampleshrink(RawType, Size) ->
 	    Shrunk = keep_shrinking(ImmInstance, [], Type),
 	    PrintInst = fun(I) -> io:format("~p~n",[clean_instance(I)]) end,
 	    lists:foreach(PrintInst, Shrunk);
-	{error,_Reason} ->
-	    io:format("Error: Couldn't generate.~n", [])
+	{error,Reason} ->
+	    proper:report_error(Reason, fun io:format/2)
     end,
     proper:global_state_erase(),
     ok.

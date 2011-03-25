@@ -25,10 +25,10 @@
 
 -module(proper_typeserver).
 -behaviour(gen_server).
+-export([demo_translate_type/2, demo_is_instance/3]).
 
 -export([start/0, stop/0, create_spec_test/2, get_exp_specced/1, is_instance/3,
 	 translate_type/1]).
--export([demo_translate_type/2, demo_is_instance/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
 -export([get_exp_info/1, match/2]).

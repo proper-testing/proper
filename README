@@ -40,10 +40,6 @@ Quickstart guide
      proper:quickcheck(your_module:some_property()).
        or
      proper:quickcheck(your_module:some_property(), <option/options>).
-  You can also try out the random instance generation subsystem by running:
-     proper_gen:pick(some_type()).
-       or
-     proper_gen:pick(some_type(), <size>).
 
 
 --------------------------------------------------------------------------------
@@ -922,7 +918,7 @@ Specifies the next state of the state machine, given the current state, the
 command generation and command execution time in order to determine the next
 state, therefore the <Result> can be either symbolic (i.e. {var,N}) or dynamic.
 
- 
+
 The following functions, automatically imported from the proper_statem module,
 can be used when working with stateful code:
 
@@ -1050,6 +1046,42 @@ occurs. Normaly, a message is also printed on screen describing the error.
   include both the failing test case and the output of the program, if possible.
 * {'unrecognized_option', <Option>}: <Option> is not an option that PropEr
   understands.
+
+
+--------------------------------------------------------------------------------
+Demo functions
+--------------------------------------------------------------------------------
+
+You can use the following functions to try out the random instance generation,
+shrinking and type translation subsystems:
+
+* proper_gen:pick(<Type>):
+    equivalent to proper_gen:pick(<Type>, 10)
+* proper_gen:pick(<Type>, <Size>):
+    Generates a random instance of <Type>, of size <Size>.
+* proper_gen:sample(<Type>):
+    equivalent to proper_gen:sample(<Type>, 10, 20)
+* proper_gen:sample(<Type>, <Start_Size>, <End_Size>):
+    Generates and prints one random instance of <Type> for each size from
+    <Start_Size> up to <End_Size>.
+* proper_gen:sampleshrink(<Type>):
+    equivalent to proper_gen:sampleshrink(<Type>, 10)
+* proper_gen:sampleshrink(<Type>, <Size>):
+    Generates a random instance of <Type>, of size <Size>, then shrinks it as
+    far as it goes. The value produced on each step of the shrinking process is
+    printed on the screen.
+* proper_typeserver:demo_translate_type(<Module>, <Type_Expr>):
+    Translates the native type expression <Type_Expr> (which should be provided
+    inside a string) into a PropEr type, which can then be passed to any one
+    of the above demo functions. PropEr acts as if it found this type expression
+    inside the code for <Module>.
+* proper_typeserver:demo_is_instance(<Term>, <Module>, <Type_Expr>):
+    Checks if <Term> is a valid instance of native type <Type_Expr> (which
+    should be provided inside a string). PropEr acts as if it found this type
+    expression inside the code for <Module>.
+
+CAUTION: These functions should never be used inside properties. They are meant
+for demonstration purposes only.
 
 
 --------------------------------------------------------------------------------
