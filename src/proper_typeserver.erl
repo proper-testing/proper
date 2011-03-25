@@ -541,6 +541,15 @@ add_mod_info({attribute,_Line,type,{{record,RecName},Fields,[]}},
     NewModTypes = dict:store({record,RecName,0}, {abs_record,FieldInfo},
 			     ModTypes),
     ModInfo#mod_info{mod_types = NewModTypes};
+add_mod_info({attribute,_Line,record,{RecName,Fields}},
+	     #mod_info{mod_types = ModTypes} = ModInfo) ->
+    case dict:is_key(RecName, ModTypes) of
+	true ->
+	    ModInfo;
+	false ->
+	    TypedRecord = {attribute,0,type,{{record,RecName},Fields,[]}},
+	    add_mod_info(TypedRecord, ModInfo)
+    end;
 add_mod_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
 	     #mod_info{mod_types = ModTypes,
 		       mod_opaques = ModOpaques} = ModInfo)

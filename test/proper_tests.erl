@@ -621,6 +621,9 @@ native_type_props_test_() ->
      ?_passes(weird_types:prop_export_all_works()),
      ?_passes(weird_types:prop_no_auto_import_works())].
 
+-record(untyped, {a, b = 12}).
+-type untyped() :: #untyped{}.
+
 true_props_test_() ->
     [?_passes(?FORALL(X,integer(),X < X + 1)),
      ?_passes(?FORALL(X,atom(),list_to_atom(atom_to_list(X)) =:= X)),
@@ -656,7 +659,8 @@ true_props_test_() ->
 		  {one, ?FORALL(_, integer(), true)},
 		  {two, ?FORALL(X, integer(), collect(X > 0, true))},
 		  {three, conjunction([{a,true},{b,true}])}
-	      ]))].
+	      ])),
+     ?_passes(?FORALL(X, untyped(), is_record(X,untyped)))].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
@@ -793,7 +797,7 @@ adts_test_() ->
 %%------------------------------------------------------------------------------
 %% Helper Predicates
 %%------------------------------------------------------------------------------
- 
+
 no_duplicates(L) ->
     length(lists:usort(L)) =:= length(L).
 
