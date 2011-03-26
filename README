@@ -564,6 +564,19 @@ noshrink(<Type>)
     that, had we not enclosed the generator with a ?LAZY macro, the evaluation
     would continue indefinitely, due to the eager evaluation of the Erlang
     language.
+with_parameter(<Parameter_name>, <Value>, <Type>)
+    <Parameter_name> will be associated with <Value> while generating <Type>.
+    This can be useful when testing stateful systems (as described in 'Testing
+    stateful systems' section). An example use can be found in module
+    examples/ets_statem.
+with_parameters(<Proplist_of_parameters>, <Type>)
+    Similar to with_parameter/3, but accepts a list of {<Parameter_name>,<Value>}
+    pairs.
+parameter(<Parameter_name>, <Default>)
+    Returns the <Value> associated with <Parameter_name>, or <Default> in case
+    <Parameter_name> is not associated with any value.
+parameter(<Parameter_name>)
+    Equivalent to parameter(<Parameter_name>, undefined).
 
 The following functions and macros are related to the 'size' parameter, which
 controls the maximum size of produced instances. The actual size of a produced
@@ -942,15 +955,15 @@ tuple of the form: {<History>,<Dynamic_state>,<Statem_result>}.
   moment when execution stopped.
   -  <Statem_result> specifies the overall result of command execution. It
   can be one of the following:
-    * 'ok': all commands were successfully run and all postconditions were
+    -- 'ok': all commands were successfully run and all postconditions were
     true
-    * 'initialization_error': there was an error while evaluating the initial
+    -- 'initialization_error': there was an error while evaluating the initial
     state
-    * {'postcondition', <Boolean> | <Exception>}: a postcondition was false
+    -- {'postcondition', <Boolean> | <Exception>}: a postcondition was false
     or raised an exception
-    * {'precondition', <Boolean> | <Exception>}: a precondition was false or
+    -- {'precondition', <Boolean> | <Exception>}: a precondition was false or
     raised an exception
-    * <Exception>: an exception was raised while running a command
+    -- <Exception>: an exception was raised while running a command
 * run_commands(<Cmds>, <Module>, <Environment>): Similar to run_commands/2,
 but also accepts a list of {<Key>,<Value>} pairs. Keys may be used in symbolic
 variables (i.e. {var,<Key>}) whithin the command sequence <Cmds>. These
@@ -967,9 +980,10 @@ The commands are not actually executed.
 necessarily have equal length. Zipping stops when the shortest list stops. This
 is useful for zipping a command sequence with its (failing) execution history.
 
-An example of a sample property to check can be found at examples/pdict_statem.
-This is a callback module specifying an abstract state machine of the
-process dictionary.
+Examples of sample properties to check can be found at examples/pdict_statem
+and examples/ets_statem. These modules contain an abstract state machine
+specification for testing operations on the process dictionary and ets tables 
+respectively.
 
 
 --------------------------------------------------------------------------------
@@ -1003,13 +1017,20 @@ of the form: {<Sequential_history>,<Parallel_history>,<Statem_result>}.
   prefix
   - <Parallel_history> contains the execution history of each of the
   concurrent tasks.
-  - <Statem_result> specifies the outcome attempting to serialize command
+  - <Statem_result> specifies the outcome of the attemp to serialize command
   execution, based on the results observed. It can be one of the following:
-    * 'ok'
-    * 'no_possible_interleaving'
+    -- 'ok'
+    -- 'no_possible_interleaving'
 * run_parallel_commands(<TestCase>, <Module>, <Environment>): Similar to
 run_parallel_commands/2, but also accepts an <Environment> used for symbolic
 variable evaluation, exactly as described in run_commands/3.
+
+Note: in its current implementation PropEr might not be able to generate
+suitable concurrent tasks for each test. In this case, an 'f' is printed on
+screen to inform the user.
+
+An example of a sample property for parallel testing can be found at
+examples/ets_statem, where we test concurrent operations on a public ets table. 
 
 
 --------------------------------------------------------------------------------

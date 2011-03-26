@@ -100,9 +100,10 @@ add_parameters(Type) ->
     case proper_types:find_prop(parameters, Type) of
 	{ok, Params} ->
 	    OldParams = erlang:get('$parameters'),
-	    if OldParams =:= undefined ->
+	    case OldParams of
+		undefined ->
 		    erlang:put('$parameters', Params);
-	       true ->
+		_ ->
 		    erlang:put('$parameters', Params ++ OldParams)
 	    end,
 	    ok;
@@ -115,9 +116,10 @@ remove_parameters(Type) ->
     case proper_types:find_prop(parameters, Type) of
 	{ok, Params} ->
 	    AllParams = erlang:get('$parameters'),
-	    if AllParams =:= Params ->
+	    case AllParams of
+		Params->
 		    erlang:erase('$parameters');
-	       true ->
+	        _ ->
 		    erlang:put('$parameters', AllParams -- Params)
 	    end,
 	    ok;
