@@ -76,6 +76,7 @@
 
 -type combination() :: [{pos_integer(),[pos_integer()]}].
 -type lookup() :: orddict:ordered_dictionary().
+-export_type([symb_var/0, symb_call/0, statem_result/0]).
 
 
 %% -----------------------------------------------------------------------------
