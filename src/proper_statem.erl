@@ -75,7 +75,7 @@
 			 | 'no_possible_interleaving'.
 
 -type combination() :: [{pos_integer(),[pos_integer()]}].
--type lookup() :: orddict:ordered_dictionary().
+-type lookup() :: orddict:orddict().
 -export_type([symb_var/0, symb_call/0, statem_result/0]).
 
 

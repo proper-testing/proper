@@ -81,12 +81,14 @@ command(S) ->
     Mod = S#state.mod,
     Data = S#state.data,
     case S#state.name of
-	Fun when is_atom(Fun) ->
-	    choose_transition(apply(Mod, Fun, [Data]));
-	Name when is_tuple(Name) ->
-	    Fun = element(1, Name),
-	    Args = tl(tuple_to_list(Name)),
-	    choose_transition(apply(Mod, Fun, Args ++ [Data]))
+	From when is_atom(From) ->
+	    choose_transition(Mod, From, apply(Mod, From, [Data]),
+			      get('$constraint_tries'));
+	From when is_tuple(From) ->
+	    Fun = element(1, From),
+	    Args = tl(tuple_to_list(From)),
+	    choose_transition(Mod, From, apply(Mod, Fun, Args ++ [Data]),
+			      get('$constraint_tries'))
     end.
 
 -spec precondition(state(), symb_call()) -> boolean().
@@ -136,9 +138,37 @@ postcondition(S, Call, Res) ->
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
--spec choose_transition([transition()]) -> proper_types:type().
-choose_transition(T_list) ->
-    ?LET({_To,Call}, proper_types:oneof(T_list), Call).
+%%TODO: this can be expressed better
+-spec choose_transition(mod_name(), state_name(), [transition()],
+			non_neg_integer()) -> proper_types:type().
+choose_transition(Mod, From, T_list, Tries) ->
+    case is_exported(Mod, {weight,3}) of
+	false ->
+	    Type = proper_types:oneof(T_list),
+	    case do_generate(Type) of
+		{ok,{_,Call}} -> Call;
+		error -> choose_transition(Mod, From, T_list, Tries-1)
+	    end;		     
+	true ->
+	    W_list = [{Mod:weight(From, To, Call), Call} || {To,Call} <- T_list],
+	    Type = proper_types:frequency(W_list),
+	    case do_generate(Type) of
+		{ok,Call} -> Call;
+		error -> choose_transition(Mod, From, T_list, Tries-1)
+	    end
+    end.
+
+-spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
+is_exported(Mod, Fun) ->
+    lists:member(Fun, Mod:module_info(exports)).
+
+-spec do_generate(proper_types:type()) -> {'ok',proper_gen:instance()} | 'error'.
+do_generate(Type) ->
+    try proper_gen:clean_instance(proper_gen:safe_generate(Type)) of
+    	{ok,_Instance} = Res -> Res
+    catch
+	_Exception:_Reason -> error
+    end.
 
 -spec target_state(mod_name(), state_name(), state_data(), symb_call()) ->
 			  state_name().
