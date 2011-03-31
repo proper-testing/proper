@@ -27,7 +27,7 @@
 -include_lib("proper/include/proper.hrl").
 
 -type object() :: tuple().
--type table_type() :: 'set' | 'orderes_set' | 'bag' | 'duplicate_bag'.
+-type table_type() :: 'set' | 'ordered_set' | 'bag' | 'duplicate_bag'.
 
 -record(state, {stored = []  :: [object()],       %% list of objects stored in ets table
 		type         :: table_type()}).   %% type of ets table
