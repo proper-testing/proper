@@ -393,12 +393,12 @@ safe_apply(M, F, A) ->
 
 
 -spec run_parallel_commands(mod_name(), parallel_test_case()) ->
-				   {history(), [command_history()], statem_result()}.
+				   {command_history(),[command_history()],statem_result()}.
 run_parallel_commands(Module, {_Sequential, _Parallel} = Cmds) ->
     run_parallel_commands(Module, Cmds, []).
 
 -spec run_parallel_commands(mod_name(), parallel_test_case(), proper_symb:var_values()) ->
-				   {history(), [command_history()], statem_result()}.
+				   {command_history(),[command_history()],statem_result()}.
 run_parallel_commands(Module, {Sequential, Parallel}, Env) ->
     InitialState = get_initial_state(Sequential),
     case safe_eval_init(Env, InitialState) of
@@ -482,14 +482,14 @@ check(Mod, State, OldEnv, Env, Tried, [P|Rest], Accum) ->
 
 -spec run_sequential(command_list(), proper_symb:var_values(), mod_name(),
 		     history(), dynamic_state()) ->
-       {{history(), dynamic_state(), statem_result()}, proper_symb:var_values()}.
+       {{command_history(), dynamic_state(), statem_result()}, proper_symb:var_values()}.
 run_sequential(Commands, Env, Module, History, State) ->
     case Commands of
 	[] -> 
 	    {{lists:reverse(History), State, ok}, Env};
 	[{init, _S}|Rest] ->
 	    run_sequential(Rest, Env, Module, History, State);
-   	[{set, {var,V}, {call,M,F,A}}|Rest] ->
+   	[{set, {var,V}, {call,M,F,A}} = Cmd|Rest] ->
 	    M2 = proper_symb:eval(Env, M), 
 	    F2 = proper_symb:eval(Env, F),
 	    A2 = proper_symb:eval(Env, A),
@@ -499,7 +499,7 @@ run_sequential(Commands, Env, Module, History, State) ->
 	    true = Module:postcondition(State, Call, Res),
 	    Env2 = [{V,Res}|Env],
 	    State2 = Module:next_state(State, Res, Call),
-	    History2 = [{State,Res}|History],
+	    History2 = [{Cmd,Res}|History],
 	    run_sequential(Rest, Env2, Module, History2, State2)
     end.
 
