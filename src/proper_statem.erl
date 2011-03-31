@@ -115,31 +115,33 @@ commands(Module, InitialState) ->
 more_commands(N, Type) ->
     ?SIZED(Size, proper_types:resize(Size * N, Type)).
 
--spec gen_commands(size(), mod_name(), symbolic_state(), boolean()) -> command_list().
+-spec gen_commands(size(), mod_name(), symbolic_state(), boolean()) ->
+			  command_list().
 gen_commands(Size, Mod, InitialState, InitFlag) ->
     Len = proper_arith:rand_int(0, Size),
     erlang:put('$initial_state', InitialState),
-    CmdList = gen_commands(Mod, InitialState, [], Len, Len),
-    case InitFlag of
-	true -> [{init,InitialState}|CmdList];
-	false -> CmdList
+    case gen_commands(Mod, InitialState, [], Len, Len) of
+	CmdList when is_list(CmdList) ->
+	    case InitFlag of
+		true -> [{init,InitialState}|CmdList];
+		false -> CmdList
+	    end;
+	{error,cant_generate} -> throw('$cant_generate')
     end.
   
 -spec gen_commands(mod_name(), symbolic_state(), command_list(), size(),
-		   non_neg_integer()) -> command_list().
+		   non_neg_integer()) -> command_list() | {'error','cant_generate'}.
 gen_commands(_, _, Commands, _, 0) ->
     lists:reverse(Commands);
 gen_commands(Module, State, Commands, Len, Count) ->
     Call = ?SUCHTHAT(X, Module:command(State), Module:precondition(State, X)),
-    {ok,Instance} = proper_gen:clean_instance(proper_gen:safe_generate(Call)),
-    case Instance =/= stop of
-	true ->
+    case proper_gen:clean_instance(proper_gen:safe_generate(Call)) of
+	{ok,Instance} ->
 	    Var = {var, Len-Count+1},
 	    Command = {set, Var, Instance},
 	    NextState = Module:next_state(State, Var, Instance),
 	    gen_commands(Module, NextState, [Command|Commands], Len, Count-1);
-	false ->
-	    lists:reverse(Commands)
+	{error,cant_generate} = Error -> Error
     end.
 
 
@@ -321,30 +323,26 @@ do_run_command(Commands, Env, Module, History, State) ->
 	    {lists:reverse(History), State, ok};
 	[{init,_S}|Rest] ->
 	    do_run_command(Rest, Env, Module, History, State);
- 	[{set, {var,V}, {call,M,F,A}}|Rest] ->
+	[{set, {var,V}, {call,M,F,A}}|Rest] ->
 	    M2 = proper_symb:eval(Env, M), 
 	    F2 = proper_symb:eval(Env, F), 
 	    A2 = proper_symb:eval(Env, A),
-	    Call = {call, M2, F2, A2},
+	    Call = {call,M2,F2,A2},
 	    case check_precondition(Module, State, Call) of
 		true ->
 		    case safe_apply(M2, F2, A2) of
 			{ok,Res} ->
+			    State2 = Module:next_state(State, Res, Call),
+			    History2 = [{State,Res}|History],
 			    case check_postcondition(Module, State, Call, Res) of
 				true ->
 				    Env2 = [{V,Res}|Env],
-				    State2 = Module:next_state(State, Res, Call),
-				    History2 = [{State,Res}|History],
 				    do_run_command(Rest, Env2, Module,
 						   History2, State2);
 				false ->
-				    State2 = Module:next_state(State, Res, Call),
-				    History2 = [{State,Res}|History],
 				    {lists:reverse(History2), State2,
 				     {postcondition,false}};
 				{exception,_,_,_} = Exception ->
-				    State2 = Module:next_state(State, Res, Call),
-				    History2 = [{State,Res}|History],
 				    {lists:reverse(History2), State2,
 				     {postcondition,Exception}}
 			    end;
@@ -354,7 +352,7 @@ do_run_command(Commands, Env, Module, History, State) ->
 		false ->
 		    {lists:reverse(History),State,{precondition,false}};
 		{exception,_,_,_} = Exception ->
-		    {lists:reverse(History), State,{precondition,Exception}}
+		    {lists:reverse(History),State,{precondition,Exception}}
 	    end
     end.
 
@@ -721,13 +719,10 @@ parallel_commands_test({S,P}) ->
 parallel_commands_test(_) -> false.
 
 -spec is_command(proper_gen:imm_instance()) -> boolean().
-is_command({set, {var,V}, {call,M,F,A}})
-  when is_integer(V), is_atom(M), is_atom(F), is_list(A) ->
-    true;
-is_command({init,_S}) ->
-    true;
-is_command(_Other) ->
-    false.
+is_command({set,{var,V},{call,M,F,A}})
+  when is_integer(V), is_atom(M), is_atom(F), is_list(A) -> true;
+is_command({init,_S}) -> true;
+is_command(_Other) -> false.
 
 -spec possible_interleavings([command_list()]) -> [command_list()].
 possible_interleavings([P1,P2]) ->

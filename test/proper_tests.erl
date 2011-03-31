@@ -865,7 +865,8 @@ error_props_test_() ->
      ?_assertCheck({error,rejected}, [2],
 		   ?FORALL(X,integer(),?IMPLIES(X > 5,X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
-		   ?FORALL(X,pos_integer(),X < 0))].
+		   ?FORALL(X,pos_integer(),X < 0)),
+     ?_errorsOut(cant_generate, prec_false:prop_simple())].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))
@@ -928,6 +929,10 @@ invalid_cmds_test_() ->
 state_after_test_() ->
     [?_assertEqual(setup_state_after(Module, Cmds), StateAfter)
      || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
+
+cannot_generate_commands_test_() ->
+    [?_test(assert_cant_generate_cmds(proper_statem:commands(Module),5))
+     || Module <- [prec_false]].
 
 can_generate_commands0_test_() ->
     [?_test(assert_can_generate(proper_statem:commands(Module),true))
