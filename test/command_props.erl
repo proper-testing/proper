@@ -1,6 +1,7 @@
 -module(command_props).
 
 -include_lib("proper/include/proper.hrl").
+-define(MOD, ets_counter).
 
 ne_nd_list(ElemType) ->
     ?LET(L,
@@ -60,8 +61,6 @@ prop_zip() ->
 		equals(zip(X, Y), Res)
 	    end).
 
--define(MOD, ets_counter).
-
 prop_p() ->
     ?FORALL(Workers, range(2, 4),
 	    ?FORALL(CmdList,
@@ -82,16 +81,14 @@ prop_check_true() ->
     ?FORALL(Cmds, proper_statem:parallel_commands(?MOD),
 	    begin
 		?MOD:clean_up(),
-		?MOD:start(),
+		?MOD:set_up(),
 		{Seq,Parallel} = Cmds,
 		InitialState = proper_statem:get_initial_state(Seq),
 		{ok,DynState} = proper_statem:safe_eval_init([], InitialState),
-		{{_, State, ok}, Env1} = 
+		{{_, State, ok}, Env1} =
 		    proper_statem:run_sequential(Seq, [], ?MOD, [], DynState),
 		Res = lists:map(fun(C) -> proper_statem:execute(C, Env1, ?MOD, []) end,
 				Parallel),
 		V = proper_statem:check(?MOD, State, Env1, Env1, [], Res, []),
 		equals(V, true)
 	    end).
-
-		   

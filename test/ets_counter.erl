@@ -2,12 +2,7 @@
 -include_lib("proper/include/proper.hrl").
 
 -compile(export_all).
-
-start() -> 
-    ets:new(counter, [public, named_table]).
-
-clean_up() ->
-    catch ets:delete(counter).
+-define(KEYS, lists:seq(1,10)).
 
 ets_inc(Key, Inc) ->
     case ets:lookup(counter, Key) of
@@ -21,19 +16,22 @@ ets_inc(Key, Inc) ->
 	    NewValue
     end.
 
-
 prop_ets_counter() ->
     ?FORALL(Commands, parallel_commands(?MODULE),
 	    begin
-		clean_up(),
-		counter = start(),
+		set_up(),
 		{Seq,P,Result} = run_parallel_commands(?MODULE, Commands),
+		clean_up(),
 		?WHENFAIL(io:format("Seq: ~w\nPar: ~w\nRes: ~w\n",
 				    [Seq, P, Result]),
 			  Result =:= ok)
 	    end).
 
--define(KEYS, lists:seq(1,100)).
+set_up() ->
+    ets:new(counter, [public, named_table]).
+
+clean_up() ->
+    catch ets:delete(counter).
 
 key() ->
     elements(?KEYS).
