@@ -64,7 +64,7 @@ run_commands(_Module, Cmds, Env) ->
 state_names(History) ->
     [SName || {{SName,_},_Res} <- History].
 
-		      
+
 %% -----------------------------------------------------------------------------
 %% State machine specification for fsm commands
 %% -----------------------------------------------------------------------------
@@ -82,13 +82,11 @@ command(S) ->
     Data = S#state.data,
     case S#state.name of
 	From when is_atom(From) ->
-	    choose_transition(Mod, From, apply(Mod, From, [Data]),
-			      get('$constraint_tries'));
+	    choose_transition(Mod, From, apply(Mod, From, [Data]));
 	From when is_tuple(From) ->
 	    Fun = element(1, From),
 	    Args = tl(tuple_to_list(From)),
-	    choose_transition(Mod, From, apply(Mod, Fun, Args ++ [Data]),
-			      get('$constraint_tries'))
+	    choose_transition(Mod, From, apply(Mod, Fun, Args ++ [Data]))
     end.
 
 -spec precondition(state(), symb_call()) -> boolean().
@@ -96,13 +94,23 @@ precondition(S, Call) ->
     Mod = S#state.mod,
     From = S#state.name,
     Data = S#state.data,
-    try target_state(Mod, From, Data, Call) of
+    case target_states(Mod, From, Data, Call) of
+	Targets when is_list(Targets) ->
+	    case [T || T <- Targets, fsm_precondition(Mod, From, T, Data, Call)] of
+		[]   -> false;
+		[_T] -> true
+	    end;
+	'$no_target' -> io:format("no_target!\n"),false
+    end.
+
+-spec fsm_precondition(mod_name(), state_name(), state_name(), state_data(),
+		       symb_call()) -> boolean().
+fsm_precondition(Mod, From, To, Data, Call) ->
+    case To of
 	history ->
 	    Mod:precondition(From, From, Data, Call);
 	To ->
 	    Mod:precondition(From, To, Data, Call)
-    catch
-	throw:'$no_target' -> false
     end.
 
 -spec next_state(state(), symb_var() | result(), symb_call()) -> state().
@@ -110,12 +118,11 @@ next_state(S, Var, Call) ->
     Mod = S#state.mod,
     From = S#state.name,
     Data = S#state.data,
-    To = target_state(Mod, From, Data, Call),
-    case To of
+    case transition_target(Mod, From, Data, Call) of
 	history ->
 	    D = Mod:next_state_data(From, From, Data, Var, Call),
 	    S#state{data=D};
-	_ ->
+	To ->
 	    D = Mod:next_state_data(From, To, Data, Var, Call),
 	    S#state{name=To, data=D}
     end.
@@ -125,81 +132,80 @@ postcondition(S, Call, Res) ->
     Mod = S#state.mod,
     From = S#state.name,
     Data = S#state.data,
-    To = target_state(Mod, From, Data, Call),
-    case To of
+    case transition_target(Mod, From, Data, Call) of
 	history ->
 	    Mod:postcondition(From, From, Data, Call, Res);
-	_ ->
+	To ->
 	    Mod:postcondition(From, To, Data, Call, Res)
     end.
 
-    
+
 %% -----------------------------------------------------------------------------
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
-%%TODO: this can be expressed better
--spec choose_transition(mod_name(), state_name(), [transition()],
-			non_neg_integer()) -> proper_types:type().
-choose_transition(Mod, From, T_list, Tries) ->
+-spec choose_transition(mod_name(), state_name(), [transition()]) ->
+			       proper_types:type().
+choose_transition(Mod, From, T_list) ->
     case is_exported(Mod, {weight,3}) of
 	false ->
-	    Type = proper_types:oneof(T_list),
-	    case do_generate(Type) of
-		{ok,{_,Call}} -> Call;
-		error -> choose_transition(Mod, From, T_list, Tries-1)
-	    end;		     
+	    choose_uniform_transition(T_list);
 	true ->
 	    W_list = [{Mod:weight(From, To, Call), Call} || {To,Call} <- T_list],
-	    Type = proper_types:frequency(W_list),
-	    case do_generate(Type) of
-		{ok,Call} -> Call;
-		error -> choose_transition(Mod, From, T_list, Tries-1)
-	    end
+	    choose_weighted_transition(W_list)
     end.
+
+-spec choose_uniform_transition([transition()]) -> proper_types:type().
+choose_uniform_transition(T_list) ->
+    List = [Call || {_,Call} <- T_list, can_generate(Call)],
+    proper_types:oneof(List).
+
+-spec choose_weighted_transition([{frequency(),symb_call()}]) ->
+					proper_types:type().
+choose_weighted_transition(W_list) ->
+    List = [T || {_,Call} = T <- W_list, can_generate(Call)],
+    proper_types:frequency(List).
 
 -spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
 is_exported(Mod, Fun) ->
     lists:member(Fun, Mod:module_info(exports)).
 
--spec do_generate(proper_types:type()) -> {'ok',proper_gen:instance()} | 'error'.
-do_generate(Type) ->
-    try proper_gen:clean_instance(proper_gen:safe_generate(Type)) of
-    	{ok,_Instance} = Res -> Res
+-spec can_generate(proper_types:type()) -> boolean().
+can_generate(Type) ->
+    try proper_gen:safe_generate(Type) of
+	{ok,_Instance} -> true;
+	{error,_Error} -> false
     catch
-	_Exception:_Reason -> error
+	_Exception:_Reason -> false
     end.
 
--spec target_state(mod_name(), state_name(), state_data(), symb_call()) ->
-			  state_name().
-target_state(Module, From, StateData, Call) ->
+-spec transition_target(mod_name(), state_name(), state_data(), symb_call()) ->
+			       state_name().
+transition_target(Mod, From, Data, Call) ->
+    Targets = target_states(Mod, From, Data, Call),
+    [To] = [T || T <- Targets, fsm_precondition(Mod, From, T, Data, Call)],
+    To.
+
+-spec target_states(mod_name(), state_name(), state_data(), symb_call()) ->
+			   [state_name()] | '$no_target'.
+target_states(Module, From, StateData, Call) ->
     Transitions = apply(Module, From, [StateData]),
-    case find_target(Transitions, Call) of
-	'$no_target' -> throw('$no_target');
-	Target -> Target
-    end.
+    find_target(Transitions, Call, []).
 
--spec find_target([transition()], symb_call()) -> state_name() | '$no_target'. 
-find_target([], _) -> '$no_target';
-find_target(Transitions, Call) ->
+-spec find_target([transition()], symb_call(), [transition()]) ->
+			 [state_name()] | '$no_target'.
+find_target([], _, []) -> '$no_target';
+find_target([], _, Accum) -> Accum;
+find_target(Transitions, Call, Accum) ->
     [{Target,CallGen}|Rest] = Transitions,
     case is_instance_call(Call, CallGen) of
-	true -> Target;
-	false -> find_target(Rest, Call)
+	true  -> find_target(Rest, Call, [Target|Accum]);
+	false -> find_target(Rest, Call, Accum)
     end.
 
 -spec is_instance_call(term(), term()) -> boolean().
-is_instance_call({call,M,F,A}, {call,M,F,ArgsGen}) ->
-    is_instance_args(A, ArgsGen);
+is_instance_call({call,M,F,A}, {call,M,F,ArgsGen})
+  when is_list(A), is_list(ArgsGen) ->
+    length(A) =:= length(ArgsGen);
 is_instance_call(_, _) ->
     false.
-
--spec is_instance_args([term()], [term()]) -> boolean().
-is_instance_args([], []) -> true;
-is_instance_args([], _) -> false;
-is_instance_args(_, []) -> false;
-is_instance_args([X|Rest1], [Gen|Rest2]) ->
-    case proper_types:is_instance(X, Gen) of
-	true -> is_instance_args(Rest1, Rest2); 
-	false -> false
-    end.
