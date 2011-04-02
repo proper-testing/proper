@@ -578,10 +578,6 @@ invalid_var() ->
 		       {set,{var,5},{call,erlang,put,[a,3]}},
 		       {set,{var,6},{call,erlang,get,[{var,2}]}}]}].
 
-modules_and_properties() ->
-    [{pdict_statem, prop_pdict},
-     {ets_statem, prop_ets},
-     {ets_statem, prop_parallel_ets}].
 
 %%------------------------------------------------------------------------------
 %% Unit tests
@@ -773,7 +769,9 @@ true_props_test_() ->
 		  {three, conjunction([{a,true},{b,true}])}
 	      ])),
      ?_passes(?FORALL(X, untyped(), is_record(X,untyped))),
-     [?_passes(apply(Module,Prop,[])) || {Module,Prop} <- modules_and_properties()]].
+     ?_passes(pdict_statem:prop_pdict()),
+     ?_passes(ets_statem:prop_ets()),
+     {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())}].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
