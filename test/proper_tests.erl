@@ -770,6 +770,8 @@ true_props_test_() ->
 	      ])),
      ?_passes(?FORALL(X, untyped(), is_record(X,untyped))),
      ?_passes(pdict_statem:prop_pdict()),
+     ?_passes(fibo_statem:prop_fibo()),
+     {timeout, 20, ?_passes(fibo_statem:prop_parallel_fibo())},
      ?_passes(ets_statem:prop_ets()),
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())}].
 
@@ -851,7 +853,9 @@ false_props_test_() ->
 		      ])},
 		     {stupid, ?FORALL(_, pos_integer(), throw(woot))}
 		 ]))),
-     ?_fails(ets_counter:prop_ets_counter())].
+     ?_fails(ets_counter:prop_ets_counter()),
+     ?_fails(post_false:prop_simple()),
+     ?_fails(error_statem:prop_simple())].
 
 error_props_test_() ->
     [?_errorsOut(cant_generate,
@@ -962,6 +966,14 @@ run_invalid_precondition_test_() ->
 run_init_error_test_() ->
     [?_assertMatch({_H,_S,initialization_error}, setup_run_commands(Module, Cmds, Env))
      || {Module,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
+
+run_postcondition_false() ->
+    ?_assertMatch({_H,_S,{postcondition,false}},
+		  run_commands(post_false, proper_statem:commands(post_false))).
+
+run_exception() ->
+    ?_assertMatch({_H,_S,{exception,throw,badarg,_}},
+		  run_commands(post_false, proper_statem:commands(error_statem))).
 
 get_next_test_() ->
     [?_assertEqual(Expected, proper_statem:get_next(L, Len, MaxIndex, Available, W, N))
