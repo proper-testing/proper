@@ -25,5 +25,5 @@
  [{description, "A QuickCheck-inspired property-based testing tool for Erlang"},
   {vsn, "1.0"},
   {registered, []},
-  {applications, [compiler,erts,kernel,stdlib,crypto]},
+  {applications, [compiler,kernel,stdlib,crypto]},
   {env, []}]}.
