@@ -706,7 +706,8 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
 	    Print(".", []),
-	    NewSamples = add_samples(MoreSamples, Samples),
+	    NoDupSamples = [lists:usort(S) || S <- MoreSamples],
+	    NewSamples = add_samples(NoDupSamples, Samples),
 	    NewPrinters = case Printers of
 			      none -> MorePrinters;
 			      _    -> Printers
