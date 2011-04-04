@@ -1,5 +1,5 @@
-%%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
-%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
+%%% Copyright 2010-2011 Manolis Papadakis (manopapad@gmail.com)
+%%%                 and Kostis Sagonas (kostis@cs.ntua.gr)
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -17,7 +17,7 @@
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 %%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
+%%% @copyright 2010-2011 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc This modules contains the Unit tests. You need the EUnit application
 %%%	 to compile it.
@@ -760,17 +760,17 @@ true_props_test_() ->
 			  [{numtests,3},{start_size,4},{max_size,4}]),
      ?_passes(?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X))),
      ?_passes(?FORALL(X, integer(), ?IMPLIES(X >= 0, true))),
-     ?_passes(?FORALL({X,Lim},{int(),?SIZED(Size,Size)},abs(X) =< Lim)),
-     ?_passes(?FORALL({X,Lim},{nat(),?SIZED(Size,Size)},X =< Lim)),
-     ?_passes(?FORALL(L,orderedlist(integer()),is_sorted(L))),
+     ?_passes(?FORALL({X,Lim}, {int(),?SIZED(Size,Size)}, abs(X) =< Lim)),
+     ?_passes(?FORALL({X,Lim}, {nat(),?SIZED(Size,Size)}, X =< Lim)),
+     ?_passes(?FORALL(L, orderedlist(integer()), is_sorted(L))),
      ?_passes(conjunction([
 		  {one, ?FORALL(_, integer(), true)},
 		  {two, ?FORALL(X, integer(), collect(X > 0, true))},
 		  {three, conjunction([{a,true},{b,true}])}
 	      ])),
-     ?_passes(?FORALL(X, untyped(), is_record(X,untyped))),
+     ?_passes(?FORALL(X, untyped(), is_record(X, untyped))),
      ?_passes(pdict_statem:prop_pdict()),
-     ?_passes(ets_statem:prop_ets()),
+     {timeout, 10, ?_passes(ets_statem:prop_ets())},
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())}].
 
 false_props_test_() ->
@@ -812,20 +812,20 @@ false_props_test_() ->
      ?_failsWithOneOf([[{true,false}],[{false,true}]],
 		      ?FORALL({B1,B2}, {boolean(),boolean()}, equals(B1,B2))),
      ?_failsWith([2,1],
-		 ?FORALL(X,integer(1,10),?FORALL(Y,integer(1,10),X =< Y))),
+		 ?FORALL(X, integer(1,10), ?FORALL(Y, integer(1,10), X =< Y))),
      ?_failsWith([1,2],
-		 ?FORALL(Y,integer(1,10),?FORALL(X,integer(1,10),X =< Y))),
+		 ?FORALL(Y, integer(1,10), ?FORALL(X, integer(1,10), X =< Y))),
      ?_failsWithOneOf([[[0,1]],[[0,-1]],[[1,0]],[[-1,0]]],
 		      ?FORALL(L, list(integer()), lists:reverse(L) =:= L)),
      ?_failsWith([[1,2,3,4,5,6,7,8,9,10]],
-		 ?FORALL(_L,shuffle(lists:seq(1,10)),false)),
+		 ?FORALL(_L, shuffle(lists:seq(1,10)), false)),
      %% TODO: check that these don't shrink
-     ?_fails(?FORALL(_,integer(0,0),false)),
-     ?_fails(?FORALL(_,float(0.0,0.0),false)),
-     ?_fails(fails(?FORALL(_,integer(),false))),
-     ?_failsWith([16], ?FORALL(X,?LET(Y,integer(),Y*Y),X < 15)),
+     ?_fails(?FORALL(_, integer(0,0), false)),
+     ?_fails(?FORALL(_, float(0.0,0.0), false)),
+     ?_fails(fails(?FORALL(_, integer(), false))),
+     ?_failsWith([16], ?FORALL(X, ?LET(Y,integer(),Y*Y), X < 15)),
      ?_failsWith([0.0],
-		 ?FORALL(_, ?LETSHRINK([A,B],[float(),atom()],{A,B}), false)),
+		 ?FORALL(_, ?LETSHRINK([A,B], [float(),atom()], {A,B}), false)),
      ?_failsWith([], conjunction([{some,true},{thing,false}])),
      ?_failsWith([{2,1},[{group,[[{sub_group,[1]}]]},{stupid,[1]}]],
 	 ?FORALL({X,Y}, {pos_integer(),pos_integer()},
@@ -855,15 +855,15 @@ false_props_test_() ->
 
 error_props_test_() ->
     [?_errorsOut(cant_generate,
-		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X =< 0),true)),
+		 ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X =< 0), true)),
      ?_errorsOut(cant_satisfy,
-		 ?FORALL(X,pos_integer(),?IMPLIES(X =< 0,true))),
+		 ?FORALL(X, pos_integer(), ?IMPLIES(X =< 0, true))),
      ?_errorsOut(type_mismatch,
 		 ?FORALL({X,Y}, [integer(),integer()], X < Y)),
      ?_assertCheck({error,rejected}, [2],
-		   ?FORALL(X,integer(),?IMPLIES(X > 5,X < 6))),
+		   ?FORALL(X, integer(), ?IMPLIES(X > 5, X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
-		   ?FORALL(X,pos_integer(),X < 0)),
+		   ?FORALL(X, pos_integer(), X < 0)),
      ?_errorsOut(cant_generate, prec_false:prop_simple())].
 
 eval_test_() ->
@@ -880,10 +880,10 @@ not_defined_test_() ->
 
 options_test_() ->
     [?_assertTempBecomesN(300, true,
-			  ?FORALL(_,1,begin inc_temp(),true end),
+			  ?FORALL(_, 1, begin inc_temp(), true end),
 			  [{numtests,300}]),
      ?_assertTempBecomesN(300, true,
-			  ?FORALL(_,1,begin inc_temp(),true end),
+			  ?FORALL(_, 1, begin inc_temp(), true end),
 			  [300]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
@@ -972,7 +972,7 @@ mk_first_comb_test_() ->
       || {N, Len, W, Expected} <- first_comb()].
 
 command_props_test_() ->
-    {timeout, 60, [?_test(proper:module(command_props))]}.
+    {timeout, 120, [?_test(proper:module(command_props))]}.
 
 
 %%------------------------------------------------------------------------------
@@ -984,7 +984,7 @@ no_duplicates(L) ->
 
 is_sorted([]) -> true;
 is_sorted([_]) -> true;
-is_sorted([A | [B|T]]) when A =< B -> is_sorted([B | T]);
+is_sorted([A | [B|_] = T]) when A =< B -> is_sorted(T);
 is_sorted(_) -> false.
 
 same_elements(L1, L2) ->
@@ -1008,7 +1008,7 @@ equal_ignoring_chars([], [], _Ignore) ->
     true;
 equal_ignoring_chars([_SameChar|Rest1], [_SameChar|Rest2], Ignore) ->
     equal_ignoring_chars(Rest1, Rest2, Ignore);
-equal_ignoring_chars(Str1 = [Char1|Rest1], Str2 = [Char2|Rest2], Ignore) ->
+equal_ignoring_chars([Char1|Rest1] = Str1, [Char2|Rest2] = Str2, Ignore) ->
     case lists:member(Char1, Ignore) of
 	true ->
 	    equal_ignoring_chars(Rest1, Str2, Ignore);
@@ -1028,7 +1028,6 @@ smaller_lengths_than_my_own(L) ->
 %%------------------------------------------------------------------------------
 %% Functions to test
 %%------------------------------------------------------------------------------
-
 
 partition(Pivot, List) ->
     partition_tr(Pivot, List, [], []).
