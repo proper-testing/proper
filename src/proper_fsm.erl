@@ -188,8 +188,13 @@ transition_target(Mod, From, Data, Call) ->
 
 -spec target_states(mod_name(), state_name(), state_data(), symb_call()) ->
 			   [state_name()] | '$no_target'.
-target_states(Module, From, StateData, Call) ->
+target_states(Module, From, StateData, Call) when is_atom(From) ->
     Transitions = apply(Module, From, [StateData]),
+    find_target(Transitions, Call, []);
+target_states(Module, From, StateData, Call) when is_tuple(From) ->
+    Fun = element(1, From),
+    Args = tl(tuple_to_list(From)),
+    Transitions = apply(Module, Fun, Args ++ [StateData]),
     find_target(Transitions, Call, []).
 
 -spec find_target([transition()], symb_call(), [transition()]) ->
