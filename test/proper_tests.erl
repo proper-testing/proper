@@ -908,6 +908,14 @@ adts_test_() ->
 	     {boolean(),dict(boolean(),integer())},
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
+parameter_test_() ->
+    ?_passes(?FORALL(List, [zero1(),zero2(),zero3(),zero4()],
+		     begin
+			 [?assertMatch(undefined, proper_types:parameter(P))
+			  || P <- [x1,x2,y2,x3,y3,x4,y4,v,w,z]],
+			 lists:all(fun is_zero/1, List)
+		     end)).
+
 zip_test_() ->
     [?_assertEqual(proper_statem:zip(X, Y), Expected)
      || {X,Y,Expected} <- lists_to_zip()].
@@ -937,6 +945,13 @@ cannot_generate_commands_test_() ->
 can_generate_commands0_test_() ->
     [?_test(assert_can_generate(proper_statem:commands(Module),true))
      || Module <- [pdict_statem]].
+
+can_generate_with_parameters_test_() ->
+    {timeout, 10,
+     [?_test(assert_can_generate(
+	       proper_types:with_parameters(
+		 [{table_type,set}], proper_statem:commands(Module)),true))
+      || Module <- [ets_statem]]}.
 
 can_generate_commands1_test_() ->
     [?_test(assert_can_generate(proper_statem:commands(Module, StartState), true))
@@ -1033,6 +1048,8 @@ equal_ignoring_chars([Char1|Rest1] = Str1, [Char2|Rest2] = Str2, Ignore) ->
 
 smaller_lengths_than_my_own(L) ->
     lists:seq(0,length(L)).
+
+is_zero(X) -> X =:= 0.
 
 
 %%------------------------------------------------------------------------------
@@ -1167,6 +1184,36 @@ gen_tree(ElemType, Size) ->
 -type j() :: 'null' | {'one',j()} | {'tag',j(),j(),[j()],[j()]}.
 -type k() :: 'null' | {'tag',[{k(),k()}]}.
 -type l() :: 'null' | {'tag',l(),[l(),...]}.
+
+zero1() ->
+    proper_types:with_parameter(
+      x1, 0, ?SUCHTHAT(I, range(-2, 2), I =:= proper_types:parameter(x1))).
+
+zero2() ->
+    proper_types:with_parameters(
+      [{x2,41}],
+      ?LET(X,
+	   proper_types:with_parameter(
+	     y2, 43,
+	     ?SUCHTHAT(
+		I, range(40, 45),
+		I > proper_types:parameter(x2)
+		andalso I < proper_types:parameter(y2))),
+	   X - 42)).
+
+zero3() ->
+    ?SUCHTHAT(I, range(-2, 2),
+	      I > proper_types:parameter(x3, -1)
+	      andalso I < proper_types:parameter(y3, 1)).
+
+zero4() ->
+    proper_types:with_parameters(
+      [{x4,-2}, {y4,2}],
+      proper_types:with_parameters(
+	[{x4,-1}, {y4,1}],
+	?SUCHTHAT(I, range(-2, 2),
+		  I > proper_types:parameter(x4)
+		  andalso I < proper_types:parameter(y4)))).
 
 
 %%------------------------------------------------------------------------------

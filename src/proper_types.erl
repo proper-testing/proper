@@ -230,6 +230,11 @@ add_props(PropList, {'$type',OldProps}) ->
 append_to_prop(PropName, Value, {'$type',Props}) ->
     {'$type',orddict:append(PropName, Value, Props)}.
 
+-spec append_list_to_prop(type_prop_name(), [type_prop_value()],
+			  proper_types:type()) -> proper_types:type().
+append_list_to_prop(PropName, List, {'$type',Props}) ->
+    {'$type',orddict:append_list(PropName, List, Props)}.
+
 %% @private
 -spec get_prop(type_prop_name(), proper_types:type()) -> type_prop_value().
 get_prop(PropName, {'$type',Props}) ->
@@ -897,12 +902,18 @@ noshrink(RawType) ->
     add_prop(noshrink, true, cook_outer(RawType)).
 
 -spec with_parameter(atom(), value(), raw_type()) -> proper_types:type().
-with_parameter(Param, Value, Type_gen) ->
-    add_prop(parameters, [{Param,Value}], cook_outer((Type_gen))).
+with_parameter(Param, Value, RawType) ->
+    with_parameters([{Param,Value}], RawType).
 
 -spec with_parameters([{atom(),value()}], raw_type()) -> proper_types:type().
-with_parameters(PVlist, Type_gen) ->
-    add_prop(parameters, PVlist, cook_outer((Type_gen))).
+with_parameters(PVlist, RawType) ->
+    Type = cook_outer(RawType),
+    case find_prop(parameters, Type) of
+	{ok,Params} when is_list(Params) ->
+	    append_list_to_prop(parameters, PVlist, Type);
+	error ->
+	    add_prop(parameters, PVlist, Type)
+    end.
 
 -spec parameter(atom()) -> value().
 parameter(Param) ->
