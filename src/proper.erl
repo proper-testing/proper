@@ -404,7 +404,12 @@ check(OuterTest, CExm, UserOpts) ->
 	    {error, Reason}
     end.
 
--spec module(mod_name()) -> module_result().
+-spec module(mod_name() | [mod_name()]) -> module_result() | [module_result()].
+module(ModList) when is_list(ModList) ->
+    lists:map(fun(Mod) ->
+		      module(Mod)
+	      end,
+	     ModList);
 module(Mod) ->
     module(Mod, []).
 
