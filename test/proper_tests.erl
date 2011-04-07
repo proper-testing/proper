@@ -770,6 +770,7 @@ true_props_test_() ->
 	      ])),
      ?_passes(?FORALL(X, untyped(), is_record(X, untyped))),
      ?_passes(pdict_statem:prop_pdict()),
+     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
      {timeout, 10, ?_passes(ets_statem:prop_ets())},
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())}].
 

@@ -51,12 +51,13 @@ commands(Module, {Name,Data}) ->
 run_commands(Module, Cmds) ->
     run_commands(Module, Cmds, []).
 
-%%TODO: should take Module into account in case its different?
+%%TODO: _Module??
 -spec run_commands(mod_name(), command_list(), proper_symb:var_values()) ->
 			  {history(),fsm_state(),fsm_result()}.
 run_commands(_Module, Cmds, Env) ->
     {H,S,Res} = proper_statem:run_commands(?MODULE, Cmds, Env),
-    History = [{{Name,Data},R} || {#state{name=Name, data=Data},R} <- H],
+    History = [{{Name,Data},R} ||
+		  {#state{name=Name, data=Data},R} <- H],
     State = {S#state.name, S#state.data},
     {History, State, Res}.
 
@@ -100,7 +101,7 @@ precondition(S, Call) ->
 		[]   -> false;
 		[_T] -> true
 	    end;
-	'$no_target' -> io:format("no_target!\n"),false
+	'$no_target' -> io:format("no_target!\n"), false
     end.
 
 -spec fsm_precondition(mod_name(), state_name(), state_name(), state_data(),
@@ -151,8 +152,7 @@ choose_transition(Mod, From, T_list) ->
 	false ->
 	    choose_uniform_transition(T_list);
 	true ->
-	    W_list = [{Mod:weight(From, To, Call), Call} || {To,Call} <- T_list],
-	    choose_weighted_transition(W_list)
+	    choose_weighted_transition(Mod, From, T_list)
     end.
 
 -spec choose_uniform_transition([transition()]) -> proper_types:type().
@@ -160,17 +160,29 @@ choose_uniform_transition(T_list) ->
     List = [Call || {_,Call} <- T_list, can_generate(Call)],
     proper_types:oneof(List).
 
--spec choose_weighted_transition([{frequency(),symb_call()}]) ->
+-spec choose_weighted_transition(mod_name(), state_name(), [transition()]) ->
 					proper_types:type().
-choose_weighted_transition(W_list) ->
-    List = [T || {_,Call} = T <- W_list, can_generate(Call)],
+choose_weighted_transition(Mod, From, T_list) ->
+    List = [{weight(Mod, From, To, Call), Call}
+	    || {To,Call} <- T_list, can_generate(Call)],
     proper_types:frequency(List).
+
+-spec weight(mod_name(), state_name(), state_name(),
+	     proper_types:raw_type()) -> pos_integer().
+weight(Mod, From, To, Call) ->
+    %% {ok,Call} = proper_gen:clean_instance(proper_gen:safe_generate(CallGen)),
+    case To of
+	history ->
+	    Mod:weight(From, From, Call);
+	_ ->
+	    Mod:weight(From, To, Call)
+    end.
 
 -spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
 is_exported(Mod, Fun) ->
     lists:member(Fun, Mod:module_info(exports)).
 
--spec can_generate(proper_types:type()) -> boolean().
+-spec can_generate(proper_types:raw_type()) -> boolean().
 can_generate(Type) ->
     try proper_gen:safe_generate(Type) of
 	{ok,_Instance} -> true;
@@ -208,9 +220,20 @@ find_target(Transitions, Call, Accum) ->
 	false -> find_target(Rest, Call, Accum)
     end.
 
--spec is_instance_call(term(), term()) -> boolean().
-is_instance_call({call,M,F,A}, {call,M,F,ArgsGen})
-  when is_list(A), is_list(ArgsGen) ->
-    length(A) =:= length(ArgsGen);
-is_instance_call(_, _) ->
+-spec is_instance_call(symb_call(), proper_types:raw_type()) -> boolean().
+is_instance_call(Call, CallGen) ->
+    case can_generate(CallGen) of
+	true ->
+	    %% {ok,Inst} = proper_gen:clean_instance(
+	    %% 		  proper_gen:safe_generate(CallGen)),
+	    is_compatible(Call, CallGen);
+	false ->
+	    false
+    end.
+
+-spec is_compatible(symb_call(), symb_call()) -> boolean().
+is_compatible({call,M,F,A1}, {call,M,F,A2})
+  when is_list(A1), is_list(A2) ->
+    length(A1) =:= length(A2);
+is_compatible(_, _) ->
     false.
