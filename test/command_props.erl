@@ -2,6 +2,7 @@
 
 -include_lib("proper/include/proper.hrl").
 -define(MOD, ets_counter).
+-define(MOD1, pdict_statem).
 
 ne_nd_list(ElemType) ->
     ?LET(L,
@@ -59,6 +60,15 @@ prop_zip() ->
 			      lists:zip(lists:sublist(X, LenY), Y)
 		      end,
 		equals(zip(X, Y), Res)
+	    end).
+
+prop_state_after() ->
+    ?FORALL(Cmds, proper_statem:commands(?MOD1),
+	    begin
+		SymbState = proper_statem:state_after(?MOD1, Cmds),
+		{_,S,ok} = proper_statem:run_commands(?MOD1, Cmds),
+		?MOD1:clean_up(),
+		equals(proper_symb:eval(SymbState), S)
 	    end).
 
 prop_p() ->

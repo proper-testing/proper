@@ -290,6 +290,7 @@ global_state_erase() ->
     erase('$constraint_tries'),
     erase('$left'),
     erase('$size'),
+    erase('$parameters'),
     ok.
 
 -spec spawn_link_migrate(fun(() -> _)) -> pid().
