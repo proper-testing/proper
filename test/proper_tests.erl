@@ -940,18 +940,18 @@ state_after_test_() ->
      || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
 cannot_generate_commands_test_() ->
-    [?_test(assert_cant_generate_cmds(proper_statem:commands(Module),5))
+    [?_test(assert_cant_generate_cmds(proper_statem:commands(Module), 5))
      || Module <- [prec_false]].
 
 can_generate_commands0_test_() ->
-    [?_test(assert_can_generate(proper_statem:commands(Module),true))
+    [?_test(assert_can_generate(proper_statem:commands(Module), true))
      || Module <- [pdict_statem]].
 
 can_generate_with_parameters_test_() ->
     {timeout, 10,
      [?_test(assert_can_generate(
 	       proper_types:with_parameters(
-		 [{table_type,set}], proper_statem:commands(Module)),true))
+		 [{table_type,set}], proper_statem:commands(Module)), true))
       || Module <- [ets_statem]]}.
 
 can_generate_commands1_test_() ->
@@ -1000,6 +1000,12 @@ mk_first_comb_test_() ->
 command_props_test_() ->
     {timeout, 120, [?_test(proper:module(command_props))]}.
 
+can_generate_fsm_commands_test_() ->
+    [?_test(assert_can_generate(proper_fsm:commands(Module), true))
+     || Module <- [pdict_fsm, numbers_fsm]].
+
+transition_target_test_() ->
+    {timeout, 20, [?_test(proper:module(numbers_fsm))]}.
 
 %%------------------------------------------------------------------------------
 %% Helper Predicates

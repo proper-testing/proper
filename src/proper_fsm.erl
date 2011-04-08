@@ -5,6 +5,9 @@
 -export([initial_state/0, command/1, precondition/2, next_state/3,
 	 postcondition/3]).
 
+%% Exported for testing purposes
+-export([target_states/4]).
+
 -include("proper_internal.hrl").
 
 
