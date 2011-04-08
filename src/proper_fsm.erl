@@ -16,15 +16,16 @@
 -type symb_call()  :: proper_statem:symb_call().
 -type fsm_result() :: proper_statem:statem_result().
 
--type state_name() :: atom() | tuple().
--type state_data() :: term().
--type fsm_state()  :: {state_name(),state_data()}.
--type transition() :: {state_name(),symb_call()}.
--type result()     :: term().
--type command()    ::   {'init',fsm_state()}
-		      | {'set',symb_var(),symb_call()}.
--type command_list() :: [command()].
--type history()    :: [{fsm_state(),result()}].
+-type state_name()     :: atom() | tuple().
+-type state_data()     :: term().
+-type fsm_state()      :: {state_name(),state_data()}.
+-type symb_call_gen()  :: {'call',mod_name(),fun_name(),[proper_types:type()]}.
+-type transition_gen() :: {state_name(),symb_call_gen()}.
+-type result()         :: term().
+-type command()        :: {'init',fsm_state()}
+		          | {'set',symb_var(),symb_call()}.
+-type command_list()   :: [command()].
+-type history()        :: [{fsm_state(),result()}].
 
 -record(state, {name :: state_name(),
 		data :: state_data(),
@@ -145,7 +146,7 @@ postcondition(S, Call, Res) ->
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
--spec choose_transition(mod_name(), state_name(), [transition()]) ->
+-spec choose_transition(mod_name(), state_name(), [transition_gen()]) ->
 			       proper_types:type().
 choose_transition(Mod, From, T_list) ->
     case is_exported(Mod, {weight,3}) of
@@ -155,36 +156,36 @@ choose_transition(Mod, From, T_list) ->
 	    choose_weighted_transition(Mod, From, T_list)
     end.
 
--spec choose_uniform_transition([transition()]) -> proper_types:type().
+-spec choose_uniform_transition([transition_gen()]) -> proper_types:type().
 choose_uniform_transition(T_list) ->
-    List = [Call || {_,Call} <- T_list, can_generate(Call)],
+    List = [CallGen || {_,CallGen} <- T_list, can_generate(CallGen)],
     proper_types:oneof(List).
 
--spec choose_weighted_transition(mod_name(), state_name(), [transition()]) ->
+-spec choose_weighted_transition(mod_name(), state_name(), [transition_gen()]) ->
 					proper_types:type().
 choose_weighted_transition(Mod, From, T_list) ->
-    List = [{weight(Mod, From, To, Call), Call}
-	    || {To,Call} <- T_list, can_generate(Call)],
+    List = [{weight(Mod, From, To, CallGen), CallGen}
+	    || {To,CallGen} <- T_list, can_generate(CallGen)],
     proper_types:frequency(List).
 
--spec weight(mod_name(), state_name(), state_name(),
-	     proper_types:raw_type()) -> pos_integer().
-weight(Mod, From, To, Call) ->
+-spec weight(mod_name(), state_name(), state_name(), symb_call_gen()) ->
+		    pos_integer().
+weight(Mod, From, To, CallGen) ->
     %% {ok,Call} = proper_gen:clean_instance(proper_gen:safe_generate(CallGen)),
     case To of
 	history ->
-	    Mod:weight(From, From, Call);
+	    Mod:weight(From, From, CallGen);
 	_ ->
-	    Mod:weight(From, To, Call)
+	    Mod:weight(From, To, CallGen)
     end.
 
 -spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
 is_exported(Mod, Fun) ->
     lists:member(Fun, Mod:module_info(exports)).
 
--spec can_generate(proper_types:raw_type()) -> boolean().
-can_generate(Type) ->
-    try proper_gen:safe_generate(Type) of
+-spec can_generate(symb_call_gen()) -> boolean().
+can_generate(CallGen) ->
+    try proper_gen:safe_generate(CallGen) of
 	{ok,_Instance} -> true;
 	{error,_Error} -> false
     catch
@@ -209,7 +210,7 @@ target_states(Module, From, StateData, Call) when is_tuple(From) ->
     Transitions = apply(Module, Fun, Args ++ [StateData]),
     find_target(Transitions, Call, []).
 
--spec find_target([transition()], symb_call(), [transition()]) ->
+-spec find_target([transition_gen()], symb_call(), [transition_gen()]) ->
 			 [state_name()] | '$no_target'.
 find_target([], _, []) -> '$no_target';
 find_target([], _, Accum) -> Accum;
@@ -220,7 +221,7 @@ find_target(Transitions, Call, Accum) ->
 	false -> find_target(Rest, Call, Accum)
     end.
 
--spec is_instance_call(symb_call(), proper_types:raw_type()) -> boolean().
+-spec is_instance_call(symb_call(), symb_call_gen()) -> boolean().
 is_instance_call(Call, CallGen) ->
     case can_generate(CallGen) of
 	true ->
@@ -231,7 +232,7 @@ is_instance_call(Call, CallGen) ->
 	    false
     end.
 
--spec is_compatible(symb_call(), symb_call()) -> boolean().
+-spec is_compatible(symb_call(), symb_call_gen()) -> boolean().
 is_compatible({call,M,F,A1}, {call,M,F,A2})
   when is_list(A1), is_list(A2) ->
     length(A1) =:= length(A2);
