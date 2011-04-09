@@ -400,10 +400,10 @@ check(OuterTest, CExm, UserOpts) ->
 
 -spec module(mod_name()) -> module_result().
 module(Mod) ->
-    module([], Mod).
+    module(Mod, []).
 
--spec module(user_opts(), mod_name()) -> module_result().
-module(UserOpts, Mod) ->
+-spec module(mod_name(), user_opts()) -> module_result().
+module(Mod, UserOpts) ->
     multi_test_prep(Mod, test, UserOpts).
 
 -spec check_specs(mod_name()) -> module_result().
