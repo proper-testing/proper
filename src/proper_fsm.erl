@@ -2,6 +2,7 @@
 -export([commands/1, commands/2]).
 -export([run_commands/2, run_commands/3]).
 -export([state_names/1]).
+-export([analyze/1]).
 -export([initial_state/0, command/1, precondition/2, next_state/3,
 	 postcondition/3]).
 
@@ -9,6 +10,7 @@
 -export([target_states/4]).
 
 -include("proper_internal.hrl").
+-define(TIMES, 100000).
 
 
 %% -----------------------------------------------------------------------------
@@ -24,6 +26,8 @@
 -type fsm_state()      :: {state_name(),state_data()}.
 -type symb_call_gen()  :: {'call',mod_name(),fun_name(),[proper_types:type()]}.
 -type transition_gen() :: {state_name(),symb_call_gen()}.
+-type transition()     :: {state_name(), state_name(), mfa()}.
+-type flow()           :: {float(), transition()}.
 -type result()         :: term().
 -type command()        :: {'init',fsm_state()}
 		          | {'set',symb_var(),symb_call()}.
@@ -34,6 +38,11 @@
 		data :: state_data(),
 		mod  :: mod_name()}).
 -type state() :: #state{}.
+
+-record (state_info, {prob        :: float(),
+		      transitions :: [{transition_gen(),pos_integer(),float()}],
+		      norm        :: float()}).
+-type state_info() :: #state_info{}.
 
 
 %% -----------------------------------------------------------------------------
@@ -84,15 +93,9 @@ initial_state() ->
 -spec command(state()) -> proper_types:type().
 command(S) ->
     Mod = S#state.mod,
-    Data = S#state.data,
-    case S#state.name of
-	From when is_atom(From) ->
-	    choose_transition(Mod, From, apply(Mod, From, [Data]));
-	From when is_tuple(From) ->
-	    Fun = element(1, From),
-	    Args = tl(tuple_to_list(From)),
-	    choose_transition(Mod, From, apply(Mod, Fun, Args ++ [Data]))
-    end.
+    S_name = S#state.name,
+    S_data = S#state.data,
+    choose_transition(Mod, S_name, get_transitions(Mod, S_name, S_data)).
 
 -spec precondition(state(), symb_call()) -> boolean().
 precondition(S, Call) ->
@@ -149,6 +152,18 @@ postcondition(S, Call, Res) ->
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
+-spec get_transitions(mod_name(), state_name(), state_data()) ->
+			     [transition_gen()].
+get_transitions(Module, StateName, Data) ->
+    case StateName of
+	From when is_atom(From) ->
+	    Module:From(Data);
+	From when is_tuple(From) ->
+	    Fun = element(1, From),
+	    Args = tl(tuple_to_list(From)),
+	    apply(Module, Fun, Args ++ [Data])
+    end.
+
 -spec choose_transition(mod_name(), state_name(), [transition_gen()]) ->
 			       proper_types:type().
 choose_transition(Mod, From, T_list) ->
@@ -174,12 +189,21 @@ choose_weighted_transition(Mod, From, T_list) ->
 -spec weight(mod_name(), state_name(), state_name(), symb_call_gen()) ->
 		    pos_integer().
 weight(Mod, From, To, CallGen) ->
-    %% {ok,Call} = proper_gen:clean_instance(proper_gen:safe_generate(CallGen)),
     case To of
 	history ->
 	    Mod:weight(From, From, CallGen);
 	_ ->
 	    Mod:weight(From, To, CallGen)
+    end.
+
+-spec precondition_probability(mod_name(), state_name(), state_name(),
+			       symb_call_gen()) -> float().
+precondition_probability(Mod, From, To, CallGen) ->
+    case To of
+	history ->
+	    Mod:precondition_probability(From, From, CallGen);
+	_ ->
+	    Mod:precondition_probability(From, To, CallGen)
     end.
 
 -spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
@@ -228,8 +252,6 @@ find_target(Transitions, Call, Accum) ->
 is_instance_call(Call, CallGen) ->
     case can_generate(CallGen) of
 	true ->
-	    %% {ok,Inst} = proper_gen:clean_instance(
-	    %% 		  proper_gen:safe_generate(CallGen)),
 	    is_compatible(Call, CallGen);
 	false ->
 	    false
@@ -241,3 +263,138 @@ is_compatible({call,M,F,A1}, {call,M,F,A2})
     length(A1) =:= length(A2);
 is_compatible(_, _) ->
     false.
+
+
+%% -----------------------------------------------------------------------------
+%% State space analysis
+%% -----------------------------------------------------------------------------
+
+-spec analyze(mod_name()) -> [flow()].
+analyze(Mod) ->
+    S_name = Mod:initial_state(),
+    S_data = Mod:initial_state_data(),
+    Transitions = cook(Mod, S_name, get_transitions(Mod, S_name, S_data)),
+    Info = #state_info{prob = 1.0,
+		       transitions = Transitions,
+		       norm = normalize(Transitions)},
+    R = orddict:to_list(
+	  update_all_states(Mod, ?TIMES,
+			    orddict:store(S_name, Info, orddict:new()))),
+    %%io:format("Dict: ~w\n", [R]),
+    Flow = [{Prob*Pre*Weight/N, {State, Target, get_mfa(Call)}}
+	    || {State, #state_info{prob=Prob, transitions=Tr, norm=N}} <- R,
+	       {{Target,Call},Weight,Pre} <- Tr],
+    Sum = lists:foldl(fun({F,_}, Acc) -> F + Acc end, 0, Flow),
+    [{F/Sum,Transition} || {F,Transition} <- Flow].
+
+-spec get_mfa(symb_call()) -> mfa().
+get_mfa({call,M,F,Args}) -> {M,F,length(Args)}.
+
+-spec normalize([{transition_gen(),pos_integer(),float()}]) -> float().
+normalize(Transitions) ->
+    lists:foldl(fun({_,W,Pre}, Accum) -> W * Pre + Accum end, 0,
+		Transitions).
+
+-spec cook(mod_name(), state_name(), [transition_gen()]) ->
+		  [{transition_gen(),pos_integer(),float()}].
+cook(Module, From, Transitions) ->
+    case is_exported(Module, {weight,3}) of
+	true ->
+	    case is_exported(Module, {precondition_probability,3}) of
+		true ->
+		    [{{cook_history(From, To),CallGen},
+		      weight(Module, From, To, CallGen),
+		      precondition_probability(Module, From, To, CallGen)}
+		     || {To,CallGen} <- Transitions];
+		false ->
+		    [{{cook_history(From, To),CallGen},
+		      weight(Module, From, To, CallGen),1}
+		     || {To,CallGen} <- Transitions]
+	    end;
+	false ->
+	    case is_exported(Module, {precondition_probability,3}) of
+		true ->
+		    [{{cook_history(From, To),CallGen},
+		      1,precondition_probability(Module, From, To, CallGen)}
+		     || {To,CallGen} <- Transitions];
+		false ->
+		    [{{cook_history(From, To),CallGen},1,1}
+		     || {To,CallGen} <- Transitions]
+	    end
+    end.
+
+-spec cook_history(state_name(), state_name()) -> state_name().
+cook_history(From, history) -> From;
+cook_history(_, To) -> To.
+
+-spec update_all_states(mod_name(), non_neg_integer(), orddict:orddict()) ->
+			       orddict:orddict().
+update_all_states(_Module, 0, Dict) -> Dict;
+update_all_states(Module, N, Dict) ->
+    update_all_states(Module, N-1, update_all_states(Module, Dict)).
+
+-spec update_all_states(mod_name(), orddict:orddict()) -> orddict:orddict().
+update_all_states(Module, Dict) ->
+    AllStates =
+	orddict:fold(
+	  fun(_S, Info, Accum) ->
+		  begin
+		      Prior = Info#state_info.prob,
+		      Norm  = Info#state_info.norm,
+		      case [{To,Prior * W * P / Norm}
+			    || {{To,_},W,P} <- Info#state_info.transitions,
+			       To =/= history,
+			       not orddict:is_key(To, Accum)] of
+			  []        -> Accum;
+			  NewStates -> add_states(Module, NewStates, Accum)
+		      end
+		  end
+	  end,
+	  Dict, Dict),
+    orddict:map(fun(S,Info) -> set_state_prob(S, Info, AllStates) end,
+		AllStates).
+
+-spec add_states(mod_name(), [{state_name(),float()}], orddict:orddict()) ->
+			orddict:orddict().
+add_states(Module, States, Dict) ->
+    lists:foldl(
+      fun(S, Accum) -> add_state(Module, S, Accum) end,
+      Dict,
+      States).
+
+-spec add_state(mod_name(), {state_name(),float()}, orddict:orddict()) ->
+		       orddict:orddict().
+add_state(Mod, {S,P}, Dict) ->
+    Data = Mod:initial_state_data(),
+    Transitions = cook(Mod, S, get_transitions(Mod, S, Data)),
+    Info = #state_info{prob = P,
+		       transitions = Transitions,
+		       norm = normalize(Transitions)},
+    orddict:store(S, Info, Dict).
+
+-spec set_state_prob(state_name(), state_info(), orddict:orddict()) ->
+			    state_info().
+set_state_prob(S, S_info, AllStates) ->
+    V = orddict:fold(
+	  fun(_State, Info, Acc) ->
+		  Prior = Info#state_info.prob,
+		  Norm = Info#state_info.norm,
+		  C = compute(Info#state_info.transitions, S, Norm),
+		  Acc + Prior*C
+	  end,
+	  0,
+	  AllStates),
+    S_info#state_info{prob = V}.
+
+-spec compute([{transition_gen(),pos_integer(),float()}], state_name(),
+	      float()) -> float().
+compute(List, S, Norm) ->
+    compute_tr(List, S, Norm, 0.0).
+
+-spec compute_tr([{transition_gen(),pos_integer(),float()}], state_name(),
+		 float(), float()) -> float().
+compute_tr([], _, _, C) -> C;
+compute_tr([{{S,_},W,P}|Rest], S, Norm, C) ->
+    compute_tr(Rest, S, Norm, C + P*W/Norm);
+compute_tr([_|Rest], S, Norm, C) ->
+    compute_tr(Rest, S, Norm, C).
