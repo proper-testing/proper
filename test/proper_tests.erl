@@ -998,7 +998,7 @@ mk_first_comb_test_() ->
       || {N, Len, W, Expected} <- first_comb()].
 
 command_props_test_() ->
-    {timeout, 120, [?_test(proper:module(command_props))]}.
+    {timeout, 150, [?_test(proper:module(command_props))]}.
 
 can_generate_fsm_commands_test_() ->
     [?_test(assert_can_generate(proper_fsm:commands(Module), true))
