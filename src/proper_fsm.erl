@@ -85,14 +85,8 @@ initial_state() ->
 command(S) ->
     Mod = S#state.mod,
     Data = S#state.data,
-    case S#state.name of
-	From when is_atom(From) ->
-	    choose_transition(Mod, From, apply(Mod, From, [Data]));
-	From when is_tuple(From) ->
-	    Fun = element(1, From),
-	    Args = tl(tuple_to_list(From)),
-	    choose_transition(Mod, From, apply(Mod, Fun, Args ++ [Data]))
-    end.
+    From = S#state.name,
+    choose_transition(Mod, From, get_transitions(Mod, From, Data)).
 
 -spec precondition(state(), symb_call()) -> boolean().
 precondition(S, Call) ->
@@ -149,6 +143,18 @@ postcondition(S, Call, Res) ->
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
+-spec get_transitions(mod_name(), state_name(), state_data()) ->
+			     [transition_gen()].
+get_transitions(Mod, StateName, Data) ->
+    case StateName of
+	From when is_atom(From) ->
+	    Mod:From(Data);
+	From when is_tuple(From) ->
+	    Fun = element(1, From),
+	    Args = tl(tuple_to_list(From)),
+	    apply(Mod, Fun, Args ++ [Data])
+    end.
+
 -spec choose_transition(mod_name(), state_name(), [transition_gen()]) ->
 			       proper_types:type().
 choose_transition(Mod, From, T_list) ->
@@ -174,7 +180,6 @@ choose_weighted_transition(Mod, From, T_list) ->
 -spec weight(mod_name(), state_name(), state_name(), symb_call_gen()) ->
 		    pos_integer().
 weight(Mod, From, To, CallGen) ->
-    %% {ok,Call} = proper_gen:clean_instance(proper_gen:safe_generate(CallGen)),
     case To of
 	history ->
 	    Mod:weight(From, From, CallGen);
@@ -190,7 +195,9 @@ is_exported(Mod, Fun) ->
 can_generate(CallGen) ->
     try proper_gen:safe_generate(CallGen) of
 	{ok,_Instance} -> true;
-	{error,_Error} -> false
+
+	%%TODO: return true here?
+	{error,_Error} -> true
     catch
 	_Exception:_Reason -> false
     end.
@@ -204,14 +211,8 @@ transition_target(Mod, From, Data, Call) ->
 
 -spec target_states(mod_name(), state_name(), state_data(), symb_call()) ->
 			   [state_name()] | '$no_target'.
-target_states(Module, From, StateData, Call) when is_atom(From) ->
-    Transitions = apply(Module, From, [StateData]),
-    find_target(Transitions, Call, []);
-target_states(Module, From, StateData, Call) when is_tuple(From) ->
-    Fun = element(1, From),
-    Args = tl(tuple_to_list(From)),
-    Transitions = apply(Module, Fun, Args ++ [StateData]),
-    find_target(Transitions, Call, []).
+target_states(Module, From, StateData, Call) ->
+    find_target(get_transitions(Module, From, StateData), Call, []).
 
 -spec find_target([transition_gen()], symb_call(), [transition_gen()]) ->
 			 [state_name()] | '$no_target'.
@@ -228,8 +229,6 @@ find_target(Transitions, Call, Accum) ->
 is_instance_call(Call, CallGen) ->
     case can_generate(CallGen) of
 	true ->
-	    %% {ok,Inst} = proper_gen:clean_instance(
-	    %% 		  proper_gen:safe_generate(CallGen)),
 	    is_compatible(Call, CallGen);
 	false ->
 	    false
