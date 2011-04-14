@@ -183,7 +183,8 @@
 -type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
 		      | 'rejected' | 'shrinking_error' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
-		      | {'unexpected',any()} | {'unrecognized_option',term()}.
+		      | {'unexpected',any()} | {'unrecognized_option',term()}
+		      | 'prec_false'.
 
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
@@ -719,6 +720,8 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	    Error;
 	{error, cant_generate} = Error ->
 	    Error;
+	{error, prec_false} = Error ->
+	    Error;
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(Opts),
@@ -926,6 +929,8 @@ apply_args(Args, Prop, Ctx) ->
 	    {error, cant_generate};
 	throw:{'$typeserver',SubReason} ->
 	    {error, {typeserver,SubReason}};
+	throw:'$prec_false' ->
+	    {error, prec_false};
 	ExcKind:ExcReason ->
 	    Trace = erlang:get_stacktrace(),
 	    create_fail_result(Ctx, {exception,ExcKind,ExcReason,Trace})
@@ -1269,6 +1274,8 @@ report_error(arity_limit, Print) ->
 report_error(cant_generate, Print) ->
     Print("Error: Couldn't produce an instance that satisfies all strict "
 	  "constraints after ~b tries.~n", [get('$constraint_tries')]);
+report_error(prec_false, Print) ->
+    Print("Error: Preconditions too strict, cannot generate commands.~n", []);
 report_error(cant_satisfy, Print) ->
     Print("Error: No valid test could be generated.~n", []);
 report_error(rejected, Print) ->

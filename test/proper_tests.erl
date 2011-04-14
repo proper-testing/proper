@@ -866,7 +866,7 @@ error_props_test_() ->
 		   ?FORALL(X, integer(), ?IMPLIES(X > 5, X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
 		   ?FORALL(X, pos_integer(), X < 0)),
-     ?_errorsOut(cant_generate, prec_false:prop_simple())].
+     ?_errorsOut(prec_false, prec_false:prop_simple())].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))

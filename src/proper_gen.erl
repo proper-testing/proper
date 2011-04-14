@@ -61,7 +61,8 @@
 		      | instance()
 		      | {'$used', imm_instance(), imm_instance()}
 		      | {'$to_part', imm_instance()}.
--type error_reason() :: 'arity_limit' | 'cant_generate' | {'typeserver',term()}.
+-type error_reason() :: 'arity_limit' | 'cant_generate' | {'typeserver',term()}
+		      | 'prec_false'.
 
 -type sized_generator() :: fun((size()) -> imm_instance()).
 -type nosize_generator() :: fun(() -> imm_instance()).
@@ -88,7 +89,8 @@ safe_generate(RawType) ->
     catch
 	throw:'$arity_limit'            -> {error, arity_limit};
 	throw:'$cant_generate'          -> {error, cant_generate};
-	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
+	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}};
+	throw:'$prec_false'             -> {error, prec_false}
     end.
 
 -spec generate(proper_types:raw_type()) -> imm_instance().

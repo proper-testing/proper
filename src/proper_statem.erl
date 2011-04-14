@@ -30,6 +30,7 @@
 
 -include("proper_internal.hrl").
 
+-define(PREC_TRIES, 1000).
 -define(WORKERS, 2).
 -define(LIMIT, 12).
 
@@ -120,28 +121,39 @@ more_commands(N, Type) ->
 gen_commands(Size, Mod, InitialState, InitFlag) ->
     Len = proper_arith:rand_int(0, Size),
     erlang:put('$initial_state', InitialState),
-    case gen_commands(Mod, InitialState, [], Len, Len) of
+    case gen_commands(Mod, InitialState, [], Len, Len, ?PREC_TRIES) of
 	CmdList when is_list(CmdList) ->
 	    case InitFlag of
 		true -> [{init,InitialState}|CmdList];
 		false -> CmdList
 	    end;
-	{error,cant_generate} -> throw('$cant_generate')
+	{error, prec_false}              -> throw('$prec_false'); 
+	{error, {exception,_,_,_} = Err} -> throw(Err)
     end.
   
 -spec gen_commands(mod_name(), symbolic_state(), command_list(), size(),
-		   non_neg_integer()) -> command_list() | {'error','cant_generate'}.
-gen_commands(_, _, Commands, _, 0) ->
+		   non_neg_integer(), non_neg_integer()) ->
+			  command_list() | {'error',term()}.
+gen_commands(_, _, _, _, _, 0) ->
+    {error, prec_false};
+gen_commands(_, _, Commands, _, 0, _) ->
     lists:reverse(Commands);
-gen_commands(Module, State, Commands, Len, Count) ->
-    Call = ?SUCHTHAT(X, Module:command(State), Module:precondition(State, X)),
-    case proper_gen:clean_instance(proper_gen:safe_generate(Call)) of
-	{ok,Instance} ->
-	    Var = {var, Len-Count+1},
-	    Command = {set, Var, Instance},
-	    NextState = Module:next_state(State, Var, Instance),
-	    gen_commands(Module, NextState, [Command|Commands], Len, Count-1);
-	{error,cant_generate} = Error -> Error
+gen_commands(Module, State, Commands, Len, Count, Tries) ->
+    CallType = Module:command(State),
+    try proper_gen:clean_instance(proper_gen:generate(CallType)) of
+	Call ->
+	    case Module:precondition(State, Call) of
+		true ->
+		    Var = {var, Len-Count+1},
+		    Command = {set, Var, Call},
+		    NextState = Module:next_state(State, Var, Call),
+		    gen_commands(Module, NextState, [Command|Commands], Len,
+				 Count-1, Tries);
+		false ->
+		    gen_commands(Module, State, Commands, Len, Count, Tries-1)
+	    end
+    catch
+	Exc:Reason -> {error, {exception,Exc,Reason,erlang:get_stacktrace()}}
     end.
 
 
@@ -227,7 +239,7 @@ gen_parallel_commands(Size, Mod, InitialState, InitFlag) ->
 -spec gen_parallel(mod_name(), symbolic_state(), size()) -> parallel_test_case().
 gen_parallel(Mod, InitialState, Size) ->
     Len = proper_arith:rand_int(?WORKERS, Size),
-    CmdList = gen_commands(Mod, InitialState, [], Len, Len),
+    CmdList = gen_commands(Mod, InitialState, [], Len, Len, ?PREC_TRIES),
     {LenPar, {Seq, P}} =
 	if Len =< ?LIMIT -> 
 		RandLen = proper_arith:rand_int(?WORKERS, Len),
