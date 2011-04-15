@@ -179,17 +179,9 @@ erase_initial() ->
     erase('$initial_state').
 
 setup_run_commands(Module, Cmds, Env) ->
-    put_initial(Module:initial_state()),
     Module:set_up(),
     Res = proper_statem:run_commands(Module, Cmds, Env),
     Module:clean_up(),
-    erase_initial(),
-    Res.
-
-setup_state_after(Module, Cmds) ->
-    put_initial(Module:initial_state()),
-    Res = proper_statem:state_after(Module, Cmds),
-    erase_initial(),
     Res.
 
 
@@ -245,7 +237,6 @@ assert_can_generate(Type, CheckIsInstance) ->
 
 try_generate(Type, Size, CheckIsInstance) ->
     {ok,Instance} = proper_gen:pick(Type, Size),
-    erase_initial(),
     ?assert(state_is_clean()),
     case CheckIsInstance of
 	true  -> assert_is_instance(Instance, Type);
@@ -261,7 +252,6 @@ assert_cant_generate(Type) ->
 
 assert_cant_generate_cmds(Type, N) ->
     ?assertEqual(error, proper_gen:pick(?SUCHTHAT(T, Type, length(T) > N))),
-    erase_initial(),
     ?assert(state_is_clean()).
 
 assert_not_is_instance(X, Type) ->
@@ -540,7 +530,8 @@ command_names() ->
 valid_command_sequences() ->
     %% {module, initial_state, command_sequence, symbolic_state_after,
     %%  dynamic_state_after,initial_environment}
-    [{pdict_statem, [], [{set,{var,1},{call,erlang,put,[a,0]}},
+    [{pdict_statem, [], [{init,[]},
+			 {set,{var,1},{call,erlang,put,[a,0]}},
 			 {set,{var,2},{call,erlang,put,[b,1]}},
 			 {set,{var,3},{call,erlang,erase,[a]}},
 			 {set,{var,4},{call,erlang,get,[b]}},
@@ -553,7 +544,8 @@ valid_command_sequences() ->
 			 {set,{var,2},{call,erlang,erase,[b]}},
 			 {set,{var,3},{call,erlang,put,[a,5]}}],
       [{a,5}], [{a,5}], []},
-     {pdict_statem, [], [{set,{var,1},{call,erlang,put,[a,{var,start_value}]}},
+     {pdict_statem, [], [{init,[]},
+			 {set,{var,1},{call,erlang,put,[a,{var,start_value}]}},
 			 {set,{var,2},{call,erlang,put,[b,{var,another_start_value}]}},
 			 {set,{var,3},{call,erlang,get,[b]}},
 			 {set,{var,4},{call,erlang,get,[b]}}],
@@ -570,17 +562,20 @@ symbolic_init_invalid_sequences() ->
 
 invalid_precondition() ->
     %% {module, command_sequence, environment, shrunk}
-     [{pdict_statem, [{set,{var,1},{call,erlang,put,[a,0]}},
+    [{pdict_statem, [{init,[]},
+		      {set,{var,1},{call,erlang,put,[a,0]}},
 		      {set,{var,2},{call,erlang,put,[b,1]}},
 		      {set,{var,3},{call,erlang,erase,[a]}},
 		      {set,{var,4},{call,erlang,get,[a]}}],
        [], [{set,{var,4},{call,erlang,get,[a]}}]}].
 
 invalid_var() ->
-      [{pdict_statem, [{set,{var,2},{call,erlang,put,[b,{var,1}]}}]},
-       {pdict_statem, [{set,{var,1},{call,erlang,put,[b,9]}},
-		       {set,{var,5},{call,erlang,put,[a,3]}},
-		       {set,{var,6},{call,erlang,get,[{var,2}]}}]}].
+    [{pdict_statem, [{init,[]},
+		     {set,{var,2},{call,erlang,put,[b,{var,1}]}}]},
+     {pdict_statem, [{init,[]},
+		     {set,{var,1},{call,erlang,put,[b,9]}},
+		     {set,{var,5},{call,erlang,put,[a,3]}},
+		     {set,{var,6},{call,erlang,get,[{var,2}]}}]}].
 
 
 %%------------------------------------------------------------------------------
@@ -940,7 +935,7 @@ invalid_cmds_test_() ->
      || {Module,Cmds} <- invalid_var()].
 
 state_after_test_() ->
-    [?_assertEqual(setup_state_after(Module, Cmds), StateAfter)
+    [?_assertEqual(proper_statem:state_after(Module, Cmds), StateAfter)
      || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
 cannot_generate_commands_test_() ->

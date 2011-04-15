@@ -942,7 +942,10 @@ code:
 
 * commands(<Module>): A special PropEr type which generates random command
 sequences, as specified by the absract state machine in <Module>. The initial
-state is specified by <Module>:initial_state().
+state is specified by <Module>:initial_state(). The first command is always
+{init,<Module>:initial_state()} and is used to correctly initialize the state
+every time the command sequence is run (i.e. during normal execution, while
+shrinking and when checking a counterexample).
 * commands(<Module>, <Symbolic_state>): Similar to commands/1, but generated
 command sequences always start at <Symbolic_state>. In this case, the first
 command is always {init,<Symbolic_state>}.
@@ -1058,9 +1061,9 @@ occurs. Normaly, a message is also printed on screen describing the error.
 * 'cant_satisfy': All the tests were rejected because no produced test case
   would pass all ?IMPLIES checks. You should loosen the failing ?IMPLIES
   constraint(s). This error should only be encountered during normal operation.
-* 'prec_false': The random instance generation subsystem has failed to
-  produce a command instance that satisfies its precondition. You should loosen
-  the constraints imposed by preconditions.
+* 'prec_false': The command generation subsystem has failed to produce a command
+  instance that satisfies its precondition. You should loosen the constraints
+  imposed by preconditions.
 * 'rejected': Only encountered during re-checking, the counterexample does not
   match the property, since the counterexample doesn't pass an ?IMPLIES check.
 * 'shrinking_error': An error occured during shrinking. If you ever get this
