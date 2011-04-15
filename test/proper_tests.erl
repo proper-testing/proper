@@ -179,17 +179,9 @@ erase_initial() ->
     erase('$initial_state').
 
 setup_run_commands(Module, Cmds, Env) ->
-    put_initial(Module:initial_state()),
     Module:set_up(),
     Res = proper_statem:run_commands(Module, Cmds, Env),
     Module:clean_up(),
-    erase_initial(),
-    Res.
-
-setup_state_after(Module, Cmds) ->
-    put_initial(Module:initial_state()),
-    Res = proper_statem:state_after(Module, Cmds),
-    erase_initial(),
     Res.
 
 
@@ -245,7 +237,6 @@ assert_can_generate(Type, CheckIsInstance) ->
 
 try_generate(Type, Size, CheckIsInstance) ->
     {ok,Instance} = proper_gen:pick(Type, Size),
-    erase_initial(),
     ?assert(state_is_clean()),
     case CheckIsInstance of
 	true  -> assert_is_instance(Instance, Type);
@@ -261,7 +252,6 @@ assert_cant_generate(Type) ->
 
 assert_cant_generate_cmds(Type, N) ->
     ?assertEqual(error, proper_gen:pick(?SUCHTHAT(T, Type, length(T) > N))),
-    erase_initial(),
     ?assert(state_is_clean()).
 
 assert_not_is_instance(X, Type) ->
@@ -376,7 +366,11 @@ simple_types_with_data() ->
 	      [42,<<>>],{},{tag,12},{tag,[vals,12,12.2],[],<<>>}],
 	     0, [], "any()"},
      {list(any()), [[<<>>,a,1,-42.0,{11.8,[]}]], [], [{1,aa},<<>>], "[any()]"},
-     {deeplist(), [[[],[]], [[[]],[]]], [], [[a]], "deeplist()"}].
+     {deeplist(), [[[],[]], [[[]],[]]], [], [[a]], "deeplist()"},
+     {none, [[234,<<1>>,[<<78>>,[]],0],[]], [], [21,3.1,[7.1],<<22>>],
+      "iolist()"},
+     {none, [[234,<<1>>,[<<78>>,[]],0],[],<<21,15>>], <<>>, [21,3.1,[7.1]],
+      "iodata()"}].
 
 %% TODO: These rely on the intermediate form of the instances.
 constructed_types_with_data() ->
@@ -536,7 +530,8 @@ command_names() ->
 valid_command_sequences() ->
     %% {module, initial_state, command_sequence, symbolic_state_after,
     %%  dynamic_state_after,initial_environment}
-    [{pdict_statem, [], [{set,{var,1},{call,erlang,put,[a,0]}},
+    [{pdict_statem, [], [{init,[]},
+			 {set,{var,1},{call,erlang,put,[a,0]}},
 			 {set,{var,2},{call,erlang,put,[b,1]}},
 			 {set,{var,3},{call,erlang,erase,[a]}},
 			 {set,{var,4},{call,erlang,get,[b]}},
@@ -549,7 +544,8 @@ valid_command_sequences() ->
 			 {set,{var,2},{call,erlang,erase,[b]}},
 			 {set,{var,3},{call,erlang,put,[a,5]}}],
       [{a,5}], [{a,5}], []},
-     {pdict_statem, [], [{set,{var,1},{call,erlang,put,[a,{var,start_value}]}},
+     {pdict_statem, [], [{init,[]},
+			 {set,{var,1},{call,erlang,put,[a,{var,start_value}]}},
 			 {set,{var,2},{call,erlang,put,[b,{var,another_start_value}]}},
 			 {set,{var,3},{call,erlang,get,[b]}},
 			 {set,{var,4},{call,erlang,get,[b]}}],
@@ -561,22 +557,25 @@ symbolic_init_invalid_sequences() ->
     [{pdict_statem, [{init,[{a,{call,foo,bar,[some_arg]}}]},
 		     {set,{var,1},{call,erlang,put,[b,42]}},
 		     {set,{var,2},{call,erlang,get,[b]}}],
-      [{some_arg, 0}],  
+      [{some_arg, 0}],
       [{init,[{a,{call,foo,bar,[some_arg]}}]}]}].
 
-invalid_precondition() -> 
+invalid_precondition() ->
     %% {module, command_sequence, environment, shrunk}
-     [{pdict_statem, [{set,{var,1},{call,erlang,put,[a,0]}},
+    [{pdict_statem, [{init,[]},
+		      {set,{var,1},{call,erlang,put,[a,0]}},
 		      {set,{var,2},{call,erlang,put,[b,1]}},
 		      {set,{var,3},{call,erlang,erase,[a]}},
 		      {set,{var,4},{call,erlang,get,[a]}}],
        [], [{set,{var,4},{call,erlang,get,[a]}}]}].
 
 invalid_var() ->
-      [{pdict_statem, [{set,{var,2},{call,erlang,put,[b,{var,1}]}}]},
-       {pdict_statem, [{set,{var,1},{call,erlang,put,[b,9]}},
-		       {set,{var,5},{call,erlang,put,[a,3]}},
-		       {set,{var,6},{call,erlang,get,[{var,2}]}}]}].
+    [{pdict_statem, [{init,[]},
+		     {set,{var,2},{call,erlang,put,[b,{var,1}]}}]},
+     {pdict_statem, [{init,[]},
+		     {set,{var,1},{call,erlang,put,[b,9]}},
+		     {set,{var,5},{call,erlang,put,[a,3]}},
+		     {set,{var,6},{call,erlang,get,[{var,2}]}}]}].
 
 
 %%------------------------------------------------------------------------------
@@ -867,7 +866,8 @@ error_props_test_() ->
 		   ?FORALL(X, integer(), ?IMPLIES(X > 5, X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
 		   ?FORALL(X, pos_integer(), X < 0)),
-     ?_errorsOut(prec_false, prec_false:prop_simple())].
+     ?_errorsOut(prec_false, prec_false:prop_simple()),
+     ?_errorsOut(cant_generate, nogen_statem:prop_simple())].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))
@@ -934,9 +934,9 @@ invalid_cmds_test_() ->
      || {Module,Cmds,_,_} <- invalid_precondition()] ++
     [?_assertNot(proper_statem:is_valid(Module, Module:initial_state(), Cmds, []))
      || {Module,Cmds} <- invalid_var()].
-    
+
 state_after_test_() ->
-    [?_assertEqual(setup_state_after(Module, Cmds), StateAfter)
+    [?_assertEqual(proper_statem:state_after(Module, Cmds), StateAfter)
      || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
 cannot_generate_commands_test_() ->
@@ -960,13 +960,13 @@ can_generate_commands1_test_() ->
 
 can_generate_parallel_commands0_test_() ->
     {timeout, 20,
-     [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true)) 
+     [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true))
       || Module <- [ets_counter]]}.
 
 can_generate_parallel_commands1_test_() ->
     {timeout, 20,
      [?_test(assert_can_generate(
-	       proper_statem:parallel_commands(Module, Module:initial_state()),true)) 
+	       proper_statem:parallel_commands(Module, Module:initial_state()),true))
       || Module <- [ets_counter]]}.
 
 run_valid_commands_test_() ->
@@ -1194,7 +1194,7 @@ gen_tree(ElemType, Size) ->
 
 zero1() ->
     proper_types:with_parameter(
-      x1, 0, ?SUCHTHAT(I, range(-2, 2), I =:= proper_types:parameter(x1))).
+      x1, 0, ?SUCHTHAT(I, range(-1, 1), I =:= proper_types:parameter(x1))).
 
 zero2() ->
     proper_types:with_parameters(
@@ -1203,13 +1203,13 @@ zero2() ->
 	   proper_types:with_parameter(
 	     y2, 43,
 	     ?SUCHTHAT(
-		I, range(40, 45),
+		I, range(41, 43),
 		I > proper_types:parameter(x2)
 		andalso I < proper_types:parameter(y2))),
 	   X - 42)).
 
 zero3() ->
-    ?SUCHTHAT(I, range(-2, 2),
+    ?SUCHTHAT(I, range(-1, 1),
 	      I > proper_types:parameter(x3, -1)
 	      andalso I < proper_types:parameter(y3, 1)).
 
@@ -1218,7 +1218,7 @@ zero4() ->
       [{x4,-2}, {y4,2}],
       proper_types:with_parameters(
 	[{x4,-1}, {y4,1}],
-	?SUCHTHAT(I, range(-2, 2),
+	?SUCHTHAT(I, range(-1, 1),
 		  I > proper_types:parameter(x4)
 		  andalso I < proper_types:parameter(y4)))).
 

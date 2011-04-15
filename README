@@ -921,7 +921,9 @@ However, before the call is actually included, a precondition is checked.
 that should hold so that <Symbolic_call> can be included in the command
 sequence, given the current <Symbolic_state> of the state machine. In case
 precondition doesn't hold, a new call is chosen using the command/1
-generator. The number of tries is bounded by 'constraint_tries' (see Options).
+generator. If preconditions are very strict, it will take a lot of tries for
+PropEr to randomly choose a valid command. Testing will be stopped when a
+limit of 2000 tries has been reached.
 * postcondition(<Dynamic_state>, <Symbolic_call>, <Result>): Specifies the
 postcondition that should hold about the <Result> of the evaluation of
 <Symbolic_call>, given the current <Dynamic_state> of the state machine.
@@ -940,14 +942,17 @@ code:
 
 * commands(<Module>): A special PropEr type which generates random command
 sequences, as specified by the absract state machine in <Module>. The initial
-state is specified by <Module>:initial_state().
+state is specified by <Module>:initial_state(). The first command is always
+{init,<Module>:initial_state()} and is used to correctly initialize the state
+every time the command sequence is run (i.e. during normal execution, while
+shrinking and when checking a counterexample).
 * commands(<Module>, <Symbolic_state>): Similar to commands/1, but generated
 command sequences always start at <Symbolic_state>. In this case, the first
 command is always {init,<Symbolic_state>}.
 * more_commands(<N>, <Generator>): Increases the maximum length of command
 sequences generated within Generator by a factor <N>.
 
-* run_commands(<Cmds>, <Module>): This function runs a given command sequence
+* run_commands(<Module>, <Cmds>): This function runs a given command sequence
 <Cmds> according to the state machine specified in <Module>. The result is a
 tuple of the form: {<History>,<Dynamic_state>,<Statem_result>}.
   - <History> contains the execution history of all commands that were executed
@@ -967,7 +972,7 @@ tuple of the form: {<History>,<Dynamic_state>,<Statem_result>}.
     -- {'precondition', <Boolean> | <Exception>}: a precondition was false or
     raised an exception
     -- <Exception>: an exception was raised while running a command
-* run_commands(<Cmds>, <Module>, <Environment>): Similar to run_commands/2,
+* run_commands(<Module>, <Cmds>, <Environment>): Similar to run_commands/2,
 but also accepts a list of {<Key>,<Value>} pairs. Keys may be used in symbolic
 variables (i.e. {var,<Key>}) whithin the command sequence <Cmds>. These
 symbolic variables will be replaced by their corresponding <Value> during
@@ -1013,7 +1018,7 @@ testcases from the absract state machine specified in <Module>. The initial
 state is specified by <Module>:initial_state().
 * parallel_commands(<Module>, <Symbolic_state): Similar to parallel_commands/1,
 but generated command sequences always start at <Symbolic_state>.
-* run_parallel_commands(<TestCase>, <Module>): This function runs a parallel
+* run_parallel_commands(<Module>, <TestCase>): This function runs a parallel
 <TestCase> according to the specifications in <Module>. The result is a tuple
 of the form: {<Sequential_history>,<Parallel_history>,<Statem_result>}.
   - <Sequential_history> contains the execution history of the sequential
@@ -1024,7 +1029,7 @@ of the form: {<Sequential_history>,<Parallel_history>,<Statem_result>}.
   execution, based on the results observed. It can be one of the following:
     -- 'ok'
     -- 'no_possible_interleaving'
-* run_parallel_commands(<TestCase>, <Module>, <Environment>): Similar to
+* run_parallel_commands(<Module>, <TestCase>, <Environment>): Similar to
 run_parallel_commands/2, but also accepts an <Environment> used for symbolic
 variable evaluation, exactly as described in run_commands/3.
 
@@ -1160,6 +1165,9 @@ occurs. Normaly, a message is also printed on screen describing the error.
 * 'cant_satisfy': All the tests were rejected because no produced test case
   would pass all ?IMPLIES checks. You should loosen the failing ?IMPLIES
   constraint(s). This error should only be encountered during normal operation.
+* 'prec_false': The command generation subsystem has failed to produce a command
+  instance that satisfies its precondition. You should loosen the constraints
+  imposed by preconditions.
 * 'rejected': Only encountered during re-checking, the counterexample does not
   match the property, since the counterexample doesn't pass an ?IMPLIES check.
 * 'shrinking_error': An error occured during shrinking. If you ever get this
