@@ -40,7 +40,7 @@
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, to_binary/1,
 	 from_binary/1, get_prop/2, find_prop/2, safe_is_instance/2,
 	 is_instance/2, unwrap/1, weakly/1, strongly/1, satisfies_all/2,
-	 new_type/2, list_get_indices/1]).
+	 new_type/2, subtype/2, list_get_indices/1]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
 	 native_type/2, distlist/3, with_parameter/3, with_parameters/2,
 	 parameter/1, parameter/2]).

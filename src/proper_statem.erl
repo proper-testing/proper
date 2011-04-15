@@ -100,16 +100,9 @@ commands(Module) ->
 
 -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
 commands(Module, InitialState) ->
-    ?COMMANDS(
-       [{generator, fun(Size) -> gen_commands(Size, Module, InitialState) end},
-	{is_instance, fun commands_test/1},
-	{get_indices, fun proper_types:list_get_indices/1},
-	{get_length, fun erlang:length/1},
-	{split, fun lists:split/2},
-	{join, fun lists:append/2},
-	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, [fun(Cmds, T, S) -> split_shrinker(Module, Cmds, T, S) end,
-		     fun(Cmds, T, S) -> remove_shrinker(Module, Cmds, T, S) end]}]).
+    proper_types:subtype(
+      [{generator, fun(Size) -> gen_commands(Size, Module, InitialState) end}],
+      commands(Module)).
 
 -spec more_commands(pos_integer(), proper_types:type()) -> proper_types:type().
 more_commands(N, Type) ->
@@ -160,8 +153,7 @@ parallel_commands(Mod) ->
     ?COMMANDS(
        [{generator, 
 	 fun(Size) ->
-		 gen_parallel_commands(Size + ?WORKERS, Mod,
-				       Mod:initial_state())
+		 gen_parallel_commands(Size + ?WORKERS, Mod, Mod:initial_state())
 	 end},
 	{is_instance, fun parallel_commands_test/1},
 	{get_indices, fun proper_types:list_get_indices/1},
@@ -190,35 +182,11 @@ parallel_commands(Mod) ->
 
 -spec parallel_commands(mod_name(), symbolic_state()) -> proper_types:type(). 
 parallel_commands(Mod, InitialState) ->
-    ?COMMANDS(
-       [{generator, 
-	 fun(Size) ->
-		 gen_parallel_commands(Size + ?WORKERS, Mod, InitialState)
-	 end},
-	{is_instance, fun parallel_commands_test/1},
-	{get_indices, fun proper_types:list_get_indices/1},
-	{get_length, fun erlang:length/1},
-	{split, fun lists:split/2},
-	{join, fun lists:append/2},
-	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, 
-	 lists:map(fun(I) ->
-			   fun(Parallel_Cmds, T, S) ->
-				   split_parallel_shrinker(I, Mod, Parallel_Cmds, T, S)
-			   end
-		   end, lists:seq(1, ?WORKERS)) ++
-	 lists:map(fun(I) ->
-	 		   fun(Parallel_Cmds, T, S) ->
-	 			   remove_parallel_shrinker(I, Mod, Parallel_Cmds, T, S)
-	 		   end
-	 	   end, lists:seq(1, ?WORKERS)) ++
-	 [fun(Parallel_Cmds, T, S) ->
-	 	  split_seq_shrinker(Mod, Parallel_Cmds, T, S) end,
-	  fun(Parallel_Cmds, T, S) ->
-	  	  remove_seq_shrinker(Mod, Parallel_Cmds, T, S) end,
-	  fun move_shrinker/3
-	 ]}
-       ]).
+    proper_types:subtype(
+      [{generator, fun(Size) ->
+			   gen_parallel_commands(Size + ?WORKERS, Mod, InitialState)
+		   end}],
+      parallel_commands(Mod)).
 
 -spec gen_parallel_commands(size(), mod_name(), symbolic_state()) -> parallel_test_case().
 gen_parallel_commands(Size, Mod, InitialState) ->
