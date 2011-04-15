@@ -949,7 +949,7 @@ command is always {init,<Symbolic_state>}.
 * more_commands(<N>, <Generator>): Increases the maximum length of command
 sequences generated within Generator by a factor <N>.
 
-* run_commands(<Cmds>, <Module>): This function runs a given command sequence
+* run_commands(<Module>, <Cmds>): This function runs a given command sequence
 <Cmds> according to the state machine specified in <Module>. The result is a
 tuple of the form: {<History>,<Dynamic_state>,<Statem_result>}.
   - <History> contains the execution history of all commands that were executed
@@ -969,7 +969,7 @@ tuple of the form: {<History>,<Dynamic_state>,<Statem_result>}.
     -- {'precondition', <Boolean> | <Exception>}: a precondition was false or
     raised an exception
     -- <Exception>: an exception was raised while running a command
-* run_commands(<Cmds>, <Module>, <Environment>): Similar to run_commands/2,
+* run_commands(<Module>, <Cmds>, <Environment>): Similar to run_commands/2,
 but also accepts a list of {<Key>,<Value>} pairs. Keys may be used in symbolic
 variables (i.e. {var,<Key>}) whithin the command sequence <Cmds>. These
 symbolic variables will be replaced by their corresponding <Value> during
@@ -1015,7 +1015,7 @@ testcases from the absract state machine specified in <Module>. The initial
 state is specified by <Module>:initial_state().
 * parallel_commands(<Module>, <Symbolic_state): Similar to parallel_commands/1,
 but generated command sequences always start at <Symbolic_state>.
-* run_parallel_commands(<TestCase>, <Module>): This function runs a parallel
+* run_parallel_commands(<Module>, <TestCase>): This function runs a parallel
 <TestCase> according to the specifications in <Module>. The result is a tuple
 of the form: {<Sequential_history>,<Parallel_history>,<Statem_result>}.
   - <Sequential_history> contains the execution history of the sequential
@@ -1026,7 +1026,7 @@ of the form: {<Sequential_history>,<Parallel_history>,<Statem_result>}.
   execution, based on the results observed. It can be one of the following:
     -- 'ok'
     -- 'no_possible_interleaving'
-* run_parallel_commands(<TestCase>, <Module>, <Environment>): Similar to
+* run_parallel_commands(<Module>, <TestCase>, <Environment>): Similar to
 run_parallel_commands/2, but also accepts an <Environment> used for symbolic
 variable evaluation, exactly as described in run_commands/3.
 
