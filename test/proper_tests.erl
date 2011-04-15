@@ -866,7 +866,8 @@ error_props_test_() ->
 		   ?FORALL(X, integer(), ?IMPLIES(X > 5, X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
 		   ?FORALL(X, pos_integer(), X < 0)),
-     ?_errorsOut(cant_generate, prec_false:prop_simple())].
+     ?_errorsOut(prec_false, prec_false:prop_simple()),
+     ?_errorsOut(cant_generate, nogen_statem:prop_simple())].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))
@@ -1187,7 +1188,7 @@ gen_tree(ElemType, Size) ->
 
 zero1() ->
     proper_types:with_parameter(
-      x1, 0, ?SUCHTHAT(I, range(-2, 2), I =:= proper_types:parameter(x1))).
+      x1, 0, ?SUCHTHAT(I, range(-1, 1), I =:= proper_types:parameter(x1))).
 
 zero2() ->
     proper_types:with_parameters(
@@ -1196,13 +1197,13 @@ zero2() ->
 	   proper_types:with_parameter(
 	     y2, 43,
 	     ?SUCHTHAT(
-		I, range(40, 45),
+		I, range(41, 43),
 		I > proper_types:parameter(x2)
 		andalso I < proper_types:parameter(y2))),
 	   X - 42)).
 
 zero3() ->
-    ?SUCHTHAT(I, range(-2, 2),
+    ?SUCHTHAT(I, range(-1, 1),
 	      I > proper_types:parameter(x3, -1)
 	      andalso I < proper_types:parameter(y3, 1)).
 
@@ -1211,7 +1212,7 @@ zero4() ->
       [{x4,-2}, {y4,2}],
       proper_types:with_parameters(
 	[{x4,-1}, {y4,1}],
-	?SUCHTHAT(I, range(-2, 2),
+	?SUCHTHAT(I, range(-1, 1),
 		  I > proper_types:parameter(x4)
 		  andalso I < proper_types:parameter(y4)))).
 

@@ -921,7 +921,9 @@ However, before the call is actually included, a precondition is checked.
 that should hold so that <Symbolic_call> can be included in the command
 sequence, given the current <Symbolic_state> of the state machine. In case
 precondition doesn't hold, a new call is chosen using the command/1
-generator. The number of tries is bounded by 'constraint_tries' (see Options).
+generator. If preconditions are very strict, it will take a lot of tries for
+PropEr to randomly choose a valid command. Testing will be stopped when a
+limit of 2000 tries has been reached.
 * postcondition(<Dynamic_state>, <Symbolic_call>, <Result>): Specifies the
 postcondition that should hold about the <Result> of the evaluation of
 <Symbolic_call>, given the current <Dynamic_state> of the state machine.
@@ -1056,6 +1058,9 @@ occurs. Normaly, a message is also printed on screen describing the error.
 * 'cant_satisfy': All the tests were rejected because no produced test case
   would pass all ?IMPLIES checks. You should loosen the failing ?IMPLIES
   constraint(s). This error should only be encountered during normal operation.
+* 'prec_false': The random instance generation subsystem has failed to
+  produce a command instance that satisfies its precondition. You should loosen
+  the constraints imposed by preconditions.
 * 'rejected': Only encountered during re-checking, the counterexample does not
   match the property, since the counterexample doesn't pass an ?IMPLIES check.
 * 'shrinking_error': An error occured during shrinking. If you ever get this
