@@ -465,7 +465,7 @@ safe_union_gen(Choices) ->
     try generate(Type) of
 	Instance -> Instance
     catch
-	error:_ ->
+	_:_ ->
 	    safe_union_gen(proper_arith:list_remove(Choice, Choices))
     end.
 
@@ -484,7 +484,7 @@ safe_weighted_union_gen(FreqChoices) ->
     try generate(Type) of
 	Instance -> Instance
     catch
-	error:_ ->
+	_:_ ->
 	    safe_weighted_union_gen(proper_arith:list_remove(Choice,
 							     FreqChoices))
     end.
