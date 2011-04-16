@@ -35,6 +35,7 @@
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
 	 function1/1, function2/1, function3/1, function4/1,
 	 weighted_default/2]).
+-export([safe_union/1, safe_weighted_union/1]).
 -export([resize/2, non_empty/1, noshrink/1]).
 
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, to_binary/1,
@@ -597,6 +598,13 @@ union(RawChoices) ->
 	  end]}
     ]).
 
+-spec safe_union([raw_type(),...]) -> proper_types:type().
+safe_union(RawChoices) ->
+    Choices = [cook_outer(C) || C <- RawChoices],
+    ?SUBTYPE(union(Choices), [
+	{generator, fun() -> proper_gen:safe_union_gen(Choices) end}
+    ]).
+
 -spec union_test(proper_gen:imm_instance(), [proper_types:type()]) -> boolean().
 union_test(X, Choices) ->
     lists:any(fun(C) -> is_instance(X, C) end, Choices).
@@ -608,6 +616,15 @@ weighted_union(RawFreqChoices) ->
     Choices = [T || {_F,T} <- FreqChoices],
     ?SUBTYPE(union(Choices), [
 	{generator, fun() -> proper_gen:weighted_union_gen(FreqChoices) end}
+    ]).
+
+-spec safe_weighted_union([{frequency(),raw_type()},...]) -> proper_types:type().
+safe_weighted_union(RawFreqChoices) ->
+    CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
+    FreqChoices = lists:map(CookFreqType, RawFreqChoices),
+    Choices = [T || {_F,T} <- FreqChoices],
+    ?SUBTYPE(union(Choices), [
+	{generator, fun() -> proper_gen:safe_weighted_union_gen(FreqChoices) end}
     ]).
 
 -spec tuple([raw_type()]) -> proper_types:type().

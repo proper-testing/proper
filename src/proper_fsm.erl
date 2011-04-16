@@ -60,8 +60,7 @@ run_commands(Module, Cmds) ->
 			  {history(),fsm_state(),fsm_result()}.
 run_commands(_Module, Cmds, Env) ->
     {H,S,Res} = proper_statem:run_commands(?MODULE, Cmds, Env),
-    History = [{{Name,Data},R} ||
-		  {#state{name=Name, data=Data},R} <- H],
+    History = [{{Name,Data},R} || {#state{name=Name, data=Data},R} <- H],
     State = {S#state.name, S#state.data},
     {History, State, Res}.
 
@@ -167,15 +166,15 @@ choose_transition(Mod, From, T_list) ->
 
 -spec choose_uniform_transition([transition_gen()]) -> proper_types:type().
 choose_uniform_transition(T_list) ->
-    List = [CallGen || {_,CallGen} <- T_list, can_generate(CallGen)],
-    proper_types:oneof(List).
+    List = [CallGen || {_,CallGen} <- T_list],
+    proper_types:safe_union(List).
 
 -spec choose_weighted_transition(mod_name(), state_name(), [transition_gen()]) ->
 					proper_types:type().
 choose_weighted_transition(Mod, From, T_list) ->
     List = [{weight(Mod, From, To, CallGen), CallGen}
-	    || {To,CallGen} <- T_list, can_generate(CallGen)],
-    proper_types:frequency(List).
+	    || {To,CallGen} <- T_list],
+    proper_types:safe_weighted_union(List).
 
 -spec weight(mod_name(), state_name(), state_name(), symb_call_gen()) ->
 		    pos_integer().
@@ -190,17 +189,6 @@ weight(Mod, From, To, CallGen) ->
 -spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
 is_exported(Mod, Fun) ->
     lists:member(Fun, Mod:module_info(exports)).
-
--spec can_generate(symb_call_gen()) -> boolean().
-can_generate(CallGen) ->
-    try proper_gen:safe_generate(CallGen) of
-	{ok,_Instance} -> true;
-
-	%%TODO: return true here?
-	{error,_Error} -> true
-    catch
-	_Exception:_Reason -> false
-    end.
 
 -spec transition_target(mod_name(), state_name(), state_data(), symb_call()) ->
 			       state_name().
@@ -220,18 +208,9 @@ find_target([], _, []) -> '$no_target';
 find_target([], _, Accum) -> Accum;
 find_target(Transitions, Call, Accum) ->
     [{Target,CallGen}|Rest] = Transitions,
-    case is_instance_call(Call, CallGen) of
+    case is_compatible(Call, CallGen) of
 	true  -> find_target(Rest, Call, [Target|Accum]);
 	false -> find_target(Rest, Call, Accum)
-    end.
-
--spec is_instance_call(symb_call(), symb_call_gen()) -> boolean().
-is_instance_call(Call, CallGen) ->
-    case can_generate(CallGen) of
-	true ->
-	    is_compatible(Call, CallGen);
-	false ->
-	    false
     end.
 
 -spec is_compatible(symb_call(), symb_call_gen()) -> boolean().
