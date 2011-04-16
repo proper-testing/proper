@@ -113,35 +113,17 @@ more_commands(N, Type) ->
 			  command_list().
 gen_commands(Size, Mod, InitialState) ->
     Len = proper_arith:rand_int(0, Size),
-<<<<<<< HEAD
-    erlang:put('$initial_state', InitialState),
-    case gen_commands(Mod, InitialState, [], Len, Len, ?PREC_TRIES) of
-	CmdList when is_list(CmdList) ->
-	    case InitFlag of
-		true -> [{init,InitialState}|CmdList];
-		false -> CmdList
-	    end;
-	{error, prec_false}              -> throw('$prec_false'); 
-	{error, {exception,_,_,_} = Err} -> throw(Err)
-=======
     case gen_commands(Mod, InitialState, [], Len, Len, ?PREC_TRIES) of
 	CmdList when is_list(CmdList) ->
 	    [{init,InitialState}|CmdList];
 	{throw,Reason} -> throw(Reason)
->>>>>>> master
     end.
 
 -spec gen_commands(mod_name(), symbolic_state(), command_list(), size(),
 		   non_neg_integer(), non_neg_integer()) ->
-<<<<<<< HEAD
-			  command_list() | {'error',term()}.
-gen_commands(_, _, _, _, _, 0) ->
-    {error, prec_false};
-=======
 			  command_list() | {'throw',term()}.
 gen_commands(_, _, _, _, _, 0) ->
     {throw, '$prec_false'};
->>>>>>> master
 gen_commands(_, _, Commands, _, 0, _) ->
     lists:reverse(Commands);
 gen_commands(Module, State, Commands, Len, Count, Tries) ->
@@ -159,11 +141,7 @@ gen_commands(Module, State, Commands, Len, Count, Tries) ->
 		    gen_commands(Module, State, Commands, Len, Count, Tries-1)
 	    end
     catch
-<<<<<<< HEAD
-	Exc:Reason -> {error, {exception,Exc,Reason,erlang:get_stacktrace()}}
-=======
 	throw:Reason -> {throw,Reason}
->>>>>>> master
     end.
 
 
