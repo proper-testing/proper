@@ -40,7 +40,7 @@
 %% -----------------------------------------------------------------------------
 
 -export([index/2, all_insertions/3, insert_all/2]).
--export([is_valid/4]).
+-export([is_valid/4, args_defined/2]).
 -export([get_next/6, mk_first_comb/3, fix_gen/8, mk_dict/2]).
 -export([is_parallel/4, execute/4, check/7, run_sequential/5,
 	 get_initial_state/1, safe_eval_init/2]).
@@ -625,9 +625,9 @@ is_valid(_Mod, _State, [], _Env) -> true;
 is_valid(Module, _State, [{init,S}|Commands], _Env) ->
     is_valid(Module, S, Commands, _Env);
 is_valid(Module, State, [{set,Var,{call,_M,_F,A}=Call}|Commands], Env) ->
-    case Module:precondition(State, Call) of
+    case args_defined(A, Env) of
 	true ->
-	    case args_defined(A, Env) of
+	    case Module:precondition(State, Call) of
 		true ->
 		    NextState = Module:next_state(State, Var, Call),
 		    is_valid(Module, NextState, Commands, [Var|Env]);
@@ -636,11 +636,15 @@ is_valid(Module, State, [{set,Var,{call,_M,_F,A}=Call}|Commands], Env) ->
 	false -> false
     end.
 
--spec args_defined([term()], [symb_var()]) -> boolean().
-args_defined(A, Env) ->
-    lists:all(fun ({var,I} = V) when is_integer(I) -> lists:member(V, Env);
-		  (_V) -> true 
-	      end, A).      
+-spec args_defined(term(), [symb_var()]) -> boolean().
+args_defined({var,I}=V, Env) when is_integer(I) ->
+    lists:member(V, Env);
+args_defined([H|T], Env) ->
+    args_defined(H, Env) andalso args_defined(T, Env);
+args_defined(Tuple, Env) when is_tuple(Tuple) ->
+    args_defined(tuple_to_list(Tuple), Env);
+args_defined(_, _) ->
+    true.
 
 -spec get_initial_state(command_list()) -> symbolic_state().
 get_initial_state([{init,S}|_]) -> S.

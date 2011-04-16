@@ -577,6 +577,14 @@ invalid_var() ->
 		     {set,{var,5},{call,erlang,put,[a,3]}},
 		     {set,{var,6},{call,erlang,get,[{var,2}]}}]}].
 
+arguments_not_defined() ->
+    [{[simple,atoms,are,valid,{var,42}], []},
+     {[{var,1}], [{var,2},{var,3},{var,4}]},
+     {[hello,world,[hello,world,{var,6}]], []},
+     {[{1,2,3,{var,1},{var,2}},not_really], []},
+     {[[[[42,{var,42}]]]], []},
+     {[{43,41,{1,{var,42}}},why_not], []}].
+
 
 %%------------------------------------------------------------------------------
 %% Unit tests
@@ -995,6 +1003,10 @@ get_next_test_() ->
 mk_first_comb_test_() ->
      [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
       || {N, Len, W, Expected} <- first_comb()].
+
+args_not_defined_test() ->
+    [?_assertNot(proper_statem:args_defined(Args, Env))
+     || {Args,Env} <- arguments_not_defined()].
 
 command_props_test_() ->
     {timeout, 150, [?_test(proper:module(command_props))]}.
