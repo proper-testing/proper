@@ -297,7 +297,8 @@ do_run_command(Commands, Env, Module, History, State) ->
 		true ->
 		    case safe_apply(M2, F2, A2) of
 			{ok,Res} ->
-			    State2 = Module:next_state(State, Res, Call),
+			    State2 = proper_symb:eval(
+				       Env, Module:next_state(State, Res, Call)),
 			    History2 = [{State,Res}|History],
 			    case check_postcondition(Module, State, Call, Res) of
 				true ->
@@ -431,7 +432,7 @@ check(Mod, State, OldEnv, Env, Tried, [P|Rest], Accum) ->
 	    case Mod:postcondition(State, Call1, Res1) of
 		true -> 
 		    Env2 = [{N1, Res1}|Env],
-		    NextState = Mod:next_state(State, Res1, Call1),
+		    NextState = proper_symb:eval(Env, Mod:next_state(State, Res1, Call1)),
 		    V = check(Mod, NextState, OldEnv, Env2, [Tail|Tried], Rest, [H|Accum]),
 		    case V of
 			true ->
@@ -462,7 +463,7 @@ run_sequential(Commands, Env, Module, History, State) ->
 	    Res = apply(M2, F2, A2),
 	    true = Module:postcondition(State, Call, Res),
 	    Env2 = [{V,Res}|Env],
-	    State2 = Module:next_state(State, Res, Call),
+	    State2 = proper_symb:eval(Env, Module:next_state(State, Res, Call)),
 	    History2 = [{Cmd,Res}|History],
 	    run_sequential(Rest, Env2, Module, History2, State2)
     end.
