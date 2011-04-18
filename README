@@ -1226,14 +1226,14 @@ for demonstration purposes only.
 
 
 --------------------------------------------------------------------------------
-Incompatibilities with Quviq QuickCheck
+Incompatibilities with QuviQ's QuickCheck
 --------------------------------------------------------------------------------
 
 We have generaly tried to keep PropEr's notation and output as compatible as
-possible with Quviq QuickCheck, to allow for the reuse of existing testing code
-written for QuickCheck. However, incompatibilities are to be expected, since
-the two programs probably bear little resemblance under the hood. Here we
-provide a nonexhaustive list of known incompatibilities:
+possible with QuviQ's QuickCheck, to allow for the reuse of existing testing
+code written for QuickCheck. However, incompatibilities are to be expected,
+since the two programs probably bear little resemblance under the hood. Here
+we provide a nonexhaustive list of known incompatibilities:
 
 * ?SUCHTHATMAYBE behaves differently in PropEr.
 * proper_gen:pick differs from eqc_gen:pick in return value format.
