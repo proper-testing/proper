@@ -84,64 +84,102 @@
 
 -define(COMMANDS(PropList), proper_types:new_type(PropList, commands)).
 
--spec commands(mod_name()) -> proper_types:type().
-commands(Module) ->
-    ?COMMANDS(
-       [{generator,
-	 fun(Size) -> gen_commands(Size, Module, Module:initial_state()) end},
-	{is_instance, fun commands_test/1},
-	{get_indices, fun proper_types:list_get_indices/1},
-	{get_length, fun erlang:length/1},
-	{split, fun lists:split/2},
-	{join, fun lists:append/2},
-	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, [fun(Cmds, T, S) -> split_shrinker(Module, Cmds, T, S) end,
-		     fun(Cmds, T, S) -> remove_shrinker(Module, Cmds, T, S) end]}]).
+%% -spec commands(mod_name()) -> proper_types:type().
+%% commands(Module) ->
+%%     ?COMMANDS(
+%%        [{generator,
+%% 	 fun(Size) -> gen_commands(Size, Module, Module:initial_state()) end},
+%% 	{is_instance, fun commands_test/1},
+%% 	{get_indices, fun proper_types:list_get_indices/1},
+%% 	{get_length, fun erlang:length/1},
+%% 	{split, fun lists:split/2},
+%% 	{join, fun lists:append/2},
+%% 	{remove, fun proper_arith:list_remove/2},
+%% 	{shrinkers, [fun(Cmds, T, S) -> split_shrinker(Module, Cmds, T, S) end,
+%% 		     fun(Cmds, T, S) -> remove_shrinker(Module, Cmds, T, S) end]}]).
+
+%% -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
+%% commands(Module, InitialState) ->
+%%     proper_types:subtype(
+%%       [{generator, fun(Size) -> gen_commands(Size, Module, InitialState) end}],
+%%       commands(Module)).
 
 -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
 commands(Module, InitialState) ->
-    proper_types:subtype(
-      [{generator, fun(Size) -> gen_commands(Size, Module, InitialState) end}],
-      commands(Module)).
+    ?SIZED(Size,
+	   ?SUCHTHAT(
+	      Cmds,
+	      ?LET(CmdTail, commands(Size, Module, InitialState, 1),
+		   [{init,InitialState}|CmdTail]),
+	      is_valid(Module, InitialState, Cmds, []))).
+
+-spec commands(mod_name()) -> proper_types:type().
+commands(Module) ->
+    ?SIZED(Size,
+	   ?LET(InitialState, Module:initial_state(),
+		?SUCHTHAT(
+		   Cmds,
+		   ?LET(CmdTail, commands(Size, Module, InitialState, 1),
+			[{init,InitialState}|CmdTail]),
+		   is_valid(Module, InitialState, Cmds, [])))).
+
+-spec commands(size(), mod_name(), symbolic_state(), pos_integer()) ->
+		      proper_types:type().
+commands(Size, Module, State, Count) ->
+    ?LAZY(
+       proper_types:frequency(
+	 [{1,[]},
+	  {Size, ?LET(
+		    Call,
+		    proper_types:noshrink(
+		      ?SUCHTHAT(X, Module:command(State),
+				Module:precondition(State, X))),
+		    begin
+			Var = {var,Count},
+			NextState = Module:next_state(State, Var, Call),
+			?LETSHRINK([Cmds],
+				   [commands(Size-1, Module, NextState, Count+1)],
+				   [{set,Var,Call}|Cmds])
+		    end)}])).
 
 -spec more_commands(pos_integer(), proper_types:type()) -> proper_types:type().
 more_commands(N, Type) ->
     ?SIZED(Size, proper_types:resize(Size * N, Type)).
 
--spec gen_commands(size(), mod_name(), symbolic_state()) ->
-			  command_list().
-gen_commands(Size, Mod, InitialState) ->
-    Len = proper_arith:rand_int(0, Size),
-    case gen_commands(Mod, InitialState, [], Len, Len, ?PREC_TRIES) of
-	CmdList when is_list(CmdList) ->
-	    [{init,InitialState}|CmdList];
-	{throw,Reason} -> throw(Reason)
-    end.
+%% -spec gen_commands(size(), mod_name(), symbolic_state()) ->
+%% 			  command_list().
+%% gen_commands(Size, Mod, InitialState) ->
+%%     Len = proper_arith:rand_int(0, Size),
+%%     case gen_commands(Mod, InitialState, [], Len, Len, ?PREC_TRIES) of
+%% 	CmdList when is_list(CmdList) ->
+%% 	    [{init,InitialState}|CmdList];
+%% 	{throw,Reason} -> throw(Reason)
+%%     end.
 
--spec gen_commands(mod_name(), symbolic_state(), command_list(), size(),
-		   non_neg_integer(), non_neg_integer()) ->
-			  command_list() | {'throw',term()}.
-gen_commands(_, _, _, _, _, 0) ->
-    {throw, '$prec_false'};
-gen_commands(_, _, Commands, _, 0, _) ->
-    lists:reverse(Commands);
-gen_commands(Module, State, Commands, Len, Count, Tries) ->
-    CallType = Module:command(State),
-    try proper_gen:clean_instance(proper_gen:generate(CallType)) of
-	Call ->
-	    case Module:precondition(State, Call) of
-		true ->
-		    Var = {var, Len-Count+1},
-		    Command = {set, Var, Call},
-		    NextState = Module:next_state(State, Var, Call),
-		    gen_commands(Module, NextState, [Command|Commands], Len,
-				 Count-1, Tries);
-		false ->
-		    gen_commands(Module, State, Commands, Len, Count, Tries-1)
-	    end
-    catch
-	throw:Reason -> {throw,Reason}
-    end.
+%% -spec gen_commands(mod_name(), symbolic_state(), command_list(), size(),
+%% 		   non_neg_integer(), non_neg_integer()) ->
+%% 			  command_list() | {'throw',term()}.
+%% gen_commands(_, _, _, _, _, 0) ->
+%%     {throw, '$prec_false'};
+%% gen_commands(_, _, Commands, _, 0, _) ->
+%%     lists:reverse(Commands);
+%% gen_commands(Module, State, Commands, Len, Count, Tries) ->
+%%     CallType = Module:command(State),
+%%     try proper_gen:clean_instance(proper_gen:generate(CallType)) of
+%% 	Call ->
+%% 	    case Module:precondition(State, Call) of
+%% 		true ->
+%% 		    Var = {var, Len-Count+1},
+%% 		    Command = {set, Var, Call},
+%% 		    NextState = Module:next_state(State, Var, Call),
+%% 		    gen_commands(Module, NextState, [Command|Commands], Len,
+%% 				 Count-1, Tries);
+%% 		false ->
+%% 		    gen_commands(Module, State, Commands, Len, Count, Tries-1)
+%% 	    end
+%%     catch
+%% 	throw:Reason -> {throw,Reason}
+%%     end.
 
 
 %% -----------------------------------------------------------------------------
@@ -189,9 +227,16 @@ parallel_commands(Mod, InitialState) ->
       parallel_commands(Mod)).
 
 -spec gen_parallel_commands(size(), mod_name(), symbolic_state()) -> parallel_test_case().
-gen_parallel_commands(Size, Mod, InitialState) ->
-    Len = proper_arith:rand_int(?WORKERS, Size),
-    CmdList = gen_commands(Mod, InitialState, [], Len, Len, ?PREC_TRIES),
+gen_parallel_commands(NewSize, Mod, InitialState) ->
+    %% Len = proper_arith:rand_int(?WORKERS, Size),
+    %% CmdList = gen_commands(Mod, InitialState, [], Len, Len, ?PREC_TRIES),
+    {ok,[_|CmdList]} = proper_gen:clean_instance(
+			 proper_gen:safe_generate( 
+			   proper_types:resize(
+			     NewSize, ?SUCHTHAT(
+					 C, commands(Mod, InitialState),
+					 length(C) > ?WORKERS)))),
+    Len = length(CmdList),
     {LenPar, {Seq, P}} =
 	if Len =< ?LIMIT -> 
 		RandLen = proper_arith:rand_int(?WORKERS, Len),
