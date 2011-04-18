@@ -947,7 +947,7 @@ state_after_test_() ->
      || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
 cannot_generate_commands_test_() ->
-    [?_test(assert_cant_generate_cmds(proper_statem:commands(Module),5))
+    [?_test(assert_cant_generate_cmds(proper_statem:commands(Module),6))
      || Module <- [prec_false]].
 
 can_generate_commands0_test_() ->
