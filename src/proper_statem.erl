@@ -636,14 +636,18 @@ is_valid(Module, State, [{set,Var,{call,_M,_F,A}=Call}|Commands], Env) ->
 	false -> false
     end.
 
--spec args_defined(term(), [symb_var()]) -> boolean().
-args_defined({var,I}=V, Env) when is_integer(I) ->
+-spec args_defined([term()], [symb_var()]) -> boolean().
+args_defined(List, Env) ->
+   lists:all(fun (A) -> arg_defined(A, Env) end, List).
+
+-spec arg_defined(term(), [symb_var()]) -> boolean().
+arg_defined({var,I} = V, Env) when is_integer(I) ->
     lists:member(V, Env);
-args_defined([H|T], Env) ->
-    args_defined(H, Env) andalso args_defined(T, Env);
-args_defined(Tuple, Env) when is_tuple(Tuple) ->
+arg_defined(Tuple, Env) when is_tuple(Tuple) ->
     args_defined(tuple_to_list(Tuple), Env);
-args_defined(_, _) ->
+arg_defined(List, Env) when is_list(List) ->
+    args_defined(List, Env);
+arg_defined(_, _) ->
     true.
 
 -spec get_initial_state(command_list()) -> symbolic_state().
