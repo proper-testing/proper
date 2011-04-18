@@ -777,9 +777,11 @@ true_props_test_() ->
 	      ])),
      ?_passes(?FORALL(X, untyped(), is_record(X, untyped))),
      ?_passes(pdict_statem:prop_pdict()),
-     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
+     ?_passes(symb_statem:prop_simple()),
+     {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 10, ?_passes(ets_statem:prop_ets())},
-     {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())}].
+     {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
+	 {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
@@ -1010,7 +1012,7 @@ args_not_defined_test() ->
      || {Args,Env} <- arguments_not_defined()].
 
 command_props_test_() ->
-    {timeout, 150, [?_test(proper:module(command_props))]}.
+    {timeout, 150, [?_test(proper:module(command_props, 50))]}.
 
 can_generate_fsm_commands_test_() ->
     [?_test(assert_can_generate(proper_fsm:commands(Module), true))
