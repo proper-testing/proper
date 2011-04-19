@@ -1012,7 +1012,7 @@ args_not_defined_test() ->
      || {Args,Env} <- arguments_not_defined()].
 
 command_props_test_() ->
-    {timeout, 150, [?_test(proper:module(command_props, 50))]}.
+    {timeout, 150, [?_assertEqual([], proper:module(command_props, 50))]}.
 
 
 %%------------------------------------------------------------------------------
