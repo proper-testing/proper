@@ -59,8 +59,7 @@ key() ->
     elements(?KEYS).
 
 initial_state() ->
-    lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
-		 erlang:get()).
+    [KV || {Key, _} = KV <- erlang:get(), lists:member(Key, ?KEYS)].
 
 command([]) ->
     {call,erlang,put,[key(), integer()]};

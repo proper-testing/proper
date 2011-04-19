@@ -211,8 +211,9 @@ assert_type_works({Type,Are,_Target,Arent,TypeStr}, IsSimple) ->
 
 assert_can_translate(Mod, TypeStr) ->
     proper_typeserver:start(),
-    Result1 = proper_typeserver:translate_type({Mod,TypeStr}),
-    Result2 = proper_typeserver:translate_type({Mod,TypeStr}),
+    Type = {Mod,TypeStr},
+    Result1 = proper_typeserver:translate_type(Type),
+    Result2 = proper_typeserver:translate_type(Type),
     proper_typeserver:stop(),
     ?assert(state_is_clean()),
     {ok,Type1} = Result1,
