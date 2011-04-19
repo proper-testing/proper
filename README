@@ -571,8 +571,8 @@ with_parameter(<Parameter_name>, <Value>, <Type>)
     stateful systems' section). An example use can be found in module
     examples/ets_statem.
 with_parameters(<Proplist_of_parameters>, <Type>)
-    Similar to with_parameter/3, but accepts a list of {<Parameter_name>,<Value>}
-    pairs.
+    Similar to with_parameter/3, but accepts a list of
+    {<Parameter_name>,<Value>} pairs.
 parameter(<Parameter_name>, <Default>)
     Returns the <Value> associated with <Parameter_name>, or <Default> in case
     <Parameter_name> is not associated with any value.
@@ -899,13 +899,15 @@ symbolic variable to the result of a symbolic call.
 
 During command generation we use symbolic variables to bind the results of
 symbolic calls. Therefore, the state of the abstract state machine might (and
-usually does) contain symbolic variables. Thus, we refer to it as symbolic
+usually does) contain symbolic variables and/or symbolic calls, which are
+necessary to operate on symbolic variables. Thus, we refer to it as symbolic
 state.
 
 As a next step, symbolic command sequences are evaluated in order to check that
 command execution behaves according to the state machine specifications
-(postconditions). During this phase, symbolic variables are replaced by their
-corresponding values, and now we refer to the state as dynamic state.
+(postconditions). During this phase, symbolic calls are evaluated and symbolic
+variables are replaced by their corresponding real values. Now we refer to the
+state as dynamic state.
 
 
 More specifically, the following functions must be exported from the callback
@@ -933,7 +935,8 @@ is dynamic.
 Specifies the next state of the state machine, given the current state, the
 <Symbolic_call> chosen and its <Result>. This function is called both at
 command generation and command execution time in order to determine the next
-state, therefore the <Result> can be either symbolic (i.e. {var,N}) or dynamic.
+state, therefore the <Result> can be either symbolic (i.e. containing symbolic
+variables and/or symbolic calls) or dynamic (i.e. containing real values).
 
 
 The following functions, automatically imported from the proper_statem module
@@ -1047,15 +1050,15 @@ PropEr fsm
 
 PropEr provides another useful module for testing stateful systems, in
 particular those that can be better described as a finite state machine.
-An FSM is a triple {S0, D, S}, where S0 is the initial state, D a set of
-possible updates (transitions) and S a finite set of states.
+For PropEr, an FSM is a triple {S0, D, S}, where S0 is the initial state,
+D a set of possible updates (transitions) and S a finite set of states.
 
 * State representation
 Following the convention used in gen_fsm behaviour, a state is fully described
-by a StateName and some StateData. State_name is used to denote a state of
-the state machine and State_data is used to denote the internal state of the
-Erlang process which implements the state machine.
-States are represented as tuples {StateName, StateData}.
+by a StateName and some StateData. StateName is used to denote a state of
+the state machine and StateData is used to denote the internal state of the
+Erlang process which implements the state machine. States are fully represented
+as tuples {StateName, StateData}.
 
 StateName is usually an atom (i.e. the name of the state), but can also be a
 tuple. In the latter case, the first element of the tuple must be an atom
@@ -1069,7 +1072,7 @@ StateData can be an arbitrary term, but is usually a record.
 Transitions are represented as tuples {TargetState, {call,M,F,ArgsGen}}. This
 means that performing the specified symbolic call at the current state of the
 fsm will lead to TargetState. The atom <history> can be used as TargetState to
-denote that a transition does not change the current state of the fsm. 
+denote that a transition does not change the current state of the fsm.
 
 
 The following functions must be exported from the callback module implementing
@@ -1093,51 +1096,59 @@ used to include conditional transitions that depend on the <StateData>.
 * StateName(<Attr1>, ..., <AttrN>, <StateData>): There should be one instance
 of this function for each possible state name {StateName,<Attr1>,...,<AttrN>}.
 The function has similar beaviour to StateName/1, described above.
-* weight(<StateName1>, <StateName2>, <Call>): This is an optional callback.
+* weight(<FromState>, <TargetState>, <Call>): This is an optional callback.
 When it is not defined (or not exported), transitions are chosen with equal
 probability. When it is defined, it assigns an integer weight to transitions
-from <StateName1> to <StateName2> triggered by symbolic call <Call>. In this
+from <FromState> to <TargetState> triggered by symbolic call <Call>. In this
 case, each transition is chosen with probability proportional to the weight
 assigned.
-* precondition(<StateName1>, <StateName2>, <StateData>, <Call>):
-Specifies the precondition that should hold about <StateData> so that <Call>
-can be included in the command sequence. In case precondition doesn't hold,
-a new transition is chosen using the appropriate StateName/1 generator. The
-number of tries is bounded by 'constraint_tries' (see Options).
-It is possible for two transitions to be triggered by the same symbolic call
-and lead to different target states. In this case, at most one of the target
-states may have a true precondition. Otherwise, PropEr will not be able to
-detect which transition was chosen and an exception will be raised.
+* precondition(<FromState>, <TargetState>, <StateData>, <Call>):
+Similar to proper_statem:precondition/2. Specifies the precondition that should
+hold about <StateData> so that <Call> can be included in the command sequence.
+In case precondition doesn't hold, a new transition is chosen using the
+appropriate StateName/1 generator (more specifically FromState/1).
+It is possible for more than one transitions to be triggered by the same
+symbolic call and lead to different target states. In this case, at most one of
+the target states may have a true precondition. Otherwise, PropEr will not be
+able to detect which transition was chosen and an exception will be raised.
 Preconditions are also very important for the shrinking procedure. When
 attempting to shrink fsm command sequences, we try to eliminate commands that
 do not contribute to failure, ensuring that all preconditions still hold.
-* postcondition(<StateName1>, <StateName2>, <StateData>, <Call>, <Result>):
-Specifies the postcondition that should hold about the <Result> of the
-evaluation of <Call>.
-* next_state_data(<StateName1>, <StateName2>, <StateData>, <Result>, <Call>):
-Specifies the next state_data of the finite state machine.
+* postcondition(<FromState>, <TargetState>, <StateData>, <Call>, <Result>):
+Similar to proper_statem:postcondition/3. Specifies the postcondition that
+should hold about the <Result> of the evaluation of <Call>.
+* next_state_data(<FromState>, <TargetState>, <StateData>, <Result>, <Call>):
+Similar to proper_statem:next_state/3. Specifies how the transition from
+<FromState> to <TargetState> triggered by <Call> affects the <StateData>.
+<Result> refers to the result of <Call> and can be either symbolic or dynamic.
 
 
 The following functions can be used when working with finite state machines.
 Due to name conflicts with functions automatically imported from proper_statem,
 a fully qualified call is needed, i.e. proper_fsm:Fun(Args).
 
-* commands(<Module>): A special PropEr type which generates random command
-sequences, as specified by the finite state machine in <Module>. The initial
-state is specified by {<Module>:initial_state(),<Module>:initial_state_data()}.
-* commands(<Module>, <Symbolic_state>): Similar to commands/1, but generated
-command sequences always start at <Symbolic_state>. In this case, the first
-command is always {init,<Symbolic_state>}.
+* proper_fsm:commands(<Module>): A special PropEr type which generates random
+command sequences, as specified by the finite state machine in <Module>. The
+initial state is specified by
+<InitialState> =  {<Module>:initial_state(),<Module>:initial_state_data()}.
+The first command is always {init,<InitialState>} and is used to correctly
+initialize the state every time the command sequence is run (i.e. during normal
+execution, while shrinking and when checking a counterexample).
+* proper_fsm:commands(<Module>, <Symbolic_state>): Similar to commands/1, but
+generated command sequences always start at <Symbolic_state>. In this case, the
+first command is always {init,<Symbolic_state>}.
 
-* run_commands(<Module>, <Cmds>): This function runs a given command sequence
-<Cmds> according to the state machine specified in <Module>. The result is a
-tuple of the form: {<History>,<Dynamic_state>,<Fsm_result>}.
-See proper_statem:run_commands/2 for more details.
-* run_commands(<Module>, <Cmds>, <Environment>):
-See proper_statem:run_commands/3 for more details.
+* proper_fsm:run_commands(<Module>, <Cmds>): This function runs a given command
+sequence <Cmds> according to the finite state machine specified in <Module>. The
+result is a tuple of the form: {<History>,<Dynamic_state>,<Fsm_result>}.
+See proper_statem:run_commands/2 for more details. <Fsm_result> has the same
+form and meaning as <Statem_result>.
+* proper_fsm:run_commands(<Module>, <Cmds>, <Environment>): Similar to
+run_commands/2, but also accepts an <Environment> used for symbolic variable
+evaluation, exactly as described in proper_statem:run_commands/3.
 
-* state_names(<History>): Extracts the names of the states from a given command
-execution history. It is useful in combination with functions such
+* proper_fsm:state_names(<History>): Extracts the names of the states from a
+given command execution history. It is useful in combination with functions such
 as aggregate/2,3 in order to collect statistics about state transitions during
 command execution.
 
