@@ -3,7 +3,6 @@
 
 -include_lib("proper/include/proper.hrl").
 
-%% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3,
 	 terminate/3, code_change/4]).
 -compile(export_all).
@@ -13,22 +12,23 @@
 		num_floors,  %% number of floors in the building
 		limit}).     %% max number of people allowed
 
--record(test_state, {people = 0,         %% people inside the elevator
+-record(test_state, {people     = 0,     %% people inside the elevator
 		     num_floors = 5,     %% number of floors in the building
 		     max_people = 10}).  %% max number of people allowed
 
-%%====================================================================
-%% API
-%%====================================================================
+
+%%--------------------------------------------------------------------
+%%% API
+%%--------------------------------------------------------------------
 
 test() ->
     test(100).
 
 test(Tests) ->
-    proper:quickcheck(?MODULE:prop_elevator(),[{numtests,Tests}]).
+    proper:quickcheck(?MODULE:prop_elevator(), [{numtests,Tests}]).
 
 start_link(Info) ->
-    gen_fsm:start_link({local, elevator}, ?MODULE, Info, []).
+    gen_fsm:start_link({local,elevator}, ?MODULE, Info, []).
 
 stop() ->
     gen_fsm:sync_send_all_state_event(elevator, stop).
@@ -42,18 +42,18 @@ down() ->
 which_floor() ->
     gen_fsm:sync_send_event(elevator, which_floor).
 
-%% N people try to get on (only allowed at the basement)
+%% N people try to get on the elevator
 get_on(N) ->
     gen_fsm:sync_send_event(elevator, {get_on,N}).
 
-%% N people get off (assuming they always exist)
+%% N people get off the elevator (assuming at least N people are inside)
 get_off(N) ->
     gen_fsm:send_event(elevator, {get_off,N}).
 
 
-%%====================================================================
-%% gen_fsm callbacks
-%%====================================================================
+%%--------------------------------------------------------------------
+%%% Gen_fsm callbacks
+%%--------------------------------------------------------------------
 
 init(Info) ->
     {NumFloors, Limit} = Info,
@@ -77,13 +77,11 @@ floor(up, S) ->
     NumFloors = S#state.num_floors,
     case NumFloors > Floor of
 	true ->
-	    %% io:format("Going upstairs!\n"),
-	    {next_state, floor, S#state{floor = Floor+1} };
+	    {next_state, floor, S#state{floor = Floor+1}};
 	false ->
-	    %% io:format("Reached the top!\n"),
 	    {next_state, floor, S}
     end;
-floor(down,  S) ->
+floor(down, S) ->
     case S#state.floor of
 	1 ->
 	    {next_state, basement, S#state{floor = 0}};
@@ -118,7 +116,6 @@ handle_event(_Event, StateName, State) ->
 handle_sync_event(stop, _, _, _) ->
     {stop,normal,ok,[]}.
 
-
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -140,30 +137,30 @@ fsm_basement(S) ->
     [{history,{call,?MODULE,down,[]}},
      {history,{call,?MODULE,which_floor,[]}},
      {history,{call,?MODULE,get_on,[people(S)]}},
-     {history,{call,?MODULE,get_off,[people(S)]}}] ++
-    [{{fsm_floor,1},{call,?MODULE,up,[]}}] ++
-    [{history,{call,?MODULE,up,[]}}].
-    
+     {history,{call,?MODULE,get_off,[people(S)]}},
+     {{fsm_floor,1},{call,?MODULE,up,[]}},
+     {history,{call,?MODULE,up,[]}}].
+
 fsm_floor(N, S) ->
     [{{fsm_floor,N-1},{call,?MODULE,down,[]}} || N > 1] ++
     [{fsm_basement,{call,?MODULE,down,[]}} || N =:= 1] ++
     [{history,{call,?MODULE,which_floor,[]}},
-     {history,{call,?MODULE,get_off,[people(S)]}}] ++
-    [{{fsm_floor,N+1},{call,?MODULE,up,[]}}] ++
-    [{history,{call,?MODULE,up,[]}}].
+     {history,{call,?MODULE,get_off,[people(S)]}},
+     {{fsm_floor,N+1},{call,?MODULE,up,[]}},
+     {history,{call,?MODULE,up,[]}}].
 
-precondition(fsm_basement, {fsm_floor,1}, S, {call,_,up,[]}) ->  
+precondition(fsm_basement, {fsm_floor,1}, S, {call,_,up,[]}) ->
     S#test_state.num_floors > 0;
-precondition(fsm_basement, fsm_basement, S, {call,_,up,[]}) ->  
+precondition(fsm_basement, fsm_basement, S, {call,_,up,[]}) ->
     S#test_state.num_floors =:= 0;
 precondition({fsm_floor,N}, {fsm_floor,M}, S, {call,_,up,[]})
-  when M =:= N + 1 ->  
+  when M =:= N + 1 ->
     S#test_state.num_floors > N;
-precondition({fsm_floor,N}, {fsm_floor,N}, S, {call,_,up,[]}) ->  
+precondition({fsm_floor,N}, {fsm_floor,N}, S, {call,_,up,[]}) ->
     S#test_state.num_floors =:= N;
-precondition({fsm_floor,_}, {fsm_floor,_}, _S, {call,_,up,[]}) ->  
+precondition({fsm_floor,_}, {fsm_floor,_}, _S, {call,_,up,[]}) ->
     false;
-precondition(_, _, S, {call,_,get_off,[N]}) ->  
+precondition(_, _, S, {call,_,get_off,[N]}) ->
     N =< S#test_state.people;
 precondition(_, _, _, _) ->
     true.
@@ -184,7 +181,7 @@ postcondition(_, _, S, {call,_,get_on,[N]}, R) ->
     case S#test_state.max_people < People + N of
 	true -> R =:= People;
 	false -> R =:= N + People
-    end; 
+    end;
 postcondition(fsm_basement, fsm_basement, _, {call,_,which_floor,[]}, 0) ->
     true;
 postcondition({fsm_floor,N}, {fsm_floor,N}, _, {call,_,which_floor,[]}, N) ->
@@ -211,7 +208,7 @@ prop_elevator() ->
 		  ?WHENFAIL(
 		     io:format("H: ~w\nS: ~w\nR: ~w\n", [H,S,Res]),
 		     aggregate(zip(proper_fsm:state_names(H),
-				   command_names(tl(Cmds))),
+				   command_names(Cmds)),
 			       Res == ok))
 	      end)
        end).
@@ -220,7 +217,7 @@ people(S) ->
     ?SUCHTHAT(X, pos_integer(), X =< S#test_state.max_people).
 
 max_people() ->
-    noshrink(oneof(lists:seq(5, 20))).
+    noshrink(integer(5, 20)).
 
 num_floors() ->
-    noshrink(oneof(lists:seq(5, 10))).
+    noshrink(integer(5, 10)).

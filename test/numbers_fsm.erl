@@ -57,6 +57,8 @@ idle_transition() ->
 initial_state() -> zero.
 initial_state_data() -> [].
 
+precondition(_, _, S, {call,_,delete,[Key]}) ->
+    lists:member(Key, S);
 precondition(zero, _To , _S, _Call) ->
     true;
 precondition(_From, _To, S, {call,_,dec,_}) ->

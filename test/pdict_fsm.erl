@@ -41,9 +41,6 @@ key() ->
 key(List) ->
     elements(proplists:get_keys(List)).
 
-maybe_key(List) ->
-    union([key(), key(List)]).
-
 initial_state() -> empty_pdict.
 
 initial_state_data() -> [].
@@ -52,15 +49,17 @@ empty_pdict(_S) ->
     [{non_empty_pdict, {call,erlang,put,[key(),integer()]}}].
 
 non_empty_pdict(S) ->
-    [{history, {call,erlang,put,[maybe_key(S),integer()]}},
+    [{history, {call,erlang,put,[key(),integer()]}},
      {history, {call,erlang,get,[key(S)]}},
      {history, {call,erlang,erase,[key(S)]}},
      {empty_pdict, {call,erlang,erase,[key(S)]}}].
 
 precondition(non_empty_pdict, non_empty_pdict, S, {call,erlang,erase,[Key]}) ->
-	proplists:delete(Key, S) =/= [];
+    proplists:is_defined(Key, S) andalso proplists:delete(Key, S) =/= [];
 precondition(non_empty_pdict, empty_pdict, S, {call,erlang,erase,[Key]}) ->
-    proplists:delete(Key, S) =:= [];
+    proplists:is_defined(Key, S) andalso proplists:delete(Key, S) =:= [];
+precondition(_, _, S, {call,erlang,get,[Key]}) ->
+    proplists:is_defined(Key, S);
 precondition(_, _, _, _) ->
     true.
 

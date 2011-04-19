@@ -169,15 +169,6 @@ erase_temp() ->
     erase(temp),
     ok.
 
-put_initial(InitialState) ->
-    put('$initial_state', InitialState).
-
-get_initial() ->
-    get('$initial_state').
-
-erase_initial() ->
-    erase('$initial_state').
-
 setup_run_commands(Module, Cmds, Env) ->
     Module:set_up(),
     Res = proper_statem:run_commands(Module, Cmds, Env),
@@ -781,7 +772,7 @@ true_props_test_() ->
      {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 10, ?_passes(ets_statem:prop_ets())},
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
-	 {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}].
+     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
@@ -950,7 +941,7 @@ state_after_test_() ->
      || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
 cannot_generate_commands_test_() ->
-    [?_test(assert_cant_generate_cmds(proper_statem:commands(Module),6))
+    [?_test(assert_cant_generate_cmds(proper_statem:commands(Module), 6))
      || Module <- [prec_false]].
 
 can_generate_commands0_test_() ->
@@ -970,13 +961,13 @@ can_generate_commands1_test_() ->
 
 can_generate_parallel_commands0_test_() ->
     {timeout, 20,
-     [?_test(assert_can_generate(proper_statem:parallel_commands(Module),true))
+     [?_test(assert_can_generate(proper_statem:parallel_commands(Module), true))
       || Module <- [ets_counter]]}.
 
 can_generate_parallel_commands1_test_() ->
     {timeout, 20,
      [?_test(assert_can_generate(
-	       proper_statem:parallel_commands(Module, Module:initial_state()),true))
+	       proper_statem:parallel_commands(Module, Module:initial_state()), true))
       || Module <- [ets_counter]]}.
 
 run_valid_commands_test_() ->
@@ -1020,6 +1011,7 @@ can_generate_fsm_commands_test_() ->
 
 transition_target_test_() ->
     {timeout, 20, [?_test(proper:module(numbers_fsm))]}.
+
 
 %%------------------------------------------------------------------------------
 %% Helper Predicates
