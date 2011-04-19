@@ -161,23 +161,20 @@ parallel_commands(Mod) ->
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
 	{remove, fun proper_arith:list_remove/2},
-	{shrinkers, 
-	 lists:map(fun(I) ->
-			   fun(Parallel_Cmds, T, S) ->
-				   split_parallel_shrinker(I, Mod, Parallel_Cmds, T, S)
-			   end
-		   end, lists:seq(1, ?WORKERS)) ++
-	 lists:map(fun(I) ->
-	 		   fun(Parallel_Cmds, T, S) ->
-	 			   remove_parallel_shrinker(I, Mod, Parallel_Cmds, T, S)
-	 		   end
-	 	   end, lists:seq(1, ?WORKERS)) ++
+	{shrinkers,
 	 [fun(Parallel_Cmds, T, S) ->
-	 	  split_seq_shrinker(Mod, Parallel_Cmds, T, S) end,
-	  fun(Parallel_Cmds, T, S) ->
-	  	  remove_seq_shrinker(Mod, Parallel_Cmds, T, S) end,
-	  fun move_shrinker/3
-	 ]}
+		  split_parallel_shrinker(I, Mod, Parallel_Cmds, T, S)
+	  end || I <- lists:seq(1, ?WORKERS)]
+	 ++
+	     [fun(Parallel_Cmds, T, S) ->
+		      remove_parallel_shrinker(I, Mod, Parallel_Cmds, T, S)
+	      end || I <- lists:seq(1, ?WORKERS)]
+	 ++
+	     [fun(Parallel_Cmds, T, S) ->
+		      split_seq_shrinker(Mod, Parallel_Cmds, T, S) end,
+	      fun(Parallel_Cmds, T, S) ->
+		      remove_seq_shrinker(Mod, Parallel_Cmds, T, S) end,
+	      fun move_shrinker/3]}
        ]).
 
 -spec parallel_commands(mod_name(), symbolic_state()) -> proper_types:type(). 
@@ -210,7 +207,8 @@ gen_parallel_commands(Size, Mod, InitialState) ->
 -spec fix_gen(pos_integer(), non_neg_integer(), combination() | 'done', lookup(),
 	      mod_name(), symbolic_state(), [symb_var()], pos_integer()) ->
 		     [command_list()].
-fix_gen(_, 0, done, _, _, _, _, _) -> exit(error);   %% not supposed to reach here
+fix_gen(_, 0, done, _, _, _, _, _) ->
+    exit(error);   %% not supposed to reach here
 fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env, W) ->
     Comb = mk_first_comb(MaxIndex, Len-1, W),
     case Len of
@@ -230,23 +228,12 @@ fix_gen(MaxIndex, Len, Comb, LookUp, Mod, State, Env, W) ->
 	    fix_gen(MaxIndex, Len, Next, LookUp, Mod, State, Env, W)
     end.
 
--spec is_parallel([command_list()], mod_name(), symbolic_state(), [symb_var()]) -> 
-			 boolean().
+-spec is_parallel([command_list()], mod_name(), symbolic_state(),
+		  [symb_var()]) -> boolean().
 is_parallel(Cs, Mod, State, Env) ->
-    case lists:all(fun(C) -> is_valid(Mod, State, C, Env) end, Cs) of
-	true -> 
-	    can_parallelize(Cs, Mod, State, Env);	
-	false -> 
-	    false
-    end.	   
-
-%%TODO: produce possible interleavings in a lazy way
--spec can_parallelize([command_list()], mod_name(), symbolic_state(),
-		      [symb_var()]) -> boolean().
-can_parallelize(Cs, Mod, S, Env) ->
-    Val = fun (C) -> is_valid(Mod, S, C, Env) end,
-    lists:all(Val, possible_interleavings(Cs)).
-
+    %% TODO: produce possible interleavings in a lazy way
+    Cmds = Cs ++ possible_interleavings(Cs),
+    lists:all(fun(C) -> is_valid(Mod, State, C, Env) end, Cmds).
 
 %% -----------------------------------------------------------------------------
 %% Sequential command execution
@@ -325,8 +312,7 @@ do_run_command(Commands, Env, Module, History, State) ->
 -spec check_precondition(mod_name(), dynamic_state(), symb_call()) ->
 				boolean() | exception().
 check_precondition(Module, State, Call) ->
-    try Module:precondition(State, Call) of
-	Result -> Result
+    try Module:precondition(State, Call)
     catch
 	Kind:Reason ->
 	    {exception,Kind,Reason,erlang:get_stacktrace()}
@@ -335,28 +321,26 @@ check_precondition(Module, State, Call) ->
 -spec check_postcondition(mod_name(), dynamic_state(), symb_call(), term()) ->
 				 boolean() | exception().
 check_postcondition(Module, State, Call, Res) ->
-    try Module:postcondition(State, Call, Res) of
-	Result -> Result
+    try Module:postcondition(State, Call, Res)
     catch
 	Kind:Reason ->
 	    {exception,Kind,Reason,erlang:get_stacktrace()}
     end.
 
 -spec safe_apply(mod_name(), fun_name(), [term()]) ->
-			{ok,term()} | {error,exception()}.
+			{'ok', term()} | {'error', exception()}.
 safe_apply(M, F, A) ->    
     try apply(M, F, A) of
-	Result -> {ok,Result}
+	Result -> {ok, Result}
     catch
 	Kind:Reason ->
-	    {error,{exception,Kind,Reason,erlang:get_stacktrace()}}
+	    {error, {exception,Kind,Reason,erlang:get_stacktrace()}}
     end.
 
 
 %% -----------------------------------------------------------------------------
 %% Parallel command execution
 %% -----------------------------------------------------------------------------
-
 
 -spec run_parallel_commands(mod_name(), parallel_test_case()) ->
 				   {command_history(),[command_history()],statem_result()}.
@@ -433,13 +417,9 @@ check(Mod, State, OldEnv, Env, Tried, [P|Rest], Accum) ->
 		true -> 
 		    Env2 = [{N1, Res1}|Env],
 		    NextState = proper_symb:eval(Env, Mod:next_state(State, Res1, Call1)),
-		    V = check(Mod, NextState, OldEnv, Env2, [Tail|Tried], Rest, [H|Accum]),
-		    case V of
-			true ->
-			    true;
-			false ->
-			    check(Mod, State, OldEnv, Env, [P|Tried], Rest, Accum)
-		    end;
+		    check(Mod, NextState, OldEnv, Env2, [Tail|Tried], Rest, [H|Accum])
+			orelse
+			check(Mod, State, OldEnv, Env, [P|Tried], Rest, Accum);
 		false ->
 		    check(Mod, State, OldEnv, Env, [P|Tried], Rest, Accum)
 	    end
@@ -744,12 +724,12 @@ mk_first_comb_tr(Start, N, Len, Accum, W) ->
     mk_first_comb_tr(K, N, Len, [{W,lists:seq(Start, K-1)}|Accum], W-1).
 
 -spec get_commands_inner([pos_integer()], lookup()) -> command_list().
-get_commands_inner(Indexes, LookUp) ->
-    lists:map(fun(Index) -> orddict:fetch(Index, LookUp) end, Indexes).
+get_commands_inner(Indices, LookUp) ->
+    [orddict:fetch(Index, LookUp) || Index <- Indices].
 
 -spec get_commands(combination(), lookup()) -> [command_list()].
 get_commands(PropList, LookUp) ->
-    lists:map(fun({_,W}) -> get_commands_inner(W, LookUp) end, PropList).
+    [get_commands_inner(W, LookUp) || {_, W} <- PropList].
 
 -spec get_next(combination(), non_neg_integer(), pos_integer(),
 	       [pos_integer()], pos_integer(), pos_integer()) ->
