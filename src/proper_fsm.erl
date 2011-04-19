@@ -225,10 +225,9 @@ safe_weighted_union(RawFreqChoices) ->
 -spec safe_union_gen([proper_types:type(),...]) -> proper_gen:imm_instance().
 safe_union_gen(Choices) ->
     {Choice,Type} = proper_arith:rand_choose(Choices),
-    try proper_gen:generate(Type) of
-	Instance -> Instance
+    try proper_gen:generate(Type)
     catch
-	_:_ ->
+	error:_ ->
 	    safe_union_gen(proper_arith:list_remove(Choice, Choices))
     end.
 
@@ -237,10 +236,9 @@ safe_union_gen(Choices) ->
          proper_gen:imm_instance().
 safe_weighted_union_gen(FreqChoices) ->
     {Choice,Type} = proper_arith:freq_choose(FreqChoices),
-    try proper_gen:generate(Type) of
-	Instance -> Instance
+    try proper_gen:generate(Type)
     catch
-	_:_ ->
+	error:_ ->
 	    safe_weighted_union_gen(proper_arith:list_remove(Choice,
 							     FreqChoices))
     end.
