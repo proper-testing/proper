@@ -7,14 +7,14 @@
 	 terminate/3, code_change/4]).
 -compile(export_all).
 
--record(state, {floor  = 0,  %% current floor
-		people = 0,  %% people inside the elevator
-		num_floors,  %% number of floors in the building
-		limit}).     %% max number of people allowed
+-record(state, {floor  = 0 :: non_neg_integer(),  %% current floor
+		people = 0 :: non_neg_integer(),  %% people inside the elevator
+		num_floors :: non_neg_integer(),  %% number of floors in the building
+		limit      :: pos_integer()}).    %% max number of people allowed
 
--record(test_state, {people     = 0,     %% people inside the elevator
-		     num_floors = 5,     %% number of floors in the building
-		     max_people = 10}).  %% max number of people allowed
+-record(test_state, {people     = 0  :: non_neg_integer(),
+		     num_floors = 5  :: non_neg_integer(),
+		     max_people = 10 :: pos_integer()}).
 
 
 %%--------------------------------------------------------------------

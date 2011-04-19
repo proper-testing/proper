@@ -47,7 +47,7 @@ commands(Module) ->
 
 -spec commands(mod_name(), fsm_state()) -> proper_types:type().
 commands(Module, {Name,Data}) ->
-    State = #state{name=Name, data=Data, mod=Module},
+    State = #state{name = Name, data = Data, mod = Module},
     proper_statem:commands(?MODULE, State).
 
 -spec run_commands(mod_name(), command_list()) ->
@@ -58,9 +58,9 @@ run_commands(Module, Cmds) ->
 -spec run_commands(mod_name(), command_list(), proper_symb:var_values()) ->
          {history(),fsm_state(),fsm_result()}.
 run_commands(Module, [{init,Init}|Rest], Env) ->
-    Cmds = [{init, Init#state{mod=Module}}|Rest],
+    Cmds = [{init, Init#state{mod = Module}}|Rest],
     {H,S,Res} = proper_statem:run_commands(?MODULE, Cmds, Env),
-    History = [{{Name,Data},R} || {#state{name=Name, data=Data},R} <- H],
+    History = [{{Name,Data},R} || {#state{name = Name, data = Data},R} <- H],
     State = {S#state.name, S#state.data},
     {History, State, Res}.
 
@@ -78,14 +78,14 @@ initial_state() ->
     Mod = proper_types:parameter('$callback_mod'),
     S_name = Mod:initial_state(),
     S_data = Mod:initial_state_data(),
-    #state{name=S_name, data=S_data, mod=Mod}.
+    #state{name = S_name, data = S_data, mod = Mod}.
 
 -spec command(state()) -> proper_types:type().
-command(#state{name=From, data=Data, mod=Mod}) ->
+command(#state{name = From, data = Data, mod = Mod}) ->
     choose_transition(Mod, From, get_transitions(Mod, From, Data)).
 
 -spec precondition(state(), symb_call()) -> boolean().
-precondition(#state{name=From, data=Data, mod=Mod}, Call) ->
+precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
     Targets = target_states(Mod, From, Data, Call),
     case [To || To <- Targets,
 		Mod:precondition(From, cook_history(From, To), Data, Call)] of
@@ -94,12 +94,13 @@ precondition(#state{name=From, data=Data, mod=Mod}, Call) ->
     end.
 
 -spec next_state(state(), symb_var() | result(), symb_call()) -> state().
-next_state(S = #state{name=From, data=Data, mod=Mod} , Var, Call) ->
+next_state(S = #state{name = From, data = Data, mod = Mod} , Var, Call) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
-    S#state{name=To, data=Mod:next_state_data(From, To, Data, Var, Call)}.
+    S#state{name = To,
+	    data = Mod:next_state_data(From, To, Data, Var, Call)}.
 
 -spec postcondition(state(), symb_call(), result()) -> boolean().
-postcondition(#state{name=From, data=Data, mod=Mod}, Call, Res) ->
+postcondition(#state{name = From, data = Data, mod = Mod}, Call, Res) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     Mod:postcondition(From, To, Data, Call, Res).
 

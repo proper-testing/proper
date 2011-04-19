@@ -1011,7 +1011,7 @@ can_generate_fsm_commands_test_() ->
      || Module <- [pdict_fsm, numbers_fsm]].
 
 transition_target_test_() ->
-    {timeout, 20, [?_test(proper:module(numbers_fsm))]}.
+    {timeout, 20, [?_assertEqual([], proper:module(numbers_fsm))]}.
 
 
 %%------------------------------------------------------------------------------

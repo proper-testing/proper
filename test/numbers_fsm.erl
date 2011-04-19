@@ -5,6 +5,7 @@
 
 -define(STATES, [zero, one, two, three, four]).
 -define(KEYS, [a,b,c,d,e,f]).
+-define(LOOKUP, [{zero,0}, {one,1}, {two,2}, {three,3}, {four,4}]).
 
 
 %%% Fsm callbacks
@@ -96,18 +97,6 @@ action() ->
 call() ->
     {call,?MODULE,action(),[]}.
 
-state_to_int(zero) -> 0;
-state_to_int(one) -> 1;
-state_to_int(two) -> 2;
-state_to_int(three) -> 3;
-state_to_int(four) -> 4.
-
-int_to_state(0) -> zero;
-int_to_state(1) -> one;
-int_to_state(2) -> two;
-int_to_state(3) -> three;
-int_to_state(4) -> four.
-
 mod(X, Y) when X > 0 -> X rem Y;
 mod(X, Y) when X < 0 -> Y + X rem Y;
 mod(0, _Y) -> 0.
@@ -127,19 +116,19 @@ delete(_) -> ok.
 prop_target_states_atom() ->
     ?FORALL([From,Call], [elements(?STATES),call()],
 	    begin
-		Res = proper_fsm:target_states(?MODULE, From, dummy, Call),
+		Res = proper_fsm:target_states(?MODULE, From, [], Call),
 		{call,_,Action,[]} = Call,
 		Target = case Action of
 			     idle ->
 				 [history];
 			     inc ->
-				 Sum = mod_add(state_to_int(From), 1),
-				 [int_to_state(Sum)];
+				 Sum = mod_add(proplists:get_value(From, ?LOOKUP), 1),
+				 [element(1, lists:keyfind(Sum, 2, ?LOOKUP))];
 			     dec ->
-				 Diff = mod_sub(state_to_int(From), 1),
-				 [int_to_state(Diff)];
+				 Diff = mod_sub(proplists:get_value(From, ?LOOKUP), 1),
+				 [element(1, lists:keyfind(Diff, 2, ?LOOKUP))];
 			     foo ->
-				 '$no_target'
+				 []
 			 end,
 		collect({From,Action}, Target =:= Res)
 	    end).
@@ -160,7 +149,7 @@ prop_target_states_tuple() ->
 				 Diff = mod_sub(N, 1),
 				 [{num,Diff,dummy,dummy}];
 			     foo ->
-				 '$no_target'
+				 []
 			 end,
 		collect({From,Action}, Target =:= Res)
 	    end).
