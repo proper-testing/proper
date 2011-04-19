@@ -3,7 +3,7 @@
 
 -include_lib("proper/include/proper.hrl").
 
--record(state, {step = 0}).
+-record(state, {step = 0 :: non_neg_integer()}).
 
 initial_state() ->
     #state{}.
@@ -12,11 +12,11 @@ command(_S) ->
     oneof([{call,?MODULE,foo,[]},
 	   {call,?MODULE,bar,[]}]).
 
-precondition(#state{step=Step}, _) ->
+precondition(#state{step = Step}, _) ->
     Step < 5.
 
-next_state(#state{step=Step}, _, _) ->
-    #state{step=Step+1}.
+next_state(#state{step = Step}, _, _) ->
+    #state{step = Step + 1}.
 
 postcondition(_, _, _) ->
     true.

@@ -16,9 +16,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% File           : pdict_statem.erl
-%%% Original author: Kresten Krab Thorup (krab@trifork.com)
-%%% Description    : Simple statem test for the process dictionary
+%%% File            : pdict_statem.erl
+%%% Original author : Kresten Krab Thorup (krab@trifork.com)
+%%% Description     : Simple statem test for the process dictionary
 
 -module(pdict_statem).
 -export([test/0, test/1]).
@@ -59,8 +59,7 @@ key() ->
     elements(?KEYS).
 
 initial_state() ->
-    lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
-		 erlang:get()).
+    [KV || {Key, _} = KV <- erlang:get(), lists:member(Key, ?KEYS)].
 
 command([]) ->
     {call,erlang,put,[key(), integer()]};
