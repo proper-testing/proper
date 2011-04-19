@@ -74,7 +74,7 @@ table_type() ->
 
 initial_state() ->
     Type = parameter(table_type),
-    #state{type=Type}.
+    #state{type = Type}.
 
 command(S) ->
     oneof([{call,ets,delete_object,[?TAB, object(S)]} || S#state.stored =/= []] ++
@@ -84,7 +84,7 @@ command(S) ->
 	   {call,ets,lookup,[?TAB,key()]}] ++
 	  [{call,ets,update_counter,[?TAB,key(S),small_int()]}
 	   || S#state.stored =/= [],
-	      S#state.type == set orelse  S#state.type == ordered_set]).
+	      S#state.type =:= set orelse S#state.type =:= ordered_set]).
 
 precondition(S, {call,_,update_counter,[?TAB,Key,_Incr]}) ->
     Object = case S#state.type of
@@ -108,7 +108,7 @@ next_state(S, _V, {call,_,update_counter,[?TAB,Key,Incr]}) ->
 	    Object = lists:keyfind(Key, 1, S#state.stored),
 	    Value = element(2, Object),
 	    NewObj = setelement(2, Object, Value + Incr),
-	    S#state{stored=lists:keyreplace(Key, 1, S#state.stored, NewObj)}
+	    S#state{stored = lists:keyreplace(Key, 1, S#state.stored, NewObj)}
     end;
 next_state(S, _V, {call,_,insert,[?TAB,Object]}) ->
     case S#state.type of
@@ -116,42 +116,42 @@ next_state(S, _V, {call,_,insert,[?TAB,Object]}) ->
 	    Key = element(1, Object),
 	    case proplists:is_defined(Key, S#state.stored) of
 		false ->
-		    S#state{stored=[Object|S#state.stored]};
+		    S#state{stored = [Object|S#state.stored]};
 		true ->
-		    S#state{stored=keyreplace(Key, 1, S#state.stored, Object)}
+		    S#state{stored = keyreplace(Key, 1, S#state.stored, Object)}
 	    end;
 	ordered_set ->
 	    Key = element(1, Object),
 	    case lists:keymember(Key, 1, S#state.stored) of
 		false ->
-		    S#state{stored=[Object|S#state.stored]};
+		    S#state{stored = [Object|S#state.stored]};
 		true ->
-		    S#state{stored=lists:keyreplace(Key, 1, S#state.stored, Object)}
+		    S#state{stored = lists:keyreplace(Key, 1, S#state.stored, Object)}
 	    end; 
 	bag ->
 	    case lists:member(Object, S#state.stored) of
 		false ->
-		    S#state{stored=[Object|S#state.stored]};
+		    S#state{stored = [Object|S#state.stored]};
 		true ->
 		    S
 	    end;
 	duplicate_bag ->
-	    S#state{stored=[Object|S#state.stored]}
+	    S#state{stored = [Object|S#state.stored]}
     end;
 next_state(S, _V, {call,_,insert_new,[?TAB,Object]}) ->
     Key = element(1, Object),
-    case S#state.type of   
+    case S#state.type of
 	ordered_set ->
 	    case lists:keymember(Key, 1, S#state.stored) of
 		false ->
-		    S#state{stored=[Object|S#state.stored]};
+		    S#state{stored = [Object|S#state.stored]};
 		true ->
 		    S
 	    end;
   	_ ->
 	    case proplists:is_defined(Key, S#state.stored) of
 		false ->
-		    S#state{stored=[Object|S#state.stored]};
+		    S#state{stored = [Object|S#state.stored]};
 		true ->
 		    S
 	    end
@@ -159,16 +159,16 @@ next_state(S, _V, {call,_,insert_new,[?TAB,Object]}) ->
 next_state(S, _V, {call,_,delete_object,[?TAB,Object]}) ->
     case S#state.type of
 	duplicate_bag ->
-	    S#state{stored=delete_all(Object, S#state.stored)};
+	    S#state{stored = delete_all(Object, S#state.stored)};
 	_ ->
-	    S#state{stored=lists:delete(Object, S#state.stored)}
+	    S#state{stored = lists:delete(Object, S#state.stored)}
     end;
 next_state(S, _V, {call,_,delete,[?TAB,Key]}) ->
     case S#state.type of
 	ordered_set ->
-	    S#state{stored=lists:keydelete(Key, 1, S#state.stored)};
+	    S#state{stored = lists:keydelete(Key, 1, S#state.stored)};
 	_ ->
-	    S#state{stored=proplists:delete(Key, S#state.stored)}
+	    S#state{stored = proplists:delete(Key, S#state.stored)}
     end;
 next_state(S, _V, {call,_,_,_}) -> S.
 
@@ -268,22 +268,23 @@ clean_up() -> ok.
 keyreplace(Key, Pos, List, NewTuple) ->
     keyreplace(Key, Pos, List, NewTuple, []).
 
-keyreplace(_Key, _Pos, [], _NewTuple, Accum) -> lists:reverse(Accum);
-keyreplace(Key, Pos, [Tuple|Rest], NewTuple, Accum) ->
+keyreplace(_Key, _Pos, [], _NewTuple, Acc) ->
+    lists:reverse(Acc);
+keyreplace(Key, Pos, [Tuple|Rest], NewTuple, Acc) ->
     case element(Pos, Tuple) =:= Key of
 	true ->
-	    lists:reverse(Accum) ++ [NewTuple] ++ Rest;
-	false->
-	    keyreplace(Key, Pos, Rest, NewTuple, [Tuple|Accum])
+	    lists:reverse(Acc) ++ [NewTuple|Rest];
+	false ->
+	    keyreplace(Key, Pos, Rest, NewTuple, [Tuple|Acc])
     end.
 
 delete_all(X, List) ->
     delete_all(X, List, []).
 
-delete_all(_X, [], Accum) ->
-    lists:reverse(Accum);
-delete_all(X, [H|T], Accum) ->
+delete_all(_X, [], Acc) ->
+    lists:reverse(Acc);
+delete_all(X, [H|T], Acc) ->
     case X =:= H of
-	true -> delete_all(X, T, Accum);
-	false -> delete_all(X, T, [H|Accum])
+	true -> delete_all(X, T, Acc);
+	false -> delete_all(X, T, [H|Acc])
     end.

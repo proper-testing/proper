@@ -42,7 +42,7 @@ prop_simple() ->
 		{H,S,Res} = run_commands(?MODULE, Cmds),
 		?WHENFAIL(
 		   io:format("H: ~w\nState: ~w\n:Res: ~w\n", [H,S,Res]),
-		   Res == ok)
+		   Res =:= ok)
 	    end).
 
 prop_parallel_simple() ->
@@ -51,5 +51,5 @@ prop_parallel_simple() ->
 		{S,P,Res} = run_parallel_commands(?MODULE, Cmds),
 		?WHENFAIL(
 		   io:format("Seq: ~w\nParallel: ~w\n:Res: ~w\n", [S,P,Res]),
-		   Res == ok)
+		   Res =:= ok)
 	    end).

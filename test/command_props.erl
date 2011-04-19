@@ -41,7 +41,7 @@ prop_insert_all() ->
 	   AllIns = proper_statem:insert_all(L1,L2), 
 	   ?WHENFAIL(io:format("~nList: ~w, L1: ~w, L2: ~w~nAllIns: ~w~n",
 			       [List,L1,L2,AllIns]), 
-		     lists:all( fun(L) -> 
+		     lists:all(fun(L) -> 
 					length(L)=:=Len andalso no_duplicates(L)
 			                andalso lists:subtract(L,L2) =:= L1
 				end, AllIns))
