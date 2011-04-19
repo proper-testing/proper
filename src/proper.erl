@@ -72,8 +72,7 @@
 -type tag() :: atom().
 -type title() :: atom() | string().
 -type stats_printer() :: fun((sample()) -> 'ok')
-		       | fun((sample(),pos_integer()) -> 'ok')
-		       | fun((sample(),pos_integer(),output_fun()) -> 'ok').
+		       | fun((sample(),output_fun()) -> 'ok').
 -type numeric_stat() :: number() | 'undefined'.
 -type numeric_stats() :: {numeric_stat(),numeric_stat(),numeric_stat()}.
 -type time_period() :: non_neg_integer().
@@ -703,8 +702,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
 	    Print(".", []),
-	    NoDupSamples = [lists:usort(S) || S <- MoreSamples],
-	    NewSamples = add_samples(NoDupSamples, Samples),
+	    NewSamples = add_samples(MoreSamples, Samples),
 	    NewPrinters = case Printers of
 			      none -> MorePrinters;
 			      _    -> Printers
@@ -1224,7 +1222,7 @@ report_imm_result(#pass{samples = Samples, printers = Printers,
 	false -> Print("OK: Passed ~b test(s).~n", [Performed])
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
-    lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Performed, Print) end,
+    lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Print) end,
 		  proper_arith:safe_zip(Printers, SortedSamples)),
     ok;
 report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
@@ -1358,25 +1356,24 @@ report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
 %% Stats printing functions
 %%-----------------------------------------------------------------------------
 
--spec apply_stats_printer(stats_printer(), sample(), pos_integer(),
-			  output_fun()) -> 'ok'.
-apply_stats_printer(Printer, SortedSample, Passed, Print) ->
+-spec apply_stats_printer(stats_printer(), sample(), output_fun()) -> 'ok'.
+apply_stats_printer(Printer, SortedSample, Print) ->
     {arity,Arity} = erlang:fun_info(Printer, arity),
     case Arity of
 	1 -> Printer(SortedSample);
-	2 -> Printer(SortedSample, Passed);
-	3 -> Printer(SortedSample, Passed, Print)
+	2 -> Printer(SortedSample, Print)
     end.
 
 -spec with_title(title()) -> stats_printer().
 with_title(Title) ->
-    fun(S,P,O) -> plain_stats_printer(S, P, O, Title) end.
+    fun(S,O) -> plain_stats_printer(S, O, Title) end.
 
--spec plain_stats_printer(sample(),pos_integer(),output_fun(),title()) -> 'ok'.
-plain_stats_printer(SortedSample, Passed, Print, Title) ->
+-spec plain_stats_printer(sample(), output_fun(), title()) -> 'ok'.
+plain_stats_printer(SortedSample, Print, Title) ->
     print_title(Title, Print),
+    Total = length(SortedSample),
     FreqSample = process_sorted_sample(SortedSample),
-    lists:foreach(fun({X,F}) -> Print("~b\% ~w~n", [100 * F div Passed,X]) end,
+    lists:foreach(fun({X,F}) -> Print("~b\% ~w~n", [100 * F div Total,X]) end,
 		  FreqSample).
 
 -spec print_title(title(), output_fun()) -> 'ok'.
@@ -1411,10 +1408,10 @@ remove_all(_X, Freq, Sample) ->
 
 -spec numeric_with_title(title()) -> stats_printer().
 numeric_with_title(Title) ->
-    fun(S,P,O) -> num_stats_printer(S, P, O, Title) end.
+    fun(S,O) -> num_stats_printer(S, O, Title) end.
 
--spec num_stats_printer([number()],pos_integer(),output_fun(),title()) -> 'ok'.
-num_stats_printer(SortedSample, _Passed, Print, Title) ->
+-spec num_stats_printer([number()], output_fun(), title()) -> 'ok'.
+num_stats_printer(SortedSample, Print, Title) ->
     print_title(Title, Print),
     {Min,Avg,Max} = get_numeric_stats(SortedSample),
     Print("minimum: ~w~naverage: ~w~nmaximum: ~w~n", [Min,Avg,Max]).
