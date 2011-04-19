@@ -33,8 +33,7 @@
 	 bitstring_gen/1, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
 	 distlist_gen/3, vector_gen/2, union_gen/1, weighted_union_gen/1,
 	 tuple_gen/1, loose_tuple_gen/2, loose_tuple_rev/2, exactly_gen/1,
-	 fixed_list_gen/1, function_gen/2, any_gen/1, native_type_gen/2,
-	 safe_union_gen/1, safe_weighted_union_gen/1]).
+	 fixed_list_gen/1, function_gen/2, any_gen/1, native_type_gen/2]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
@@ -459,35 +458,11 @@ union_gen(Choices) ->
     generate(Type).
 
 %% @private
--spec safe_union_gen([proper_types:type(),...]) -> imm_instance().
-safe_union_gen(Choices) ->
-    {Choice,Type} = proper_arith:rand_choose(Choices),
-    try generate(Type) of
-	Instance -> Instance
-    catch
-	_:_ ->
-	    safe_union_gen(proper_arith:list_remove(Choice, Choices))
-    end.
-
-%% @private
 -spec weighted_union_gen([{frequency(),proper_types:type()},...]) ->
-				imm_instance().
+	  imm_instance().
 weighted_union_gen(FreqChoices) ->
     {_Choice,Type} = proper_arith:freq_choose(FreqChoices),
     generate(Type).
-
-%% @private
--spec safe_weighted_union_gen([{frequency(),proper_types:type()},...]) ->
-				     imm_instance().
-safe_weighted_union_gen(FreqChoices) ->
-    {Choice,Type} = proper_arith:freq_choose(FreqChoices),
-    try generate(Type) of
-	Instance -> Instance
-    catch
-	_:_ ->
-	    safe_weighted_union_gen(proper_arith:list_remove(Choice,
-							     FreqChoices))
-    end.
 
 %% @private
 -spec tuple_gen([proper_types:type()]) -> tuple().
