@@ -51,14 +51,14 @@ commands(Module, {Name,Data}) ->
     proper_statem:commands(?MODULE, State).
 
 -spec run_commands(mod_name(), command_list()) ->
-			  {history(),fsm_state(),fsm_result()}.
+         {history(),fsm_state(),fsm_result()}.
 run_commands(Module, Cmds) ->
     run_commands(Module, Cmds, []).
 
 -spec run_commands(mod_name(), command_list(), proper_symb:var_values()) ->
          {history(),fsm_state(),fsm_result()}.
 run_commands(Module, [{init,Init}|Rest], Env) ->
-    Cmds = [{init,Init#state{mod = Module}}|Rest],
+    Cmds = [{init, Init#state{mod=Module}}|Rest],
     {H,S,Res} = proper_statem:run_commands(?MODULE, Cmds, Env),
     History = [{{Name,Data},R} || {#state{name=Name, data=Data},R} <- H],
     State = {S#state.name, S#state.data},
@@ -81,41 +81,25 @@ initial_state() ->
     #state{name=S_name, data=S_data, mod=Mod}.
 
 -spec command(state()) -> proper_types:type().
-command(S) ->
-    Mod = S#state.mod,
-    Data = S#state.data,
-    From = S#state.name,
+command(#state{name=From, data=Data, mod=Mod}) ->
     choose_transition(Mod, From, get_transitions(Mod, From, Data)).
 
 -spec precondition(state(), symb_call()) -> boolean().
-precondition(S, Call) ->
-    Mod = S#state.mod,
-    From = S#state.name,
-    Data = S#state.data,
-    case target_states(Mod, From, Data, Call) of
-	Targets when is_list(Targets) ->
-	    case [To || To <- Targets,
-			Mod:precondition(From, cook_history(From, To),
-					 Data, Call)] of
-		[]   -> false;
-		[_T] -> true
-	    end;
-	'$no_target' -> false
+precondition(#state{name=From, data=Data, mod=Mod}, Call) ->
+    Targets = target_states(Mod, From, Data, Call),
+    case [To || To <- Targets,
+		Mod:precondition(From, cook_history(From, To), Data, Call)] of
+	[]   -> false;
+	[_T] -> true
     end.
 
 -spec next_state(state(), symb_var() | result(), symb_call()) -> state().
-next_state(S, Var, Call) ->
-    Mod = S#state.mod,
-    From = S#state.name,
-    Data = S#state.data,
+next_state(S = #state{name=From, data=Data, mod=Mod} , Var, Call) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     S#state{name=To, data=Mod:next_state_data(From, To, Data, Var, Call)}.
 
 -spec postcondition(state(), symb_call(), result()) -> boolean().
-postcondition(S, Call, Res) ->
-    Mod = S#state.mod,
-    From = S#state.name,
-    Data = S#state.data,
+postcondition(#state{name=From, data=Data, mod=Mod}, Call, Res) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     Mod:postcondition(From, To, Data, Call, Res).
 
@@ -174,13 +158,12 @@ transition_target(Mod, From, Data, Call) ->
 	     Mod:precondition(From, cook_history(From, T), Data, Call)]).
 
 -spec target_states(mod_name(), state_name(), state_data(), symb_call()) ->
-         [state_name()] | '$no_target'.
+         [state_name()].
 target_states(Module, From, StateData, Call) ->
     find_target(get_transitions(Module, From, StateData), Call, []).
 
 -spec find_target([transition_gen()], symb_call(), [transition_gen()]) ->
-         [state_name()] | '$no_target'.
-find_target([], _, []) -> '$no_target';
+         [state_name()].
 find_target([], _, Accum) -> Accum;
 find_target(Transitions, Call, Accum) ->
     [{Target,CallGen}|Rest] = Transitions,
@@ -191,8 +174,8 @@ find_target(Transitions, Call, Accum) ->
 
 -spec is_compatible(symb_call(), symb_call_gen()) -> boolean().
 is_compatible({call,M,F,A1}, {call,M,F,A2})
-  when is_list(A1), is_list(A2) ->
-    length(A1) =:= length(A2);
+  when length(A1) =:= length(A2) ->
+    true;
 is_compatible(_, _) ->
     false.
 
