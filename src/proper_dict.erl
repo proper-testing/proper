@@ -20,6 +20,7 @@
 %%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc Parametric wrapper to dict module.
+%%% @private
 
 -module(proper_dict).
 

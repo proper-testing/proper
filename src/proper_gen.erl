@@ -38,13 +38,6 @@
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
 	      alt_gens/0]).
-%% @private_type sized_generator
-%% @private_type nosize_generator
-%% @private_type generator
-%% @private_type straight_gen
-%% @private_type reverse_gen
-%% @private_type combine_fun
-%% @private_type alt_gens
 
 -include("proper_internal.hrl").
 -compile({parse_transform, vararg}).
@@ -93,6 +86,7 @@ safe_generate(RawType) ->
 	throw:'$prec_false'             -> {error, prec_false}
     end.
 
+%% @private
 -spec generate(proper_types:raw_type()) -> imm_instance().
 generate(RawType) ->
     Type = proper_types:cook_outer(RawType),
@@ -558,6 +552,7 @@ create_fun(Arity, RetType, FunSeed) ->
     Err = fun() -> throw('$arity_limit') end,
     'MAKE_FUN'(Arity, Handler, Err).
 
+%% @private
 -spec get_ret_type(function()) -> proper_types:type().
 get_ret_type(Fun) ->
     {arity,Arity} = erlang:fun_info(Fun, arity),

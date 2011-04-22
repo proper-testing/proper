@@ -20,6 +20,7 @@
 %%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
 %%% @version {@version}
 %%% @doc Parametric wrapper to array module.
+%%% @private
 
 -module(proper_array).
 

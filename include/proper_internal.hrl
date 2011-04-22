@@ -54,6 +54,7 @@
 %% Common type aliases
 %%------------------------------------------------------------------------------
 
+%% TODO: Perhaps these should be moved inside modules.
 -type mod_name() :: atom().
 -type fun_name() :: atom().
 -type size() :: non_neg_integer().

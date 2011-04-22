@@ -42,6 +42,7 @@
 %%	{attribute,LINE,callback,_}
 -define(ATTRS_TO_STRIP, [export_type,type,opaque,spec,callback]).
 
+%% @private
 parse_transform(Forms, _Options) ->
     strip_types(Forms, []).
 
