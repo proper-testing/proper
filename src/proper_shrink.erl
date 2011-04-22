@@ -1,5 +1,6 @@
-%%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
-%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
+%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,9 +17,11 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
+%%% @copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%%                      Eirini Arvaniti <eirinibob@gmail.com>
+%%%                  and Kostis Sagonas <kostis@cs.ntua.gr>
 %%% @version {@version}
+%%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @doc The shrinking subsystem and all predefined shrinkers are contained in
 %%%	 this module.
 %%% @private
@@ -103,7 +106,7 @@ get_shrinkers(Type) ->
 			end;
 		    container ->
 			[fun split_shrinker/3, fun remove_shrinker/3,
-			 fun elements_shrinker/3];	    
+			 fun elements_shrinker/3];
 		    _Other ->
 			[]
 		end,
