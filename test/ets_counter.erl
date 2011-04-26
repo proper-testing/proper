@@ -32,7 +32,7 @@
 ets_inc(Key, Inc) ->
     case ets:lookup(counter, Key) of
 	[] ->
-	    timer:sleep(1),
+	    erlang:yield(),
 	    ets:insert(counter, {Key,Inc}),
 	    Inc;
 	[{Key,OldValue}] ->

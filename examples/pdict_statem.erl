@@ -60,9 +60,7 @@ clean_up() ->
 key() ->
     elements(?KEYS).
 
-initial_state() ->
-    lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
-		 erlang:get()).
+initial_state() -> [].
 
 command([]) ->
     {call,erlang,put,[key(), integer()]};
