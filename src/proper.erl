@@ -1,5 +1,6 @@
-%%% Copyright 2010 Manolis Papadakis (manopapad@gmail.com)
-%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
+%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,9 +17,11 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010 Manolis Papadakis and Kostis Sagonas
+%%% @copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%%                      Eirini Arvaniti <eirinibob@gmail.com>
+%%%                  and Kostis Sagonas <kostis@cs.ntua.gr>
 %%% @version {@version}
+%%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @doc This is the main PropEr module.
 
 -module(proper).
@@ -77,11 +80,15 @@
 -type numeric_stats() :: {numeric_stat(),numeric_stat(),numeric_stat()}.
 -type time_period() :: non_neg_integer().
 
--type outer_test() :: test() %% TODO: This should be opaque.
+%% TODO: This should be opaque.
+%% @type outer_test()
+-type outer_test() :: test()
 		    | numtests_clause()
 		    | fails_clause()
 		    | on_output_clause().
--type test() :: boolean() %% TODO: This should be opaque.
+%% TODO: This should be opaque.
+%% @type test()
+-type test() :: boolean()
 	      | forall_clause()
 	      | conjunction_clause()
 	      | implies_clause()
@@ -490,14 +497,18 @@ peel_test(Test, Opts) ->
 %%-----------------------------------------------------------------------------
 
 %% TODO: All of these should have a test() or outer_test() return type.
+
+%% @spec numtests(pos_integer(), outer_test()) -> outer_test()
 -spec numtests(pos_integer(), outer_test()) -> numtests_clause().
 numtests(N, Test) ->
     {numtests, N, Test}.
 
+%% @spec fails(outer_test()) -> outer_test()
 -spec fails(outer_test()) -> fails_clause().
 fails(Test) ->
     {fails, Test}.
 
+%% @spec on_output(output_fun(), outer_test()) -> outer_test()
 -spec on_output(output_fun(), outer_test()) -> on_output_clause().
 on_output(Print, Test) ->
     {on_output, Print, Test}.
@@ -507,6 +518,7 @@ on_output(Print, Test) ->
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
 
+%% @spec conjunction([{tag(),test()}]) -> test()
 -spec conjunction([{tag(),test()}]) -> conjunction_clause().
 conjunction(SubProps) ->
     {conjunction, SubProps}.
@@ -516,22 +528,27 @@ conjunction(SubProps) ->
 implies(Pre, DTest) ->
     {implies, Pre, DTest}.
 
+%% @spec collect(term(), test()) -> test()
 -spec collect(term(), test()) -> sample_clause().
 collect(Term, Test) ->
     collect(with_title(""), Term, Test).
 
+%% @spec collect(stats_printer(), term(), test()) -> test()
 -spec collect(stats_printer(), term(), test()) -> sample_clause().
 collect(Printer, Term, Test) ->
     aggregate(Printer, [Term], Test).
 
+%% @spec aggregate(sample(), test()) -> test()
 -spec aggregate(sample(), test()) -> sample_clause().
 aggregate(Sample, Test) ->
     aggregate(with_title(""), Sample, Test).
 
+%% @spec aggregate(stats_printer(), sample(), test()) -> test()
 -spec aggregate(stats_printer(), sample(), test()) -> sample_clause().
 aggregate(Printer, Sample, Test) ->
     {sample, Sample, Printer, Test}.
 
+%% @spec classify(boolean(), term() | sample(), test()) -> test()
 -spec classify(boolean(), term() | sample(), test()) -> sample_clause().
 classify(false, _TermOrSample, Test) ->
     aggregate([], Test);
@@ -540,6 +557,7 @@ classify(true, Sample, Test) when is_list(Sample) ->
 classify(true, Term, Test) ->
     collect(Term, Test).
 
+%% @spec measure(title(), number() | [number()], test()) -> test()
 -spec measure(title(), number() | [number()], test()) -> sample_clause().
 measure(Title, Sample, Test) when is_number(Sample) ->
     measure(Title, [Sample], Test);
@@ -561,6 +579,7 @@ trapexit(DTest) ->
 timeout(Limit, DTest) ->
     {timeout, Limit, DTest}.
 
+%% @spec equals(term(), term()) -> test()
 -spec equals(term(), term()) -> whenfail_clause().
 equals(A, B) ->
     ?WHENFAIL(io:format("~w =/= ~w~n",[A,B]), A =:= B).

@@ -1,5 +1,6 @@
-%%% Copyright 2010-2011 Manolis Papadakis (manopapad@gmail.com)
-%%%                 and Kostis Sagonas (kostis@cs.ntua.gr)
+%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,11 +17,13 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @author Manolis Papadakis <manopapad@gmail.com>
-%%% @copyright 2010-2011 Manolis Papadakis and Kostis Sagonas
+%%% @copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%%                      Eirini Arvaniti <eirinibob@gmail.com>
+%%%                  and Kostis Sagonas <kostis@cs.ntua.gr>
 %%% @version {@version}
-%%% @doc This modules contains the Unit tests. You need the EUnit application
-%%%	 to compile it.
+%%% @author Manolis Papadakis <manopapad@gmail.com>
+%%% @doc This modules contains PropEr's Unit tests. You need the EUnit
+%%%      application to compile it.
 
 -module(proper_tests).
 

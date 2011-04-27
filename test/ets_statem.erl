@@ -1,5 +1,6 @@
-%%% Copyright 2011 Eirini Arvaniti (eirinibob@gmail.com)
-%%%            and Kostis Sagonas (kostis@cs.ntua.gr)
+%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -16,8 +17,12 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% File           : ets_statem.erl
-%%% Description    : Simple statem test for ets tables
+%%% @copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%%                      Eirini Arvaniti <eirinibob@gmail.com>
+%%%                  and Kostis Sagonas <kostis@cs.ntua.gr>
+%%% @version {@version}
+%%% @author Eirini Arvaniti <eirinibob@gmail.com>
+%%% @doc Simple statem test for ets tables
 
 -module(ets_statem).
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
@@ -127,7 +132,7 @@ next_state(S, _V, {call,_,insert,[?TAB,Object]}) ->
 		    S#state{stored = [Object|S#state.stored]};
 		true ->
 		    S#state{stored = lists:keyreplace(Key, 1, S#state.stored, Object)}
-	    end; 
+	    end;
 	bag ->
 	    case lists:member(Object, S#state.stored) of
 		false ->
@@ -174,7 +179,7 @@ next_state(S, _V, {call,_,_,_}) -> S.
 
 postcondition(S, {call,_,update_counter,[?TAB,Key,Incr]}, Res) ->
     Object = case S#state.type of
-		 set -> 
+		 set ->
 		     proplists:lookup(Key, S#state.stored);
 		 ordered_set ->
 		     lists:keyfind(Key, 1, S#state.stored)
@@ -188,7 +193,7 @@ postcondition(_S, {call,_,delete,[?TAB,_Key]}, Res) ->
 postcondition(_S, {call,_,insert,[?TAB,_Object]}, Res) ->
     Res =:= true;
 postcondition(S, {call,_,insert_new,[?TAB,Object]}, Res) ->
-    Key = element(1, Object),   
+    Key = element(1, Object),
     case S#state.type of
 	ordered_set ->
 	    Res =:= not lists:keymember(Key, 1, S#state.stored);
@@ -200,9 +205,9 @@ postcondition(S, {call,_,lookup,[?TAB,Key]}, []) ->
 	ordered_set ->
 	    not lists:keymember(Key, 1, S#state.stored);
 	_ ->
-	    not proplists:is_defined(Key, S#state.stored)   
+	    not proplists:is_defined(Key, S#state.stored)
     end;
-postcondition(S, {call,_,lookup,[?TAB,Key]}, Res) -> 
+postcondition(S, {call,_,lookup,[?TAB,Key]}, Res) ->
     case S#state.type of
 	set ->
 	    Res =:= proplists:lookup_all(Key, S#state.stored);
