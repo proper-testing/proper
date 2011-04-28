@@ -52,7 +52,7 @@
 -type symb_call_gen()  :: {'call',mod_name(),fun_name(),[proper_types:type()]}.
 -type transition_gen() :: {state_name(),symb_call_gen()}.
 -type result()         :: term().
--type command()        :: {'init',fsm_state()}
+-type command()        :: {'init',state()}
 		          | {'set',symb_var(),symb_call()}.
 -type command_list()   :: [command()].
 -type history()        :: [{fsm_state(),result()}].
