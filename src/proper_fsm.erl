@@ -190,7 +190,7 @@ transition_target(Mod, From, Data, Call) ->
 target_states(Module, From, StateData, Call) ->
     find_target(get_transitions(Module, From, StateData), Call, []).
 
--spec find_target([transition_gen()], symb_call(), [transition_gen()]) ->
+-spec find_target([transition_gen()], symb_call(), [state_name()]) ->
          [state_name()].
 find_target([], _, Accum) -> Accum;
 find_target(Transitions, Call, Accum) ->
