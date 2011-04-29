@@ -220,4 +220,4 @@ max_people() ->
     noshrink(integer(5, 20)).
 
 num_floors() ->
-    noshrink(integer(5, 10)).
+    noshrink(integer(1, 4)).

@@ -29,10 +29,9 @@
 -export([commands/1, commands/2]).
 -export([run_commands/2, run_commands/3]).
 -export([state_names/1]).
--export([initial_state/0, command/1, precondition/2, next_state/3,
-	 postcondition/3]).
 
-%% @private
+-export([initial_state/1, command/1, precondition/2, next_state/3,
+	 postcondition/3]).
 -export([target_states/4]).
 
 -include("proper_internal.hrl").
@@ -46,16 +45,20 @@
 -type symb_call()  :: proper_statem:symb_call().
 -type fsm_result() :: proper_statem:statem_result().
 
--type state_name()     :: atom() | tuple().
--type state_data()     :: term().
--type fsm_state()      :: {state_name(),state_data()}.
--type symb_call_gen()  :: {'call',mod_name(),fun_name(),[proper_types:type()]}.
--type transition_gen() :: {state_name(),symb_call_gen()}.
--type result()         :: term().
--type command()        :: {'init',state()}
-		          | {'set',symb_var(),symb_call()}.
--type command_list()   :: [command()].
--type history()        :: [{fsm_state(),result()}].
+-type state_name()       :: atom() | tuple().
+-type state_data()       :: term().
+-type fsm_state()        :: {state_name(),state_data()}.
+-type symb_call_gen()    :: {'call',mod_name(),fun_name(),
+			     [proper_types:type()]}.
+-type transition_gen()   :: {state_name(),symb_call_gen()}.
+-type result()           :: term().
+-type command()          ::   {'init',fsm_state()}
+		            | {'set',symb_var(),symb_call()}.
+-type command_list()     :: [command()].
+-type history()          :: [{fsm_state(),result()}].
+
+-type tmp_command()      ::   {'init',state()}
+		            | {'set',symb_var(),symb_call()}.
 
 -record(state, {name :: state_name(),
 		data :: state_data(),
@@ -69,13 +72,16 @@
 
 -spec commands(mod_name()) -> proper_types:type().
 commands(Module) ->
-    proper_types:with_parameter('$callback_mod', Module,
-				proper_statem:commands(?MODULE)).
+    ?LET([_|Cmds],
+	 proper_statem:commands(?MODULE, initial_state(Module)),
+	 Cmds).
 
 -spec commands(mod_name(), fsm_state()) -> proper_types:type().
-commands(Module, {Name,Data}) ->
+commands(Module, {Name,Data} = InitialState) ->
     State = #state{name = Name, data = Data, mod = Module},
-    proper_statem:commands(?MODULE, State).
+    ?LET([_|Cmds],
+	 proper_statem:commands(?MODULE, State),
+	 [{init,InitialState}|Cmds]).
 
 -spec run_commands(mod_name(), command_list()) ->
          {history(),fsm_state(),fsm_result()}.
@@ -84,9 +90,9 @@ run_commands(Module, Cmds) ->
 
 -spec run_commands(mod_name(), command_list(), proper_symb:var_values()) ->
          {history(),fsm_state(),fsm_result()}.
-run_commands(Module, [{init,Init}|Rest], Env) ->
-    Cmds = [{init, Init#state{mod = Module}}|Rest],
-    {H,S,Res} = proper_statem:run_commands(?MODULE, Cmds, Env),
+run_commands(Module, Cmds, Env) ->
+    Cmds1 = tmp_commands(Module, Cmds),
+    {H,S,Res} = proper_statem:run_commands(?MODULE, Cmds1, Env),
     History = [{{Name,Data},R} || {#state{name = Name, data = Data},R} <- H],
     State = {S#state.name, S#state.data},
     {History, State, Res}.
@@ -100,17 +106,19 @@ state_names(History) ->
 %% State machine specification for fsm commands
 %% -----------------------------------------------------------------------------
 
--spec initial_state() -> state().
-initial_state() ->
-    Mod = proper_types:parameter('$callback_mod'),
+%% @private
+-spec initial_state(mod_name()) -> state().
+initial_state(Mod) ->
     S_name = Mod:initial_state(),
     S_data = Mod:initial_state_data(),
     #state{name = S_name, data = S_data, mod = Mod}.
 
+%% @private
 -spec command(state()) -> proper_types:type().
 command(#state{name = From, data = Data, mod = Mod}) ->
     choose_transition(Mod, From, get_transitions(Mod, From, Data)).
 
+%% @private
 -spec precondition(state(), symb_call()) -> boolean().
 precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
     Targets = target_states(Mod, From, Data, Call),
@@ -120,12 +128,14 @@ precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
 	[_T] -> true
     end.
 
+%% @private
 -spec next_state(state(), symb_var() | result(), symb_call()) -> state().
 next_state(S = #state{name = From, data = Data, mod = Mod} , Var, Call) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     S#state{name = To,
 	    data = Mod:next_state_data(From, To, Data, Var, Call)}.
 
+%% @private
 -spec postcondition(state(), symb_call(), result()) -> boolean().
 postcondition(#state{name = From, data = Data, mod = Mod}, Call, Res) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
@@ -135,6 +145,17 @@ postcondition(#state{name = From, data = Data, mod = Mod}, Call, Res) ->
 %% -----------------------------------------------------------------------------
 %% Utility functions
 %% -----------------------------------------------------------------------------
+
+-spec tmp_commands(mod_name(), command_list()) -> [tmp_command()].
+tmp_commands(Module, Cmds) ->
+    case Cmds of
+	[{init, {Name,Data}}|Rest] ->
+	    I = #state{name = Name, data = Data, mod = Module},
+	    [{init,I}|Rest];
+	Rest ->
+	    I = initial_state(Module),
+	    [{init,I}|Rest]
+    end.
 
 -spec get_transitions(mod_name(), state_name(), state_data()) ->
          [transition_gen()].
@@ -185,6 +206,7 @@ transition_target(Mod, From, Data, Call) ->
     hd([T || T <- Targets,
 	     Mod:precondition(From, cook_history(From, T), Data, Call)]).
 
+%% @private
 -spec target_states(mod_name(), state_name(), state_data(), symb_call()) ->
          [state_name()].
 target_states(Module, From, StateData, Call) ->

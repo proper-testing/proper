@@ -97,9 +97,9 @@ prop_state_after() ->
 	    end).
 
 prop_p() ->
-    ?FORALL(Workers, range(2, 4),
+    ?FORALL(Workers, range(2, 3),
 	    ?FORALL(CmdList,
-		    ?SUCHTHAT(X, resize(12, commands(?MOD)), length(X) >= Workers),
+		    ?SUCHTHAT(X, resize(8, commands(?MOD)), length(X) >= Workers),
 		    begin
 			N = length(CmdList),
 			Len = N div Workers,
@@ -118,7 +118,7 @@ prop_check_true() ->
 		?MOD:clean_up(),
 		?MOD:set_up(),
 		{Seq,Parallel} = Cmds,
-		InitialState = proper_statem:get_initial_state(Seq),
+		InitialState = proper_statem:get_initial_state(?MOD, Seq),
 		{ok,DynState} = proper_statem:safe_eval_init([], InitialState),
 		{{_, State, ok}, Env1} =
 		    proper_statem:run_sequential(Seq, [], ?MOD, [], DynState),

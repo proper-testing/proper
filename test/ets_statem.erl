@@ -25,9 +25,8 @@
 %%% @doc Simple statem test for ets tables
 
 -module(ets_statem).
--export([initial_state/0, command/1, precondition/2, postcondition/3,
-	next_state/3]).
--export([sample_commands/0, sample_parallel_commands/0]).
+-export([initial_state/0, initial_state/1, command/1, precondition/2,
+	 postcondition/3, next_state/3]).
 -export([set_up/0, clean_up/0]).
 
 -include_lib("proper/include/proper.hrl").
@@ -35,12 +34,13 @@
 -type object() :: tuple().
 -type table_type() :: 'set' | 'ordered_set' | 'bag' | 'duplicate_bag'.
 
--record(state, {stored = []  :: [object()],       %% list of objects stored in ets table
-		type         :: table_type()}).   %% type of ets table
+-record(state, {stored = []  :: [object()],     %% list of objects
+		                                %% stored in ets table
+		type   = set :: table_type()}). %% type of ets table
 
 -define(TAB, table).
 -define(INT_KEYS, lists:seq(0,10)).
--define(FLOAT_KEYS, [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]).
+-define(FLOAT_KEYS, [float(Key) || Key <- ?INT_KEYS]).
 
 
 %%% Generators
@@ -71,15 +71,14 @@ key(S) ->
 small_int() ->
     resize(10, integer()).
 
-table_type() ->
-    noshrink(oneof([set, ordered_set, bag, duplicate_bag])).
-
 
 %%% Abstract state machine for ets table
 
-initial_state() ->
-    Type = parameter(table_type),
+initial_state(Type) ->
     #state{type = Type}.
+
+initial_state() ->
+    #state{}.
 
 command(S) ->
     oneof([{call,ets,delete_object,[?TAB, object(S)]} || S#state.stored =/= []] ++
@@ -221,8 +220,8 @@ postcondition(S, {call,_,lookup,[?TAB,Key]}, Res) ->
 %%% Sample properties
 
 prop_ets() ->
-    ?FORALL(Type, table_type(),
-        ?FORALL(Cmds, with_parameter(table_type, Type, commands(?MODULE)),
+    ?FORALL(Type, noshrink(table_type()),
+        ?FORALL(Cmds, commands(?MODULE, initial_state(Type)),
 	    begin
 		catch ets:delete(?TAB),
 		?TAB = ets:new(?TAB, [Type, public, named_table]),
@@ -233,9 +232,8 @@ prop_ets() ->
 	    end)).
 
 prop_parallel_ets() ->
-    ?FORALL(Type, table_type(),
-        ?FORALL(Cmds, with_parameter(table_type, Type,
-				     parallel_commands(?MODULE)),
+    ?FORALL(Type, noshrink(table_type()),
+        ?FORALL(Cmds, parallel_commands(?MODULE, initial_state(Type)),
 	    begin
 		catch ets:delete(?TAB),
 		?TAB = ets:new(?TAB, [Type, public, named_table]),
@@ -245,19 +243,6 @@ prop_parallel_ets() ->
 			     [Seq,P,Res]),
 		   collect(Type, Res =:= ok))
 	    end)).
-
-
-%%% Demo commands
-
-sample_commands() ->
-    proper_gen:sample(
-      ?LET(Type, table_type(),
-	   with_parameter(table_type, Type, commands(?MODULE)))).
-
-sample_parallel_commands() ->
-    proper_gen:sample(
-      ?LET(Type, table_type(),
-	   with_parameter(table_type, Type, parallel_commands(?MODULE)))).
 
 
 %%% Utility Functions

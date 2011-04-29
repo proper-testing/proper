@@ -25,18 +25,18 @@
 %%% @doc Simple statem test for ets tables
 
 -module(ets_statem).
--export([initial_state/0, command/1, precondition/2, postcondition/3,
-	next_state/3]).
+-export([initial_state/0, initial_state/1, command/1, precondition/2,
+	 postcondition/3, next_state/3]).
 -export([sample_commands/0, sample_parallel_commands/0]).
 
 -include_lib("proper/include/proper.hrl").
 
--type object() :: tuple().
+-type object()     :: tuple().
 -type table_type() :: 'set' | 'ordered_set' | 'bag' | 'duplicate_bag'.
 
 -record(state, {stored = []  :: [object()],      %% list of objects stored in
 		                                 %% ets table
-		type         :: table_type()}).  %% type of ets table
+		type   = set :: table_type()}).  %% type of ets table
 
 -define(TAB, table).
 -define(INT_KEYS, lists:seq(0,10)).
@@ -72,7 +72,9 @@ key(S) ->
 %%% Abstract state machine for ets table
 
 initial_state() ->
-    Type = parameter(table_type),
+    #state{}.
+
+initial_state(Type) ->
     #state{type=Type}.
 
 command(S) ->
@@ -218,7 +220,7 @@ postcondition(S, {call,_,lookup,[?TAB,Key]}, Res) ->
 
 prop_ets() ->
     ?FORALL(Type, noshrink(table_type()),
-        ?FORALL(Cmds, with_parameter(table_type, Type, commands(?MODULE)),
+        ?FORALL(Cmds, commands(?MODULE, initial_state(Type)),
 	    begin
 		catch ets:delete(?TAB),
 		?TAB = ets:new(?TAB, [Type, public, named_table]),
@@ -230,8 +232,7 @@ prop_ets() ->
 
 prop_parallel_ets() ->
     ?FORALL(Type, noshrink(table_type()),
-        ?FORALL(Cmds, with_parameter(table_type, Type,
-				     parallel_commands(?MODULE)),
+        ?FORALL(Cmds, parallel_commands(?MODULE, initial_state(Type)),
 	    begin
 		catch ets:delete(?TAB),
 		?TAB = ets:new(?TAB, [Type, public, named_table]),
@@ -248,12 +249,12 @@ prop_parallel_ets() ->
 sample_commands() ->
     proper_gen:sample(
       ?LET(Type, oneof([set, ordered_set, bag, duplicate_bag]),
-	   with_parameter(table_type, Type, commands(?MODULE)))).
+	   commands(?MODULE, initial_state(Type)))).
 
 sample_parallel_commands() ->
     proper_gen:sample(
       ?LET(Type, oneof([set, ordered_set, bag, duplicate_bag]),
-	   with_parameter(table_type, Type, parallel_commands(?MODULE)))).
+	   parallel_commands(?MODULE, initial_state(Type)))).
 
 
 %%% Utility Functions
