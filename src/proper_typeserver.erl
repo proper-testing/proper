@@ -173,8 +173,6 @@
 start() ->
     {ok,TypeserverPid} = gen_server:start_link(?MODULE, dummy, []),
     put('$typeserver_pid', TypeserverPid),
-    %% TODO: To make PropEr multi-threaded, this should be copied to each
-    %%       spawned worker process.
     ok.
 
 -spec stop() -> 'ok'.

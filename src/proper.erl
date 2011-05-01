@@ -87,6 +87,7 @@
 		    | fails_clause()
 		    | on_output_clause().
 %% TODO: This should be opaque.
+%% TODO: Should the tags be of the form '$...'?
 %% @type test()
 -type test() :: boolean()
 	      | forall_clause()
@@ -103,7 +104,7 @@
 -type lazy_test() :: delayed_test() | dependent_test().
 -type raw_test_kind() :: 'test' | 'spec'.
 -type raw_test() :: {'test',test()} | {'spec',mfa()}.
--type stripped_test() :: 'false' | 'error' | stripped_forall()
+-type stripped_test() :: boolean() | 'non_boolean' | stripped_forall()
 		       | [{tag(),test()}].
 -type stripped_forall()	:: {proper_types:type(), dependent_test()}.
 
@@ -126,6 +127,7 @@
 %% Options and Context types
 %%-----------------------------------------------------------------------------
 
+%% TODO: Rename this to 'options()'?
 -type user_opt() :: 'quiet'
 		  | 'verbose'
 		  | {'to_file',file:io_device()}
@@ -187,13 +189,14 @@
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
 -type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
-		      | 'rejected' | 'shrinking_error' | 'too_many_instances'
+		      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
 		      | {'unexpected',any()} | {'unrecognized_option',term()}.
 
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
 		    | error().
+-type shrinking_result() :: {non_neg_integer(),imm_testcase()} | 'non_boolean'.
 -type imm_result() :: #pass{reason :: 'undefined'} | #fail{} | error().
 -type long_result() :: 'true' | counterexample() | error().
 -type short_result() :: boolean() | error().
@@ -731,21 +734,20 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#fail{} = FailResult ->
 	    Print("!", []),
 	    FailResult#fail{performed = Passed + 1};
-	{error, arity_limit} = Error ->
-	    Error;
-	{error, cant_generate} = Error ->
-	    Error;
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(Opts),
 	    perform(Passed, ToPass, TriesLeft - 1, Test,
 		    Samples, Printers, Opts);
-	{error, type_mismatch} = Error ->
+	{error, Reason} = Error when Reason =:= arity_limit
+			      orelse Reason =:= cant_generate
+			      orelse Reason =:= non_boolean_result
+			      orelse Reason =:= type_mismatch ->
 	    Error;
 	{error, {typeserver,_SubReason}} = Error ->
 	    Error;
-	Unexpected ->
-	    {error, {unexpected,Unexpected}}
+	Other ->
+	    {error, {unexpected,Other}}
     end.
 
 -spec add_samples([sample()], [sample()] | 'none') -> [sample()].
@@ -858,7 +860,9 @@ run({timeout,Limit,Prop}, Ctx) ->
 	exit(Child, kill),
 	clear_mailbox(),
 	create_fail_result(Ctx, time_out)
-    end.
+    end;
+run(_Other, _Ctx) ->
+    {error, non_boolean_result}.
 
 -spec run_all([{tag(),test()}], sub_imm_testcases() | sub_counterexamples(),
 	      ctx()) -> run_result().
@@ -1046,19 +1050,29 @@ shrink(ImmTestCase, Test, Reason,
     StrTest = skip_to_next(Test),
     case fix_shrink(ImmTestCase, StrTest, Reason, 0, MaxShrinks, Opts) of
 	{Shrinks,MinImmTestCase} ->
-	    #fail{actions = MinActions} = rerun(Test, true, MinImmTestCase),
-	    report_shrinking(Shrinks, MinImmTestCase, MinActions, Print),
-	    {ok, MinImmTestCase};
-	error ->
+	    case rerun(Test, true, MinImmTestCase) of
+		#pass{} ->
+		    %% TODO: The fail actions are silently skipped.
+		    report_shrinking(Shrinks, MinImmTestCase, [], Print),
+		    {ok, MinImmTestCase};
+		#fail{actions = MinActions} ->
+		    report_shrinking(Shrinks, MinImmTestCase, MinActions,
+				     Print),
+		    {ok, MinImmTestCase};
+		{error, _Reason} = Error ->
+		    Print("~n", []),
+		    Error
+	    end;
+	non_boolean ->
 	    Print("~n", []),
-	    {error, shrinking_error}
+	    {error, non_boolean_result}
     end;
 shrink(ImmTestCase, _Test, _Reason, _Opts) ->
     {ok, ImmTestCase}.
 
 -spec fix_shrink(imm_testcase(), stripped_test(), fail_reason(),
 		 non_neg_integer(), non_neg_integer(), opts()) ->
-	  {non_neg_integer(),imm_testcase()} | 'error'.
+	  shrinking_result().
 fix_shrink(ImmTestCase, _StrTest, _Reason, Shrinks, 0, _Opts) ->
     {Shrinks, ImmTestCase};
 fix_shrink(ImmTestCase, StrTest, Reason, Shrinks, ShrinksLeft, Opts) ->
@@ -1068,21 +1082,22 @@ fix_shrink(ImmTestCase, StrTest, Reason, Shrinks, ShrinksLeft, Opts) ->
 	{MoreShrinks,MinImmTestCase} ->
 	    fix_shrink(MinImmTestCase, StrTest, Reason, Shrinks + MoreShrinks,
 		       ShrinksLeft - MoreShrinks, Opts);
-	error ->
-	    error
+	non_boolean ->
+	    non_boolean
     end.
 
 -spec shrink(imm_testcase(), imm_testcase(), stripped_test(), fail_reason(),
 	     non_neg_integer(), non_neg_integer(), proper_shrink:state(),
-	     opts()) -> {non_neg_integer(),imm_testcase()} | 'error'.
-%% TODO: 'tries_left' instead of 'shrinks_left'?
-shrink(_Shrunk, _TestTail, error, _Reason,
+	     opts()) -> shrinking_result().
+%% TODO: 'tries_left' instead of 'shrinks_left'? shrinking timeout?
+shrink(_Shrunk, _TestTail, non_boolean, _Reason,
        _Shrinks, _ShrinksLeft, _State, _Opts) ->
-    error;
-shrink(Shrunk, TestTail, _StrTest, _Reason, Shrinks, 0, _State, _Opts) ->
+    non_boolean;
+%% TODO: Can we do anything better for non-deterministic tests?
+shrink(Shrunk, TestTail, StrTest, _Reason,
+       Shrinks, ShrinksLeft, _State, _Opts) when is_boolean(StrTest)
+					  orelse ShrinksLeft =:= 0 ->
     {Shrinks, lists:reverse(Shrunk) ++ TestTail};
-shrink(Shrunk, [], false, _Reason, Shrinks, _ShrinksLeft, init, _Opts) ->
-    {Shrinks, lists:reverse(Shrunk)};
 shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
        Shrinks, ShrinksLeft, done, Opts) ->
     Instance = proper_gen:clean_instance(ImmInstance),
@@ -1115,7 +1130,7 @@ shrink(Shrunk, [{'$conjunction',SubImmTCs}], SubProps, {sub_props,SubReasons},
 -spec shrink_all(imm_testcase(), sub_imm_testcases(), sub_imm_testcases(),
 		 [{tag(),test()}], [{tag(),fail_reason()}],
 		 non_neg_integer(), non_neg_integer(), opts()) ->
-	  {non_neg_integer(),imm_testcase()} | 'error'.
+	  shrinking_result().
 shrink_all(ShrunkHead, Shrunk, SubImmTCs, _SubProps, _SubReasons,
 	   Shrinks, 0, _Opts) ->
     ShrunkSubImmTCs = lists:reverse(Shrunk) ++ SubImmTCs,
@@ -1130,15 +1145,15 @@ shrink_all(ShrunkHead, Shrunk, SubImmTCs, [{Tag,Prop}|Rest], SubReasons,
 	{value,{Tag,Reason},NewSubReasons} ->
 	    {value,{Tag,SubImmTC},NewSubImmTCs} =
 		lists:keytake(Tag, 1, SubImmTCs),
-	    case shrink([], SubImmTC, skip_to_next(Prop), Reason, 0,
-			ShrinksLeft, init, Opts) of
+	    case shrink([], SubImmTC, skip_to_next(Prop), Reason,
+			0, ShrinksLeft, init, Opts) of
 		{MoreShrinks,MinSubImmTC} ->
 		    shrink_all(ShrunkHead, [{Tag,MinSubImmTC}|Shrunk],
 			       NewSubImmTCs, Rest, NewSubReasons,
 			       Shrinks+MoreShrinks, ShrinksLeft-MoreShrinks,
 			       Opts);
-		error ->
-		    error
+		non_boolean ->
+		    non_boolean
 	    end;
 	false ->
 	    shrink_all(ShrunkHead, Shrunk, SubImmTCs, Rest, SubReasons,
@@ -1180,19 +1195,18 @@ same_sub_reason(_, _) ->
     false.
 
 -spec skip_to_next(test()) -> stripped_test().
-skip_to_next(true) ->
-    error;
-skip_to_next(false) ->
-    false;
+skip_to_next(Result) when is_boolean(Result) ->
+    Result;
 skip_to_next({forall,RawType,Prop}) ->
     Type = proper_types:cook_outer(RawType),
     {Type, Prop};
 skip_to_next({conjunction,SubProps}) ->
     SubProps;
-skip_to_next({implies,true,Prop}) ->
-    force_skip(Prop);
-skip_to_next({implies,false,_Prop}) ->
-    error;
+skip_to_next({implies,Pre,Prop}) ->
+    case Pre of
+	true  -> force_skip(Prop);
+	false -> true
+    end;
 skip_to_next({sample,_Sample,_Printer,Prop}) ->
     skip_to_next(Prop);
 skip_to_next({whenfail,_Action,Prop}) ->
@@ -1201,7 +1215,9 @@ skip_to_next({whenfail,_Action,Prop}) ->
 skip_to_next({trapexit,_Prop}) ->
     false;
 skip_to_next({timeout,_Limit,_Prop}) ->
-    false.
+    false;
+skip_to_next(_Other) ->
+    non_boolean.
 
 -spec force_skip(delayed_test()) -> stripped_test().
 force_skip(Prop) ->
@@ -1287,11 +1303,10 @@ report_error(cant_generate, Print) ->
 	  "constraints after ~b tries.~n", [get('$constraint_tries')]);
 report_error(cant_satisfy, Print) ->
     Print("Error: No valid test could be generated.~n", []);
+report_error(non_boolean_result, Print) ->
+    Print("Error: The property code returned a non-boolean result.~n", []);
 report_error(rejected, Print) ->
     Print(?MISMATCH_MSG ++ "It failed an ?IMPLIES check.~n", []);
-report_error(shrinking_error, Print) ->
-    Print("Internal error: An error occured while shrinking.~n"
-	  "Please notify the maintainers about this error.~n", []);
 report_error(too_many_instances, Print) ->
     Print(?MISMATCH_MSG ++ "It's too long.~n", []); %% that's what she said
 report_error(type_mismatch, Print) ->

@@ -50,22 +50,28 @@ assertEqualsOneOf(X, List) ->
 	?_passes(Test, [])).
 
 -define(_passes(Test, Opts),
-	?_assertRun(true, Test, Opts)).
+	?_assertRun(true, Test, Opts, true)).
 
 -define(_errorsOut(ExpReason, Test),
 	?_errorsOut(ExpReason, Test, [])).
 
 -define(_errorsOut(ExpReason, Test, Opts),
-	?_assertRun({error,ExpReason}, Test, Opts)).
+	?_assertRun({error,ExpReason}, Test, Opts, true)).
 
--define(_assertRun(ExpResult, Test, Opts),
+-define(_assertRun(ExpResult, Test, Opts, AlsoLongResult),
 	?_test(begin
 	    ?assertMatch(ExpResult, proper:quickcheck(Test,Opts)),
 	    proper:clean_garbage(),
 	    ?assert(state_is_clean()),
-	    ?assertMatch(ExpResult, proper:quickcheck(Test,[long_result|Opts])),
-	    proper:clean_garbage(),
-	    ?assert(state_is_clean())
+	    case AlsoLongResult of
+		true ->
+		    ?assertMatch(ExpResult,
+				 proper:quickcheck(Test,[long_result|Opts])),
+		    proper:clean_garbage(),
+		    ?assert(state_is_clean());
+		false ->
+		    ok
+	    end
 	end)).
 
 -define(_assertCheck(ExpShortResult, CExm, Test),
@@ -171,6 +177,25 @@ get_temp() ->
 erase_temp() ->
     erase(temp),
     ok.
+
+non_deterministic(Behaviour) ->
+    inc_temp(),
+    N = get_temp(),
+    {MustReset,Result} = get_result(N, 0, Behaviour),
+    case MustReset of
+	true  -> erase_temp();
+	false -> ok
+    end,
+    Result.
+
+get_result(N, Sum, [{M,Result}]) ->
+    {N >= Sum + M, Result};
+get_result(N, Sum, [{M,Result} | Rest]) ->
+    NewSum = Sum + M,
+    case N =< NewSum of
+	true  -> {false, Result};
+	false -> get_result(N, NewSum, Rest)
+    end.
 
 setup_run_commands(Module, Cmds, Env) ->
     Module:set_up(),
@@ -872,7 +897,19 @@ error_props_test_() ->
      ?_assertCheck({error,too_many_instances}, [1,ab],
 		   ?FORALL(X, pos_integer(), X < 0)),
      ?_errorsOut(cant_generate, prec_false:prop_simple()),
-     ?_errorsOut(cant_generate, nogen_statem:prop_simple())].
+     ?_errorsOut(cant_generate, nogen_statem:prop_simple()),
+     ?_errorsOut(non_boolean_result, ?FORALL(_, integer(), not_a_boolean)),
+     ?_errorsOut(non_boolean_result,
+		 ?FORALL(_, ?SHRINK(42,[0]),
+			 non_deterministic([{2,false},{1,not_a_boolean}]))),
+     ?_assertRun(false,
+		 ?FORALL(_, ?SHRINK(42,[0]),
+			 non_deterministic([{4,false},{1,true}])),
+		 [], false),
+     ?_assertRun(false,
+		 ?FORALL(_, ?SHRINK(42,[0]),
+			 non_deterministic([{3,false},{1,true},{1,false}])),
+		 [], false)].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))
@@ -898,7 +935,7 @@ options_test_() ->
      ?_fails(?FORALL(_,integer(),false), [fails]),
      ?_assertRun({error,cant_generate},
 		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X > 0),true),
-		 [{constraint_tries,0}]),
+		 [{constraint_tries,0}], true),
      ?_failsWith([12],
 		 ?FORALL(_,?SIZED(Size,integer(Size,Size)),false),
 		 [{start_size,12}])].
@@ -1002,7 +1039,7 @@ args_not_defined_test() ->
 command_props_test_() ->
     {timeout, 150, [?_assertEqual([], proper:module(command_props, 50))]}.
 
-%%TODO: is_instance check fails because of ?LET in fsm_commands/1?
+%% TODO: is_instance check fails because of ?LET in fsm_commands/1?
 can_generate_fsm_commands_test_() ->
     [?_test(assert_can_generate(proper_fsm:commands(Module), false))
      || Module <- [pdict_fsm, numbers_fsm]].

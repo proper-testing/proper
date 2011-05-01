@@ -26,5 +26,5 @@ This is the source for PropEr's overview page.
 @version {@version}
 @author Manolis Papadakis <manopapad@gmail.com>
 
-@title PropEr: a PROPerty-based testing tool for ERlang
+@title PropEr: A QuickCheck-inspired property-based testing tool for Erlang
 @doc No top-level documentation yet.
