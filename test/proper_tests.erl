@@ -615,7 +615,6 @@ arguments_not_defined() ->
 %%       by writing to a string in the process dictionary), statistics printing,
 %%	 standard verbose behaviour
 %% TODO: fix compiler warnings
-%% TODO: how to test 'crypto' option?
 %% TODO: LET and LETSHRINK testing (these need their intermediate form for
 %%	 standalone instance testing and shrinking) - update needed after
 %%	 fixing the internal shrinking in LETs, use recursive datatypes, like
