@@ -986,22 +986,22 @@ cannot_generate_commands_test_() ->
      || Module <- [prec_false]].
 
 can_generate_commands0_test_() ->
-    [?_test(assert_can_generate(proper_statem:commands(Module), true))
+    [?_test(assert_can_generate(proper_statem:commands(Module),false))
      || Module <- [pdict_statem]].
 
 can_generate_commands1_test_() ->
-    [?_test(assert_can_generate(proper_statem:commands(Module, StartState), true))
+    [?_test(assert_can_generate(proper_statem:commands(Module, StartState), false))
      || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
 
 can_generate_parallel_commands0_test_() ->
     {timeout, 20,
-     [?_test(assert_can_generate(proper_statem:parallel_commands(Module), true))
+     [?_test(assert_can_generate(proper_statem:parallel_commands(Module), false))
       || Module <- [ets_counter]]}.
 
 can_generate_parallel_commands1_test_() ->
     {timeout, 20,
      [?_test(assert_can_generate(
-	       proper_statem:parallel_commands(Module, Module:initial_state()), true))
+	       proper_statem:parallel_commands(Module, Module:initial_state()), false))
       || Module <- [ets_counter]]}.
 
 run_valid_commands_test_() ->
