@@ -104,9 +104,9 @@
 -type lazy_test() :: delayed_test() | dependent_test().
 -type raw_test_kind() :: 'test' | 'spec'.
 -type raw_test() :: {'test',test()} | {'spec',mfa()}.
--type stripped_test() :: boolean() | 'non_boolean' | stripped_forall()
+-type stripped_test() :: boolean()
+		       | {proper_types:type(), dependent_test()}
 		       | [{tag(),test()}].
--type stripped_forall()	:: {proper_types:type(), dependent_test()}.
 
 -type numtests_clause() :: {'numtests', pos_integer(), outer_test()}.
 -type fails_clause() :: {'fails', outer_test()}.
@@ -196,7 +196,7 @@
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
 		    | error().
--type shrinking_result() :: {non_neg_integer(),imm_testcase()} | 'non_boolean'.
+-type shrinking_result() :: {non_neg_integer(),imm_testcase()}.
 -type imm_result() :: #pass{reason :: 'undefined'} | #fail{} | error().
 -type long_result() :: 'true' | counterexample() | error().
 -type short_result() :: boolean() | error().
@@ -1047,8 +1047,10 @@ shrink(ImmTestCase, Test, Reason,
        #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
 	     output_fun = Print} = Opts) ->
     Print("~nShrinking ", []),
-    StrTest = skip_to_next(Test),
-    case fix_shrink(ImmTestCase, StrTest, Reason, 0, MaxShrinks, Opts) of
+    try
+	StrTest = skip_to_next(Test),
+	fix_shrink(ImmTestCase, StrTest, Reason, 0, MaxShrinks, Opts)
+    of
 	{Shrinks,MinImmTestCase} ->
 	    case rerun(Test, true, MinImmTestCase) of
 		#pass{} ->
@@ -1059,11 +1061,12 @@ shrink(ImmTestCase, Test, Reason,
 		    report_shrinking(Shrinks, MinImmTestCase, MinActions,
 				     Print),
 		    {ok, MinImmTestCase};
-		{error, _Reason} = Error ->
+		{error,_Reason} = Error ->
 		    Print("~n", []),
 		    Error
-	    end;
-	non_boolean ->
+	    end
+    catch
+	throw:non_boolean_result ->
 	    Print("~n", []),
 	    {error, non_boolean_result}
     end;
@@ -1081,18 +1084,13 @@ fix_shrink(ImmTestCase, StrTest, Reason, Shrinks, ShrinksLeft, Opts) ->
 	    {Shrinks, ImmTestCase};
 	{MoreShrinks,MinImmTestCase} ->
 	    fix_shrink(MinImmTestCase, StrTest, Reason, Shrinks + MoreShrinks,
-		       ShrinksLeft - MoreShrinks, Opts);
-	non_boolean ->
-	    non_boolean
+		       ShrinksLeft - MoreShrinks, Opts)
     end.
 
 -spec shrink(imm_testcase(), imm_testcase(), stripped_test(), fail_reason(),
 	     non_neg_integer(), non_neg_integer(), proper_shrink:state(),
 	     opts()) -> shrinking_result().
 %% TODO: 'tries_left' instead of 'shrinks_left'? shrinking timeout?
-shrink(_Shrunk, _TestTail, non_boolean, _Reason,
-       _Shrinks, _ShrinksLeft, _State, _Opts) ->
-    non_boolean;
 %% TODO: Can we do anything better for non-deterministic tests?
 shrink(Shrunk, TestTail, StrTest, _Reason,
        Shrinks, ShrinksLeft, _State, _Opts) when is_boolean(StrTest)
@@ -1145,16 +1143,12 @@ shrink_all(ShrunkHead, Shrunk, SubImmTCs, [{Tag,Prop}|Rest], SubReasons,
 	{value,{Tag,Reason},NewSubReasons} ->
 	    {value,{Tag,SubImmTC},NewSubImmTCs} =
 		lists:keytake(Tag, 1, SubImmTCs),
-	    case shrink([], SubImmTC, skip_to_next(Prop), Reason,
-			0, ShrinksLeft, init, Opts) of
-		{MoreShrinks,MinSubImmTC} ->
-		    shrink_all(ShrunkHead, [{Tag,MinSubImmTC}|Shrunk],
-			       NewSubImmTCs, Rest, NewSubReasons,
-			       Shrinks+MoreShrinks, ShrinksLeft-MoreShrinks,
-			       Opts);
-		non_boolean ->
-		    non_boolean
-	    end;
+	    {MoreShrinks,MinSubImmTC} =
+		shrink([], SubImmTC, skip_to_next(Prop), Reason,
+		       0, ShrinksLeft, init, Opts),
+	    shrink_all(ShrunkHead, [{Tag,MinSubImmTC}|Shrunk], NewSubImmTCs,
+		       Rest, NewSubReasons, Shrinks+MoreShrinks,
+		       ShrinksLeft-MoreShrinks, Opts);
 	false ->
 	    shrink_all(ShrunkHead, Shrunk, SubImmTCs, Rest, SubReasons,
 		       Shrinks, ShrinksLeft, Opts)
@@ -1178,7 +1172,7 @@ same_fail_reason({trapped,{SameExcReason,_StackTrace1}},
     true;
 same_fail_reason({exception,SameExcKind,SameExcReason,_StackTrace1},
 		 {exception,SameExcKind,SameExcReason,_StackTrace2}) ->
-    true;
+    true; %% We don't mind if the stacktraces are different.
 same_fail_reason({sub_props,SubReasons1}, {sub_props,SubReasons2}) ->
     length(SubReasons1) =:= length(SubReasons2) andalso
     lists:all(fun({A,B}) -> same_sub_reason(A,B) end,
@@ -1217,7 +1211,7 @@ skip_to_next({trapexit,_Prop}) ->
 skip_to_next({timeout,_Limit,_Prop}) ->
     false;
 skip_to_next(_Other) ->
-    non_boolean.
+    throw(non_boolean_result).
 
 -spec force_skip(delayed_test()) -> stripped_test().
 force_skip(Prop) ->
@@ -1230,7 +1224,9 @@ force_skip(Arg, Prop) ->
 -spec apply_skip([proper_gen:instance()], lazy_test()) -> stripped_test().
 apply_skip(Args, Prop) ->
     try
-	skip_to_next(apply(Prop, Args))
+	apply(Prop, Args)
+    of
+	InnerTest -> skip_to_next(InnerTest)
     catch
 	%% Should be OK to catch everything here, since we have already tested
 	%% at this point that the test still fails.
