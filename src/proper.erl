@@ -133,7 +133,6 @@
 		  | {'to_file',file:io_device()}
 		  | {'on_output',output_fun()}
 		  | 'long_result'
-		  | 'crypto'
 		  | {'numtests', pos_integer()}
 		  | pos_integer()
 		  | {'start_size',size()}
@@ -147,7 +146,6 @@
 -type user_opts() :: [user_opt()] | user_opt().
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
 	       long_result      = false           :: boolean(),
-	       crypto           = false           :: boolean(),
 	       numtests         = 100             :: pos_integer(),
 	       start_size       = 1               :: size(),
 	       max_size         = 42              :: size(),
@@ -270,14 +268,14 @@ global_state_init_size(Size) ->
 
 -spec global_state_init(opts()) -> 'ok'.
 global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
-			crypto = Crypto, any_type = AnyType} = Opts) ->
+			any_type = AnyType} = Opts) ->
     clean_garbage(),
     put('$size', StartSize - 1),
     put('$left', 0),
     grow_size(Opts),
     put('$constraint_tries', CTries),
     put('$any_type',AnyType),
-    proper_arith:rand_start(Crypto),
+    proper_arith:rand_start(),
     proper_typeserver:start(),
     ok.
 
@@ -467,7 +465,6 @@ parse_opt(UserOpt, Opts) ->
 				};
 	{on_output,Print}    -> Opts#opts{output_fun = Print};
 	long_result          -> Opts#opts{long_result = true};
-	crypto               -> Opts#opts{crypto = true};
 	{numtests,N}         -> Opts#opts{numtests = N};
 	N when is_integer(N) -> Opts#opts{numtests = N};
 	{start_size,Size}    -> Opts#opts{start_size = Size};

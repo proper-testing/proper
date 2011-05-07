@@ -329,15 +329,6 @@ The available options are:
     CAUTION: The above output control options are incompatible with each other.
 'long_result'
     Enables long-result mode (see the 'Counterexamples' section for details).
-'crypto'
-    Enables the use of the crypto module for some kinds of random generation
-    (namely, the generation of binaries and the generation of ranges of
-    integers) - make sure the crypto module is available before enabling this.
-    This has the side-effect that an INFO message is printed on screen when
-    the program exits, because of the stopping of the crypto server.
-    CAUTION: This option is incompatible with the random function generation
-    subsystem - do not enable it for tests that contain randomly generated
-    functions.
 {'numtests', <Positive_number>} or simply <Positive_number>
     This is equivalent to the 'numtests' property wrapper. Any 'numtests'
     wrappers in the actual property will overwrite this setting.

@@ -32,15 +32,14 @@
 -export([generate/1, normal_gen/1, alt_gens/1, clean_instance/1,
 	 get_ret_type/1]).
 -export([integer_gen/3, float_gen/3, atom_gen/1, atom_rev/1, binary_gen/1,
-	 binary_str_gen/1, binary_rev/1, binary_len_gen/1, binary_len_str_gen/1,
-	 bitstring_gen/1, bitstring_rev/1, bitstring_len_gen/1, list_gen/2,
-	 distlist_gen/3, vector_gen/2, union_gen/1, weighted_union_gen/1,
-	 tuple_gen/1, loose_tuple_gen/2, loose_tuple_rev/2, exactly_gen/1,
-	 fixed_list_gen/1, function_gen/2, any_gen/1, native_type_gen/2]).
+	 binary_rev/1, binary_len_gen/1, bitstring_gen/1, bitstring_rev/1,
+	 bitstring_len_gen/1, list_gen/2, distlist_gen/3, vector_gen/2,
+	 union_gen/1, weighted_union_gen/1, tuple_gen/1, loose_tuple_gen/2,
+	 loose_tuple_rev/2, exactly_gen/1, fixed_list_gen/1, function_gen/2,
+	 any_gen/1, native_type_gen/2]).
 
 -export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
-	      generator/0, straight_gen/0, reverse_gen/0, combine_fun/0,
-	      alt_gens/0]).
+	      generator/0, reverse_gen/0, combine_fun/0, alt_gens/0]).
 
 -include("proper_internal.hrl").
 -compile({parse_transform, vararg}).
@@ -62,9 +61,6 @@
 -type sized_generator() :: fun((size()) -> imm_instance()).
 -type nosize_generator() :: fun(() -> imm_instance()).
 -type generator() :: sized_generator() | nosize_generator().
--type sized_straight_gen() :: fun((size()) -> {'ok',instance()} | 'error').
--type nosize_straight_gen() :: fun(() -> {'ok',instance()} | 'error').
--type straight_gen() :: sized_straight_gen() | nosize_straight_gen().
 -type reverse_gen() :: fun((instance()) -> imm_instance()).
 -type combine_fun() :: fun((instance()) -> imm_instance()).
 -type alt_gens() :: fun(() -> [imm_instance()]).
@@ -151,13 +147,8 @@ generate(Type, TriesLeft, Fallback) ->
 			false -> ImmInstance1
 		    end,
 		{'$used',ImmParts,ImmInstance2};
-	    Kind ->
-		ImmInstance1 =
-		    case Kind of
-			%% TODO: should we have an option to enable this?
-			wrapper -> normal_or_str_gen(Type);
-			_       -> normal_gen(Type)
-		    end,
+	    _ ->
+		ImmInstance1 = normal_gen(Type),
 		case proper_types:is_raw_type(ImmInstance1) of
 		    true  -> generate(ImmInstance1);
 		    false -> ImmInstance1
@@ -249,29 +240,10 @@ contains_fun(_Term) ->
 %% Utility functions
 %%-----------------------------------------------------------------------------
 
--spec normal_or_str_gen(proper_types:type()) -> imm_instance().
-normal_or_str_gen(Type) ->
-    case proper_types:find_prop(straight_gen,Type) of
-	{ok,StraightGen} ->
-	    case call_gen(StraightGen, Type) of
-		{ok,Instance} ->
-		    ReverseGen = proper_types:get_prop(reverse_gen, Type),
-		    ReverseGen(Instance);
-		error ->
-		    normal_gen(Type)
-	    end;
-	error ->
-	    normal_gen(Type)
-    end.
-
 %% @private
 -spec normal_gen(proper_types:type()) -> imm_instance().
 normal_gen(Type) ->
-    call_gen(proper_types:get_prop(generator,Type),Type).
-
--spec call_gen(generator() | straight_gen(), proper_types:type()) ->
-	  imm_instance() | {'ok',instance()} | 'error'.
-call_gen(Gen, Type) ->
+    Gen = proper_types:get_prop(generator, Type),
     if
 	is_function(Gen, 0) -> Gen();
 	is_function(Gen, 1) -> Gen(proper:get_size(Type))
@@ -357,12 +329,6 @@ binary_gen(Size) ->
 	 list_to_binary(Bytes)).
 
 %% @private
--spec binary_str_gen(size()) -> {'ok',binary()} | 'error'.
-binary_str_gen(Size) ->
-    Len = proper_arith:rand_int(0, Size),
-    binary_len_str_gen(Len).
-
-%% @private
 -spec binary_rev(binary()) -> imm_instance().
 binary_rev(Binary) ->
     {'$used', binary_to_list(Binary), Binary}.
@@ -373,11 +339,6 @@ binary_len_gen(Len) ->
     ?LET(Bytes,
 	 proper_types:vector(Len, proper_types:byte()),
 	 list_to_binary(Bytes)).
-
-%% @private
--spec binary_len_str_gen(length()) -> {'ok',binary()} | 'error'.
-binary_len_str_gen(Len) ->
-    proper_arith:rand_bytes(Len).
 
 %% @private
 -spec bitstring_gen(size()) -> proper_types:type().
