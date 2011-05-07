@@ -101,19 +101,18 @@
 
 -opaque type() :: {'$type', [type_prop()]}.
 -type raw_type() :: type() | [raw_type()] | loose_tuple(raw_type()) | term().
--type type_prop_name() :: 'kind' | 'generator' | 'straight_gen' | 'reverse_gen'
-			| 'parts_type' | 'combine' | 'alt_gens'
-			| 'shrink_to_parts' | 'size_transform' | 'is_instance'
-			| 'shrinkers' | 'noshrink' | 'internal_type'
-			| 'internal_types' | 'get_length' | 'split' | 'join'
-			| 'get_indices' | 'remove' | 'retrieve' | 'update'
-			| 'constraints' | 'content' | 'default'.
+-type type_prop_name() :: 'kind' | 'generator' | 'reverse_gen' | 'parts_type'
+			| 'combine' | 'alt_gens' | 'shrink_to_parts'
+			| 'size_transform' | 'is_instance' | 'shrinkers'
+			| 'noshrink' | 'internal_type' | 'internal_types'
+			| 'get_length' | 'split' | 'join' | 'get_indices'
+			| 'remove' | 'retrieve' | 'update' | 'constraints'
+			| 'content' | 'default'.
 
 -type type_prop_value() :: term().
 -type type_prop() ::
       {'kind', type_kind()}
     | {'generator', proper_gen:generator()}
-    | {'straight_gen', proper_gen:straight_gen()}
     | {'reverse_gen', proper_gen:reverse_gen()}
     | {'parts_type', type()}
     | {'combine', proper_gen:combine_fun()}
@@ -485,7 +484,6 @@ atom_test(X) ->
 binary() ->
     ?WRAPPER([
 	{generator, fun proper_gen:binary_gen/1},
-	{straight_gen, fun proper_gen:binary_str_gen/1},
 	{reverse_gen, fun proper_gen:binary_rev/1},
 	{is_instance, fun erlang:is_binary/1}
     ]).
@@ -494,7 +492,6 @@ binary() ->
 binary(Len) ->
     ?WRAPPER([
 	{generator, fun() -> proper_gen:binary_len_gen(Len) end},
-	{straight_gen, fun() -> proper_gen:binary_len_str_gen(Len) end},
 	{reverse_gen, fun proper_gen:binary_rev/1},
 	{is_instance, fun(X) -> binary_len_test(X, Len) end}
     ]).

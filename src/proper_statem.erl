@@ -188,7 +188,7 @@ parallel_commands(Mod, InitialState) ->
          parallel_test_case().
 gen_parallel_commands(Len, Mod, InitialState, InitFlag) ->
     CmdList = gen_commands(Len, Mod, InitialState, InitFlag),
-    LenPar = proper_arith:rand_int(?WORKERS, min(Len - 1, ?LIMIT)),
+    LenPar = proper_arith:rand_int(?WORKERS, erlang:min(Len - 1, ?LIMIT)),
     {Seq, P} = lists:split(Len - LenPar, CmdList),
     State = state_after(Mod, Seq),
     Env = mk_env(Seq, 1),
