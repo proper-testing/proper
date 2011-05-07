@@ -87,20 +87,28 @@
 -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
 commands(Module, InitialState) ->
     ?SIZED(Size,
-	   ?SUCHTHAT(
-	      Cmds,
-	      ?LET(CmdTail, commands(Size, Module, InitialState, 1),
-		   [{init,InitialState}|CmdTail]),
-	      is_valid(Module, InitialState, Cmds, []))).
+	   ?LET(CC,
+		?SUCHTHAT(
+		   Cmds,
+		   ?LET(CmdTail, commands(Size, Module, InitialState, 1),
+			[{init,InitialState}|CmdTail]),
+		   is_valid(Module, InitialState, Cmds, [])),
+		?SHRINK(
+		   proper_types:exactly(CC),
+		   [cmd_element_shrinker(Module, InitialState, CC)]))).
 
 -spec commands(mod_name()) -> proper_types:type().
 commands(Module) ->
     ?SIZED(Size,
 	   ?LET(InitialState, ?LAZY(Module:initial_state()),
-		?SUCHTHAT(
-		   Cmds,
-		   commands(Size, Module, InitialState, 1),
-		   is_valid(Module, InitialState, Cmds, [])))).
+		?LET(CC,
+		     ?SUCHTHAT(
+			Cmds,
+			commands(Size, Module, InitialState, 1),
+			is_valid(Module, InitialState, Cmds, [])),
+		     ?SHRINK(
+			proper_types:exactly(CC),
+			[cmd_element_shrinker(Module, InitialState, CC)])))).
 
 -spec commands(size(), mod_name(), symbolic_state(), pos_integer()) ->
          proper_types:type().
@@ -121,6 +129,25 @@ commands(Size, Module, State, Count) ->
 			     [{set,Var,Call}|Cmds])
 		      end)}])).
 
+-spec cmd_element_shrinker(mod_name(), symbolic_state(), command_list()) ->
+         proper_types:type().
+cmd_element_shrinker(_Module, _State, []) ->
+    proper_types:exactly([]);
+cmd_element_shrinker(Module, _, [{init,State}|Rest]) ->
+    cmd_element_shrinker(Module, State, Rest);
+cmd_element_shrinker(Module, State, [{set,Var,Call}|Rest]) ->
+    ?LET(
+       ShrunkCall,
+       ?SUCHTHAT(X, Module:command(State),
+		 Module:precondition(State, X) andalso
+		 is_compatible(Call, X)),
+       begin
+	   NextState = Module:next_state(State, Var, ShrunkCall),
+	   ?LET(ShrunkCmds,
+		cmd_element_shrinker(Module, NextState, Rest),
+		[{set,Var,ShrunkCall}|ShrunkCmds])
+       end).
+
 -spec more_commands(pos_integer(), proper_types:type()) -> proper_types:type().
 more_commands(N, Type) ->
     ?SIZED(Size, proper_types:resize(Size * N, Type)).
@@ -136,6 +163,7 @@ parallel_commands(Module) ->
 	 ?LET({Seq,Parallel},
 	      proper_types:noshrink(parallel_gen_type(Module)),
 	      parallel_shrink_type(Module, Seq, Parallel)),
+	 %% TODO: add element shrinker for parallel commands
 	 %% TODO: this has to be repeated upon success
 	 ?SHRINK({Seq1, Par1},
 		 [{Seq1 ++ [H], remove_first_command(Index, Par1)}
@@ -147,6 +175,7 @@ parallel_commands(Module, InitialState) ->
 	 ?LET({Seq,Parallel},
 	      proper_types:noshrink(parallel_gen_type(Module, InitialState)),
 	      parallel_shrink_type(Module, Seq, Parallel)),
+	 %% TODO: add element shrinker for parallel commands
 	 %% TODO: this has to be repeated upon success
 	 ?SHRINK({Seq1, Par1},
 		 [{Seq1 ++ [H], remove_first_command(Index, Par1)}
@@ -208,10 +237,11 @@ parallel(Module, Seq, Count) ->
 			 State, Env, ?WORKERS)}
        end).
 
--spec fix_gen(pos_integer(), non_neg_integer(), combination() | 'done', lookup(),
-	      mod_name(), symbolic_state(), [symb_var()], pos_integer()) ->
-		     [command_list()].
-fix_gen(_, 0, done, _, _, _, _, _) -> exit(error);   %% not supposed to reach here
+-spec fix_gen(pos_integer(), non_neg_integer(), combination() | 'done',
+	      lookup(), mod_name(), symbolic_state(), [symb_var()],
+	      pos_integer()) -> [command_list()].
+fix_gen(_, 0, done, _, _, _, _, _) ->
+    exit(error);   %% not supposed to reach here
 fix_gen(MaxIndex, Len, done, LookUp, Mod, State, Env, W) ->
     Comb = mk_first_comb(MaxIndex, Len-1, W),
     case Len of
@@ -710,3 +740,10 @@ remove_first_command(Index, [H|T], Accum, Index) ->
     lists:reverse(Accum) ++ [tl(H)] ++ T;
 remove_first_command(Index, [H|T], Accum, N) ->
     remove_first_command(Index, T, [H|Accum], N+1).
+
+-spec is_compatible(symb_call(), symb_call()) -> boolean().
+is_compatible({call,M,F,A1}, {call,M,F,A2})
+  when length(A1) =:= length(A2) ->
+    true;
+is_compatible(_, _) ->
+    false.
