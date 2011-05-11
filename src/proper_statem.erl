@@ -22,7 +22,141 @@
 %%%                  and Kostis Sagonas <kostis@cs.ntua.gr>
 %%% @version {@version}
 %%% @author Eirini Arvaniti <eirinibob@gmail.com>
-%%% @doc This module contains functions for testing stateful systems.
+
+%%% @doc This module contains functions for testing stateful systems whose
+%%% side-effects are specified via an abstract state machine. Given a callback
+%%% module implementing the state machine, PropEr can generate random
+%%% symbolic command sequences subject to the constraints of the specification.
+%%% These command sequences model the operations in the system under test (SUT).
+%%% As a next step, symbolic command sequences are evaluated in order to check
+%%% that the system behaves as expected. Upon failure, the shrinking mechanism
+%%% attempts to find a minimal command sequence provoking the same error.
+%%%
+%%% When including the <code>"proper/include/proper.hrl"</code> header file,
+%%% all <a href="#index">API functions </a> of {@module} are automatically
+%%% imported, unless `PROPER_NO_IMPORTS' is defined.
+%%%
+%%% == Command representation ==
+%%% The testcases generated for stateful systems are lists of symbolic API
+%%% calls. Symbolic representation makes failing testcases easier to shrink
+%%% and also easier to read and understand.
+%%% Since the results of the symbolic calls are not known at generation time,
+%%% we use symbolic variables ({@type symb_var()}) to refer to them.
+%%% A command ({@type command()}) is a symbolic term, used to bind a symbolic
+%%% variable to the result of a symbolic call. For example:
+%%%
+%%% ```[{set, {var,1}, {call,erlang,put,[a,42]}},
+%%%     {set, {var,2}, {call,erlang,erase,[a]}},
+%%%     {set, {var,3}, {call,erlang,put,[b,{var,2}]}}]'''
+%%%
+%%% is a command sequence that could be used to test the process dictionary.
+%%% Initially, the pair `{a,42}' is stored in the process dictionary. Then, the
+%%% key `a' is deleted. Finally, a new pair `{b,{var,2}}' is stored. `{var,2}'
+%%% is a symbolic variable bound to the result of the `erlang:erase/1' call.
+%%% The expected result is that `{b,42}' will be finally stored in the process
+%%% dictionary.
+%%%
+%%% == Testcase state ==
+%%% In order to be able to test impure code, we need  a way to track its
+%%% internal state (at least the useful part of it). To this end,
+%%% we use an abstract state machine (asm) as a  model of the internal state of
+%%% the SUT. When referring to <i>testcase state</i>, we mean the state of the
+%%% asm. Testcase state can be either symbolic or dynamic:
+%%% <ul>
+%%% <li>During command generation, we use symbolic variables to bind the
+%%% results of symbolic calls. Therefore, the state of the asm might
+%%% (and usually does) contain symbolic variables and/or symbolic calls, which
+%%% are necessary to operate on symbolic variables. Thus, we refer to it as
+%%% symbolic state. For example, assuming that the internal state of the
+%%% process dictionary is modelled as a proplist, the testcase state after
+%%% generating the previous command sequence will be `[{b,{var,2}}]'.</li>
+%%% <li>During command execution, symbolic calls are evaluated and symbolic
+%%% variables are replaced by their corresponding real values. Now we refer to
+%%% the state as dynamic state. After running the previous command sequence,
+%%% the testcase state will be `[{b,42}]'.</li>
+%%% </ul>
+%%%
+%%% == Callback functions ==
+%%% The following functions must be exported from the callback module
+%%% implementing the abstract state machine:
+%%% <ul>
+%%% <li> `initial_state() ::' {@type symbolic_state()}
+%%%   <p>Specifies the symbolic initial state of the state machine. This state
+%%%   will be evaluated at command execution time to produce the actual initial
+%%%   state. The function is not only called at command generation time, but
+%%%   also in order to initialize the state every time the command sequence is
+%%%   run (i.e. during normal execution, while shrinking and when checking a
+%%%   counterexample). For this reason, it should be deterministic.</p></li>
+%%% <li> `command(S::'{@type symbolic_state()}`) ::' {@type proper_types:type()}
+%%%   <p>Generates a symbolic call to be included in the command sequence,
+%%%   given the current state `S' of the abstract state machine. However,
+%%%   before the call is actually included, a precondition is checked.</p></li>
+%%% <li> `precondition(S::'{@type symbolic_state()}`,
+%%%                    Call::'{@type symb_call()}`) :: boolean()'
+%%%   <p>Specifies the precondition that should hold so that `Call' can be
+%%%   included in the command sequence, given the current state `S' of the
+%%%   abstract state machine. In case precondition doesn't hold, a new call is
+%%%   chosen using the `command/1' generator. If preconditions are very strict,
+%%%   it will take a lot of tries for PropEr to randomly choose a valid command.
+%%%   Testing will be stopped in case the 'constraint_tries' limit is reached
+%%%   (see the 'Options' section).</p></li>
+%%% <li> `postcondition(S::'{@type dynamic_state()}`,
+%%%                     Call::'{@type symbolic_call()}`,
+%%%                     Res::term()) :: boolean()'
+%%%   <p>Specifies the postcondition that should hold about the result `Res' of
+%%%   performing `Call', given the dynamic state `S' of the abstract state
+%%%   machine prior to command execution. This function is called during
+%%%   runtime, this is why the state is dynamic.</p></li>
+%%% <li> `next_state(S::'{@type symbolic_state()}`|'{@type dynamic_state()}`,
+%%%                  Res::term(),
+%%%                  Call::'{@type symbolic_call()}`) ::'
+%%%        {@type symbolic_state()}
+%%%   <p>Specifies the next state of the abstract state machine, given the
+%%%   current state `S', the symbolic `Call' chosen and its result `Res'. This
+%%%   function is called both at command generation and command execution time
+%%%   in order to update the testcase state, therefore the state `S' and the
+%%%   result `Res' can be either symbolic or dynamic.</p></li>
+%%% </ul>
+%%%
+%%% == Property for testing stateful systems ==
+%%% This is an example of a property to test the process dictionary:
+%%%
+%%% ```prop_pdict() ->
+%%%       ?FORALL(Cmds, commands(?MODULE),
+%%%        begin
+%%%         {H,S,Res} = run_commands(?MODULE, Cmds),
+%%%         cleanup(),
+%%%         ?WHENFAIL(io:format("History: ~w\nState: ~w\nRes: ~w\n",
+%%%	                        [H,S,Res]),
+%%%		      aggregate(command_names(Cmds), Res =:= ok))
+%%%        end).'''
+%%%
+%%% == Parallel testing ==
+%%% After ensuring that a system's behaviour can be described via an abstract
+%%% state machine when commands are executed sequentially, it is possible to
+%%% move to parallel testing. The same state machine can be used to generate
+%%% command sequences that will be executed concurrently to test for race
+%%% conditions. A parallel testcase ({@type parallel_test_case()}) consists of
+%%% a sequential part and a list of concurrent tasks. The sequential part is
+%%% a command list that is run first to put the system in a random state. The
+%%% concurrent tasks are also command lists and they are executed in parallel,
+%%% each of them in a separate process. After running a parallel testcase,
+%%% PropEr uses the state machine specification to check if the results
+%%% observed could have been produced by a possible serialization of the
+%%% concurrent tasks. If no such serialization is possible, then an atomicity
+%%% violation is detected. Properties for parallel testing are very similar to
+%%% those used for sequential testing.
+%%%
+%%% ```prop_parallel_testing() ->
+%%%       ?FORALL(Testcase, parallel_commands(?MODULE),
+%%%        begin
+%%%         {Seq,Par,Res} = run_parallel_commands(?MODULE, Testcase),
+%%%         cleanup(),
+%%%         ?WHENFAIL(io:format("Sequential: ~w\nParallel: ~w\nRes: ~w\n",
+%%%	                        [Seq,Par,Res]),
+%%%		      Res =:= ok)
+%%%        end).'''
+%%% @end
 
 -module(proper_statem).
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
@@ -54,7 +188,7 @@
 
 -type symbolic_state()     :: term().
 -type dynamic_state()      :: term().
--type symb_var()           :: {'var',proper_symb:var_id()}.
+-type symb_var()           :: {'var',pos_integer()}.
 -type symb_call()          :: {'call',mod_name(),fun_name(),[term()]}.
 -type command()            :: {'init',symbolic_state()}
 		              | {'set',symb_var(),symb_call()}.
@@ -62,16 +196,11 @@
 -type parallel_test_case() :: {command_list(),[command_list()]}.
 -type command_history()    :: [{command(),term()}].
 -type history()            :: [{dynamic_state(),term()}].
-
--type exc_kind()      :: 'throw' | 'error' | 'exit'.
--type exc_reason()    :: term().
--type stacktrace()    :: [{atom(),atom(),arity() | [term()]}].
--type exception()     ::  {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type statem_result() :: 'ok'
 			 | 'initialization_error'
-			 | {'precondition', boolean() | exception()}
-			 | {'postcondition', boolean() | exception()}
-			 | exception()
+			 | {'precondition',  boolean() | proper:exception()}
+			 | {'postcondition', boolean() | proper:exception()}
+			 | proper:exception()
 			 | 'no_possible_interleaving'.
 
 -type combination() :: [{pos_integer(),[pos_integer()]}].
@@ -86,12 +215,18 @@
 
 -define(COMMANDS(PropList), proper_types:new_type(PropList, commands)).
 
+%% @spec commands(mod_name()) -> proper_types:type()
+%% @doc A special PropEr type which generates random command sequences,
+%% according to an absract state machine specification. The function takes as
+%% input the name of a callback module, which contains the state machine
+%% specification. The initial state is computed by `Mod:initial_state/0'.
+
 -spec commands(mod_name()) -> proper_types:type().
-commands(Module) ->
+commands(Mod) ->
     ?COMMANDS(
        [{generator,
 	 fun(Size) ->
-		 gen_commands(Size, Module, Module:initial_state(), false) end},
+		 gen_commands(Size, Mod, Mod:initial_state(), false) end},
 	%% TODO: is_instance test needed?
 	{is_instance, fun commands_test/1},
 	{get_indices, fun proper_types:list_get_indices/1},
@@ -100,15 +235,28 @@ commands(Module) ->
 	{join, fun lists:append/2},
 	{remove, fun proper_arith:list_remove/2},
 	{shrinkers,
-	 [fun(Cmds, T, S) -> split_shrinker(Module, Cmds, T, S) end,
-	  fun(Cmds, T, S) -> remove_shrinker(Module, Cmds, T, S) end]}]).
+	 [fun(Cmds, T, S) -> split_shrinker(Mod, Cmds, T, S) end,
+	  fun(Cmds, T, S) -> remove_shrinker(Mod, Cmds, T, S) end]}]).
+
+%% @spec commands(mod_name(), symbolic_state()) -> proper_types:type()
+%% @doc Similar to {@link commands/1}, but generated command sequences always
+%% start at a given state. In this case, the first command is always
+%% `{init,InitialState}' and is used to correctly initialize the state
+%% every time the command sequence is run (i.e. during normal execution,
+%% while shrinking and when checking a counterexample). In this case,
+%% `Mod:initial_state/0' is never called.
 
 -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
-commands(Module, InitialState) ->
+commands(Mod, InitialState) ->
     proper_types:subtype(
       [{generator,
-	fun(Size) -> gen_commands(Size, Module, InitialState, true) end}],
-      commands(Module)).
+	fun(Size) -> gen_commands(Size, Mod, InitialState, true) end}],
+      commands(Mod)).
+
+%% @spec more_commands(pos_integer(), proper_types:type()) ->
+%%           proper_types:type()
+%% @doc  Increases the maximum length of command sequences generated from
+%% `Type' by a factor `N'.
 
 -spec more_commands(pos_integer(), proper_types:type()) -> proper_types:type().
 more_commands(N, Type) ->
@@ -129,16 +277,16 @@ gen_commands(Size, Mod, InitialState, InitFlag) ->
 
 -spec gen_commands(mod_name(), symbolic_state(), command_list(), size(),
 		   non_neg_integer()) -> command_list() | {'throw',term()}.
-gen_commands(_, _, Commands, _, 0) ->
-    lists:reverse(Commands);
-gen_commands(Mod, State, Commands, Len, Count) ->
+gen_commands(_, _, Cmds, _, 0) ->
+    lists:reverse(Cmds);
+gen_commands(Mod, State, Cmds, Len, Count) ->
     CallType = ?SUCHTHAT(C, Mod:command(State), Mod:precondition(State, C)),
     try proper_gen:clean_instance(proper_gen:generate(CallType)) of
 	Call ->
 	    Var = {var, Len-Count+1},
 	    Command = {set, Var, Call},
 	    NextState = Mod:next_state(State, Var, Call),
-	    gen_commands(Mod, NextState, [Command|Commands], Len, Count-1)
+	    gen_commands(Mod, NextState, [Command|Cmds], Len, Count-1)
     catch
 	throw:Reason -> {throw, Reason}
     end.
@@ -147,6 +295,12 @@ gen_commands(Mod, State, Commands, Len, Count) ->
 %% -----------------------------------------------------------------------------
 %% Parallel command generation
 %% -----------------------------------------------------------------------------
+
+%% @spec parallel_commands(mod_name()) -> proper_types:type()
+%% @doc A special PropEr type which generates parallel testcases,
+%% according to an absract state machine specification. The function takes as
+%% input the name of a callback module, which contains the state machine
+%% specification. The initial state is computed by `Mod:initial_state/0'.
 
 -spec parallel_commands(mod_name()) -> proper_types:type().
 parallel_commands(Mod) ->
@@ -175,6 +329,10 @@ parallel_commands(Mod) ->
 		      remove_seq_shrinker(Mod, Parallel_Cmds, T, S) end,
 	      fun move_shrinker/3]}
        ]).
+
+%% @spec parallel_commands(mod_name(), symbolic_state()) -> proper_types:type()
+%% @doc Similar to {@link parallel_commands/1}, but generated command sequences
+%% always start at a given state.
 
 -spec parallel_commands(mod_name(), symbolic_state()) -> proper_types:type().
 parallel_commands(Mod, InitialState) ->
@@ -235,18 +393,42 @@ is_parallel(Cs, Mod, State, Env) ->
 %% Sequential command execution
 %% -----------------------------------------------------------------------------
 
+%% @spec run_commands(mod_name(), command_list()) ->
+%%          {history(),dynamic_state(),statem_result()}
+%% @doc Evaluates a given symbolic command sequence `Cmds' according to the
+%%  state machine specified in `Mod'. The result is a triple of the form<br/>
+%%  `{History, DynamicState, Result}', where:
+%% <ul>
+%% <li>`History' contains the execution history of all commands that were
+%%   executed without raising an exception. It contains tuples of the form
+%%   {{@type dynamic_state()}, {@type term()}}, specifying the state prior to
+%%   command execution and the actual result of the command.</li>
+%% <li>`DynamicState' contains the state of the abstract state machine at
+%%   the moment when execution stopped.</li>
+%% <li>`Result' specifies the outcome of command execution.</li>
+%% </ul>
+
 -spec run_commands(mod_name(), command_list()) ->
          {history(),dynamic_state(),statem_result()}.
-run_commands(Module, Cmds) ->
-    run_commands(Module, Cmds, []).
+run_commands(Mod, Cmds) ->
+    run_commands(Mod, Cmds, []).
+
+%% @spec run_commands(mod_name(), command_list(), proper_symb:var_values()) ->
+%%          {history(),dynamic_state(),statem_result()}
+%% @doc  Similar to {@link run_commands/2}, but also accepts an environment,
+%% used for symbolic variable evaluation during command execution. The
+%% environment consists of `{Key::atom(), Value::term()}' pairs. Keys may be
+%% used in symbolic variables (i.e. `{var,Key}') whithin the command sequence
+%% `Cmds'. These symbolic variables will be replaced by their corresponding
+%% `Value' during command execution.
 
 -spec run_commands(mod_name(), command_list(), proper_symb:var_values()) ->
          {history(),dynamic_state(),statem_result()}.
-run_commands(Module, Commands, Env) ->
-    InitialState = get_initial_state(Module, Commands),
+run_commands(Mod, Cmds, Env) ->
+    InitialState = get_initial_state(Mod, Cmds),
     case safe_eval_init(Env, InitialState) of
 	{ok,DynState} ->
-	    do_run_command(Commands, Env, Module, [], DynState);
+	    do_run_command(Cmds, Env, Mod, [], DynState);
 	{error,Reason} ->
 	    {[], [], Reason}
     end.
@@ -266,30 +448,30 @@ safe_eval_init(Env, SymbState) ->
 -spec do_run_command(command_list(), proper_symb:var_values(), mod_name(),
 		     history(), dynamic_state()) ->
          {history(),dynamic_state(),statem_result()}.
-do_run_command(Commands, Env, Module, History, State) ->
-    case Commands of
+do_run_command(Cmds, Env, Mod, History, State) ->
+    case Cmds of
 	[] ->
 	    {lists:reverse(History), State, ok};
 	[{init,_S}|Rest] ->
-	    do_run_command(Rest, Env, Module, History, State);
+	    do_run_command(Rest, Env, Mod, History, State);
 	[{set, {var,V}, {call,M,F,A}}|Rest] ->
 	    M2 = proper_symb:eval(Env, M),
 	    F2 = proper_symb:eval(Env, F),
 	    A2 = proper_symb:eval(Env, A),
 	    Call = {call,M2,F2,A2},
-	    case check_precondition(Module, State, Call) of
+	    case check_precondition(Mod, State, Call) of
 		true ->
 		    case safe_apply(M2, F2, A2) of
 			{ok,Res} ->
 			    State2 =
 				proper_symb:eval(
-				  Env, Module:next_state(State, Res, Call)),
+				  Env, Mod:next_state(State, Res, Call)),
 			    History2 = [{State,Res}|History],
-			    case check_postcondition(Module, State, Call, Res)
+			    case check_postcondition(Mod, State, Call, Res)
 			    of
 				true ->
 				    Env2 = [{V,Res}|Env],
-				    do_run_command(Rest, Env2, Module,
+				    do_run_command(Rest, Env2, Mod,
 						   History2, State2);
 				false ->
 				    {lists:reverse(History2), State2,
@@ -309,25 +491,25 @@ do_run_command(Commands, Env, Module, History, State) ->
     end.
 
 -spec check_precondition(mod_name(), dynamic_state(), symb_call()) ->
-         boolean() | exception().
-check_precondition(Module, State, Call) ->
-    try Module:precondition(State, Call)
+         boolean() | proper:exception().
+check_precondition(Mod, State, Call) ->
+    try Mod:precondition(State, Call)
     catch
 	Kind:Reason ->
 	    {exception,Kind,Reason,erlang:get_stacktrace()}
     end.
 
 -spec check_postcondition(mod_name(), dynamic_state(), symb_call(), term()) ->
-         boolean() | exception().
-check_postcondition(Module, State, Call, Res) ->
-    try Module:postcondition(State, Call, Res)
+         boolean() | proper:exception().
+check_postcondition(Mod, State, Call, Res) ->
+    try Mod:postcondition(State, Call, Res)
     catch
 	Kind:Reason ->
 	    {exception,Kind,Reason,erlang:get_stacktrace()}
     end.
 
 -spec safe_apply(mod_name(), fun_name(), [term()]) ->
-         {'ok', term()} | {'error', exception()}.
+         {'ok', term()} | {'error', proper:exception()}.
 safe_apply(M, F, A) ->
     try apply(M, F, A) of
 	Result -> {ok, Result}
@@ -341,23 +523,45 @@ safe_apply(M, F, A) ->
 %% Parallel command execution
 %% -----------------------------------------------------------------------------
 
+%% @spec run_parallel_commands(mod_name(), parallel_test_case()) ->
+%%	    {command_history(),[command_history()],statem_result()}
+%% @doc Runs a given parallel testcase according to the state machine
+%% specified in `Mod'. The result is a triple of the form<br/>
+%% `@{Sequential_history, Parallel_history, Result@}', where:
+%% <ul>
+%% <li>`Sequential_history' contains the execution history of the
+%%   sequential prefix.</li>
+%% <li>`Parallel_history' contains the execution history of each of the
+%%   concurrent tasks.</li>
+%% <li>`Result' specifies the outcome of the attemp to serialize command
+%%   execution, based on the results observed. It can be one of the following:
+%%   <ul><li> `ok' </li><li> `no_possible_interleaving' </li></ul> </li>
+%% </ul>
+
 -spec run_parallel_commands(mod_name(), parallel_test_case()) ->
 	 {command_history(),[command_history()],statem_result()}.
-run_parallel_commands(Module, {_Sequential, _Parallel} = Cmds) ->
-    run_parallel_commands(Module, Cmds, []).
+run_parallel_commands(Mod, {_Sequential, _Parallel} = Testcase) ->
+    run_parallel_commands(Mod, Testcase, []).
+
+%% @spec run_parallel_commands(mod_name(), Testcase::parallel_test_case(),
+%%			       proper_symb:var_values()) ->
+%%	    {command_history(),[command_history()],statem_result()}
+%% @doc Similar to {@link run_parallel_commands/2}, but also accepts an
+%% environment used for symbolic variable evaluation, exactly as described in
+%% {@link run_commands/3}.
 
 -spec run_parallel_commands(mod_name(), parallel_test_case(),
 			    proper_symb:var_values()) ->
 	 {command_history(),[command_history()],statem_result()}.
-run_parallel_commands(Module, {Sequential, Parallel}, Env) ->
-    InitialState = get_initial_state(Module, Sequential),
+run_parallel_commands(Mod, {Sequential, Parallel}, Env) ->
+    InitialState = get_initial_state(Mod, Sequential),
     case safe_eval_init(Env, InitialState) of
 	{ok, DynState} ->
 	    {{Seq_history, State, ok}, Env1} =
-		run_sequential(Sequential, Env, Module, [], DynState),
-	    F = fun(T) -> execute(T, Env1, Module, []) end,
+		run_sequential(Sequential, Env, Mod, [], DynState),
+	    F = fun(T) -> execute(T, Env1, Mod, []) end,
 	    Parallel_history = pmap(F, Parallel),
-	    case check(Module, State, Env1, Env1, [],
+	    case check(Mod, State, Env1, Env1, [],
 		       Parallel_history, []) of
 		true ->
 		    {Seq_history, Parallel_history, ok};
@@ -435,31 +639,31 @@ check(Mod, State, OldEnv, Env, Tried, [P|Rest], Accum) ->
 		     history(), dynamic_state()) ->
        {{command_history(), dynamic_state(), statem_result()},
 	proper_symb:var_values()}.
-run_sequential(Commands, Env, Module, History, State) ->
-    case Commands of
+run_sequential(Cmds, Env, Mod, History, State) ->
+    case Cmds of
 	[] ->
 	    {{lists:reverse(History), State, ok}, Env};
 	[{init, _S}|Rest] ->
-	    run_sequential(Rest, Env, Module, History, State);
+	    run_sequential(Rest, Env, Mod, History, State);
    	[{set, {var,V}, {call,M,F,A}} = Cmd|Rest] ->
 	    M2 = proper_symb:eval(Env, M),
 	    F2 = proper_symb:eval(Env, F),
 	    A2 = proper_symb:eval(Env, A),
 	    Call = {call, M2, F2, A2},
-	    true = Module:precondition(State, Call),
+	    true = Mod:precondition(State, Call),
 	    Res = apply(M2, F2, A2),
-	    true = Module:postcondition(State, Call, Res),
+	    true = Mod:postcondition(State, Call, Res),
 	    Env2 = [{V,Res}|Env],
-	    State2 = proper_symb:eval(Env, Module:next_state(State, Res, Call)),
+	    State2 = proper_symb:eval(Env, Mod:next_state(State, Res, Call)),
 	    History2 = [{Cmd,Res}|History],
-	    run_sequential(Rest, Env2, Module, History2, State2)
+	    run_sequential(Rest, Env2, Mod, History2, State2)
     end.
 
 %% @private
 -spec execute(command_list(), proper_symb:var_values(), mod_name(),
 	      command_history()) -> command_history().
-execute(Commands, Env, Module, History) ->
-    case Commands of
+execute(Cmds, Env, Mod, History) ->
+    case Cmds of
 	[] ->
 	    lists:reverse(History);
 	[{set, {var,V}, {call,M,F,A}} = Cmd|Rest] ->
@@ -469,7 +673,7 @@ execute(Commands, Env, Module, History) ->
 	    Res = apply(M2, F2, A2),
 	    Env2 = [{V,Res}|Env],
 	    History2 = [{Cmd,Res}|History],
-	    execute(Rest, Env2, Module, History2)
+	    execute(Rest, Env2, Mod, History2)
     end.
 
 
@@ -480,39 +684,39 @@ execute(Commands, Env, Module, History) ->
 -spec split_shrinker(mod_name(), command_list(), proper_types:type(),
 		     proper_shrink:state()) ->
          {[command_list()],proper_shrink:state()}.
-split_shrinker(Module, [{init,I} = Init|CmdTail], Type, State) ->
+split_shrinker(Mod, [{init,I} = Init|CmdTail], Type, State) ->
     {Slices,NewState} = proper_shrink:split_shrinker(CmdTail, Type, State),
-    {[[Init|X] || X <- Slices, is_valid(Module, I, X, [])], NewState};
-split_shrinker(Module, Cmds, Type, State) ->
-    I = Module:initial_state(),
+    {[[Init|X] || X <- Slices, is_valid(Mod, I, X, [])], NewState};
+split_shrinker(Mod, Cmds, Type, State) ->
+    I = Mod:initial_state(),
     {Slices,NewState} = proper_shrink:split_shrinker(Cmds, Type, State),
-    {[X || X <- Slices, is_valid(Module, I, X, [])], NewState}.
+    {[X || X <- Slices, is_valid(Mod, I, X, [])], NewState}.
 
 -spec remove_shrinker(mod_name(), command_list(), proper_types:type(),
 		      proper_shrink:state()) ->
 	 {[command_list()],proper_shrink:state()}.
-remove_shrinker(Module, [{init,I} = Init|CmdTail] = Cmds, Type, State) ->
+remove_shrinker(Mod, [{init,I} = Init|CmdTail] = Cmds, Type, State) ->
     {Slices,NewState} = proper_shrink:remove_shrinker(CmdTail, Type, State),
     case Slices of
 	[] ->
 	    {[], NewState};
 	_ ->
-	    L = [[Init|S] || S <- Slices, is_valid(Module, I, S, [])],
+	    L = [[Init|S] || S <- Slices, is_valid(Mod, I, S, [])],
 	    case L of
-		[] -> remove_shrinker(Module, Cmds, Type, NewState);
+		[] -> remove_shrinker(Mod, Cmds, Type, NewState);
 		_  -> {L, NewState}
 	    end
     end;
-remove_shrinker(Module, Cmds, Type, State) ->
-    I = Module:initial_state(),
+remove_shrinker(Mod, Cmds, Type, State) ->
+    I = Mod:initial_state(),
     {Slices,NewState} = proper_shrink:remove_shrinker(Cmds, Type, State),
     case Slices of
 	[] ->
 	    {[], NewState};
 	_ ->
-	    L = [S || S <- Slices, is_valid(Module, I, S, [])],
+	    L = [S || S <- Slices, is_valid(Mod, I, S, [])],
 	    case L of
-		[] -> remove_shrinker(Module, Cmds, Type, NewState);
+		[] -> remove_shrinker(Mod, Cmds, Type, NewState);
 		_ -> {L, NewState}
 	    end
     end.
@@ -520,31 +724,31 @@ remove_shrinker(Module, Cmds, Type, State) ->
 -spec split_parallel_shrinker(pos_integer(), mod_name(), parallel_test_case(),
 			      proper_types:type(), proper_shrink:state()) ->
          {[parallel_test_case()],proper_shrink:state()}.
-split_parallel_shrinker(I, Module, {Sequential,Parallel}, Type, State) ->
+split_parallel_shrinker(I, Mod, {Sequential,Parallel}, Type, State) ->
     SeqEnv = mk_env(Sequential, 1),
-    SymbState = state_after(Module, Sequential),
+    SymbState = state_after(Mod, Sequential),
     {Slices, NewState} =
 	proper_shrink:split_shrinker(lists:nth(I, Parallel), Type, State),
     {[{Sequential, update_list(I, S, Parallel)}
-      || S <- Slices, is_valid(Module, SymbState, S, SeqEnv)],
+      || S <- Slices, is_valid(Mod, SymbState, S, SeqEnv)],
      NewState}.
 
 -spec remove_parallel_shrinker(pos_integer(), mod_name(), parallel_test_case(),
 			       proper_types:type(), proper_shrink:state()) ->
          {[parallel_test_case()],proper_shrink:state()}.
-remove_parallel_shrinker(I, Module, {Sequential,Parallel} = SP, Type, State) ->
+remove_parallel_shrinker(I, Mod, {Sequential,Parallel} = SP, Type, State) ->
     P = lists:nth(I, Parallel),
     SeqEnv = mk_env(Sequential, 1),
-    SymbState = state_after(Module, Sequential),
+    SymbState = state_after(Mod, Sequential),
     {Slices,NewState} = proper_shrink:remove_shrinker(P, Type, State),
     case Slices of
 	[] ->
 	    {[], done};
 	_ ->
 	    L = [{Sequential, update_list(I, S, Parallel)}
-		 || S <- Slices, is_valid(Module, SymbState, S, SeqEnv)],
+		 || S <- Slices, is_valid(Mod, SymbState, S, SeqEnv)],
 	    case L of
-		[] -> remove_parallel_shrinker(I, Module, SP, Type, NewState);
+		[] -> remove_parallel_shrinker(I, Mod, SP, Type, NewState);
 		_  -> {L, NewState}
 	    end
     end.
@@ -552,21 +756,21 @@ remove_parallel_shrinker(I, Module, {Sequential,Parallel} = SP, Type, State) ->
 -spec split_seq_shrinker(mod_name(), parallel_test_case(), proper_types:type(),
 			 proper_shrink:state()) ->
          {[parallel_test_case()],proper_shrink:state()}.
-split_seq_shrinker(Module, {Sequential,Parallel}, Type, State) ->
-    {Slices,NewState} = split_shrinker(Module, Sequential, Type, State),
-    SymbState = get_initial_state(Module, Sequential),
+split_seq_shrinker(Mod, {Sequential,Parallel}, Type, State) ->
+    {Slices,NewState} = split_shrinker(Mod, Sequential, Type, State),
+    SymbState = get_initial_state(Mod, Sequential),
     {[{S, Parallel} || S <- Slices,
 		       lists:all(
-			 fun(P) -> is_valid(Module, SymbState, S ++ P, []) end,
+			 fun(P) -> is_valid(Mod, SymbState, S ++ P, []) end,
 			 Parallel)],
      NewState}.
 
 -spec remove_seq_shrinker(mod_name(), parallel_test_case(), proper_types:type(),
 			  proper_shrink:state()) ->
          {[parallel_test_case()],proper_shrink:state()}.
-remove_seq_shrinker(Module, {Sequential,Parallel} = SP, Type, State) ->
-    {Slices,NewState} = remove_shrinker(Module, Sequential, Type, State),
-    SymbState = get_initial_state(Module, Sequential),
+remove_seq_shrinker(Mod, {Sequential,Parallel} = SP, Type, State) ->
+    {Slices,NewState} = remove_shrinker(Mod, Sequential, Type, State),
+    SymbState = get_initial_state(Mod, Sequential),
     case Slices of
 	[] ->
 	    {[], NewState};
@@ -574,10 +778,10 @@ remove_seq_shrinker(Module, {Sequential,Parallel} = SP, Type, State) ->
 	    L = [{S, Parallel}
 		 || S <- Slices,
 		    lists:all(
-		      fun(P) -> is_valid(Module, SymbState, S ++ P, []) end,
+		      fun(P) -> is_valid(Mod, SymbState, S ++ P, []) end,
 		      Parallel)],
 	    case L of
-		[] -> remove_seq_shrinker(Module, SP, Type, NewState);
+		[] -> remove_seq_shrinker(Mod, SP, Type, NewState);
 		_  -> {L, NewState}
 	    end
     end.
@@ -605,17 +809,33 @@ move_shrinker(Instance, Type, {shrunk,_Pos,{move,2}}) ->
 %% Utility functions
 %% -----------------------------------------------------------------------------
 
+%% @spec command_names(command_list()) -> [mfa()]
+%% @doc Extracts the names of the commands from a given command sequence, in
+%% the form of MFAs. It is useful in combination with functions such as
+%% {@link proper:aggregate/2} in order to collect statistics about command
+%% execution.
+
 -spec command_names(command_list()) -> [mfa()].
 command_names(Cmds) ->
     [{M, F, length(Args)} || {set, _Var, {call,M,F,Args}} <- Cmds].
 
+%% @spec state_after(mod_name(), command_list()) -> symbolic_state()
+%% @doc Returns the symbolic state after running a given command sequence,
+%% according to the state machine specification found in `Mod'. The commands
+%% are not actually executed.
+
 -spec state_after(mod_name(), command_list()) -> symbolic_state().
-state_after(Module, Commands) ->
-    NextState = fun(S, V, C) -> Module:next_state(S, V, C) end,
+state_after(Mod, Cmds) ->
+    NextState = fun(S, V, C) -> Mod:next_state(S, V, C) end,
     lists:foldl(fun({init,S}, _) -> S;
 		   ({set,Var,Call}, S) -> NextState(S, Var, Call) end,
-		get_initial_state(Module, Commands),
-		Commands).
+		get_initial_state(Mod, Cmds),
+		Cmds).
+
+%% @spec zip([A], [B]) -> [{A,B}]
+%% @doc Behaves like `lists:zip/2', but the input lists do no not necessarily
+%% have equal length. Zipping stops when the shortest list stops. This is
+%% useful for zipping a command sequence with its (failing) execution history.
 
 -spec zip([A], [B]) -> [{A,B}].
 zip(X, Y) ->
@@ -631,12 +851,12 @@ zip([X|Tail1], [Y|Tail2], Accum) ->
 -spec is_valid(mod_name(), symbolic_state(), command_list(), [symb_var()]) ->
          boolean().
 is_valid(_Mod, _State, [], _Env) -> true;
-is_valid(Mod, _State, [{init,S}|Commands], _Env) ->
-    is_valid(Mod, S, Commands, _Env);
-is_valid(Mod, State, [{set,Var,{call,_M,_F,A}=Call}|Commands], Env) ->
+is_valid(Mod, _State, [{init,S}|Cmds], _Env) ->
+    is_valid(Mod, S, Cmds, _Env);
+is_valid(Mod, State, [{set,Var,{call,_M,_F,A}=Call}|Cmds], Env) ->
     args_defined(A, Env) andalso Mod:precondition(State, Call)
 	andalso is_valid(Mod, Mod:next_state(State, Var, Call),
-			 Commands, [Var|Env]).
+			 Cmds, [Var|Env]).
 
 %% @private
 -spec args_defined([term()], [symb_var()]) -> boolean().
@@ -858,3 +1078,58 @@ remove_first_command(Index, [H|T], Accum, Index) ->
     lists:reverse(Accum) ++ [tl(H)] ++ T;
 remove_first_command(Index, [H|T], Accum, N) ->
     remove_first_command(Index, T, [H|Accum], N+1).
+
+
+%% @type symbolic_state().
+%% State of the abstract state machine, possibly containing symbolic variables
+%% and/or symbolic calls.
+%% @type dynamic_state().
+%% State of the abstract state machine containing only real values, i.e. all
+%% symbolic terms have been evaluated.
+%% @type symb_var() = {'var',pos_integer()}.
+%% Symbolic term to which we bind the result of a command.
+%% @type symb_call() = {'call',mod_name(),fun_name(),[term()]}.
+%% Symbolic term which will be evaluated to a function call.
+%% @type command() = {'set',symb_var(),symb_call()} | {'init',symbolic_state()}.
+%% Symbolic term used to bind the result of a symbolic call to a symbolic
+%% variable or to initialize the state.
+%% @type command_list() = [command()].
+%% List of symbolic commands.
+%% @type parallel_test_case() = {command_list(),[command_list()]}.
+%% A parallel testcase, consisting of a sequential prefix and a list of
+%% concurrent tasks.
+%% @type command_history() = [{command(),term()}].
+%% History of parallel command execution. Contains the commands that were
+%% executed zipped with their results.
+%% @type history() = [{dynamic_state(),term()}].
+%% History of sequential command execution. Contains the dynamic state
+%% prior to command execution and the actual result, for each command
+%% that was executed without raising an exception.
+%% @type statem_result() = 'ok'
+%%			 | 'initialization_error'
+%%			 | {'precondition',  boolean() | proper:exception()}
+%%			 | {'postcondition', boolean() | proper:exception()}
+%%			 | proper:exception()
+%%			 | 'no_possible_interleaving'.
+%% Specifies the overall result of command execution. It can be one of
+%% following:
+%% <ul>
+%%  <li><b>ok</b>
+%%  <p>All commands were successfully run and all postconditions were true.</p>
+%%  </li>
+%%  <li><b>initialization_error</b>
+%%  <p>There was an error while evaluating the initial state.</p>
+%%  </li>
+%%  <li><b>postcondition</b>
+%%  <p>A postcondition was false or raised an exception.</p>
+%%  </li>
+%%  <li><b>precondition</b>
+%%  <p>A precondition was false or raised an exception.</p>
+%%  </li>
+%%  <li><b>exception</b>
+%%  <p>An exception was raised while running a command.</p>
+%%  </li>
+%%  <li><b>no_possible_interleaving</b>
+%%  <p>Occurs only in parallel testing and indicates an atomicity violation.</p>
+%%  </li>
+%% </ul>
