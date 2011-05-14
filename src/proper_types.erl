@@ -30,7 +30,8 @@
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1,tuple/1,
-	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0]).
+	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0,
+	 shrink_list/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
@@ -536,6 +537,18 @@ list(RawElemType) ->
 	{remove, fun proper_arith:list_remove/2},
 	{retrieve, fun lists:nth/2},
 	{update, fun proper_arith:list_update/3}
+    ]).
+
+-spec shrink_list([term()]) -> proper_types:type().
+shrink_list(List) ->
+    ?CONTAINER([
+	{generator, fun() -> List end},
+	{is_instance, fun erlang:is_list/1},
+	{get_length, fun erlang:length/1},
+	{split, fun lists:split/2},
+	{join, fun lists:append/2},
+	{get_indices, fun list_get_indices/1},
+	{remove, fun proper_arith:list_remove/2}
     ]).
 
 -spec list_test(proper_gen:imm_instance(), proper_types:type()) -> boolean().

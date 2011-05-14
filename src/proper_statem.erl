@@ -58,10 +58,10 @@
 -type symb_call()          :: {'call',mod_name(),fun_name(),[term()]}.
 -type command()            :: {'init',symbolic_state()}
 		              | {'set',symb_var(),symb_call()}.
--type command_list()       :: [command()].
--type parallel_test_case() :: {command_list(),[command_list()]}.
--type command_history()    :: [{command(),term()}].
--type history()            :: [{dynamic_state(),term()}].
+-type command_list()      :: [command()].
+-type parallel_testcase() :: {command_list(),[command_list()]}.
+-type command_history()   :: [{command(),term()}].
+-type history()           :: [{dynamic_state(),term()}].
 
 -type exc_kind()      :: 'throw' | 'error' | 'exit'.
 -type exc_reason()    :: term().
@@ -84,69 +84,48 @@
 %% Sequential command generation
 %% -----------------------------------------------------------------------------
 
--spec commands(mod_name(), symbolic_state()) -> proper_types:type().
-commands(Module, InitialState) ->
-    ?SIZED(Size,
-	   ?LET(CC,
-		?SUCHTHAT(
-		   Cmds,
-		   ?LET(CmdTail, commands(Size, Module, InitialState, 1),
-			[{init,InitialState}|CmdTail]),
-		   is_valid(Module, InitialState, Cmds, [])),
-		?SHRINK(
-		   proper_types:exactly(CC),
-		   [cmd_element_shrinker(Module, InitialState, CC)]))).
-
 -spec commands(mod_name()) -> proper_types:type().
-commands(Module) ->
-    ?SIZED(Size,
-	   ?LET(InitialState, ?LAZY(Module:initial_state()),
-		?LET(CC,
-		     ?SUCHTHAT(
-			Cmds,
-			commands(Size, Module, InitialState, 1),
-			is_valid(Module, InitialState, Cmds, [])),
-		     ?SHRINK(
-			proper_types:exactly(CC),
-			[cmd_element_shrinker(Module, InitialState, CC)])))).
+commands(Mod) ->
+    ?LET(InitialState, ?LAZY(Mod:initial_state()),
+	 ?SUCHTHAT(
+	    Cmds,
+	    ?LET(List,
+		 ?SIZED(Size,
+			proper_types:noshrink(
+			  commands(Size, Mod, InitialState, 1))),
+	       proper_types:shrink_list(List)),
+	    is_valid(Mod, InitialState, Cmds, []))).
+
+-spec commands(mod_name(), symbolic_state()) -> proper_types:type().
+commands(Mod, InitialState) ->
+    ?SUCHTHAT(
+       Cmds,
+       ?LET(CmdTail,
+	    ?LET(List,
+		 ?SIZED(Size,
+			proper_types:noshrink(
+			  commands(Size, Mod, InitialState, 1))),
+	       proper_types:shrink_list(List)),
+	  [{init,InitialState}|CmdTail]),
+       is_valid(Mod, InitialState, Cmds, [])).
 
 -spec commands(size(), mod_name(), symbolic_state(), pos_integer()) ->
          proper_types:type().
-commands(Size, Module, State, Count) ->
+commands(Size, Mod, State, Count) ->
     ?LAZY(
        proper_types:frequency(
 	 [{1, []},
 	  {Size, ?LET(Call,
-		      proper_types:noshrink(
-			?SUCHTHAT(X, Module:command(State),
-				  Module:precondition(State, X))),
+		      ?SUCHTHAT(X, Mod:command(State),
+				Mod:precondition(State, X)),
 		      begin
 			  Var = {var,Count},
-			  NextState = Module:next_state(State, Var, Call),
-			  ?LETSHRINK(
-			     [Cmds],
-			     [commands(Size-1, Module, NextState, Count+1)],
+			  NextState = Mod:next_state(State, Var, Call),
+			  ?LET(
+			     Cmds,
+			     commands(Size-1, Mod, NextState, Count+1),
 			     [{set,Var,Call}|Cmds])
 		      end)}])).
-
--spec cmd_element_shrinker(mod_name(), symbolic_state(), command_list()) ->
-         proper_types:type().
-cmd_element_shrinker(_Module, _State, []) ->
-    proper_types:exactly([]);
-cmd_element_shrinker(Module, _, [{init,State}|Rest]) ->
-    cmd_element_shrinker(Module, State, Rest);
-cmd_element_shrinker(Module, State, [{set,Var,Call}|Rest]) ->
-    ?LET(
-       ShrunkCall,
-       ?SUCHTHAT(X, Module:command(State),
-		 Module:precondition(State, X) andalso
-		 is_compatible(Call, X)),
-       begin
-	   NextState = Module:next_state(State, Var, ShrunkCall),
-	   ?LET(ShrunkCmds,
-		cmd_element_shrinker(Module, NextState, Rest),
-		[{set,Var,ShrunkCall}|ShrunkCmds])
-       end).
 
 -spec more_commands(pos_integer(), proper_types:type()) -> proper_types:type().
 more_commands(N, Type) ->
@@ -158,37 +137,42 @@ more_commands(N, Type) ->
 %% -----------------------------------------------------------------------------
 
 -spec parallel_commands(mod_name()) -> proper_types:type().
-parallel_commands(Module) ->
-    ?LET({Seq1, Par1},
-	 ?LET({Seq,Parallel},
-	      proper_types:noshrink(parallel_gen_type(Module)),
-	      parallel_shrink_type(Module, Seq, Parallel)),
-	 %% TODO: add element shrinker for parallel commands
-	 %% TODO: this has to be repeated upon success
-	 ?SHRINK({Seq1, Par1},
-		 [{Seq1 ++ [H], remove_first_command(Index, Par1)}
-		  || {H, Index} <- get_first_commands(Par1)])).
+parallel_commands(Mod) ->
+    ?LET({NewSeq, NewPar},
+	 ?LET({Seq, Par},
+	      proper_types:noshrink(parallel_gen_type(Mod)),
+	      parallel_shrink_type(Mod, Seq, Par)),
+	 move_shrinker(NewSeq, NewPar, ?WORKERS)).
 
 -spec parallel_commands(mod_name(), symbolic_state()) -> proper_types:type().
-parallel_commands(Module, InitialState) ->
-    ?LET({Seq1, Par1},
-	 ?LET({Seq,Parallel},
-	      proper_types:noshrink(parallel_gen_type(Module, InitialState)),
-	      parallel_shrink_type(Module, Seq, Parallel)),
-	 %% TODO: add element shrinker for parallel commands
-	 %% TODO: this has to be repeated upon success
-	 ?SHRINK({Seq1, Par1},
-		 [{Seq1 ++ [H], remove_first_command(Index, Par1)}
-		  || {H, Index} <- get_first_commands(Par1)])).
+parallel_commands(Mod, InitialState) ->
+    ?LET({NewSeq, NewPar},
+	 ?LET({Seq, Par},
+	      proper_types:noshrink(parallel_gen_type(Mod, InitialState)),
+	      parallel_shrink_type(Mod, Seq, Par)),
+	 move_shrinker(NewSeq, NewPar, ?WORKERS)).
+
+-spec move_shrinker(command_list(), [command_list()], pos_integer()) ->
+	 proper_types:type().
+move_shrinker(Seq, Par, 1) ->
+    ?SHRINK({Seq, Par},
+	    [{Seq ++ Slice, remove_slice(1, Slice, Par)}
+	     ||	Slice <- get_slices(lists:nth(1, Par))]);
+move_shrinker(Seq, Par, I) ->
+    ?LET({NewSeq, NewPar},
+	 ?SHRINK({Seq, Par},
+		 [{Seq ++ Slice, remove_slice(I, Slice, Par)}
+		  || Slice <- get_slices(lists:nth(I, Par))]),
+	 move_shrinker(NewSeq, NewPar, I-1)).
 
 -spec parallel_shrink_type(mod_name(), command_list(), [command_list()]) ->
 	 proper_types:type().
 parallel_shrink_type(Mod, [{init,I} = Init|Seq], Parallel) ->
     ?SUCHTHAT({Seq1, Parallel1},
 	      ?LET(ParInstances,
-		   [command_shrink_type(P) || P <- Parallel],
+		   [proper_types:shrink_list(P) || P <- Parallel],
 		   ?LET(SeqInstance,
-			command_shrink_type(Seq),
+			proper_types:shrink_list(Seq),
 			{[Init|SeqInstance], ParInstances})),
 	      lists:all(
 		fun(P) -> is_valid(Mod, I, Seq1 ++ P, []) end,
@@ -197,45 +181,44 @@ parallel_shrink_type(Mod, Seq, Parallel) ->
     I= Mod:initial_state(),
     ?SUCHTHAT({Seq1, Parallel1},
 	      ?LET(ParInstances,
-		   [command_shrink_type(P) || P <- Parallel],
+		   [proper_types:shrink_list(P) || P <- Parallel],
 		   ?LET(SeqInstance,
-			command_shrink_type(Seq),
+			proper_types:shrink_list(Seq),
 			{SeqInstance, ParInstances})),
 	      lists:all(
 		fun(P) -> is_valid(Mod, I, Seq1 ++ P, []) end,
 		Parallel1)).
 
--spec command_shrink_type(command_list()) -> proper_types:type().
-command_shrink_type([]) ->
-    proper_types:exactly([]);
-command_shrink_type([H|Rest]) ->
-    ?LAZY(?LETSHRINK([CmdTail], [command_shrink_type(Rest)], [H|CmdTail])).
-
 -spec parallel_gen_type(mod_name()) -> proper_types:type().
-parallel_gen_type(Module) ->
-    ?LET(Seq, commands(Module), parallel(Module, Seq, length(Seq)+1)).
+parallel_gen_type(Mod) ->
+    ?LET(Seq,
+	 commands(Mod),
+	 mk_parallel_testcase(Mod, Seq)).
 
 -spec parallel_gen_type(mod_name(), symbolic_state()) -> proper_types:type().
-parallel_gen_type(Module, InitialState) ->
-    ?LET(Seq, commands(Module, InitialState),
-	 parallel(Module, Seq, length(Seq))).
+parallel_gen_type(Mod, InitialState) ->
+    ?LET(Seq,
+	 commands(Mod, InitialState),
+	 mk_parallel_testcase(Mod, Seq)).
 
--spec parallel(mod_name(), command_list(), pos_integer()) ->
-         proper_types:type().
-parallel(Module, Seq, Count) ->
-    State = state_after(Module, Seq),
-    Env = mk_env(Seq, 1),
-    ?LET(
-       Parallel,
-       commands(?LIMIT, Module, State, Count),
-       begin
-	   LenPar = length(Parallel),
-	   Len2 = LenPar div ?WORKERS,
-	   Comb = mk_first_comb(LenPar, Len2, ?WORKERS),
-	   LookUp = orddict:from_list(mk_dict(Parallel, 1)),
-	   {Seq, fix_gen(LenPar, Len2, Comb, LookUp, Module,
-			 State, Env, ?WORKERS)}
-       end).
+-spec mk_parallel_testcase(mod_name(), command_list()) -> proper_types:type().
+mk_parallel_testcase(Mod, Seq) ->
+    {State, Env} = state_env_after(Mod, Seq),
+    Count = case Env of
+		[]          -> 1;
+		[{var,N}|_] -> N + 1
+	    end,
+    ?LET(Parallel,
+	 ?SUCHTHAT(C, commands(?LIMIT, Mod, State, Count),
+		   length(C) > ?WORKERS),
+	 begin
+	     LenPar = length(Parallel),
+	     Len = LenPar div ?WORKERS,
+	     Comb = mk_first_comb(LenPar, Len, ?WORKERS),
+	     LookUp = orddict:from_list(mk_dict(Parallel, 1)),
+	     {Seq, fix_gen(LenPar, Len, Comb, LookUp, Mod,
+			   State, Env, ?WORKERS)}
+	 end).
 
 -spec fix_gen(pos_integer(), non_neg_integer(), combination() | 'done',
 	      lookup(), mod_name(), symbolic_state(), [symb_var()],
@@ -276,16 +259,16 @@ is_parallel(Cs, Mod, State, Env) ->
 
 -spec run_commands(mod_name(), command_list()) ->
          {history(),dynamic_state(),statem_result()}.
-run_commands(Module, Cmds) ->
-    run_commands(Module, Cmds, []).
+run_commands(Mod, Cmds) ->
+    run_commands(Mod, Cmds, []).
 
 -spec run_commands(mod_name(), command_list(), proper_symb:var_values()) ->
          {history(),dynamic_state(),statem_result()}.
-run_commands(Module, Commands, Env) ->
-    InitialState = get_initial_state(Module, Commands),
+run_commands(Mod, Cmds, Env) ->
+    InitialState = get_initial_state(Mod, Cmds),
     case safe_eval_init(Env, InitialState) of
 	{ok,DynState} ->
-	    do_run_command(Commands, Env, Module, [], DynState);
+	    do_run_command(Cmds, Env, Mod, [], DynState);
 	{error,Reason} ->
 	    {[], [], Reason}
     end.
@@ -305,30 +288,30 @@ safe_eval_init(Env, SymbState) ->
 -spec do_run_command(command_list(), proper_symb:var_values(), mod_name(),
 		     history(), dynamic_state()) ->
          {history(),dynamic_state(),statem_result()}.
-do_run_command(Commands, Env, Module, History, State) ->
-    case Commands of
+do_run_command(Cmds, Env, Mod, History, State) ->
+    case Cmds of
 	[] ->
 	    {lists:reverse(History), State, ok};
 	[{init,_S}|Rest] ->
-	    do_run_command(Rest, Env, Module, History, State);
+	    do_run_command(Rest, Env, Mod, History, State);
 	[{set, {var,V}, {call,M,F,A}}|Rest] ->
 	    M2 = proper_symb:eval(Env, M),
 	    F2 = proper_symb:eval(Env, F),
 	    A2 = proper_symb:eval(Env, A),
 	    Call = {call,M2,F2,A2},
-	    case check_precondition(Module, State, Call) of
+	    case check_precondition(Mod, State, Call) of
 		true ->
 		    case safe_apply(M2, F2, A2) of
 			{ok,Res} ->
+			    Env2 = [{V,Res}|Env],
 			    State2 =
 				proper_symb:eval(
-				  Env, Module:next_state(State, Res, Call)),
+				  Env2, Mod:next_state(State, Res, Call)),
 			    History2 = [{State,Res}|History],
-			    case check_postcondition(Module, State, Call, Res)
+			    case check_postcondition(Mod, State, Call, Res)
 			    of
 				true ->
-				    Env2 = [{V,Res}|Env],
-				    do_run_command(Rest, Env2, Module,
+				    do_run_command(Rest, Env2, Mod,
 						   History2, State2);
 				false ->
 				    {lists:reverse(History2), State2,
@@ -338,19 +321,19 @@ do_run_command(Commands, Env, Module, History, State) ->
 				     {postcondition,Exception}}
 			    end;
 			{error,Exception} ->
-			    {lists:reverse(History),State,Exception}
+			    {lists:reverse(History), State, Exception}
 		    end;
 		false ->
-		    {lists:reverse(History),State,{precondition,false}};
+		    {lists:reverse(History), State, {precondition,false}};
 		{exception,_,_,_} = Exception ->
-		    {lists:reverse(History),State,{precondition,Exception}}
+		    {lists:reverse(History), State, {precondition,Exception}}
 	    end
     end.
 
 -spec check_precondition(mod_name(), dynamic_state(), symb_call()) ->
          boolean() | exception().
-check_precondition(Module, State, Call) ->
-    try Module:precondition(State, Call)
+check_precondition(Mod, State, Call) ->
+    try Mod:precondition(State, Call)
     catch
 	Kind:Reason ->
 	    {exception,Kind,Reason,erlang:get_stacktrace()}
@@ -358,8 +341,8 @@ check_precondition(Module, State, Call) ->
 
 -spec check_postcondition(mod_name(), dynamic_state(), symb_call(), term()) ->
          boolean() | exception().
-check_postcondition(Module, State, Call, Res) ->
-    try Module:postcondition(State, Call, Res)
+check_postcondition(Mod, State, Call, Res) ->
+    try Mod:postcondition(State, Call, Res)
     catch
 	Kind:Reason ->
 	    {exception,Kind,Reason,erlang:get_stacktrace()}
@@ -380,23 +363,23 @@ safe_apply(M, F, A) ->
 %% Parallel command execution
 %% -----------------------------------------------------------------------------
 
--spec run_parallel_commands(mod_name(), parallel_test_case()) ->
+-spec run_parallel_commands(mod_name(), parallel_testcase()) ->
 	 {command_history(),[command_history()],statem_result()}.
-run_parallel_commands(Module, {_Sequential, _Parallel} = Cmds) ->
-    run_parallel_commands(Module, Cmds, []).
+run_parallel_commands(Mod, {_Sequential, _Parallel} = Cmds) ->
+    run_parallel_commands(Mod, Cmds, []).
 
--spec run_parallel_commands(mod_name(), parallel_test_case(),
+-spec run_parallel_commands(mod_name(), parallel_testcase(),
 			    proper_symb:var_values()) ->
 	 {command_history(),[command_history()],statem_result()}.
-run_parallel_commands(Module, {Sequential, Parallel}, Env) ->
-    InitialState = get_initial_state(Module, Sequential),
+run_parallel_commands(Mod, {Sequential, Parallel}, Env) ->
+    InitialState = get_initial_state(Mod, Sequential),
     case safe_eval_init(Env, InitialState) of
 	{ok, DynState} ->
 	    {{Seq_history, State, ok}, Env1} =
-		run_sequential(Sequential, Env, Module, [], DynState),
-	    F = fun(T) -> execute(T, Env1, Module, []) end,
+		run_sequential(Sequential, Env, Mod, [], DynState),
+	    F = fun(T) -> execute(T, Env1, Mod, []) end,
 	    Parallel_history = pmap(F, Parallel),
-	    case check(Module, State, Env1, Env1, [],
+	    case check(Mod, State, Env1, Env1, [],
 		       Parallel_history, []) of
 		true ->
 		    {Seq_history, Parallel_history, ok};
@@ -459,7 +442,7 @@ check(Mod, State, OldEnv, Env, Tried, [P|Rest], Accum) ->
 		true ->
 		    Env2 = [{N1, Res1}|Env],
 		    NextState = proper_symb:eval(
-				  Env,
+				  Env2,
 				  Mod:next_state(State, Res1, Call1)),
 		    check(Mod, NextState, OldEnv, Env2, [Tail|Tried],
 			  Rest, [H|Accum]) orelse
@@ -472,33 +455,32 @@ check(Mod, State, OldEnv, Env, Tried, [P|Rest], Accum) ->
 %% @private
 -spec run_sequential(command_list(), proper_symb:var_values(), mod_name(),
 		     history(), dynamic_state()) ->
-       {{command_history(), dynamic_state(), statem_result()},
-	proper_symb:var_values()}.
-run_sequential(Commands, Env, Module, History, State) ->
-    case Commands of
+       {{history(),dynamic_state(),statem_result()}, proper_symb:var_values()}.
+run_sequential(Cmds, Env, Mod, History, State) ->
+    case Cmds of
 	[] ->
 	    {{lists:reverse(History), State, ok}, Env};
 	[{init, _S}|Rest] ->
-	    run_sequential(Rest, Env, Module, History, State);
-   	[{set, {var,V}, {call,M,F,A}} = Cmd|Rest] ->
+	    run_sequential(Rest, Env, Mod, History, State);
+	[{set, {var,V}, {call,M,F,A}}|Rest] ->
 	    M2 = proper_symb:eval(Env, M),
 	    F2 = proper_symb:eval(Env, F),
 	    A2 = proper_symb:eval(Env, A),
 	    Call = {call, M2, F2, A2},
-	    true = Module:precondition(State, Call),
+	    true = Mod:precondition(State, Call),
 	    Res = apply(M2, F2, A2),
-	    true = Module:postcondition(State, Call, Res),
+	    true = Mod:postcondition(State, Call, Res),
 	    Env2 = [{V,Res}|Env],
-	    State2 = proper_symb:eval(Env, Module:next_state(State, Res, Call)),
-	    History2 = [{Cmd,Res}|History],
-	    run_sequential(Rest, Env2, Module, History2, State2)
+	    State2 = proper_symb:eval(Env2, Mod:next_state(State, Res, Call)),
+	    History2 = [{State,Res}|History],
+	    run_sequential(Rest, Env2, Mod, History2, State2)
     end.
 
 %% @private
 -spec execute(command_list(), proper_symb:var_values(), mod_name(),
 	      command_history()) -> command_history().
-execute(Commands, Env, Module, History) ->
-    case Commands of
+execute(Cmds, Env, Mod, History) ->
+    case Cmds of
 	[] ->
 	    lists:reverse(History);
 	[{set, {var,V}, {call,M,F,A}} = Cmd|Rest] ->
@@ -508,7 +490,7 @@ execute(Commands, Env, Module, History) ->
 	    Res = apply(M2, F2, A2),
 	    Env2 = [{V,Res}|Env],
 	    History2 = [{Cmd,Res}|History],
-	    execute(Rest, Env2, Module, History2)
+	    execute(Rest, Env2, Mod, History2)
     end.
 
 
@@ -521,12 +503,19 @@ command_names(Cmds) ->
     [{M, F, length(Args)} || {set, _Var, {call,M,F,Args}} <- Cmds].
 
 -spec state_after(mod_name(), command_list()) -> symbolic_state().
-state_after(Module, Commands) ->
-    NextState = fun(S, V, C) -> Module:next_state(S, V, C) end,
-    lists:foldl(fun({init,S}, _) -> S;
-		   ({set,Var,Call}, S) -> NextState(S, Var, Call) end,
-		get_initial_state(Module, Commands),
-		Commands).
+state_after(Mod, Cmds) ->
+    element(1, state_env_after(Mod, Cmds)).
+
+-spec state_env_after(mod_name(), command_list()) ->
+         {symbolic_state(), [symb_var()]}.
+state_env_after(Mod, Cmds) ->
+    lists:foldl(fun({init,S}, _) ->
+			{S, []};
+		   ({set,Var,Call}, {S,Vars}) ->
+			{Mod:next_state(S, Var, Call), [Var|Vars]}
+		end,
+		{get_initial_state(Mod, Cmds), []},
+		Cmds).
 
 -spec zip([A], [B]) -> [{A,B}].
 zip(X, Y) ->
@@ -542,12 +531,12 @@ zip([X|Tail1], [Y|Tail2], Accum) ->
 -spec is_valid(mod_name(), symbolic_state(), command_list(), [symb_var()]) ->
          boolean().
 is_valid(_Mod, _State, [], _Env) -> true;
-is_valid(Mod, _State, [{init,S}|Commands], _Env) ->
-    is_valid(Mod, S, Commands, _Env);
-is_valid(Mod, State, [{set,Var,{call,_M,_F,A}=Call}|Commands], Env) ->
+is_valid(Mod, _State, [{init,S}|Cmds], _Env) ->
+    is_valid(Mod, S, Cmds, _Env);
+is_valid(Mod, State, [{set,Var,{call,_M,_F,A}=Call}|Cmds], Env) ->
     args_defined(A, Env) andalso Mod:precondition(State, Call)
 	andalso is_valid(Mod, Mod:next_state(State, Var, Call),
-			 Commands, [Var|Env]).
+			 Cmds, [Var|Env]).
 
 %% @private
 -spec args_defined([term()], [symb_var()]) -> boolean().
@@ -624,11 +613,6 @@ index(X, List) ->
 -spec index(term(), [term(),...], pos_integer()) -> pos_integer().
 index(X, [X|_], N) -> N;
 index(X, [_|Rest], N) -> index(X, Rest, N+1).
-
--spec mk_env(command_list(), pos_integer()) -> [{'var', pos_integer()}].
-mk_env([], _)           -> [];
-mk_env([{init,_}|T], N) -> mk_env(T, N);
-mk_env([_|T], N)        -> [{var,N}|mk_env(T, N+1)].
 
 %% @private
 -spec mk_dict(command_list(), pos_integer()) -> [{pos_integer(), command()}].
@@ -710,40 +694,24 @@ next_comb_tr(MaxIndex, [MaxIndex | Rest], Acc) ->
 next_comb_tr(_MaxIndex, [X | Rest], Acc) ->
     lists:reverse(Rest) ++ [X+1] ++ Acc.
 
--spec get_first_commands([command_list()]) -> [{command(),pos_integer()}].
-get_first_commands(List) ->
-    get_first_commands(List, [], 1).
-
--spec get_first_commands([command_list()], [{command(),pos_integer()}],
-			 pos_integer()) -> [{command(),pos_integer()}].
-get_first_commands([], Accum, _N) -> Accum;
-get_first_commands([H|T], Accum, N) ->
-    case get_first_command(H) of
-	none ->
-	    get_first_commands(T, Accum, N+1);
-	Cmd ->
-	    get_first_commands(T, [{Cmd,N}|Accum], N+1)
-    end.
-
--spec get_first_command(command_list()) -> command() | 'none'.
-get_first_command([]) -> none;
-get_first_command([H|_]) -> H.
-
--spec remove_first_command(pos_integer(), [command_list()]) -> [command_list()].
-remove_first_command(I, List) ->
-    remove_first_command(I, List, [], 1).
-
--spec remove_first_command(pos_integer(), [command_list(),...],
-			   [command_list()], pos_integer()) ->
+-spec remove_slice(pos_integer(), command_list(), [command_list(),...]) ->
          [command_list(),...].
-remove_first_command(Index, [H|T], Accum, Index) ->
-    lists:reverse(Accum) ++ [tl(H)] ++ T;
-remove_first_command(Index, [H|T], Accum, N) ->
-    remove_first_command(Index, T, [H|Accum], N+1).
+remove_slice(Index, Slice, List) ->
+    remove_slice_tr(Index, Slice, List, [], 1).
 
--spec is_compatible(symb_call(), symb_call()) -> boolean().
-is_compatible({call,M,F,A1}, {call,M,F,A2})
-  when length(A1) =:= length(A2) ->
-    true;
-is_compatible(_, _) ->
-    false.
+-spec remove_slice_tr(pos_integer(), command_list(), [command_list(),...],
+		      [command_list()], pos_integer()) -> [command_list(),...].
+remove_slice_tr(Index, Slice, [H|T], Acc, Index) ->
+    lists:reverse(Acc) ++ [H -- Slice] ++ T;
+remove_slice_tr(Index, Slice, [H|T], Acc, N) ->
+    remove_slice_tr(Index, Slice, T, [H|Acc], N+1).
+
+-spec get_slices(command_list()) -> [command_list()].
+get_slices(List) ->
+    get_slices_tr(List, List, 1, []).
+
+-spec get_slices_tr(command_list(), command_list(), pos_integer(),
+		    [command_list()]) -> [command_list()].
+get_slices_tr([], _, _, Acc) -> Acc;
+get_slices_tr([_|Tail], List, N, Acc) ->
+    get_slices_tr(Tail, List, N+1, [lists:sublist(List, N)|Acc]).
