@@ -38,7 +38,7 @@
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
 -export([spawn_link_migrate/1]).
 
--export_type([test/0, outer_test/0, counterexample/0]).
+-export_type([test/0, outer_test/0, counterexample/0, exception/0]).
 
 -include("proper_internal.hrl").
 
@@ -181,8 +181,8 @@
 
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
 -type fail_reason() :: 'false_prop' | 'time_out' | {'trapped',exc_reason()}
-		     | {'exception',exc_kind(),exc_reason(),stacktrace()}
-		     | {'sub_props',[{tag(),fail_reason()},...]}.
+		     | exception() | {'sub_props',[{tag(),fail_reason()},...]}.
+-type exception() :: {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
