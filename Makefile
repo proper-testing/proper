@@ -36,7 +36,7 @@ tests:
 	./rebar eunit
 
 doc:
-	./rebar doc
+	./make_doc
 
 clean:
 	./clean_temp.sh

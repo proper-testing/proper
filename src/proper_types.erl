@@ -47,8 +47,9 @@
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
 	 native_type/2, distlist/3, with_parameter/3, with_parameters/2,
 	 parameter/1, parameter/2]).
+-export([le/2]).
 
--export_type([type/0, raw_type/0]).
+-export_type([type/0, raw_type/0, extint/0, extnum/0]).
 
 -include("proper_internal.hrl").
 
@@ -96,10 +97,18 @@
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | atom().
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean()).
 -type index() :: pos_integer().
+%% @alias
 -type value() :: term().
+%% @private_type
+%% @alias
+-type extint()  :: integer() | 'inf'.
+%% @private_type
+%% @alias
+-type extnum()  :: number()  | 'inf'.
 -type constraint_fun() :: fun((proper_gen:instance()) -> boolean()).
 
 -opaque type() :: {'$type', [type_prop()]}.
+%% @type raw_type()
 -type raw_type() :: type() | [raw_type()] | loose_tuple(raw_type()) | term().
 -type type_prop_name() :: 'kind' | 'generator' | 'reverse_gen' | 'parts_type'
 			| 'combine' | 'alt_gens' | 'shrink_to_parts'
@@ -158,6 +167,9 @@
 %%------------------------------------------------------------------------------
 %% Type manipulation functions
 %%------------------------------------------------------------------------------
+
+%% TODO: We shouldn't need the fully qualified type name in the range of these
+%%       functions.
 
 %% @private
 %% TODO: just cook/1 ?
@@ -248,11 +260,13 @@ get_prop(PropName, {'$type',Props}) ->
 find_prop(PropName, {'$type',Props}) ->
     orddict:find(PropName, Props).
 
+%% @private
 -spec new_type([type_prop()], type_kind()) -> proper_types:type().
 new_type(PropList, Kind) ->
     Type = type_from_list(PropList),
     add_prop(kind, Kind, Type).
 
+%% @private
 -spec subtype([type_prop()], proper_types:type()) -> proper_types:type().
 %% TODO: should the 'is_instance' function etc. be reset for subtypes?
 subtype(PropList, Type) ->
@@ -430,8 +444,7 @@ native_type(Mod, TypeStr) ->
 %% Basic types
 %%------------------------------------------------------------------------------
 
--spec integer(proper_arith:extint(), proper_arith:extint()) ->
-	  proper_types:type().
+-spec integer(extint(), extint()) -> proper_types:type().
 integer(Low, High) ->
     ?BASIC([
 	{generator, fun(Size) -> proper_gen:integer_gen(Size, Low, High) end},
@@ -440,15 +453,13 @@ integer(Low, High) ->
 	 [fun(X,_T,S) -> proper_shrink:number_shrinker(X, Low, High, S) end]}
     ]).
 
--spec integer_test(proper_gen:imm_instance(), proper_arith:extint(),
-		   proper_arith:extint()) -> boolean().
+-spec integer_test(proper_gen:imm_instance(), extint(), extint()) -> boolean().
 integer_test(X, Low, High) ->
     is_integer(X)
-    andalso proper_arith:le(Low, X)
-    andalso proper_arith:le(X, High).
+    andalso le(Low, X)
+    andalso le(X, High).
 
--spec float(proper_arith:extnum(), proper_arith:extnum()) ->
-	  proper_types:type().
+-spec float(extnum(), extnum()) -> proper_types:type().
 float(Low, High) ->
     ?BASIC([
 	{generator, fun(Size) -> proper_gen:float_gen(Size, Low, High) end},
@@ -457,12 +468,16 @@ float(Low, High) ->
 	 [fun(X,_T,S) -> proper_shrink:number_shrinker(X, Low, High, S) end]}
     ]).
 
--spec float_test(proper_gen:imm_instance(), proper_arith:extnum(),
-		 proper_arith:extnum()) -> boolean().
+-spec float_test(proper_gen:imm_instance(), extnum(), extnum()) -> boolean().
 float_test(X, Low, High) ->
     is_float(X)
-    andalso proper_arith:le(Low, X)
-    andalso proper_arith:le(X, High).
+    andalso le(Low, X)
+    andalso le(X, High).
+
+-spec le(extnum(), extnum()) -> boolean().
+le(inf, _B) -> true;
+le(_A, inf) -> true;
+le(A, B)    -> A =< B.
 
 -spec atom() -> proper_types:type().
 atom() ->
@@ -543,6 +558,7 @@ list_test(X, ElemType) ->
     is_list(X)
     andalso lists:all(fun(E) -> is_instance(E, ElemType) end, X).
 
+%% @private
 -spec list_get_indices(list()) -> [position()].
 list_get_indices(List) ->
     lists:seq(1, length(List)).
@@ -768,7 +784,7 @@ pos_integer() -> integer(1, inf).
 -spec neg_integer() -> proper_types:type().
 neg_integer() -> integer(inf, -1).
 
--spec range(proper_arith:extint(),proper_arith:extint()) -> proper_types:type().
+-spec range(extint(), extint()) -> proper_types:type().
 range(Low, High) -> integer(Low, High).
 
 -spec float() -> proper_types:type().
@@ -829,8 +845,7 @@ real() -> float().
 -spec bool() -> proper_types:type().
 bool() -> boolean().
 
--spec choose(proper_arith:extint(), proper_arith:extint()) ->
-	  proper_types:type().
+-spec choose(extint(), extint()) -> proper_types:type().
 choose(Low, High) -> integer(Low, High).
 
 -spec elements([raw_type(),...]) -> proper_types:type().
