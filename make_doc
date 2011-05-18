@@ -43,7 +43,7 @@
 -define(SRC_DIR, (?BASE_DIR ++ "/src")).
 -define(INCLUDE_DIR, (?BASE_DIR ++ "/include")).
 -define(TEMP_SRC_DIR, (?BASE_DIR ++ "/temp_src")).
--define(EDOC_OPTS, [{report_missing_type,true}, {report_type_mismatch,true},
+-define(EDOC_OPTS, [{report_missing_types,true}, {report_type_mismatch,true},
 		    {pretty_printer,erl_pp}, {preprocess,true},
 		    {source_path, [?TEMP_SRC_DIR]}]).
 
@@ -206,38 +206,44 @@ get_line_from_form({eof,Line}) ->
 %% Abstract code processing
 %%------------------------------------------------------------------------------
 
--spec process_forms([abs_form()], [erl_comment_scan:comment()]) ->
-	  {[abs_form()],[erl_comment_scan:comment()]}.
+-spec process_forms([abs_form(),...], [erl_comment_scan:comment()]) ->
+	  {[abs_form(),...],[erl_comment_scan:comment()]}.
 process_forms(Forms, Comments) ->
-    process_forms([], Forms, [], Comments, []).
+    [FileAttr|Rest] = Forms,
+    {attribute,_Line,file,{TopFileName,_FileLine}} = FileAttr,
+    process_forms([FileAttr], Rest, [], Comments, [], TopFileName).
 
--spec process_forms([abs_form()], [abs_form()], [erl_comment_scan:comment()],
-		    [erl_comment_scan:comment()], [{type_name(),arity()}]) ->
-	  {[abs_form()],[erl_comment_scan:comment()]}.
-process_forms(RevForms, Forms, RevComments, [], PrivTypes) ->
+-spec process_forms([abs_form(),...], [abs_form()],
+		    [erl_comment_scan:comment()], [erl_comment_scan:comment()],
+		    [{type_name(),arity()}], file:filename()) ->
+	  {[abs_form(),...],[erl_comment_scan:comment()]}.
+process_forms(RevForms, Forms, RevComments, [], PrivTypes, _TopFileName) ->
     NewForms = lists:reverse(RevForms) ++ Forms,
     NewComments = lists:reverse(RevComments),
     {remove_private_types(NewForms,PrivTypes), NewComments};
-process_forms(RevForms, Forms, RevComments, [Comment|Rest], PrivTypes) ->
+process_forms(RevForms, Forms, RevComments, [Comment|Rest], PrivTypes,
+	      TopFileName) ->
     {CommLine,_Column,_Indentation,Text} = Comment,
     IsPrivate = contains_tag(Text, "@private_type"),
     IsAlias = contains_tag(Text, "@alias"),
     case IsPrivate orelse IsAlias of
 	true ->
 	    {MaybeType,NewRevForms,NewForms} =
-		find_next_type(CommLine, RevForms, Forms),
+		find_next_type(CommLine, RevForms, Forms, TopFileName),
 	    case MaybeType of
 		error ->
 		    process_forms(NewRevForms, NewForms, RevComments, Rest,
-				  PrivTypes);
+				  PrivTypes, TopFileName);
 		{TypeRef,TypeDef} ->
 		    %% TODO: Also throw away alias type forms?
-		    FinalForms =
+		    {FinalRevForms,FinalForms} =
 			case IsAlias of
 			    true ->
-				[replace(F,TypeRef,TypeDef) || F <- NewForms];
+				{[replace(F,TypeRef,TypeDef)
+				  || F <- NewRevForms],
+				 [replace(F,TypeRef,TypeDef) || F <- NewForms]};
 			    false ->
-				NewForms
+				{NewRevForms,NewForms}
 			end,
 		    NewPrivTypes =
 			case IsPrivate of
@@ -247,39 +253,56 @@ process_forms(RevForms, Forms, RevComments, [Comment|Rest], PrivTypes) ->
 			    false ->
 				PrivTypes
 			end,
-		    process_forms(NewRevForms, FinalForms, RevComments, Rest,
-				  NewPrivTypes)
+		    process_forms(FinalRevForms, FinalForms, RevComments, Rest,
+				  NewPrivTypes, TopFileName)
 	    end;
 	false ->
 	    process_forms(RevForms, Forms, [Comment|RevComments], Rest,
-			  PrivTypes)
+			  PrivTypes, TopFileName)
     end.
 
--spec find_next_type(line(), [abs_form()], [abs_form()]) ->
+-spec find_next_type(line(), [abs_form()], [abs_form()], file:filename()) ->
 	  {'error' | {type_ref(),type_def()}, [abs_form()], [abs_form()]}.
-find_next_type(_CommLine, RevForms, []) ->
+find_next_type(_CommLine, RevForms, [], _TopFileName) ->
     {error, RevForms, []};
-find_next_type(CommLine, RevForms, [Form|Rest] = Forms) ->
-    {attribute,AttrLine,Kind,Value} = Form,
-    case AttrLine =< CommLine of
-	true ->
-	    find_next_type(CommLine, [Form|RevForms], Rest);
-	false ->
-	    case Kind of
-		type ->
-		    {Name,TypeForm,VarForms} = Value,
-		    case is_atom(Name) of
-			true ->
-			    Arity = length(VarForms),
-			    TypeRef = {type,Name,Arity},
-			    TypeDef = {TypeForm,VarForms},
-			    {{TypeRef,TypeDef}, RevForms, Forms};
-			false ->
+find_next_type(CommLine, RevForms, [Form|Rest] = Forms, TopFileName) ->
+    case Form of
+	{attribute,_AttrLine,file,_FilePos} ->
+	    continue_after_header(CommLine, RevForms, Forms, TopFileName);
+	_ ->
+	    case get_line_from_form(Form) =< CommLine of
+		true ->
+		    find_next_type(CommLine, [Form|RevForms], Rest,
+				   TopFileName);
+		false ->
+		    case Form of
+			{attribute,_AttrLine,Kind,Value} when Kind =:= type
+						       orelse Kind =:= opaque ->
+			    {Name,TypeForm,VarForms} = Value,
+			    case is_atom(Name) of
+				true ->
+				    Arity = length(VarForms),
+				    TypeRef = {type,Name,Arity},
+				    TypeDef = {TypeForm,VarForms},
+				    {{TypeRef,TypeDef}, RevForms, Forms};
+				false ->
+				    {error, RevForms, Forms}
+			    end;
+			_ ->
 			    {error, RevForms, Forms}
-		    end;
-		_OtherKind ->
-		    {error, RevForms, Forms}
+		    end
 	    end
+    end.
+
+-spec continue_after_header(line(), [abs_form()], [abs_form(),...],
+			    file:filename()) ->
+	  {'error' | {type_ref(),type_def()}, [abs_form(),...], [abs_form()]}.
+continue_after_header(CommLine, RevForms, [Form|Rest], TopFileName) ->
+    case Form of
+	{attribute,_AttrLine,file,{TopFileName,_TopFileLine}} ->
+	    find_next_type(CommLine, [Form|RevForms], Rest, TopFileName);
+	_Other ->
+	    continue_after_header(CommLine, [Form|RevForms], Rest, TopFileName)
     end.
 
 -spec contains_tag([string()], string()) -> boolean().

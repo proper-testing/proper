@@ -64,7 +64,9 @@
 			 | {'$conjunction',sub_imm_counterexamples()}.
 -type sub_imm_counterexamples() :: [{tag(),imm_counterexample()}].
 -type counterexample() :: [clean_input()].
+%% @alias
 -type clean_input() :: proper_gen:instance() | sub_counterexamples().
+%% @alias
 -type sub_counterexamples() :: [{tag(),counterexample()}].
 
 -type sample() :: [term()].
@@ -182,6 +184,7 @@
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
 -type fail_reason() :: 'false_prop' | 'time_out' | {'trapped',exc_reason()}
 		     | exception() | {'sub_props',[{tag(),fail_reason()},...]}.
+%% @private_type
 -type exception() :: {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().

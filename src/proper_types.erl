@@ -272,11 +272,13 @@ new_type(PropList, Kind) ->
 subtype(PropList, Type) ->
     add_props(PropList, Type).
 
+%% @private
 -spec is_inst(proper_gen:instance(), raw_type()) ->
 	  boolean() | {'error',{'typeserver',term()}}.
 is_inst(Instance, RawType) ->
     is_inst(Instance, RawType, 10).
 
+%% @private
 -spec is_inst(proper_gen:instance(), raw_type(), size()) ->
 	  boolean() | {'error',{'typeserver',term()}}.
 is_inst(Instance, RawType, Size) ->
