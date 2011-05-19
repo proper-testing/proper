@@ -543,13 +543,19 @@ list(RawElemType) ->
 shrink_list(List) ->
     ?CONTAINER([
 	{generator, fun() -> List end},
-	{is_instance, fun erlang:is_list/1},
+	{is_instance, fun(X) -> is_sublist(X, List) end},
 	{get_length, fun erlang:length/1},
 	{split, fun lists:split/2},
 	{join, fun lists:append/2},
 	{get_indices, fun list_get_indices/1},
 	{remove, fun proper_arith:list_remove/2}
     ]).
+
+-spec is_sublist([term()], [term()]) -> boolean().
+is_sublist([], _) -> true;
+is_sublist(_, []) -> false;
+is_sublist([H|T1], [H|T2]) -> is_sublist(T1, T2);
+is_sublist(Slice, [_|T2]) -> is_sublist(Slice, T2).
 
 -spec list_test(proper_gen:imm_instance(), proper_types:type()) -> boolean().
 list_test(X, ElemType) ->

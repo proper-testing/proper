@@ -115,18 +115,14 @@ prop_p() ->
 	  end)).
 
 prop_check_true() ->
-    ?FORALL(Cmds, proper_statem:parallel_commands(?MOD),
+    ?FORALL({Seq,Parallel}, proper_statem:parallel_commands(?MOD),
 	    begin
 		?MOD:clean_up(),
 		?MOD:set_up(),
-		{Seq,Parallel} = Cmds,
-		InitialState = proper_statem:get_initial_state(?MOD, Seq),
-		{ok,DynState} = proper_statem:safe_eval_init([], InitialState),
-		{{_, State, ok}, Env1} =
-		    proper_statem:run_sequential(Seq, [], ?MOD, [], DynState),
+		{{_, State, ok}, Env} = proper_statem:run(?MOD, Seq, []),
 		Res = lists:map(
-			fun(C) -> proper_statem:execute(C, Env1, ?MOD, []) end,
+			fun(C) -> proper_statem:execute(C, Env, ?MOD, []) end,
 			Parallel),
-		V = proper_statem:check(?MOD, State, Env1, Env1, [], Res, []),
+		V = proper_statem:check(?MOD, State, Env, false, [], Res),
 		equals(V, true)
 	    end).

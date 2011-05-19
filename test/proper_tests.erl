@@ -967,64 +967,69 @@ command_names_test_() ->
      || {Cmds,Expected} <- command_names()].
 
 valid_cmds_test_() ->
-    [?_assert(proper_statem:is_valid(Module, State, Cmds, Env))
-     || {Module,State,Cmds,_,_,Env} <- valid_command_sequences()].
+    [?_assert(proper_statem:is_valid(Mod, State, Cmds, Env))
+     || {Mod,State,Cmds,_,_,Env} <- valid_command_sequences()].
 
 invalid_cmds_test_() ->
-    [?_assertNot(proper_statem:is_valid(Module, Module:initial_state(), Cmds, []))
-     || {Module,Cmds,_,_} <- invalid_precondition()] ++
-    [?_assertNot(proper_statem:is_valid(Module, Module:initial_state(), Cmds, []))
-     || {Module,Cmds} <- invalid_var()].
+    [?_assertNot(proper_statem:is_valid(Mod, Mod:initial_state(), Cmds, []))
+     || {Mod,Cmds,_,_} <- invalid_precondition()] ++
+    [?_assertNot(proper_statem:is_valid(Mod, Mod:initial_state(), Cmds, []))
+     || {Mod,Cmds} <- invalid_var()].
 
 state_after_test_() ->
-    [?_assertEqual(proper_statem:state_after(Module, Cmds), StateAfter)
-     || {Module,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
+    [?_assertEqual(proper_statem:state_after(Mod, Cmds), StateAfter)
+     || {Mod,_,Cmds,StateAfter,_,_} <- valid_command_sequences()].
 
 cannot_generate_commands_test_() ->
-    [?_test(assert_cant_generate_cmds(proper_statem:commands(Module), 6))
-     || Module <- [prec_false]].
+    [?_test(assert_cant_generate_cmds(proper_statem:commands(Mod), 6))
+     || Mod <- [prec_false]].
 
 can_generate_commands0_test_() ->
-    [?_test(assert_can_generate(proper_statem:commands(Module),false))
-     || Module <- [pdict_statem]].
+    [?_test(assert_can_generate(proper_statem:commands(Mod), false))
+     || Mod <- [pdict_statem]].
 
 can_generate_commands1_test_() ->
-    [?_test(assert_can_generate(proper_statem:commands(Module, StartState), false))
-     || {Module,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
+    [?_test(assert_can_generate(proper_statem:commands(Mod, StartState), false))
+     || {Mod,StartState} <- [{pdict_statem,[{a,1},{b,1},{c,100}]}]].
 
 can_generate_parallel_commands0_test_() ->
     {timeout, 20,
-     [?_test(assert_can_generate(proper_statem:parallel_commands(Module), false))
-      || Module <- [ets_counter]]}.
+     [?_test(assert_can_generate(proper_statem:parallel_commands(Mod), false))
+      || Mod <- [ets_counter]]}.
 
 can_generate_parallel_commands1_test_() ->
     {timeout, 20,
      [?_test(assert_can_generate(
-	       proper_statem:parallel_commands(Module, Module:initial_state()), false))
-      || Module <- [ets_counter]]}.
+	       proper_statem:parallel_commands(Mod, Mod:initial_state()),
+	       false))
+      || Mod <- [ets_counter]]}.
 
 run_valid_commands_test_() ->
-    [?_assertMatch({_H,DynState,ok}, setup_run_commands(Module, Cmds, Env))
-     || {Module,_,Cmds,_,DynState,Env} <- valid_command_sequences()].
+    [?_assertMatch({_H,DynState,ok}, setup_run_commands(Mod, Cmds, Env))
+     || {Mod,_,Cmds,_,DynState,Env} <- valid_command_sequences()].
 
 run_invalid_precondition_test_() ->
-     [?_assertMatch({_H,_S,{precondition,false}}, setup_run_commands(Module, Cmds, Env))
-      || {Module,Cmds,Env,_Shrunk} <- invalid_precondition()].
+     [?_assertMatch({_H,_S,{precondition,false}},
+		    setup_run_commands(Mod, Cmds, Env))
+      || {Mod,Cmds,Env,_Shrunk} <- invalid_precondition()].
 
 run_init_error_test_() ->
-    [?_assertMatch({_H,_S,initialization_error}, setup_run_commands(Module, Cmds, Env))
-     || {Module,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
+    [?_assertMatch({_H,_S,initialization_error},
+		   setup_run_commands(Mod, Cmds, Env))
+     || {Mod,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
 
 run_postcondition_false() ->
     ?_assertMatch({_H,_S,{postcondition,false}},
 		  run_commands(post_false, proper_statem:commands(post_false))).
 
 run_exception() ->
-    ?_assertMatch({_H,_S,{exception,throw,badarg,_}},
-		  run_commands(post_false, proper_statem:commands(error_statem))).
+    ?_assertMatch(
+       {_H,_S,{exception,throw,badarg,_}},
+       run_commands(post_false, proper_statem:commands(error_statem))).
 
 get_next_test_() ->
-    [?_assertEqual(Expected, proper_statem:get_next(L, Len, MaxIndex, Available, W, N))
+    [?_assertEqual(Expected,
+		   proper_statem:get_next(L, Len, MaxIndex, Available, W, N))
      || {L, Len, MaxIndex, Available, W, N, Expected} <- combinations()].
 
 mk_first_comb_test_() ->
@@ -1032,16 +1037,16 @@ mk_first_comb_test_() ->
       || {N, Len, W, Expected} <- first_comb()].
 
 args_not_defined_test() ->
-    [?_assertNot(proper_statem:args_defined(Args, Env))
-     || {Args,Env} <- arguments_not_defined()].
+    [?_assertNot(proper_statem:args_defined(Args, SymbEnv))
+     || {Args,SymbEnv} <- arguments_not_defined()].
 
 command_props_test_() ->
     {timeout, 150, [?_assertEqual([], proper:module(command_props, 50))]}.
 
 %% TODO: is_instance check fails because of ?LET in fsm_commands/1?
 can_generate_fsm_commands_test_() ->
-    [?_test(assert_can_generate(proper_fsm:commands(Module), false))
-     || Module <- [pdict_fsm, numbers_fsm]].
+    [?_test(assert_can_generate(proper_fsm:commands(Mod), false))
+     || Mod <- [pdict_fsm, numbers_fsm]].
 
 transition_target_test_() ->
     {timeout, 20, [?_assertEqual([], proper:module(numbers_fsm))]}.
