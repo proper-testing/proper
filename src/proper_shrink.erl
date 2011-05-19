@@ -401,7 +401,7 @@ elements_shrinker(Instance, Type,
 %% Custom shrinkers
 %%------------------------------------------------------------------------------
 
--spec number_shrinker(number(), proper_arith:extnum(), proper_arith:extnum(),
+-spec number_shrinker(number(), proper_types:extnum(), proper_types:extnum(),
 		      state()) -> {[number()],state()}.
 number_shrinker(X, Low, High, init) ->
     {Target,Inc,OverLimit} = find_target(X, Low, High),
@@ -421,7 +421,7 @@ number_shrinker(_X, _Low, _High, {shrunk,_Pos,_State}) ->
 -spec find_target(number(), number(), number()) ->
 	  {number(),fun((number()) -> number()),fun((number()) -> boolean())}.
 find_target(X, Low, High) ->
-    case {proper_arith:le(Low,0), proper_arith:le(0,High)} of
+    case {proper_types:le(Low,0), proper_types:le(0,High)} of
 	{false, _} ->
 	    Limit = find_limit(X, Low, High, High),
 	    {Low, fun(Y) -> Y + 1 end, fun(Y) -> Y > Limit end};
@@ -444,7 +444,7 @@ find_target(X, Low, High) ->
 
 -spec find_limit(number(), number(), number(), number()) -> number().
 find_limit(X, Low, High, FallBack) ->
-    case proper_arith:le(Low, X) andalso proper_arith:le(X, High) of
+    case proper_types:le(Low, X) andalso proper_types:le(X, High) of
 	true  -> X;
 	false -> FallBack
     end.

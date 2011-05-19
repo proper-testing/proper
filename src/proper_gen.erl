@@ -280,7 +280,7 @@ clean_instance(ImmInstance) ->
 %%-----------------------------------------------------------------------------
 
 %% @private
--spec integer_gen(size(), proper_arith:extint(), proper_arith:extint()) ->
+-spec integer_gen(size(), proper_types:extint(), proper_types:extint()) ->
 	  integer().
 integer_gen(Size, inf, inf) ->
     proper_arith:rand_int(Size);
@@ -292,7 +292,7 @@ integer_gen(_Size, Low, High) ->
     proper_arith:rand_int(Low, High).
 
 %% @private
--spec float_gen(size(), proper_arith:extnum(), proper_arith:extnum()) ->
+-spec float_gen(size(), proper_types:extnum(), proper_types:extnum()) ->
 	  float().
 float_gen(Size, inf, inf) ->
     proper_arith:rand_float(Size);

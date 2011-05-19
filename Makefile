@@ -20,7 +20,7 @@
 # Author:      Manolis Papadakis <manopapad@gmail.com>
 # Description: Instructions for make
 
-.PHONY: default all compile dialyze tests doc clean distclean rebuild retest
+.PHONY: default all compile dialyze check_scripts tests doc clean distclean rebuild retest
 
 default: compile
 
@@ -32,11 +32,21 @@ compile:
 dialyze: compile
 	./rebar dialyze
 
+check_scripts:
+	@> make_doc.erl
+	@echo "-module(make_doc)." >> make_doc.erl
+	@echo "-export([main/1])." >> make_doc.erl
+	@echo -n "%" >> make_doc.erl
+	@cat make_doc >> make_doc.erl
+	erlc +debug_info make_doc.erl; true
+	dialyzer -Wunmatched_returns make_doc.beam; true
+	@rm -f make_doc.erl make_doc.beam
+
 tests:
 	./rebar eunit
 
 doc:
-	./rebar doc
+	./make_doc
 
 clean:
 	./clean_temp.sh

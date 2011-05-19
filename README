@@ -25,7 +25,8 @@ Quickstart guide
 --------------------------------------------------------------------------------
 
 * Compile PropEr: run 'make' (or 'make all', if you also want to build the
-  documentation).
+  documentation -- you will need the syntax_tools application and a recent
+  version of EDoc).
 * Add PropEr's base directory to your Erlang code path by choosing one of the
   following ways:
   1. ERL_LIBS environment variable - Add the following line to your shell

@@ -28,7 +28,6 @@
 
 -module(proper_arith).
 
--export([le/2]).
 -export([list_remove/2, list_update/3, list_insert/3, safe_map/2, safe_foldl/3,
 	 safe_any/2, safe_zip/2, tuple_map/2, cut_improper_tail/1,
 	 head_length/1, find_first/2, filter/2, partition/2, remove/2, insert/3,
@@ -38,27 +37,7 @@
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
 	 distribute/2, jumble/1, rand_choose/1, freq_choose/1]).
 
--export_type([extint/0, extnum/0]).
-
 -include("proper_internal.hrl").
-
-
-%%-----------------------------------------------------------------------------
-%% Types
-%%-----------------------------------------------------------------------------
-
--type extint()  :: integer() | 'inf'.
--type extnum()  :: number()  | 'inf'.
-
-
-%%-----------------------------------------------------------------------------
-%% Arithmetic functions
-%%-----------------------------------------------------------------------------
-
--spec le(extnum(), extnum()) -> boolean().
-le(inf, _B) -> true;
-le(_A, inf) -> true;
-le(A, B)    -> A =< B.
 
 
 %%-----------------------------------------------------------------------------
