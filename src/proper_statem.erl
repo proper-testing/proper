@@ -888,39 +888,6 @@ get_slices_tr([], _, _, Acc) -> Acc;
 get_slices_tr([_|Tail], List, N, Acc) ->
     get_slices_tr(Tail, List, N+1, [lists:sublist(List, N)|Acc]).
 
-%% -spec all_valid(indices() | 'done', combination(), mod_name(), symbolic_state(),
-%% 	       [symb_var()], lookup(), pos_integer()) -> boolean().
-%% all_valid(done, _, _, _, _, _, _) ->
-%%     true;
-%% all_valid(Indices, Comb, Mod, State, SymbEnv, LookUp, MaxIndex) ->
-%%     Interleaving = lookup_cmds(Indices, LookUp),
-%%     case is_valid(Mod, State, Interleaving, SymbEnv) of
-%% 	true ->
-%% 	    NewIndices = next_interleaving(Indices, Comb, MaxIndex),
-%% 	    all_valid(NewIndices, Comb, Mod, State, SymbEnv, LookUp, MaxIndex);
-%% 	false ->
-%% 	    false
-%%     end.
-
-%% -spec next_interleaving(indices(), combination(), pos_integer()) ->
-%% 	 indices() | 'done'.
-%% next_interleaving(Indices, Comb, MaxIndex) ->
-%%     Res = next_permutation(Indices),
-%%     case is_well_defined2(Res, Comb) of
-%% 	true -> Res;
-%% 	false -> next_interleaving(Res, Comb, MaxIndex)
-%%     end.
-
-%% -spec is_well_defined2(indices() | 'done', combination()) -> boolean().
-%% is_well_defined2(done, _) -> true;
-%% is_well_defined2(Indices, Comb) ->
-%%     lists:all(fun({_,P}) -> ordered_indices(P, Indices) end, Comb).
-
-%% -spec ordered_indices(indices(), indices()) -> boolean().
-%% ordered_indices(Slice, Indices) ->
-%%     lists:foldl(
-%%       fun(H, Acc) -> lists:dropwhile(fun(X) -> X =/= H end, Acc) end,
-%%       Indices, Slice) =/= [].
 
 %% @type symbolic_state().
 %% State of the abstract state machine, possibly containing symbolic variables
