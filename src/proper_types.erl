@@ -31,7 +31,7 @@
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1,tuple/1,
 	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0,
-	 shrink_list/1]).
+	 shrink_list/1, safe_union/1, safe_weighted_union/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
@@ -646,6 +646,27 @@ weighted_union(RawFreqChoices) ->
     ?SUBTYPE(union(Choices), [
 	{generator, fun() -> proper_gen:weighted_union_gen(FreqChoices) end}
     ]).
+
+%% @private
+-spec safe_union([raw_type(),...]) -> proper_types:type().
+safe_union(RawChoices) ->
+    Choices = [cook_outer(C) || C <- RawChoices],
+    subtype(
+      [{generator, fun() -> proper_gen:safe_union_gen(Choices) end}],
+      union(Choices)).
+
+%% @private
+-spec safe_weighted_union([{frequency(),raw_type()},...]) ->
+         proper_types:type().
+safe_weighted_union(RawFreqChoices) ->
+    CookFreqType = fun({Freq,RawType}) ->
+			   {Freq,cook_outer(RawType)} end,
+    FreqChoices = lists:map(CookFreqType, RawFreqChoices),
+    Choices = [T || {_F,T} <- FreqChoices],
+    subtype(
+      [{generator,
+	fun() -> proper_gen:safe_weighted_union_gen(FreqChoices) end}],
+      union(Choices)).
 
 -spec tuple([raw_type()]) -> proper_types:type().
 tuple(RawFields) ->

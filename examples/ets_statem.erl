@@ -126,8 +126,9 @@ next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
 		true ->
 		    %% correct model
 		    S#state{stored=keyreplace(Key, 1, S#state.stored, Object)}
-		    %% error model, run with {numtests, 3000} to discover the bug
-		    %% S#state{stored=lists:keyreplace(Key, 1, S#state.stored, Object)}
+		    %% error model, run {numtests, 3000} to discover the bug
+		    %% S#state{stored=lists:keyreplace(Key, 1, S#state.stored,
+		    %% 				    Object)}
 	    end;
 	ordered_set ->
 	    Key = element(1, Object),

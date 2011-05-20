@@ -284,7 +284,8 @@ precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
     case [To || To <- Targets,
 		Mod:precondition(From, cook_history(From, To), Data, Call)] of
 	[]   -> false;
-	[_T] -> true
+	[_T] -> true;
+	_    -> erlang:error(precondition)
     end.
 
 %% @private
@@ -341,14 +342,14 @@ choose_transition(Mod, From, T_list) ->
 -spec choose_uniform_transition([transition()]) -> proper_types:type().
 choose_uniform_transition(T_list) ->
     List = [CallGen || {_,CallGen} <- T_list],
-    safe_union(List).
+    proper_types:safe_union(List).
 
 -spec choose_weighted_transition(mod_name(), state_name(), [transition()]) ->
          proper_types:type().
 choose_weighted_transition(Mod, From, T_list) ->
     List = [{Mod:weight(From, cook_history(From, To), CallGen), CallGen}
 	    || {To,CallGen} <- T_list],
-    safe_weighted_union(List).
+    proper_types:safe_weighted_union(List).
 
 -spec cook_history(state_name(), state_name()) -> state_name().
 cook_history(From, history) -> From;
@@ -362,8 +363,9 @@ is_exported(Mod, Fun) ->
          state_name().
 transition_target(Mod, From, Data, Call) ->
     Targets = target_states(Mod, From, Data, Call),
-    hd([T || T <- Targets,
-	     Mod:precondition(From, cook_history(From, T), Data, Call)]).
+    [To] = [T || T <- Targets,
+		 Mod:precondition(From, cook_history(From, T), Data, Call)],
+    To.
 
 %% @private
 -spec target_states(mod_name(), state_name(), state_data(), symb_call()) ->
@@ -387,53 +389,6 @@ is_compatible({call,M,F,A1}, {call,M,F,A2})
     true;
 is_compatible(_, _) ->
     false.
-
-
-%% -----------------------------------------------------------------------------
-%% Special types and generators
-%% -----------------------------------------------------------------------------
-
-%% @private
--spec safe_union([proper_types:raw_type(),...]) -> proper_types:type().
-safe_union(RawChoices) ->
-    Choices = [proper_types:cook_outer(C) || C <- RawChoices],
-    proper_types:subtype(
-      [{generator, fun() -> safe_union_gen(Choices) end}],
-      proper_types:union(Choices)).
-
-%% @private
--spec safe_weighted_union([{frequency(),proper_types:raw_type()},...]) ->
-         proper_types:type().
-safe_weighted_union(RawFreqChoices) ->
-    CookFreqType = fun({Freq,RawType}) ->
-			   {Freq,proper_types:cook_outer(RawType)} end,
-    FreqChoices = lists:map(CookFreqType, RawFreqChoices),
-    Choices = [T || {_F,T} <- FreqChoices],
-    proper_types:subtype(
-      [{generator, fun() -> safe_weighted_union_gen(FreqChoices) end}],
-      proper_types:union(Choices)).
-
-%% @private
--spec safe_union_gen([proper_types:type(),...]) -> proper_gen:imm_instance().
-safe_union_gen(Choices) ->
-    {Choice,Type} = proper_arith:rand_choose(Choices),
-    try proper_gen:generate(Type)
-    catch
-	error:_ ->
-	    safe_union_gen(proper_arith:list_remove(Choice, Choices))
-    end.
-
-%% @private
--spec safe_weighted_union_gen([{frequency(),proper_types:type()},...]) ->
-         proper_gen:imm_instance().
-safe_weighted_union_gen(FreqChoices) ->
-    {Choice,Type} = proper_arith:freq_choose(FreqChoices),
-    try proper_gen:generate(Type)
-    catch
-	error:_ ->
-	    safe_weighted_union_gen(proper_arith:list_remove(Choice,
-							     FreqChoices))
-    end.
 
 
 %% @type symb_var() = proper_statem:symb_var().
