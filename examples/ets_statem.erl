@@ -25,8 +25,10 @@
 %%% @doc Simple statem test for ets tables
 
 -module(ets_statem).
--export([initial_state/1, initial_state/2, command/1, precondition/2,
-	 postcondition/3, next_state/3]).
+-behaviour(proper_statem).
+
+-export([initial_state/0, initial_state/1, initial_state/2, command/1,
+	 precondition/2, postcondition/3, next_state/3]).
 -export([sample_commands/0]).
 
 -include_lib("proper/include/proper.hrl").
@@ -67,8 +69,11 @@ tid(S) ->
 
 %%% Abstract state machine for ets table
 
+initial_state() ->
+    #state{type = set}.
+
 initial_state(Type) ->
-    #state{type=Type}.
+    #state{type = Type}.
 
 initial_state(Type, parallel) ->
     #state{tids = [tab], type = Type}.

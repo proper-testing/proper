@@ -1,10 +1,13 @@
 -module(elevator_fsm).
 -behaviour(gen_fsm).
+-behaviour(proper_fsm).
 
 -include_lib("proper/include/proper.hrl").
 
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3,
 	 terminate/3, code_change/4]).
+-export([initial_state/0, initial_state_data/0, precondition/4,
+	 next_state_data/5, postcondition/5]).
 -compile(export_all).
 
 -record(state, {floor  = 0 :: non_neg_integer(),  %% current floor

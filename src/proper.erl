@@ -300,6 +300,7 @@ global_state_erase() ->
     erase('$parameters'),
     ok.
 
+%% @private
 -spec spawn_link_migrate(fun(() -> _)) -> pid().
 spawn_link_migrate(ActualFun) ->
     PDictStuff = get(),
