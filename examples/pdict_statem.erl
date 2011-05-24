@@ -26,9 +26,11 @@
 %%% @doc Simple statem test for the process dictionary
 
 -module(pdict_statem).
+-behaviour(proper_statem).
+
 -export([test/0, test/1]).
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
-	next_state/3]).
+	 next_state/3]).
 
 -include_lib("proper/include/proper.hrl").
 
@@ -60,9 +62,7 @@ clean_up() ->
 key() ->
     elements(?KEYS).
 
-initial_state() ->
-    lists:filter(fun({Key,_}) -> lists:member(Key, ?KEYS) end,
-		 erlang:get()).
+initial_state() -> [].
 
 command([]) ->
     {call,erlang,put,[key(), integer()]};
