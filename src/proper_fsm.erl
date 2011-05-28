@@ -292,9 +292,17 @@ precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
     Targets = target_states(Mod, From, Data, Call),
     case [To || To <- Targets,
 		Mod:precondition(From, cook_history(From, To), Data, Call)] of
-	[]   -> false;
-	[_T] -> true;
-	_    -> erlang:error(precondition)
+	[]   ->
+	    false;
+	[_T] ->
+	    true;
+	_ ->
+	    io:format(
+	      "\nError: The transition from \"~w\" state triggered by ~w "
+	      "call leads to multiple target states.\nUse the precondition/5 "
+              "callback to specify which target state should be chosen.\n",
+	      [From, get_mfa(Call)]),
+	    erlang:error(too_many_targets)
     end.
 
 %% @private
@@ -398,3 +406,6 @@ is_compatible({call,M,F,A1}, {call,M,F,A2})
     true;
 is_compatible(_, _) ->
     false.
+
+-spec get_mfa(symb_call()) -> mfa().
+get_mfa({call,M,F,A}) -> {M,F,length(A)}.
