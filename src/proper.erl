@@ -23,6 +23,60 @@
 %%% @version {@version}
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @doc This is the main PropEr module.
+%%%
+%%% == How to write properties (test case generators) ==
+%%% The simplest properties that PropEr can test consist of a single boolean
+%%% expression (or a statement block that returns a boolean), which is expected
+%%% to evaluate to `true'. Thus, the test `true' always succeeds, while the test
+%%% `false' always fails. More complex (and useful) properties can be written by
+%%% wrapping such a boolean expression with one or more of the following
+%%% wrappers:
+%%% <ul>
+%%% <li><b>`?FORALL(<Xs>, <Xs_type>, <Prop>)'</b>
+%%%   <p>The `<Xs>' field can either be a single variable, a tuple of variables or
+%%%   a list of variables. The `<Xs_type>' field must then be a single type, a
+%%%   tuple of types of the same length as the tuple of variables or a list of
+%%%   types of the same length as the list of variables, respectively. Tuples and
+%%%   lists can be combined in any way, as long as `<Xs>' and `<Xs_type>' are
+%%%   compatible. Both PropEr-provided types, as listed in the {@link proper_types}
+%%%   module, and types declared in Erlang's built-in typesystem (we refer to such
+%%%   types in this README as <em>native types</em>) may be used in the `<Xs_type>'
+%%%   field. The use of native types in `?FORALLs' is subject to some limitations,
+%%%   as described in the "Native types support" section.
+%%%   All the variables inside `<Xs>' can (and should) be present as free variables
+%%%   inside the wrapped property `<Prop>'. When a `?FORALL' wrapper is encountered,
+%%%   a random instance of `<Xs_type>' is produced and each variable in `<Xs>' is
+%%%   replaced inside `<Prop>' by its corresponding instance.</p>
+%%% </li>
+%%% <li><b>`?IMPLIES(<Precondition>, <Prop>)'</b>
+%%%   <p>This wrapper only makes sense when in the scope of at least one `?FORALL'.
+%%%   The `<Precondition>' field must be a boolean expression or a statement block
+%%%   that returns a boolean. If the precondition evaluates to `false' for the
+%%%   variable instances produced in the enclosing `?FORALL' wrappers, the test
+%%%   case is rejected (it doesn't count as a failing test case), and PropEr
+%%%   starts over with a new random test case. Also, in verbose mode, an `x' is
+%%%   printed on screen.</p>
+%%% </li>
+%%% <li><b>`?WHENFAIL(<Action>, <Prop>)'</b>
+%%%   <p>The `<Action>' field should contain an expression or statement block
+%%%   that produces some side-effect (e.g. prints something to the screen).
+%%%   In case this test fails, `<Action>' will be executed. Note that the output
+%%%   of such actions is not affected by the verbosity setting of the main
+%%%   application.</p>
+%%% </li>
+%%% <li><b>`?TRAPEXIT(<Prop>)'</b>
+%%%   <p>If the code inside `<Prop>' spawns and links to a process that dies
+%%%   abnormally, PropEr will catch the exit signal and treat it as a test
+%%%   failure, instead of crashing.
+%%%   `?TRAPEXIT' cannot contain any more wrappers.</p>
+%%% </li>
+%%% <li><b>`?TIMEOUT(<Time_limit>, <Prop>)'</b>
+%%%   <p>Signifies that `<Prop>' should be considered failing if it takes more
+%%%   than `<Time_limit>' milliseconds to return. The purpose of this wrapper is
+%%%   to test code that may hang if something goes wrong. `?TIMEOUT' cannot contain
+%%%   any more wrappers.</p>
+%%% </li>
+%%% </ul>
 
 -module(proper).
 -export([quickcheck/1, quickcheck/2, counterexample/1, counterexample/2,
@@ -289,6 +343,7 @@ global_state_reset(#opts{start_size = StartSize} = Opts) ->
     put('$left', 0),
     grow_size(Opts).
 
+%% @private
 -spec global_state_erase() -> 'ok'.
 global_state_erase() ->
     proper_typeserver:stop(),
@@ -316,6 +371,8 @@ save_counterexample(CExm) ->
     put('$counterexample', CExm),
     ok.
 
+%% @doc Retrieves the last simplest counterexample produced by PropEr during a
+%% failing run. The counterexample can be retrieved after testing has finished.
 -spec counterexample() -> counterexample() | 'undefined'.
 counterexample() ->
     get('$counterexample').
@@ -325,10 +382,13 @@ save_counterexamples(CExms) ->
     put('$counterexamples', CExms),
     ok.
 
+%% @doc Returns a counterexample for each failing property, when testing a
+%% whole module with {@link module/1} or {@link module/2}.
 -spec counterexamples() -> [{mfa(),counterexample()}] | 'undefined'.
 counterexamples() ->
     get('$counterexamples').
 
+%% @doc Cleans up the process dictionary of PropEr-produced entries.
 -spec clean_garbage() -> 'ok'.
 clean_garbage() ->
     erase('$counterexample'),
@@ -340,10 +400,13 @@ clean_garbage() ->
 %% Public interface functions
 %%-----------------------------------------------------------------------------
 
+%% @doc Runs PropEr on the specified property.
 -spec quickcheck(outer_test()) -> result().
 quickcheck(OuterTest) ->
     quickcheck(OuterTest, []).
 
+%% @doc Same as {@link quickcheck/1}, but also accepts a list of options.
+%% For information on available option see the {@section Options} section.
 -spec quickcheck(outer_test(), user_opts()) -> result().
 quickcheck(OuterTest, UserOpts) ->
     try parse_opts(UserOpts) of
@@ -356,18 +419,28 @@ quickcheck(OuterTest, UserOpts) ->
 	    {error, Reason}
     end.
 
+%% @doc Retrieves the last simplest counterexample produced by PropEr during
+%% a failing run. The counterexample can be retrieved after testing has
+%% finished.
 -spec counterexample(outer_test()) -> long_result().
 counterexample(OuterTest) ->
     counterexample(OuterTest, []).
 
+%% @doc Same as {@link counterexample/1}, but also accepts a list of options.
+%% For information on available option see the {@section Options} section.
 -spec counterexample(outer_test(), user_opts()) -> long_result().
 counterexample(OuterTest, UserOpts) ->
     quickcheck(OuterTest, add_user_opt(long_result,UserOpts)).
 
+%% @doc Runs PropEr in pure mode. Under this mode, PropEr will perform no I/O
+%% and will not access the caller's process dictionary in any way. Please note
+%% that PropEr will not actually run as a pure function under this mode.
 -spec pure_check(outer_test()) -> result().
 pure_check(OuterTest) ->
     pure_check(OuterTest, []).
 
+%% @doc Same as {@link pure_check/2}, but also accepts a list of options.
+%% For information on available option see the {@section Options} section.
 -spec pure_check(outer_test(), user_opts()) -> result().
 pure_check(OuterTest, ImmUserOpts) ->
     Parent = self(),
@@ -377,10 +450,13 @@ pure_check(OuterTest, ImmUserOpts) ->
 	{result,Result} -> Result
     end.
 
+%% @doc Tests the accuracy of an exported function's spec.
 -spec check_spec(mfa()) -> result().
 check_spec(MFA) ->
     check_spec(MFA, []).
 
+%% @doc Same as {@link check_spec/2}, but also accepts a list of options.
+%% For information on available option see the {@section Options} section.
 -spec check_spec(mfa(), user_opts()) -> result().
 check_spec(MFA, UserOpts) ->
     try parse_opts(UserOpts) of
@@ -392,10 +468,14 @@ check_spec(MFA, UserOpts) ->
 	    {error, Reason}
     end.
 
+%% @doc Re-checks a specific counterexample against the property that it
+%% previously falsified.
 -spec check(outer_test(), counterexample()) -> short_result().
 check(OuterTest, CExm) ->
     check(OuterTest, CExm, []).
 
+%% @doc Same as {@link check/2}, but also accepts a list of options.
+%% For information on available option see the {@section Options} section.
 -spec check(outer_test(), counterexample(), user_opts()) -> short_result().
 check(OuterTest, CExm, UserOpts) ->
     try parse_opts(UserOpts) of
@@ -408,18 +488,25 @@ check(OuterTest, CExm, UserOpts) ->
 	    {error, Reason}
     end.
 
+%% @doc Tests all properties exported from a module (a property is a 0-arity
+%% function whose name begins with "`prop_'").
 -spec module(mod_name()) -> module_result().
 module(Mod) ->
     module(Mod, []).
 
+%% @doc Same as {@link module/1}, but also accepts a list of options.
+%% For information on available option see the {@section Options} section.
 -spec module(mod_name(), user_opts()) -> module_result().
 module(Mod, UserOpts) ->
     multi_test_prep(Mod, test, UserOpts).
 
+%% @doc Tests all exported functions of a module against their spec.
 -spec check_specs(mod_name()) -> module_result().
 check_specs(Mod) ->
     check_specs(Mod, []).
 
+%% @doc Same as {@link check_specs/1}, but also accepts a list of options.
+%% For information on available option see the {@section Options} section.
 -spec check_specs(mod_name(), user_opts()) -> module_result().
 check_specs(Mod, UserOpts) ->
     multi_test_prep(Mod, spec, UserOpts).
@@ -501,17 +588,23 @@ peel_test(Test, Opts) ->
 
 %% TODO: All of these should have a test() or outer_test() return type.
 
+%% @doc Specifies the number of tests to run. Default is 100.
 %% @spec numtests(pos_integer(), outer_test()) -> outer_test()
 -spec numtests(pos_integer(), outer_test()) -> numtests_clause().
 numtests(N, Test) ->
     {numtests, N, Test}.
 
+%% @doc Specifies that we expect the property to fail for some input. The
+%% property will be considered failing if it passes all the tests.
 %% @spec fails(outer_test()) -> outer_test()
 -spec fails(outer_test()) -> fails_clause().
 fails(Test) ->
     {fails, Test}.
 
 %% @spec on_output(output_fun(), outer_test()) -> outer_test()
+%% @doc Specifies an output function to be used by PropEr for all output
+%% printing. This wrapper is equivalent to the `on_output' option.
+%% (see the {@section Options} section for details).
 -spec on_output(output_fun(), outer_test()) -> on_output_clause().
 on_output(Print, Test) ->
     {on_output, Print, Test}.
@@ -521,6 +614,11 @@ on_output(Print, Test) ->
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
 
+%% @doc Specifies a property is true only if all of its sub-properties are
+%% true. The tags must be distinct atoms. These are used when reporting the
+%% failure of a property (each failing sub-property is reported using its tag)
+%% and inside counterexamples (see the {@section Counterexamples} section
+%% for details).
 %% @spec conjunction([{tag(),test()}]) -> test()
 -spec conjunction([{tag(),test()}]) -> conjunction_clause().
 conjunction(SubProps) ->
@@ -531,26 +629,44 @@ conjunction(SubProps) ->
 implies(Pre, DTest) ->
     {implies, Pre, DTest}.
 
+%% @doc The `Category' field can be an expression or statement block that
+%% evaluates to any term - the test case produced will be categorized under
+%% this term. All produced categories are printed at the end of testing (in case
+%% no test fails) along with the percentage of test cases belonging to each
+%% category. Multiple `collect' wrappers are allowed in a single property, in
+%% which case the percentages for each `collect' wrapper are printed
+%% separately.
 %% @spec collect(term(), test()) -> test()
 -spec collect(term(), test()) -> sample_clause().
-collect(Term, Test) ->
-    collect(with_title(""), Term, Test).
+collect(Category, Test) ->
+    collect(with_title(""), Category, Test).
 
+%% @doc Same as {@link collect/2}, but a takes a fun as an extra first argument.
+%% This fun will be called at the end of testing (in case no test fails) with
+%% a sorted list of collected terms. It is expected to print some statistics
+%% over the collected terms. See also {@link with_title/1}.
 %% @spec collect(stats_printer(), term(), test()) -> test()
 -spec collect(stats_printer(), term(), test()) -> sample_clause().
-collect(Printer, Term, Test) ->
-    aggregate(Printer, [Term], Test).
+collect(Printer, Category, Test) ->
+    aggregate(Printer, [Category], Test).
 
+%% @doc Same as {@link collect/2}, but accepts a list of categories under which
+%% to classify the produced test case.
 %% @spec aggregate(sample(), test()) -> test()
 -spec aggregate(sample(), test()) -> sample_clause().
 aggregate(Sample, Test) ->
     aggregate(with_title(""), Sample, Test).
 
+%% @doc Same as {@link collect/3}, but accepts a list of categories under which
+%% to classify the produced test case.
 %% @spec aggregate(stats_printer(), sample(), test()) -> test()
 -spec aggregate(stats_printer(), sample(), test()) -> sample_clause().
 aggregate(Printer, Sample, Test) ->
     {sample, Sample, Printer, Test}.
 
+%% @doc Same as {@link collect/2}, but accepts both a single category and a list
+%% of categories. The first argument is a boolean flag. When it is `false', the
+%% produced test case is not counted.
 %% @spec classify(boolean(), term() | sample(), test()) -> test()
 -spec classify(boolean(), term() | sample(), test()) -> sample_clause().
 classify(false, _TermOrSample, Test) ->
@@ -560,6 +676,9 @@ classify(true, Sample, Test) when is_list(Sample) ->
 classify(true, Term, Test) ->
     collect(Term, Test).
 
+%% @doc The number (or numbers) provided are collected and some numeric
+%% statistics over the collected sample are printed at the end of testing (in case
+%% no test fails), prepended with `Title', which should be an atom or string.
 %% @spec measure(title(), number() | [number()], test()) -> test()
 -spec measure(title(), number() | [number()], test()) -> sample_clause().
 measure(Title, Sample, Test) when is_number(Sample) ->
@@ -582,6 +701,8 @@ trapexit(DTest) ->
 timeout(Limit, DTest) ->
     {timeout, Limit, DTest}.
 
+%% @doc Returns `true' if `A =:= B', else returns `false' and prints
+%% "`A =/= B'" on screen.
 %% @spec equals(term(), term()) -> test()
 -spec equals(term(), term()) -> whenfail_clause().
 equals(A, B) ->
@@ -1388,6 +1509,9 @@ apply_stats_printer(Printer, SortedSample, Print) ->
 	2 -> Printer(SortedSample, Print)
     end.
 
+%% @doc A predefined function that accepts an atom or string and returns a
+%% stats printing function which is equivalent to the default one, but prints
+%% the given title above the statistics.
 -spec with_title(title()) -> stats_printer().
 with_title(Title) ->
     fun(S,O) -> plain_stats_printer(S, O, Title) end.

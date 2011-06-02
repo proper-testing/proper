@@ -211,24 +211,32 @@ translate_type(ImmType) ->
     TypeserverPid = get('$typeserver_pid'),
     gen_server:call(TypeserverPid, {translate_type,ImmType}).
 
+%% @doc Translates the native type expression `TypeExpr' (which should be
+%% provided inside a string) into a PropEr type,
+%% which can then be passed to any of the demo functions defined in
+%% {@link proper_gen} module. PropEr acts as if it found this type expression
+%% inside the code of module `Mod'.
 -spec demo_translate_type(mod_name(), string()) -> rich_result(fin_type()).
-demo_translate_type(Mod, TypeStr) ->
+demo_translate_type(Mod, TypeExpr) ->
     start(),
-    Result = translate_type({Mod,TypeStr}),
+    Result = translate_type({Mod,TypeExpr}),
     stop(),
     Result.
 
+%% @doc Checks if `Term' is a valid instance of native type `TypeExpr' (which
+%% should be provided inside a string). PropEr acts as if it found this type
+%% expression inside the code of module `Mod'.
 -spec demo_is_instance(term(), mod_name(), string()) ->
 	  boolean() | {'error',term()}.
-demo_is_instance(X, Mod, TypeStr) ->
-    case parse_type(TypeStr) of
+demo_is_instance(Term, Mod, TypeExpr) ->
+    case parse_type(TypeExpr) of
 	{ok,TypeForm} ->
 	    start(),
 	    Result =
 		%% Force the typeserver to load the module.
 		case translate_type({Mod,"integer()"}) of
 		    {ok,_FinType} ->
-			try is_instance(X, Mod, TypeForm)
+			try is_instance(Term, Mod, TypeForm)
 			catch
 			    throw:{'$typeserver',Reason} -> {error, Reason}
 			end;

@@ -447,6 +447,10 @@ native_type(Mod, TypeStr) ->
 %% Basic types
 %%------------------------------------------------------------------------------
 
+%% @doc All integers between `Low' and `High', bounds included.
+%% `Low' and `High' must be Erlang expressions that evaluate to integers, with
+%% `Low =< High'. Instances shrink towards the bound with the smallest
+%% absolute value.
 -spec integer(extint(), extint()) -> proper_types:type().
 integer(Low, High) ->
     ?BASIC([
@@ -462,6 +466,10 @@ integer_test(X, Low, High) ->
     andalso le(Low, X)
     andalso le(X, High).
 
+%% @doc All floats between `Low' and `High', bounds included.
+%% `Low' and `High' must be Erlang expressions that evaluate to floats, with
+%% `Low =< High'. Instances shrink towards the bound with the smallest
+%% absolute value.
 -spec float(extnum(), extnum()) -> proper_types:type().
 float(Low, High) ->
     ?BASIC([
@@ -477,11 +485,15 @@ float_test(X, Low, High) ->
     andalso le(Low, X)
     andalso le(X, High).
 
+%% @private
 -spec le(extnum(), extnum()) -> boolean().
 le(inf, _B) -> true;
 le(_A, inf) -> true;
 le(A, B)    -> A =< B.
 
+%% @doc All atoms, except those starting with '`$''. You should not use any
+%% atoms starting with a '`$'', as these may clash with atoms used internally
+%% by PropEr. Instances shrink towards the empty atom, ''.
 -spec atom() -> proper_types:type().
 atom() ->
     ?WRAPPER([
@@ -498,6 +510,7 @@ atom_test(X) ->
     %% atoms used internally and never produced by the atom generator.
     andalso (X =:= '' orelse hd(atom_to_list(X)) =/= $$).
 
+%% @doc All binaries, instances shrink towards the empty binary, `<<>>'.
 -spec binary() -> proper_types:type().
 binary() ->
     ?WRAPPER([
@@ -506,6 +519,9 @@ binary() ->
 	{is_instance, fun erlang:is_binary/1}
     ]).
 
+%% @doc All binaries with a byte size of `Len'.
+%% `Len' must be an Erlang expression that evaluates to a non-negative integer.
+%% Instances shrink towards binaries of zeroes.
 -spec binary(length()) -> proper_types:type().
 binary(Len) ->
     ?WRAPPER([
@@ -518,6 +534,7 @@ binary(Len) ->
 binary_len_test(X, Len) ->
     is_binary(X) andalso byte_size(X) =:= Len.
 
+%% @doc All bitstrings, instances shrink towards the empty bitstring, `<<>>'.
 -spec bitstring() -> proper_types:type().
 bitstring() ->
     ?WRAPPER([
@@ -526,6 +543,9 @@ bitstring() ->
 	{is_instance, fun erlang:is_bitstring/1}
     ]).
 
+%% @doc All bitstrings with a bit size of `Len'.
+%% `Len' must be an Erlang expression that evaluates to a non-negative integer,
+%% instances shrink towards bitstrings of zeroes
 -spec bitstring(length()) -> proper_types:type().
 bitstring(Len) ->
     ?WRAPPER([
@@ -538,7 +558,8 @@ bitstring(Len) ->
 bitstring_len_test(X, Len) ->
     is_bitstring(X) andalso bit_size(X) =:= Len.
 
-
+%% @doc All lists containing elements of type `RawElemType',
+%% instances shrink towards the empty list, `[]'.
 -spec list(raw_type()) -> proper_types:type().
 % TODO: subtyping would be useful here (list, vector, fixed_list)
 list(RawElemType) ->
@@ -556,6 +577,8 @@ list(RawElemType) ->
 	{update, fun proper_arith:list_update/3}
     ]).
 
+%% @doc A type that generates exactly the list `List'. Instances
+%% shrink towards shorter sublists of the original list.
 -spec shrink_list([term()]) -> proper_types:type().
 shrink_list(List) ->
     ?CONTAINER([
@@ -599,6 +622,8 @@ distlist(Size, Gen, NonEmpty) ->
 	{generator, fun() -> proper_gen:distlist_gen(Size, Gen, NonEmpty) end}
     ]).
 
+%% @doc All lists of length `Len' containing elements of type `ElemType'.
+%% `Len' must be an Erlang expression that evaluates to a non-negative integer.
 -spec vector(length(), raw_type()) -> proper_types:type().
 vector(Len, RawElemType) ->
     ElemType = cook_outer(RawElemType),
@@ -619,7 +644,12 @@ vector_test(X, Len, ElemType) ->
     andalso length(X) =:= Len
     andalso lists:all(fun(E) -> is_instance(E, ElemType) end, X).
 
--spec union([raw_type(),...]) -> proper_types:type().
+%% @doc The union of all types in `ListOfTypes'. `ListOfTypes' can't be empty,
+%% the random instance generator is equally likely to choose any one of the
+%% types in `ListOfTypes'. The shrinking subsystem will always try to shrink an
+%% instance of a type union to an instance of the first type in `ListOfTypes',
+%% thus you should write the simplest case first.
+-spec union(ListOfTypes::[raw_type(),...]) -> proper_types:type().
 union(RawChoices) ->
     Choices = [cook_outer(C) || C <- RawChoices],
     ?BASIC([
@@ -638,7 +668,13 @@ union(RawChoices) ->
 union_test(X, Choices) ->
     lists:any(fun(C) -> is_instance(X, C) end, Choices).
 
--spec weighted_union([{frequency(),raw_type()},...]) -> proper_types:type().
+%% @doc A specialization of {@link union/1}, where each type in `ListOfTypes' is
+%% assigned a frequency. Frequencies must be Erlang expressions that evaluate to
+%% positive integers. Types with larger frequencies are more likely to be chosen
+%% by the random instance generator. The shrinking subsystem will ignore the
+%% frequencies and try to shrink towards the first type in the list.
+-spec weighted_union(ListOfTypes::[{frequency(),raw_type()},...]) ->
+          proper_types:type().
 weighted_union(RawFreqChoices) ->
     CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
     FreqChoices = lists:map(CookFreqType, RawFreqChoices),
@@ -668,6 +704,8 @@ safe_weighted_union(RawFreqChoices) ->
 	fun() -> proper_gen:safe_weighted_union_gen(FreqChoices) end}],
       union(Choices)).
 
+%% @doc Equivalent to `loose_tuple(any())'.
+%% @see loose_tuple/1
 -spec tuple([raw_type()]) -> proper_types:type().
 tuple(RawFields) ->
     Fields = [cook_outer(F) || F <- RawFields],
@@ -689,7 +727,9 @@ tuple_test(X, Fields) ->
 tuple_update(Index, NewElem, Tuple) ->
     setelement(Index, Tuple, NewElem).
 
--spec loose_tuple(raw_type()) -> proper_types:type().
+%% @doc All tuples whose elements are all of type `ElemType',
+%% instances shrink towards `{}'.
+-spec loose_tuple(ElemType::raw_type()) -> proper_types:type().
 loose_tuple(RawElemType) ->
     ElemType = cook_outer(RawElemType),
     ?WRAPPER([
@@ -703,6 +743,8 @@ loose_tuple(RawElemType) ->
 loose_tuple_test(X, ElemType) ->
     is_tuple(X) andalso list_test(tuple_to_list(X), ElemType).
 
+%% @doc Singleton type consisting only of `E', that must be an evaluated term.
+%% Also written simply as `E'.
 -spec exactly(term()) -> proper_types:type().
 exactly(E) ->
     ?BASIC([
@@ -710,7 +752,9 @@ exactly(E) ->
 	{is_instance, fun(X) -> X =:= E end}
     ]).
 
--spec fixed_list(maybe_improper_list(raw_type(),raw_type() | [])) ->
+%% @doc All lists whose i-th element is an instance of the type at index i of
+%% `ListOfTypes', also written simply as `ListOfTypes'.
+-spec fixed_list(ListOfTypes::maybe_improper_list(raw_type(),raw_type() | [])) ->
 	  proper_types:type().
 fixed_list(MaybeImproperRawFields) ->
     %% CAUTION: must handle improper lists
@@ -784,7 +828,10 @@ improper_list_update(Index, Value, List, HeadLen) ->
 	false -> lists:sublist(List, HeadLen) ++ Value
     end.
 
--spec function([raw_type()] | arity(), raw_type()) -> proper_types:type().
+%% @doc All pure functions that map instances of `ArgTypes' to instances of
+%% `RetType'. The syntax `function(Arity, RetType)' is also acceptable.
+-spec function(ArgTypes::[raw_type()] | arity(), raw_type()) ->
+          proper_types:type().
 function(Arity, RawRetType) when is_integer(Arity), Arity >= 0, Arity =< 255 ->
     RetType = cook_outer(RawRetType),
     ?BASIC([
@@ -801,6 +848,11 @@ function_test(X, Arity, RetType) ->
     %% TODO: what if it's not a function we produced?
     andalso equal_types(RetType, proper_gen:get_ret_type(X)).
 
+%% @doc All Erlang terms (that PropEr can produce). Functions are never produced
+%% as instances.<br/>
+%% CAUTION: Instances of this type are expensive to produce, shrink and instance-
+%% check, both in terms of processing time and consumed memory. Only use this
+%% type if you are certain that you need it.
 -spec any() -> proper_types:type().
 any() ->
     AllTypes = [integer(),float(),atom(),bitstring(),?LAZY(loose_tuple(any())),
@@ -814,57 +866,82 @@ any() ->
 %% Type aliases
 %%------------------------------------------------------------------------------
 
+%% @doc All integers. The shrinking subsystem will attempt to shrink instances
+%% of this type to values as close as possible to `0'.
 -spec integer() -> proper_types:type().
 integer() -> integer(inf, inf).
 
+%% @doc All non-negative integers, instances shrink towards `0'.
 -spec non_neg_integer() -> proper_types:type().
 non_neg_integer() -> integer(0, inf).
 
+%% @doc All positive integers, instances shrink towards `1'.
 -spec pos_integer() -> proper_types:type().
 pos_integer() -> integer(1, inf).
 
+%% @doc All negative integers, instances shrink towards `-1'.
 -spec neg_integer() -> proper_types:type().
 neg_integer() -> integer(inf, -1).
 
+%% @doc Equivalent to {@link integer/2}.
 -spec range(extint(), extint()) -> proper_types:type().
 range(Low, High) -> integer(Low, High).
 
+%% @doc All floating point numbers, instances shrink towards `0.0'.
 -spec float() -> proper_types:type().
 float() -> float(inf, inf).
 
+%% @doc All non-negative floats, instances shrink towards `0.0'.
 -spec non_neg_float() -> proper_types:type().
 non_neg_float() -> float(0.0, inf).
 
+%% @doc All numbers (integers and floats), instances shrink towards zero
+%% (`0' or `0.0').
 -spec number() -> proper_types:type().
 number() -> union([integer(), float()]).
 
+%% @doc The atoms `true' or `false', instances shrink towards `false'.
 -spec boolean() -> proper_types:type().
 boolean() -> union(['false', 'true']).
 
+%% @doc All integers between `0' and `255', instances shrink towards `0'
 -spec byte() -> proper_types:type().
 byte() -> integer(0, 255).
 
+%% @doc All integers between `0' and `16#10ffff',
+%% instances shrink towards the NUL character, `\000'.
 -spec char() -> proper_types:type().
 char() -> integer(0, 16#10ffff).
 
+%% @doc Equivalent to `list(any())'. See also {@link list/1}, {@link any/0}.
 -spec list() -> proper_types:type().
 list() -> list(any()).
 
+%% @doc Equivalent to `loose_tuple(any())'. See also {@link loose_tuple/1},
+%% {@link any/0}.
 -spec tuple() -> proper_types:type().
 tuple() -> loose_tuple(any()).
 
+%% @doc All lists of characters, instances shrink towards the empty string, "".
 -spec string() -> proper_types:type().
 string() -> list(char()).
 
+%% @doc Equivalent to {@link weighted_union/1}.
 -spec wunion([{frequency(),raw_type()},...]) -> proper_types:type().
 wunion(FreqChoices) -> weighted_union(FreqChoices).
 
+%% @doc Equivalent to {@link any/0}.
 -spec term() -> proper_types:type().
 term() -> any().
 
+%% @doc Equivalent to ``union([non_neg_integer() | 'infinity'])'',
+%% instances shrink towards `0'. See also {@link union/1},
+%% {@link non_neg_integer/0}.
 -spec timeout() -> proper_types:type().
 timeout() -> union([non_neg_integer(), 'infinity']).
 
+%% @doc Equivalent to `range(0, 255)', instances shrink towards `0'.
+%% See also {@link range/2}.
 -spec arity() -> proper_types:type().
 arity() -> integer(0, 255).
 
@@ -872,96 +949,141 @@ arity() -> integer(0, 255).
 %% QuickCheck compatibility types
 %%------------------------------------------------------------------------------
 
+%% @doc Small integers (bound by the current value of the `size' parameter),
+%% instances shrink towards `0'.
 -spec int() -> proper_types:type().
 int() -> ?SIZED(Size, integer(-Size,Size)).
 
+%% @doc Small non-negative integers (bound by the current value of the `size'
+%% parameter), instances shrink towards `0'.
 -spec nat() -> proper_types:type().
 nat() -> ?SIZED(Size, integer(0,Size)).
 
+%% @doc Equivalent to {@link integer/1}.
 -spec largeint() -> proper_types:type().
 largeint() -> integer().
 
+%% @doc Equivalent to {@link float/1}.
 -spec real() -> proper_types:type().
 real() -> float().
 
+%% @doc Equivalent to {@link boolean/1}.
 -spec bool() -> proper_types:type().
 bool() -> boolean().
 
+%% @doc Equivalent to {@link integer/2}.
 -spec choose(extint(), extint()) -> proper_types:type().
 choose(Low, High) -> integer(Low, High).
 
+%% @doc Equivalent to {@link union/1}.
 -spec elements([raw_type(),...]) -> proper_types:type().
 elements(Choices) -> union(Choices).
 
+%% @doc Equivalent to {@link union/1}.
 -spec oneof([raw_type(),...]) -> proper_types:type().
 oneof(Choices) -> union(Choices).
 
+%% @doc Equivalent to {@link weighted_union/1}.
 -spec frequency([{frequency(),raw_type()},...]) -> proper_types:type().
 frequency(FreqChoices) -> weighted_union(FreqChoices).
 
+%% @doc Equivalent to {@link exactly/1}.
 -spec return(term()) -> proper_types:type().
 return(X) -> exactly(X).
 
+%% @doc Adds a default value, `Default', to `OtherType'.
+%% The default serves as a primary shrinking target for instances, while it
+%% is also chosen by the random instance generation subsystem half the time.
 -spec default(raw_type(), raw_type()) -> proper_types:type().
 default(Default, OtherType) ->
     union([Default, OtherType]).
 
+%% @doc All sorted lists containing elements of type RawElemType,
+%% instances shrink towards the empty list, `[]'.
 -spec orderedlist(raw_type()) -> proper_types:type().
 orderedlist(RawElemType) ->
     ?LET(L, list(RawElemType), lists:sort(L)).
 
+%% @doc Equivalent to `function(0, RawRetType)'. See also {@link function/2}.
 -spec function0(raw_type()) -> proper_types:type().
 function0(RawRetType) ->
     function(0, RawRetType).
 
+%% @doc Equivalent to `function(1, RawRetType)'. See also {@link function/2}.
 -spec function1(raw_type()) -> proper_types:type().
 function1(RawRetType) ->
     function(1, RawRetType).
 
+%% @doc Equivalent to `function(2, RawRetType)'. See also {@link function/2}.
 -spec function2(raw_type()) -> proper_types:type().
 function2(RawRetType) ->
     function(2, RawRetType).
 
+%% @doc Equivalent to `function(3, RawRetType)'. See also {@link function/2}.
 -spec function3(raw_type()) -> proper_types:type().
 function3(RawRetType) ->
     function(3, RawRetType).
 
+%% @doc Equivalent to `function(4, RawRetType)'. See also {@link function/2}.
 -spec function4(raw_type()) -> proper_types:type().
 function4(RawRetType) ->
     function(4, RawRetType).
 
+%% @doc A specialization of `default(Default, OtherType)', where `Default' and
+%% `Type' are assigned weights to be considered by the random instance
+%% generator. The shrinking subsystem will ignore the weights and try to shrink
+%% using the default value.
 -spec weighted_default({frequency(),raw_type()}, {frequency(),raw_type()}) ->
 	  proper_types:type().
 weighted_default(Default, OtherType) ->
     weighted_union([Default, OtherType]).
 
+
 %%------------------------------------------------------------------------------
 %% Additional type specification functions
 %%------------------------------------------------------------------------------
 
+%% @doc Overrides the `size' parameter used when generating instances of
+%% `RawType' with `NewSize'. It has no effect on size-less types, such as
+%% unions. Also, this will not affect the generation of any internal types
+%% contained in `RawType', such as the elements of a list - those will still be
+%% generated using the test-wide value of `size'. One use of this function is
+%% to modify types to grow faster or slower, like so:
+%% ```?SIZED(Size, resize(Size * 2, list(integer()))'''
+%% The above specifies a list type that grows twice as fast as normal lists.
 -spec resize(size(), raw_type()) -> proper_types:type().
-resize(Size, RawType) ->
+resize(NewSize, RawType) ->
     Type = cook_outer(RawType),
     case find_prop(size_transform, Type) of
 	{ok,Transform} ->
-	    add_prop(size_transform, fun(_S) -> Transform(Size) end, Type);
+	    add_prop(size_transform, fun(_S) -> Transform(NewSize) end, Type);
 	error ->
-	    add_prop(size_transform, fun(_S) -> Size end, Type)
+	    add_prop(size_transform, fun(_S) -> NewSize end, Type)
     end.
 
+%% @doc This is a predefined constraint that can be applied to random-length
+%% list and binary types (e.g. {@link list/0}, {@link string/0},
+%% {@link binary/0}) to ensure that the produced values are not empty.
 -spec non_empty(raw_type()) -> proper_types:type().
 non_empty(RawListType) ->
     ?SUCHTHAT(L, RawListType, L =/= [] andalso L =/= <<>>).
 
+%% @doc Creates a new type which is equivalent to `RawType', but whose
+%% instances are never shrunk by the shrinking subsystem.
 -spec noshrink(raw_type()) -> proper_types:type().
 noshrink(RawType) ->
     add_prop(noshrink, true, cook_outer(RawType)).
 
--spec with_parameter(atom(), value(), raw_type()) -> proper_types:type().
-with_parameter(Param, Value, RawType) ->
-    with_parameters([{Param,Value}], RawType).
+%% @doc Associates the atom key `Parameter' with the value `Value' while
+%% generating instances of `Type'.
+-spec with_parameter(atom(), value(), Type::raw_type()) -> proper_types:type().
+with_parameter(Parameter, Value, RawType) ->
+    with_parameters([{Parameter,Value}], RawType).
 
--spec with_parameters([{atom(),value()}], raw_type()) -> proper_types:type().
+%% @doc Similar to {@link with_parameter/3}, but accepts a list of
+%% `{Parameter, Value}' pairs.
+-spec with_parameters([{atom(),value()}], Type::raw_type()) ->
+          proper_types:type().
 with_parameters(PVlist, RawType) ->
     Type = cook_outer(RawType),
     case find_prop(parameters, Type) of
@@ -971,15 +1093,18 @@ with_parameters(PVlist, RawType) ->
 	    add_prop(parameters, PVlist, Type)
     end.
 
--spec parameter(atom()) -> value().
-parameter(Param) ->
-    parameter(Param, undefined).
-
+%% @doc Returns the value associated with `Parameter', or `Default' in case
+%% `Parameter' is not associated with any value.
 -spec parameter(atom(), value()) -> value().
-parameter(Param, Default) ->
+parameter(Parameter, Default) ->
     Parameters =
 	case erlang:get('$parameters') of
 	    undefined -> [];
 	    List -> List
 	end,
-    proplists:get_value(Param, Parameters, Default).
+    proplists:get_value(Parameter, Parameters, Default).
+
+%% @doc Equivalent to `parameter(Parameter_name, undefined)'.
+-spec parameter(atom()) -> value().
+parameter(Parameter) ->
+    parameter(Parameter, undefined).

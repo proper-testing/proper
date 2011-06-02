@@ -22,15 +22,52 @@
 %%%                  and Kostis Sagonas <kostis@cs.ntua.gr>
 %%% @version {@version}
 %%% @author Manolis Papadakis <manopapad@gmail.com>
+
 %%% @doc This module contains functions used when symbolically generating
-%%%	 datatypes.
+%%% datatypes. When writing properties that involve abstract data types,
+%%% such as dicts or sets, it is usually best to avoid dealing with the ADTs'
+%%% internal representations directly. Working, instead, with a symbolic
+%%% representation of an ADT's construction process (series of API calls)
+%%% has several benefits:
+%%% <ul>
+%%% <li>Failing testcases are easier to read and understand. Compare:<br/>
+%%%   ```{call,sets,from_list,[[1,2,3]]}'''
+%%%   with:
+%%%   ```{set,3,16,16,8,80,48,
+%%%	      {[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},
+%%%	      {{[],[3],[],[],[],[],[2],[],[],[],[],[1],[],[],[],[]}}}'''</li>
+%%% <li>Failing testcases are easier to shrink.</li>
+%%% <li>It is especially useful when testing the datatype itself: Certain
+%%%   implementation errors may depend on some particular selection and
+%%%   ordering of API calls, thus it is important to cover the entire ADT
+%%%   construction API.</li>
+%%% </ul>
+%%%
+%%% PropEr supports the symbolic representation of datatypes, using the
+%%% following syntax:
+%%% <ul>
+%%% <li>`{call,Module,Function,Arguments}': This represents a call to the
+%%%   API function `Module:Function' with arguments `Arguments'. Each of
+%%%   the arguments may be a symbolic call itself or contain other symbolic
+%%%   calls in lists or tuples of arbitrary depth.</li>
+%%% <li>``{'$call',Module,Function,Arguments}'': Identical to the above,
+%%%   but gets evaluated automatically before being applied to a property.</li>
+%%% <li>`{var,'{@type var_id()}`}': This contruct serves as a placeholder for
+%%%   values that are not known at type construction time. It will be replaced
+%%%   by the actual value of the variable during evaluation.</li>
+%%% </ul>
+%%%
+%%% When including the <code>"proper/include/proper.hrl"</code> header file,
+%%% all <a href="#index">API functions </a> of {@module} are automatically
+%%% imported, unless `PROPER_NO_IMPORTS' is defined.
+%%% @end
 
 -module(proper_symb).
 -export([eval/1, eval/2, defined/1, well_defined/1, pretty_print/1,
 	 pretty_print/2]).
 -export([internal_eval/1, internal_well_defined/1]).
 
--export_type([var_id/0, var_values/0]).
+-export_type([var_values/0]).
 
 -include("proper_internal.hrl").
 
@@ -42,8 +79,9 @@
 %% -type symb_call()  :: {'call' | '$call',mod_name(),fun_name(),[symb_term()]}.
 %% TODO: only atoms are allowed as variable identifiers?
 
--type var_id() :: integer() | atom().
+-type var_id() :: atom() | pos_integer().
 -type var_values() :: [{var_id(),term()}].
+%% @type symb_term()
 -type symb_term() :: term().
 -type handled_term() :: term().
 -type caller() :: 'user' | 'system'.
@@ -57,9 +95,16 @@
 %% Evaluation functions
 %%------------------------------------------------------------------------------
 
+%% @doc Intended for use inside the property-testing code, this function
+%%      evaluates a symbolic instance.
+
 -spec eval(symb_term()) -> term().
 eval(SymbTerm) ->
     eval([], SymbTerm).
+
+%% @doc Same as {@link eval/1}, but accepts a proplist of variable names and
+%%      values, to be replaced anywhere inside the symbolic instance before
+%%      proceeding with the evaluation.
 
 -spec eval(var_values(), symb_term()) -> term().
 eval(VarValues, SymbTerm) ->
@@ -75,6 +120,9 @@ eval(VarValues, SymbTerm, Caller) ->
 internal_eval(SymbTerm) ->
     eval([], SymbTerm, system).
 
+%% @doc Returns true if the symbolic instance can be successfully evaluated
+%%     (its evaluation doesn't raise an error or exception).
+
 -spec defined(symb_term()) -> boolean().
 defined(SymbTerm) ->
     defined(SymbTerm, user).
@@ -86,6 +134,10 @@ defined(SymbTerm, Caller) ->
     catch
 	_Exception:_Reason -> false
     end.
+
+%% @doc An attribute which can be applied to symbolic generators that may
+%%      produce invalid sequences of operations when called. The resulting type
+%%      is guaranteed to only produce well-defined symbolic instances.
 
 -spec well_defined(proper_types:raw_type()) -> proper_types:type().
 well_defined(SymbType) ->
@@ -105,9 +157,15 @@ internal_well_defined(SymbType) ->
 %% Pretty-printing functions
 %%------------------------------------------------------------------------------
 
+%% @doc Similar in calling convention to {@link eval/1} but returns a string
+%%      representation of the call sequence instead of evaluating it.
+
 -spec pretty_print(symb_term()) -> string().
 pretty_print(SymbTerm) ->
     pretty_print([], SymbTerm).
+
+%% @doc Similar in calling convention to {@link eval/2} but returns a string
+%%      representation of the call sequence instead of evaluating it.
 
 -spec pretty_print(var_values(), symb_term()) -> string().
 pretty_print(VarValues, SymbTerm) ->

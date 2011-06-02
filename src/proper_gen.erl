@@ -161,10 +161,12 @@ generate(Type, TriesLeft, Fallback) ->
 	{false,false} -> generate(Type, TriesLeft - 1, Fallback)
     end.
 
+%% @doc Equivqlent to `pick(RawType, 10)'.
 -spec pick(proper_types:raw_type()) -> {'ok',instance()} | 'error'.
 pick(RawType) ->
     pick(RawType, 10).
 
+%% @doc Generates a random instance of `RawType', of size `Size'.
 -spec pick(proper_types:raw_type(), size()) -> {'ok',instance()} | 'error'.
 pick(RawType, Size) ->
     proper:global_state_init_size(Size),
@@ -185,10 +187,13 @@ pick(RawType, Size) ->
 	    error
     end.
 
+%% @doc Equivalent to `sample(RawType, 10, 20)'.
 -spec sample(proper_types:raw_type()) -> 'ok'.
 sample(RawType) ->
     sample(RawType, 10, 20).
 
+%% @doc Generates and prints one random instance of `RawType' for each size
+%% from `StartSize' up to `EndSize'.
 -spec sample(proper_types:raw_type(), size(), size()) -> 'ok'.
 sample(RawType, StartSize, EndSize) when StartSize =< EndSize ->
     Tests = EndSize - StartSize + 1,
@@ -197,10 +202,14 @@ sample(RawType, StartSize, EndSize) when StartSize =< EndSize ->
     _ = proper:quickcheck(Prop, Opts),
     ok.
 
+%% @doc Equivalent to `sampleshrink(RawType, 10)'.
 -spec sampleshrink(proper_types:raw_type()) -> 'ok'.
 sampleshrink(RawType) ->
     sampleshrink(RawType, 10).
 
+%% @doc Generates a random instance of `RawType', of size `Size', then shrinks
+%% it as far as it goes. The value produced on each step of the shrinking
+%% process is printed on the screen.
 -spec sampleshrink(proper_types:raw_type(), size()) -> 'ok'.
 sampleshrink(RawType, Size) ->
     proper:global_state_init_size(Size),
