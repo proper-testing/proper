@@ -21,7 +21,11 @@
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc The generator subsystem and generators for basic types are contained
-%%%	 in this module.
+%%%	 in this module. You can use the <a href="#index">these </a> functions
+%%%      to try out the random instance generation and shrinking subsystems.<br/>
+%%%
+%%%      CAUTION: <a href="#index">These </a> functions should never be used
+%%%      inside properties. They are meant for demonstration purposes only.
 
 -module(proper_gen).
 -export([pick/1, pick/2, sample/1, sample/3, sampleshrink/1, sampleshrink/2]).

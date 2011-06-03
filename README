@@ -68,7 +68,7 @@ Using PropEr under Erlang/OTP R13B03 or older:
 
 
 --------------------------------------------------------------------------------
-Introduction
+Introduction -> moved the last paragraph to proper.erl
 --------------------------------------------------------------------------------
 
 Traditional testing methodologies essentially involve software testers writing a
@@ -107,7 +107,7 @@ way to provide tighter integration with Erlang's built-in type system.
 
 
 --------------------------------------------------------------------------------
-How to write properties (test case generators)
+How to write properties (test case generators) -> moved to proper.erl
 --------------------------------------------------------------------------------
 
 The simplest properties that PropEr can test consist of a single boolean
@@ -220,7 +220,7 @@ testing modules in the tests directory may also be of interest.
 
 
 --------------------------------------------------------------------------------
-Program behaviour
+Program behaviour -> moved to proper.erl
 --------------------------------------------------------------------------------
 
 When running in verbose mode (this is the default), each sucessful test prints
@@ -259,7 +259,7 @@ controls the return value format of proper:module itself (see the
 
 
 --------------------------------------------------------------------------------
-Counterexamples
+Counterexamples -> moved to proper.erl
 --------------------------------------------------------------------------------
 
 A counterexample for a property is represented as a list of terms; each such
@@ -305,7 +305,7 @@ to verify that <CExm> actually corresponds to <Prop>.
 
 
 --------------------------------------------------------------------------------
-Options
+Options -> moved to proper.erl
 --------------------------------------------------------------------------------
 
 Options can be provided as an extra argument to testing functions exported from
@@ -363,7 +363,7 @@ The available options are:
 
 
 --------------------------------------------------------------------------------
-Basic types
+Basic types -> moved to proper_types.erl
 --------------------------------------------------------------------------------
 
 The following basic types are provided:
@@ -495,7 +495,7 @@ example of the type of a tagged tuple: {'result', integer()}.
 
 
 --------------------------------------------------------------------------------
-How to construct types
+How to construct types -> moved to proper_types.erl
 --------------------------------------------------------------------------------
 
 The following macros and functions can be applied to types in order to produce
@@ -602,7 +602,7 @@ resize(<New_size>, <Type>)
 
 
 --------------------------------------------------------------------------------
-Native types support
+Native types support -> moved to proper_typeserver.erl
 --------------------------------------------------------------------------------
 
 PropEr can parse types expressed in Erlang's native type format and convert them
@@ -711,7 +711,7 @@ The use of native types in properties is subject to the following usage rules:
 
 
 --------------------------------------------------------------------------------
-Spec testing
+Spec testing -> moved to proper.erl
 --------------------------------------------------------------------------------
 
 You can test the accuracy of an exported function's spec by running:
@@ -762,7 +762,7 @@ treats these the same way as the non-parametric versions.
 
 
 --------------------------------------------------------------------------------
-Symbolic datatypes
+Symbolic datatypes -> moved to proper_symb.erl
 --------------------------------------------------------------------------------
 
 When writing properties that involve abstract data types, such as dicts or sets,
@@ -814,7 +814,7 @@ instances:
 
 
 --------------------------------------------------------------------------------
-Auto-ADT
+Auto-ADT -> move to proper_symb.erl
 --------------------------------------------------------------------------------
 
 To simplify the symbolic testing of ADTs, PropEr comes with the Auto-ADT
@@ -877,7 +877,7 @@ proper/proper_dict module, which wraps the STDLIB dict ADT.
 
 
 --------------------------------------------------------------------------------
-Testing stateful code
+Testing stateful code -> moved to proper_statem.erl
 --------------------------------------------------------------------------------
 
 PropEr provides the module proper_statem to facilitate testing of stateful
@@ -995,7 +995,7 @@ respectively.
 
 
 --------------------------------------------------------------------------------
-Parallel testing
+Parallel testing -> moved to proper_statem.erl
 --------------------------------------------------------------------------------
 
 After ensuring that a system's behaviour can be described via an abstract state
@@ -1042,7 +1042,7 @@ examples/ets_statem, where we test concurrent operations on a public ets table.
 
 
 --------------------------------------------------------------------------------
-PropEr fsm
+PropEr fsm -> moved to proper_fsm.erl
 --------------------------------------------------------------------------------
 
 PropEr provides another useful module for testing stateful systems, in
@@ -1155,7 +1155,7 @@ containing a finite state machine specification for an elevator.
 
 
 --------------------------------------------------------------------------------
-Errors
+Errors -> moved to proper.erl
 --------------------------------------------------------------------------------
 
 The following errors may be encountered during testing. The term provided for
@@ -1194,7 +1194,7 @@ occurs. Normaly, a message is also printed on screen describing the error.
 
 
 --------------------------------------------------------------------------------
-Demo functions
+Demo functions -> moved to proper_gen.erl and proper_typeserver.erl
 --------------------------------------------------------------------------------
 
 You can use the following functions to try out the random instance generation,
@@ -1230,7 +1230,7 @@ for demonstration purposes only.
 
 
 --------------------------------------------------------------------------------
-Incompatibilities with QuviQ's QuickCheck
+Incompatibilities with QuviQ's QuickCheck -> moved to proper.erl
 --------------------------------------------------------------------------------
 
 We have generaly tried to keep PropEr's notation and output as compatible as

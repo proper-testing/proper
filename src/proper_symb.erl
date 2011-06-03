@@ -58,6 +58,70 @@
 %%% When including the <code>"proper/include/proper.hrl"</code> header file,
 %%% all <a href="#index">API functions </a> of {@module} are automatically
 %%% imported, unless `PROPER_NO_IMPORTS' is defined.
+%%%
+%%% == Auto-ADT ==
+%%% To simplify the symbolic testing of ADTs, PropEr comes with the Auto-ADT
+%%% subsystem: An opaque native type, if exported from its module, is assumed
+%%% to be an abstract data type, causing PropEr to ignore its internal
+%%% representation and instead construct symbolic instances of the type. The
+%%% API functions used in these symbolic instances are extracted from the ADT's
+%%% definition module, which is expected to contain one or more '-spec'ed
+%%% exported functions that can be used to construct instances of the ADT.
+%%% Specifically, PropEr will use all functions that return at least one
+%%% instance of the ADT. As with recursive native types, the base case is
+%%% automatically detected (in the case of ADTs, calls to functions like
+%%% `new/0' and `from_list/1' would be considered the base case). The produced
+%%% symbolic calls will be `$call' tuples, which are automatically evaluated,
+%%% thus no call to `eval/1' is required inside the property. Produced instances
+%%% are guaranteed to evaluate successfully. Parametric ADTs are fully supported,
+%%% as long as they appear instantiated inside `?FORALLs'. ADTs hard-coded in the
+%%% Erlang type system (array, dict, digraph, gb_set, gb_tree, queue, and set)
+%%% are automatically detected and handled as such. PropEr also accepts
+%%% parametric versions of the above ADTs in `?FORALLs' (`array/1', `dict/2',
+%%% `gb_set/1', `gb_tree/2', `queue/1', `set/1', also `orddict/2' and
+%%% `ordset/1').
+%%%
+%%% The use of Auto-ADT is currently subject to the following limitations:
+%%% <ul>
+%%% <li>In the ADT's `-opaque' declaration, as in all types' declarations,
+%%%   only type variables should be used as parameters in the LHS. None of
+%%%   these variables can be the special `_' variable and no variable should
+%%%   appear more than once in the parameters.</li>
+%%% <li>ADTs inside specs can only have simple variables as parameters. These
+%%%   variables cannot be bound by any is_subtype constraint. Also, the special
+%%%   `_' variable is not allowed in ADT parameters. If this would result in
+%%%   singleton variables, as in the specs of functions like `new/0', use
+%%%   variable names that begin with an underscore.</li>
+%%% <li>Specs that introduce an implicit binding among the parameters of an
+%%%   ADT are rejected, e.g.:
+%%%   ``` -spec foo(mydict(T,S),mydict(S,T)) -> mydict(T,S). '''
+%%%   This includes using the same type variable twice in the parameters of
+%%%   an ADT.</li>
+%%% <li>While parsing the return type of specs in search of ADT references,
+%%%   PropEr only recurses into tuples, unions and lists - all other constructs
+%%%   are ignored. This prohibits, among others, indirect references to the ADT
+%%%   through other custom types and records.</li>
+%%% <li>When encountering a union in the return type, PropEr will pick the
+%%%   first choice that can return an ADT. This choice must be distinguishable
+%%%   from the others either by having a unique term structure or by having a
+%%%   unique tag (if it's a tagged tuple).</li>
+%%% <li>When parsing multi-clause specs, only the first clause is considered.
+%%%   </li>
+%%% <li>The only spec constraints we accept are `is_subtype' constraints whose
+%%%   first argument is a simple, non-`_' variable. It is not checked whether or
+%%%   not these variables actually appear in the spec. The second argument of an
+%%%   `is_subtype' constraint cannot contain any non-`_' variables. Multiple
+%%%   constraints for the same variable are not supported.</li>
+%%% <li> Unexported opaques and opaques with no suitable specs to serve as API
+%%%   calls are silently discarded. Those will be treated like ordinary types.</li>
+%%% <li>Unexported or unspecced functions are silently rejected.</li>
+%%% <li>Functions with unsuitable return values are silently rejected.</li>
+%%% <li>Specs that make bad use of variables are silently rejected.</li>
+%%% </ul>
+%%%
+%%% For an example on how to write Auto-ADT-compatible parametric specs, see
+%%% the `examples/stack' module, which contains a simple implementation of a stack,
+%%% or the `proper/proper_dict module', which wraps the STDLIB dict ADT.
 %%% @end
 
 -module(proper_symb).
