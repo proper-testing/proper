@@ -24,7 +24,7 @@
 %%% @author Manolis Papadakis <manopapad@gmail.com>
 %%% @doc The generator subsystem and generators for basic types are contained
 %%%	 in this module. You can use the <a href="#index">these </a> functions
-%%%      to try out the random instance generation and shrinking subsystems.<br/>
+%%%      to try out the random instance generation and shrinking subsystems.
 %%%
 %%%      CAUTION: <a href="#index">These </a> functions should never be used
 %%%      inside properties. They are meant for demonstration purposes only.

@@ -75,13 +75,13 @@
 %%% `new/0' and `from_list/1' would be considered the base case). The produced
 %%% symbolic calls will be `$call' tuples, which are automatically evaluated,
 %%% thus no call to `eval/1' is required inside the property. Produced instances
-%%% are guaranteed to evaluate successfully. Parametric ADTs are fully supported,
-%%% as long as they appear instantiated inside `?FORALLs'. ADTs hard-coded in the
-%%% Erlang type system (array, dict, digraph, gb_set, gb_tree, queue, and set)
-%%% are automatically detected and handled as such. PropEr also accepts
-%%% parametric versions of the above ADTs in `?FORALLs' (`array/1', `dict/2',
-%%% `gb_set/1', `gb_tree/2', `queue/1', `set/1', also `orddict/2' and
-%%% `ordset/1').
+%%% are guaranteed to evaluate successfully. Parametric ADTs are fully
+%%% supported, as long as they appear instantiated inside `?FORALLs'. ADTs
+%%% hard-coded in the Erlang type system (array, dict, digraph, gb_set,
+%%% gb_tree, queue, and set) are automatically detected and handled as such.
+%%% PropEr also accepts parametric versions of the above ADTs in `?FORALLs'
+%%% (`array/1', `dict/2', `gb_set/1', `gb_tree/2', `queue/1', `set/1', also
+%%% `orddict/2' and `ordset/1').
 %%%
 %%% The use of Auto-ADT is currently subject to the following limitations:
 %%% <ul>
@@ -115,15 +115,16 @@
 %%%   `is_subtype' constraint cannot contain any non-`_' variables. Multiple
 %%%   constraints for the same variable are not supported.</li>
 %%% <li> Unexported opaques and opaques with no suitable specs to serve as API
-%%%   calls are silently discarded. Those will be treated like ordinary types.</li>
+%%%   calls are silently discarded. Those will be treated like ordinary types.
+%%%   </li>
 %%% <li>Unexported or unspecced functions are silently rejected.</li>
 %%% <li>Functions with unsuitable return values are silently rejected.</li>
 %%% <li>Specs that make bad use of variables are silently rejected.</li>
 %%% </ul>
 %%%
 %%% For an example on how to write Auto-ADT-compatible parametric specs, see
-%%% the `examples/stack' module, which contains a simple implementation of a stack,
-%%% or the `proper/proper_dict module', which wraps the STDLIB dict ADT.
+%%% the `examples/stack' module, which contains a simple implementation of a
+%%% stack, or the `proper/proper_dict module', which wraps the STDLIB dict ADT.
 %%% @end
 
 -module(proper_symb).

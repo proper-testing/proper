@@ -37,8 +37,7 @@
 %%% {@link proper_statem}, a fully qualified call is needed in order to
 %%% use the  <a href="#index">API functions </a> of `{@module}'.
 %%%
-%%% == A word about... ==
-%%% === ...the states of the finite state machine ===
+%%% === The states of the finite state machine ===
 %%% Following the convention used in `gen_fsm behaviour', the state is
 %%% separated into a `StateName::'{@type state_name()} and some
 %%% `StateData::'{@type state_data()}. `StateName' is used to denote a state
@@ -54,14 +53,14 @@
 %%% `StateName' for each floor could be `{floor,K}, 1 <= K <= N'.<br/>
 %%% `StateData' can be an arbitrary term, but is usually a record.
 %%%
-%%% === ...transitions between states ===
+%%% === Transitions between states ===
 %%% A transition ({@type transition()}) is represented as a tuple
 %%% `{TargetState, {call,M,F,A}}'. This means that performing the specified
 %%% symbolic call at the current state of the fsm will lead to `TargetState'.
 %%% The atom `history' can be used as `TargetState' to denote that a transition
 %%% does not change the current state of the fsm.
 %%%
-%%% === ...the proper_fsm callback functions ===
+%%% === The callback functions ===
 %%% The following functions must be exported from the callback module
 %%% implementing the finite state machine:
 %%% <ul>
@@ -136,7 +135,7 @@
 %%%   symbolic or dynamic.</p></li>
 %%% </ul>
 %%%
-%%% === ...the property used ===
+%%% === The property used ===
 %%% This is an example of a property which can be used to test a
 %%% finite state machine specification:
 %%%

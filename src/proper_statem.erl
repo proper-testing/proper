@@ -38,8 +38,7 @@
 %%% all <a href="#index">API functions </a> of {@module} are automatically
 %%% imported, unless `PROPER_NO_IMPORTS' is defined.
 %%%
-%%% == A word about... ==
-%%% === ...the role of commands ===
+%%% === The role of commands ===
 %%% Testcases generated for testing a stateful system are lists of symbolic API
 %%% calls to that system. At this point you may wonder why we opt for such a
 %%% complication, when we could immediately perform the calls. As it turns out,
@@ -69,7 +68,7 @@
 %%% sequence at runtime, the process dictionary will eventually contain the
 %%% pair `{b,42}'.
 %%%
-%%% === ...the abstract model-state ===
+%%% === The abstract model-state ===
 %%% In order to be able to test impure code, we need a way to track its
 %%% internal state (at least the useful part of it). To this end, we use an
 %%% abstract state machine representing the possible configurations of the
@@ -90,7 +89,7 @@
 %%% will be `[{b,42}]'.</li>
 %%% </ul>
 %%%
-%%% === ...the proper_statem callback functions ===
+%%% === The callback functions ===
 %%% The following functions must be exported from the callback module
 %%% implementing the abstract state machine:
 %%% <ul>
@@ -139,7 +138,7 @@
 %%%   result `Res' can be either symbolic or dynamic.</p></li>
 %%% </ul>
 %%%
-%%% === ...the property used ===
+%%% === The property used ===
 %%% This is an example of a property to test the process dictionary:
 %%%
 %%% ```prop_pdict() ->
@@ -153,7 +152,7 @@
 %%%                             Res =:= ok))
 %%%        end).'''
 %%%
-%%% === ...parallel testing ===
+%%% == Parallel testing ==
 %%% After ensuring that a system's behaviour can be described via an abstract
 %%% state machine when commands are executed sequentially, it is possible to
 %%% move to parallel testing. The same state machine can be used to generate
