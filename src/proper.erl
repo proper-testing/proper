@@ -27,8 +27,8 @@
 %%% that can be used for testing stateful code. The input domain of functions is
 %%% specified through the use of a type system, modeled closely after the type
 %%% system of the language itself. Properties are written using Erlang
-%%% expressions, with the help of a few predefined macros. Work is currently under
-%%% way to provide tighter integration with Erlang's built-in type system.
+%%% expressions, with the help of a few predefined macros. Work is currently
+%%% under way to provide tighter integration with Erlang's built-in type system.
 %%%
 %%% == How to write properties (test case generators) ==
 %%% The simplest properties that PropEr can test consist of a single boolean
@@ -39,24 +39,27 @@
 %%% wrappers:
 %%% <ul>
 %%% <li><b>`?FORALL(<Xs>, <Xs_type>, <Prop>)'</b>
-%%%   <p>The `<Xs>' field can either be a single variable, a tuple of variables or
-%%%   a list of variables. The `<Xs_type>' field must then be a single type, a
-%%%   tuple of types of the same length as the tuple of variables or a list of
-%%%   types of the same length as the list of variables, respectively. Tuples and
-%%%   lists can be combined in any way, as long as `<Xs>' and `<Xs_type>' are
-%%%   compatible. Both PropEr-provided types, as listed in the {@link proper_types}
-%%%   module, and types declared in Erlang's built-in typesystem (we refer to such
-%%%   types in this README as <em>native types</em>) may be used in the `<Xs_type>'
-%%%   field. The use of native types in `?FORALLs' is subject to some limitations,
-%%%   as described in the "Native types support" section.
-%%%   All the variables inside `<Xs>' can (and should) be present as free variables
-%%%   inside the wrapped property `<Prop>'. When a `?FORALL' wrapper is encountered,
-%%%   a random instance of `<Xs_type>' is produced and each variable in `<Xs>' is
-%%%   replaced inside `<Prop>' by its corresponding instance.</p>
+%%%   <p>The `<Xs>' field can either be a single variable, a tuple of variables
+%%%   or a list of variables. The `<Xs_type>' field must then be a single type,
+%%%    a tuple of types of the same length as the tuple of variables or a list
+%%%   of types of the same length as the list of variables, respectively.
+%%%   Tuples and lists can be combined in any way, as long as `<Xs>' and
+%%%   `<Xs_type>' are compatible. Both PropEr-provided types, as listed in the
+%%%   {@link proper_types} module, and types declared in Erlang's built-in
+%%%   typesystem (we refer to such types in this README as
+%%%   <em>native types</em>) may be used in the `<Xs_type>' field. The use of
+%%%   native types in `?FORALLs' is subject to some limitations, as described
+%%%   in the "Native types support" section.
+%%%   All the variables inside `<Xs>' can (and should) be present as free
+%%%   variables inside the wrapped property `<Prop>'. When a `?FORALL' wrapper
+%%%   is encountered, a random instance of `<Xs_type>' is produced and each
+%%%   variable in `<Xs>' is replaced inside `<Prop>' by its corresponding
+%%%   instance.</p>
 %%% </li>
 %%% <li><b>`?IMPLIES(<Precondition>, <Prop>)'</b>
-%%%   <p>This wrapper only makes sense when in the scope of at least one `?FORALL'.
-%%%   The `<Precondition>' field must be a boolean expression or a statement block
+%%%   <p>This wrapper only makes sense when in the scope of at least one
+%%%   `?FORALL'. The `<Precondition>' field must be a boolean expression or a
+%%%   statement block
 %%%   that returns a boolean. If the precondition evaluates to `false' for the
 %%%   variable instances produced in the enclosing `?FORALL' wrappers, the test
 %%%   case is rejected (it doesn't count as a failing test case), and PropEr
@@ -79,8 +82,8 @@
 %%% <li><b>`?TIMEOUT(<Time_limit>, <Prop>)'</b>
 %%%   <p>Signifies that `<Prop>' should be considered failing if it takes more
 %%%   than `<Time_limit>' milliseconds to return. The purpose of this wrapper is
-%%%   to test code that may hang if something goes wrong. `?TIMEOUT' cannot contain
-%%%   any more wrappers.</p>
+%%%   to test code that may hang if something goes wrong. `?TIMEOUT' cannot
+%%%   contain any more wrappers.</p>
 %%% </li>
 %%% </ul>
 %%% Additionaly, there is a wrapper that allows to test a conjunction of
@@ -105,7 +108,8 @@
 %%% When running in verbose mode (this is the default), each sucessful test
 %%% prints a '.' on screen. If a test fails, a '!' is printed, along with the
 %%% failing test case (the instances of the types in every `?FORALL') and the
-%%% cause of the failure, if it was not simply the falsification of the property.
+%%% cause of the failure, if it was not simply the falsification of the
+%%% property.
 %%% Then, unless the test was expected to fail, PropEr attempts to produce a
 %%% minimal test case that fails the property in the same way. This process is
 %%% called <em>shrinking</em>. During shrinking, a '.' is printed for each
@@ -118,8 +122,8 @@
 %%% <ul>
 %%% <li> `true': The property held for all valid produced inputs.</li>
 %%% <li> `false': The property failed for some input.</li>
-%%% <li> `{error, <Type_of_error>}': An error occured - see the {@section Errors}
-%%%   section for a description of possible errors.</li>
+%%% <li> `{error, <Type_of_error>}': An error occured - see the
+%%%   {@section Errors} section for a description of possible errors.</li>
 %%% </ul>
 %%%
 %%% You can also run PropEr in pure mode by using {@link proper:pure_check/1} or
@@ -128,21 +132,22 @@
 %%% will not access the caller's process dictionary in any way. Please note that
 %%% PropEr will not actually run as a pure function under this mode.
 %%%
-%%% To test all properties exported from a module (a property is a 0-arity function
+%%% To test all properties exported from a module (a property is a 0-arity
+%%% function
 %%% whose name begins with "prop_"), you can use {@link proper:module/1} or
 %%% {@link proper:module/2}. This returns a list of all failing properties,
-%%% represented by mfas. Testing progress is also printed on screen (unless 'quiet'
-%%% mode is active). The provided options are passed on to each property, except for
-%%% 'long_result', which controls the return value format of `proper:module' itself
-%%% (see the {@section Counterexamples} section).
+%%% represented by mfas. Testing progress is also printed on screen (unless
+%%% 'quiet'  mode is active). The provided options are passed on to each
+%%% property, except for 'long_result', which controls the return value format
+%%% of `proper:module' itself (see the {@section Counterexamples} section).
 %%%
 %%% == Counterexamples ==
 %%% A counterexample for a property is represented as a list of terms; each such
 %%% term corresponds to the type in a `?FORALL'. The instances are provided in
 %%% the same order as the `?FORALL' wrappers in the property, i.e. the instance
-%%% at the head of the list corresponds to the outermost `?FORALL' etc. Instances
-%%% generated inside a failing sub-property of a conjunction are marked with the
-%%% sub-property's tag.
+%%% at the head of the list corresponds to the outermost `?FORALL' etc.
+%%% Instances generated inside a failing sub-property of a conjunction are
+%%% marked with the sub-property's tag.
 %%%
 %%% The last (simplest) counterexample produced by PropEr during a (failing) run
 %%% can be retrieved after testing has finished, by running
@@ -150,12 +155,13 @@
 %%% {@link proper:counterexamples/0} to get a counterexample for each failing
 %%% property, as a list of {`mfa()', {@type counterexample()}} tuples. To enable
 %%% this functionality, some information has to remain in the process dictionary
-%%% even after PropEr has returned. To completely clean up the process dictionary
-%%% of PropEr-produced entries, run {@link proper:clean_garbage/0}.
+%%% even after PropEr has returned. To completely clean up the process
+%%% dictionary of PropEr-produced entries, run {@link proper:clean_garbage/0}.
 %%%
 %%% Counterexamples can also be retrieved by running PropEr in long-result mode,
-%%% where counterexamples are returned as part of the return value. Specifically,
-%%% when testing a single property under long-result mode (activated by supplying
+%%% where counterexamples are returned as part of the return value.
+%%% Specifically, when testing a single property under long-result mode
+%%% (activated by supplying
 %%% the option 'long_result', or by calling {@link proper:counterexample/1},
 %%% {@link proper:counterexample/2} instead of {@link proper:quickcheck/1},
 %%% {@link proper:quickcheck/2}). PropEr will return a counterexample in case of
@@ -166,20 +172,20 @@
 %%%
 %%% You can re-check a specific counterexample against the property that it
 %%% previously falsified by running {@link proper:check/2} or
-%%% {@link proper:check/3}. This will return one of the following (both in short-
-%%% and long-result mode):
+%%% {@link proper:check/3}. This will return one of the following (both in
+%%% short- and long-result mode):
 %%% <ul>
 %%% <li> `true': The property now holds for this test case.</li>
-%%% <li> `false': The test case still fails (although not necessarily for the same
-%%%   reason as before).</li>
-%%% <li> `{error, <Type_of_error>}': An error occured - see the {@section Errors}
-%%%   section for a description of possible errors.</li>
+%%% <li> `false': The test case still fails (although not necessarily for the
+%%%   same reason as before).</li>
+%%% <li> `{error, <Type_of_error>}': An error occured - see the
+%%%   {@section Errors} section for a description of possible errors.</li>
 %%% </ul>
 %%% Proper will not attempt to shrink the input in case it fails the property.
 %%% Unless silent mode is active, PropEr will also print a message on screen,
-%%% describing the result of the re-checking. Note that PropEr can do very little
-%%% to verify that the counterexample actually corresponds to the property that it
-%%% is tested against.
+%%% describing the result of the re-checking. Note that PropEr can do very
+%%% little to verify that the counterexample actually corresponds to the
+%%% property that it is tested against.
 %%%
 %%% == Options ==
 %%% Options can be provided as an extra argument to testing functions exported
@@ -198,16 +204,16 @@
 %%% <li>`verbose'
 %%%   <p> Enables verbose mode - this is the default mode of operation.</p></li>
 %%% <li>{`to_file', `<IO_device>'}
-%%%   <p>Redirects all of PropEr's output to `<IO_device>', which should be an IO
-%%%   device associated with a file opened for writing.</p></li>
+%%%   <p>Redirects all of PropEr's output to `<IO_device>', which should be an
+%%%   IO device associated with a file opened for writing.</p></li>
 %%% <li>{`on_output', `<output_function>'}
 %%%   <p>PropEr will use the supplied function for all output printing. This
 %%%   function should accept two arguments in the style of `io:format/2'.<br/>
 %%%   CAUTION: The above output control options are incompatible with each
 %%%   other.</p></li>
 %%% <li>`long_result'
-%%%   <p>Enables long-result mode (see the {@section Counterexamples} section for
-%%%   details).</p></li>
+%%%   <p>Enables long-result mode (see the {@section Counterexamples} section
+%%%   for details).</p></li>
 %%% <li>{`numtests', `<Positive_number>'} or simply `<Positive_number>'
 %%%   <p>This is equivalent to the {@link numtests/1} property wrapper. Any
 %%%   `numtests/1' wrappers in the actual property will overwrite this setting.
@@ -216,8 +222,8 @@
 %%%   <p>Specifies the initial value of the `size' parameter (default is 1), see
 %%%    the {@section PropEr types} section for details.</p></li>
 %%% <li>{`max_size', `<Size>'}
-%%%   <p>Specifies the maximum value of the `size' parameter (default is 42), see
-%%%    the {@section PropEr types} section for details.</p></li>
+%%%   <p>Specifies the maximum value of the `size' parameter (default is 42),
+%%%    see the {@section PropEr types} section for details.</p></li>
 %%% <li>{`max_shrinks', `<Non_negative_number>'}
 %%%   <p>Specifies the maximum number of times a failing test case should be
 %%%    shrunk before returning. Note that the shrinking may stop before so many
@@ -228,8 +234,8 @@
 %%%   </p></li>
 %%% <li>{`constraint_tries', `<Positive_number>'}
 %%%   <p>Specifies the maximum number of tries before the generator subsystem
-%%%    gives up on producing an instance that satisfies a `?SUCHTHAT' constraint.
-%%%    Default is 50. </p></li>
+%%%    gives up on producing an instance that satisfies a `?SUCHTHAT'
+%%%    constraint. Default is 50. </p></li>
 %%% <li>`fails'
 %%%   <p>This is equivalent to the {@link fails/1} property wrapper.</p></li>
 %%% <li>{`spec_timeout', `infinity | <Non_negative_number>'}
@@ -335,10 +341,11 @@
 %%%   <p>The typeserver encountered an error. The `<SubError>' field contains
 %%%   specific information regarding the error.</p></li>
 %%% <li>{`unexpected', `<Result>'}
-%%%   <p>A test returned an unexpected result during normal operation. If you ever
-%%%   get this error, it means that you have found a bug in PropEr - please send an
-%%%   error report to the maintainers and remember to include both the failing test
-%%%   case and the output of the program, if possible.</p></li>
+%%%   <p>A test returned an unexpected result during normal operation. If you
+%%%   ever get this error, it means that you have found a bug in PropEr
+%%%   - please send an error report to the maintainers and remember to include
+%%%   both the failing test case and the output of the program, if possible.
+%%%   </p></li>
 %%% <li>{`unrecognized_option', `<Option>'}
 %%%   <p>`<Option>' is not an option that PropEr understands.</p></li>
 %%% </ul>
@@ -351,7 +358,8 @@
 %%% we provide a nonexhaustive list of known incompatibilities:
 %%% <ul>
 %%% <li>`?SUCHTHATMAYBE' behaves differently in PropEr.</li>
-%%% <li>`proper_gen:pick' differs from `eqc_gen:pick' in return value format.</li>
+%%% <li>`proper_gen:pick' differs from `eqc_gen:pick' in return value format.
+%%%   </li>
 %%% <li> PropEr handles `size' differently from QuickCheck.</li>
 %%% <li> `proper:module/2' accepts options in the second argument instead of the
 %%%   first.</li>
