@@ -22,7 +22,16 @@
 %%%                  and Kostis Sagonas <kostis@cs.ntua.gr>
 %%% @version {@version}
 %%% @author Manolis Papadakis <manopapad@gmail.com>
+
 %%% @doc This is the main PropEr module.
+%%% PropEr is a property-based testing tool, designed to test programs written
+%%% in the Erlang programming language. Its focus is on testing the behaviour
+%%% of pure functions. On top of that, it is equipped with two library modules
+%%% that can be used for testing stateful code. The input domain of functions is
+%%% specified through the use of a type system, modeled closely after the type
+%%% system of the language itself. Properties are written using Erlang
+%%% expressions, with the help of a few predefined macros. Work is currently under
+%%% way to provide tighter integration with Erlang's built-in type system.
 %%%
 %%% == How to write properties (test case generators) ==
 %%% The simplest properties that PropEr can test consist of a single boolean
@@ -77,6 +86,280 @@
 %%%   any more wrappers.</p>
 %%% </li>
 %%% </ul>
+%%% Additionaly, there is a wrapper that allows to test a conjunction of
+%%% sub-properties, see {@link conjunction/1} for more details. There are also
+%%% multiple wrappers that can be used to collect statistics about test case
+%%% distribution. See {@link collect/2}, {@link collect/3}, {@link aggregate/2},
+%%% {@link aggregate/3}, {@link classify/3}, {@link measure/3} for more details.
+%%%
+%%% Last but not least, a property may be wrapped with one or more of the
+%%% following outer-level wrappers, which control the behaviour of the testing
+%%% subsystem: {@link numtests/2}, {@link fails/2}, {@link on_output/2}.
+%%% If the same wrapper appears more than once in a property, the innermost
+%%% takes precedence.
+%%%
+%%% Note that failure of a property may also be signified by throwing an
+%%% exception, error or exit.
+%%%
+%%% For some actual usage examples, see the code in the examples directory. The
+%%% testing modules in the tests directory may also be of interest.
+%%%
+%%% == Program behaviour ==
+%%% When running in verbose mode (this is the default), each sucessful test
+%%% prints a '.' on screen. If a test fails, a '!' is printed, along with the
+%%% failing test case (the instances of the types in every `?FORALL') and the
+%%% cause of the failure, if it was not simply the falsification of the property.
+%%% Then, unless the test was expected to fail, PropEr attempts to produce a
+%%% minimal test case that fails the property in the same way. This process is
+%%% called <em>shrinking</em>. During shrinking, a '.' is printed for each
+%%% successful simplification of the failing test case. When PropEr reaches its
+%%% shrinking limit or realizes that the instance cannot be shrunk further while
+%%% still failing the test, it prints the minimal failing test case and failure
+%%% reason and exits.
+%%%
+%%% The return value of PropEr can be one of the following:
+%%% <ul>
+%%% <li> `true': The property held for all valid produced inputs.</li>
+%%% <li> `false': The property failed for some input.</li>
+%%% <li> `{error, <Type_of_error>}': An error occured - see the {@section Errors}
+%%%   section for a description of possible errors.</li>
+%%% </ul>
+%%%
+%%% You can also run PropEr in pure mode by using {@link proper:pure_check/1} or
+%%% {@link proper:pure_check/2} instead of {@link proper:quickcheck/1} and
+%%% {@link proper:quickcheck/2}. Under this mode, PropEr will perform no I/O and
+%%% will not access the caller's process dictionary in any way. Please note that
+%%% PropEr will not actually run as a pure function under this mode.
+%%%
+%%% To test all properties exported from a module (a property is a 0-arity function
+%%% whose name begins with "prop_"), you can use {@link proper:module/1} or
+%%% {@link proper:module/2}. This returns a list of all failing properties,
+%%% represented by mfas. Testing progress is also printed on screen (unless 'quiet'
+%%% mode is active). The provided options are passed on to each property, except for
+%%% 'long_result', which controls the return value format of `proper:module' itself
+%%% (see the {@section Counterexamples} section).
+%%%
+%%% == Counterexamples ==
+%%% A counterexample for a property is represented as a list of terms; each such
+%%% term corresponds to the type in a `?FORALL'. The instances are provided in
+%%% the same order as the `?FORALL' wrappers in the property, i.e. the instance
+%%% at the head of the list corresponds to the outermost `?FORALL' etc. Instances
+%%% generated inside a failing sub-property of a conjunction are marked with the
+%%% sub-property's tag.
+%%%
+%%% The last (simplest) counterexample produced by PropEr during a (failing) run
+%%% can be retrieved after testing has finished, by running
+%%% {@link  proper:counterexample/0}. When testing a whole module, run
+%%% {@link proper:counterexamples/0} to get a counterexample for each failing
+%%% property, as a list of {`mfa()', {@type counterexample()}} tuples. To enable
+%%% this functionality, some information has to remain in the process dictionary
+%%% even after PropEr has returned. To completely clean up the process dictionary
+%%% of PropEr-produced entries, run {@link proper:clean_garbage/0}.
+%%%
+%%% Counterexamples can also be retrieved by running PropEr in long-result mode,
+%%% where counterexamples are returned as part of the return value. Specifically,
+%%% when testing a single property under long-result mode (activated by supplying
+%%% the option 'long_result', or by calling {@link proper:counterexample/1},
+%%% {@link proper:counterexample/2} instead of {@link proper:quickcheck/1},
+%%% {@link proper:quickcheck/2}). PropEr will return a counterexample in case of
+%%% failure (instead of simply returning `false'). When testing a whole module
+%%% under long-result mode (activated by supplying the option `long_result' to
+%%% {@link proper:module/2}), PropEr will return a list of
+%%%  {`mfa()', {@type counterexample()}} tuples, one for each failing property.
+%%%
+%%% You can re-check a specific counterexample against the property that it
+%%% previously falsified by running {@link proper:check/2} or
+%%% {@link proper:check/3}. This will return one of the following (both in short-
+%%% and long-result mode):
+%%% <ul>
+%%% <li> `true': The property now holds for this test case.</li>
+%%% <li> `false': The test case still fails (although not necessarily for the same
+%%%   reason as before).</li>
+%%% <li> `{error, <Type_of_error>}': An error occured - see the {@section Errors}
+%%%   section for a description of possible errors.</li>
+%%% </ul>
+%%% Proper will not attempt to shrink the input in case it fails the property.
+%%% Unless silent mode is active, PropEr will also print a message on screen,
+%%% describing the result of the re-checking. Note that PropEr can do very little
+%%% to verify that the counterexample actually corresponds to the property that it
+%%% is tested against.
+%%%
+%%% == Options ==
+%%% Options can be provided as an extra argument to testing functions exported
+%%% from the main proper module (such as {@link proper:quickcheck/1}). A single
+%%% option can be written stand-alone, or multiple options can be provided in a
+%%% list. When two settings conflict, the one that comes first in the list takes
+%%% precedence. Settings given inside external wrappers to a property (see the
+%%% {@section How to write properties (test case generators)} section) override
+%%% any conflicting settings provided as options.
+%%%
+%%% The available options are:
+%%% <ul>
+%%% <li>`quiet'
+%%%   <p>Enables quiet mode - no output is printed on screen while PropEr is
+%%%   running.</p></li>
+%%% <li>`verbose'
+%%%   <p> Enables verbose mode - this is the default mode of operation.</p></li>
+%%% <li>{`to_file', `<IO_device>'}
+%%%   <p>Redirects all of PropEr's output to `<IO_device>', which should be an IO
+%%%   device associated with a file opened for writing.</p></li>
+%%% <li>{`on_output', `<output_function>'}
+%%%   <p>PropEr will use the supplied function for all output printing. This
+%%%   function should accept two arguments in the style of `io:format/2'.<br/>
+%%%   CAUTION: The above output control options are incompatible with each
+%%%   other.</p></li>
+%%% <li>`long_result'
+%%%   <p>Enables long-result mode (see the {@section Counterexamples} section for
+%%%   details).</p></li>
+%%% <li>{`numtests', `<Positive_number>'} or simply `<Positive_number>'
+%%%   <p>This is equivalent to the {@link numtests/1} property wrapper. Any
+%%%   `numtests/1' wrappers in the actual property will overwrite this setting.
+%%%   </p></li>
+%%% <li>{`start_size', `<Size>'}
+%%%   <p>Specifies the initial value of the `size' parameter (default is 1), see
+%%%    the {@section PropEr types} section for details.</p></li>
+%%% <li>{`max_size', `<Size>'}
+%%%   <p>Specifies the maximum value of the `size' parameter (default is 42), see
+%%%    the {@section PropEr types} section for details.</p></li>
+%%% <li>{`max_shrinks', `<Non_negative_number>'}
+%%%   <p>Specifies the maximum number of times a failing test case should be
+%%%    shrunk before returning. Note that the shrinking may stop before so many
+%%%    shrinks are achieved if the shrinking subsystem deduces that it cannot
+%%%    shrink the failing test case further. Default is 500. </p></li>
+%%% <li>`noshrink'
+%%%   <p>Instructs PropEr to not attempt to shrink any failing test cases.
+%%%   </p></li>
+%%% <li>{`constraint_tries', `<Positive_number>'}
+%%%   <p>Specifies the maximum number of tries before the generator subsystem
+%%%    gives up on producing an instance that satisfies a `?SUCHTHAT' constraint.
+%%%    Default is 50. </p></li>
+%%% <li>`fails'
+%%%   <p>This is equivalent to the {@link fails/1} property wrapper.</p></li>
+%%% <li>{`spec_timeout', `infinity | <Non_negative_number>'}
+%%%   <p>When testing a spec, PropEr will consider an input to be failing if the
+%%%    function under test takes more that the specified amount of milliseconds
+%%%    to return for that input. </p></li>
+%%% <li>`any_to_integer'
+%%%   <p>All generated instances of the type {@link proper_types:any/0} will be
+%%%    integers. This is provided as a means to speed up the testing of specs,
+%%%    where `proper_types:any/0' is a commonly used type (see the
+%%%   {@section Spec testing} section for details).</p></li>
+%%% </ul>
+%%%
+%%% == PropEr types ==
+%%% For information on basic PropEr types and how to construct new types please
+%%% refer to the documentation of the {@link proper_types} module.
+%%%
+%%% == Native types support ==
+%%% For information on native types support please refer to the documentation
+%%% of the {@link proper_typeserver} module.
+%%%
+%%% == Spec testing ==
+%%% You can test the accuracy of an exported function's spec by running
+%%% {@link proper:check_spec/1} or {@link proper:check_spec/2}.
+%%% Under this mode of operation, PropEr will call the provided function with
+%%% increasingly complex valid inputs (according to its spec) and test that no
+%%% unexpected value is returned. If an input is found that violates the spec,
+%%% it will be saved as a counterexample and PropEr will attempt to shrink it.
+%%%
+%%% You can test all exported functions of a module against their spec by
+%%% running {@link proper:check_specs/1} or {@link proper:check_specs/2}.
+%%%
+%%% The use of `check_spec' is subject to the following usage rules:
+%%% <ul>
+%%% <li>Currently, PropEr can't test functions whose range contains a type
+%%%   that exhibits a certain kind of self-reference: it is (directly or
+%%%   indirectly) self-recursive and at least one recursion path contains only
+%%%   unions and type references. E.g. these types are acceptable:
+%%%       ``` -type a(T) :: T | {'bar',a(T)}.
+%%%           -type b() :: 42 | [c()].
+%%%           -type c() :: {'baz',b()}.'''
+%%%   while these are not:
+%%%       ``` -type a() :: 'foo' | b().
+%%%           -type b() :: c() | [integer()].
+%%%           -type c() :: 'bar' | a().
+%%%           -type d(T) :: T | d({'baz',T}).''' </li>
+%%% <li>Throwing any exception or raising an `error:badarg' is considered
+%%%   normal behaviour. Currently, users cannot fine-tune this setting.</li>
+%%% <li>Only the first clause of the function's spec is considered.</li>
+%%% <li>The only spec constraints we accept are 1is_subtype' constraints whose
+%%%   first argument is a simple, non-'_' variable. It is not checked whether or
+%%%   not these variables actually appear in the spec. The second argument of an
+%%%   `is_subtype' constraint cannot contain any non-'_' variables. Multiple
+%%%   constraints for the same variable are not supported.</li>
+%%% </ul>
+%%%
+%%% PropEr comes with an extra header file,
+%%% `proper/include/proper_param_adts.hrl', which contains definitions of
+%%% parametric wrappers for some STDLIB ADTs, namely `array/1', `dict/2',
+%%% `gb_set/1', `gb_tree/2', `queue/1', `set/1', `orddict/2' and `ordset/1'. By
+%%% including this header file, you can use the above parametric types to better
+%%% document your code and facilitate spec testing (PropEr automatically
+%%% recognizes these types and produces valid instances). Please note that
+%%% Dialyzer currenty treats these the same way as the non-parametric versions.
+%%%
+%%% == Errors ==
+%%% The following errors may be encountered during testing. The term provided
+%%% for each error is the error type returned by proper:quickcheck in case such
+%%% an error occurs. Normaly, a message is also printed on screen describing
+%%% the error.
+%%% <ul>
+%%% <li>`arity_limit'
+%%%   <p>The random instance generation subsystem has failed to produce
+%%%   a function of the desired arity. Please recompile PropEr with a suitable
+%%%   value for `?MAX_ARITY' (defined in `proper_internal.hrl'). This error
+%%%   should only be encountered during normal operation.</p></li>
+%%% <li>`cant_generate'
+%%%   <p> The random instance generation subsystem has failed to
+%%%   produce an instance that satisfies some `?SUCHTHAT' constraint. You
+%%%   should either increase the `constraint_tries' limit, loosen the failing
+%%%   constraint, or make it non-strict. This error should only be encountered
+%%%   during normal operation.</p></li>
+%%% <li>`cant_satisfy'
+%%%   <p>All the tests were rejected because no produced test case
+%%%   would pass all `?IMPLIES' checks. You should loosen the failing `?IMPLIES'
+%%%   constraint(s). This error should only be encountered during normal
+%%%   operation.</p></li>
+%%% <li>`non_boolean_result'
+%%%   <p>The property code returned a non-boolean result. Please
+%%%   fix your property.</p></li>
+%%% <li>`rejected'
+%%%   <p>Only encountered during re-checking, the counterexample does not
+%%%   match the property, since the counterexample doesn't pass an `?IMPLIES'
+%%%   check.</p></li>
+%%% <li>`too_many_instances'
+%%%   <p>Only encountered during re-checking, the counterexample
+%%%   does not match the property, since the counterexample contains more
+%%%   instances than there are `?FORALLs' in the property.</p></li>
+%%% <li>`type_mismatch'
+%%%   <p>The variables' and types' structures inside a `?FORALL' don't
+%%%   match. Please check your properties.</p></li>
+%%% <li>{`typeserver', `<SubError>'}
+%%%   <p>The typeserver encountered an error. The `<SubError>' field contains
+%%%   specific information regarding the error.</p></li>
+%%% <li>{`unexpected', `<Result>'}
+%%%   <p>A test returned an unexpected result during normal operation. If you ever
+%%%   get this error, it means that you have found a bug in PropEr - please send an
+%%%   error report to the maintainers and remember to include both the failing test
+%%%   case and the output of the program, if possible.</p></li>
+%%% <li>{`unrecognized_option', `<Option>'}
+%%%   <p>`<Option>' is not an option that PropEr understands.</p></li>
+%%% </ul>
+%%%
+%%% == Incompatibilities with QuviQ's QuickCheck ==
+%%% We have generaly tried to keep PropEr's notation and output as compatible as
+%%% possible with QuviQ's QuickCheck, to allow for the reuse of existing testing
+%%% code written for QuickCheck. However, incompatibilities are to be expected,
+%%% since the two programs probably bear little resemblance under the hood. Here
+%%% we provide a nonexhaustive list of known incompatibilities:
+%%% <ul>
+%%% <li>`?SUCHTHATMAYBE' behaves differently in PropEr.</li>
+%%% <li>`proper_gen:pick' differs from `eqc_gen:pick' in return value format.</li>
+%%% <li> PropEr handles `size' differently from QuickCheck.</li>
+%%% <li> `proper:module/2' accepts options in the second argument instead of the
+%%%   first.</li>
+%%% </ul>
+%%% @end
 
 -module(proper).
 -export([quickcheck/1, quickcheck/2, counterexample/1, counterexample/2,
