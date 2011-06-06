@@ -18,7 +18,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% Author:      Manolis Papadakis <manopapad@gmail.com>
+%%% Author:      Manolis Papadakis
 %%% Description: Documentation processing script: This script will call EDoc on
 %%%              the application's source files, after inlining all types
 %%%              denoted as aliases, and removing from the exported types lists
