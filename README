@@ -582,7 +582,7 @@ maximum instance of 'size' S-1. The actual size of an instance is measured
 differently for each type: the actual size of a list is its length, while the
 actual size of a tree may be the number of its internal nodes. Some types, e.g.
 unions, have no notion of size, thus their generation is not influenced by the
-value of 'size'. The 'size' parameter starts at 0 and grows automatically during
+value of 'size'. The 'size' parameter starts at 1 and grows automatically during
 testing.
 
 ?SIZED(<S>, <Generator>)
