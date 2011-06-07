@@ -20,11 +20,9 @@ along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
 This is the source for PropEr's overview page.
 
-@copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
-                     Eirini Arvaniti <eirinibob@gmail.com>
-                 and Kostis Sagonas <kostis@cs.ntua.gr>
+@copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 @version {@version}
-@author Manolis Papadakis <manopapad@gmail.com>
+@author Manolis Papadakis
 
 @title PropEr: A QuickCheck-inspired property-based testing tool for Erlang
 @doc No top-level documentation yet.
