@@ -1,20 +1,18 @@
-PropEr
-======
-
 Contact information and license
 -------------------------------
 
 PropEr (PROPerty-based testing tool for ERlang) is a QuickCheck-inspired
 open-source property-based testing tool for Erlang, developed by Manolis
-Papadakis <manopapad@gmail.com>, Eirini Arvaniti <eirinibob@gmail.com> and
-Kostis Sagonas <kostis@cs.ntua.gr>. The base PropEr system was written mainly by
-Manolis Papadakis, and the stateful code testing subsystem by Eirini Arvaniti.
+Papadakis, Eirini Arvaniti and Kostis Sagonas. The base PropEr system was
+written mainly by Manolis Papadakis, and the stateful code testing subsystem by
+Eirini Arvaniti.
 
 You can reach PropEr's developers in the following ways:
 
-*   by email: at <proper@softlab.ntua.gr>
-*   on the web: at [the project's home page](http://proper.softlab.ntua.gr), or
-    at [the project's github page](https://github.com/manopapad/proper)
+*   on the web: at [the project's home page](http://proper.softlab.ntua.gr) or
+    [the project's github page](https://github.com/manopapad/proper)
+*   by email: take the project's home page URL, remove the `http://` prefix and
+    replace the first dot with a @
 
 We welcome user contributions and feedback (comments, suggestions, feature
 requests, bug reports, patches etc.).
