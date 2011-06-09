@@ -191,7 +191,12 @@
 %%%                    Result =:= ok
 %%%                end).'''
 %%%
-%%% Please note that the actual interleaving of commands of the parallel
+%%% Please note that, in case of strict preconditions, PropEr might not be
+%%% able to generate a suitable parallel component for each test. In this
+%%% case, an `"f"' is printed on screen to inform the user that a test case
+%%% will be executed sequentially.
+%%%
+%%% Also note that the actual interleaving of commands of the parallel
 %%% component depends on the Erlang scheduler, which is too deterministic.
 %%% For PropEr to be able to detect race conditions, the code of the system
 %%% under test should be instrumented with `erlang:yield/0' calls to the
