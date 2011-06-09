@@ -21,19 +21,20 @@
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
-%%% @doc This module contains functions used when symbolically generating
-%%% datatypes. When writing properties that involve abstract data types,
-%%% such as dicts or sets, it is usually best to avoid dealing with the ADTs'
-%%% internal representations directly. Working, instead, with a symbolic
-%%% representation of an ADT's construction process (series of API calls)
-%%% has several benefits:
+%%% @doc Symbolic datatypes handling functions.
+%%%
+%%% == Symbolic datatypes ==
+%%% When writing properties that involve abstract data types, such as dicts or
+%%% sets, it is usually best to avoid dealing with the ADTs' internal
+%%% representation directly. Working, instead, with a symbolic representation of
+%%% the ADT's construction process (series of API calls) has several benefits:
 %%% <ul>
-%%% <li>Failing testcases are easier to read and understand. Compare:<br/>
-%%%   ```{call,sets,from_list,[[1,2,3]]}'''
+%%% <li>Failing testcases are easier to read and understand. Compare:
+%%%   ``` {call,sets,from_list,[[1,2,3]]} '''
 %%%   with:
-%%%   ```{set,3,16,16,8,80,48,
-%%%	      {[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},
-%%%	      {{[],[3],[],[],[],[],[2],[],[],[],[],[1],[],[],[],[]}}}'''</li>
+%%%   ``` {set,3,16,16,8,80,48,
+%%%            {[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},
+%%%            {{[],[3],[],[],[],[],[2],[],[],[],[],[1],[],[],[],[]}}} '''</li>
 %%% <li>Failing testcases are easier to shrink.</li>
 %%% <li>It is especially useful when testing the datatype itself: Certain
 %%%   implementation errors may depend on some particular selection and
@@ -43,20 +44,23 @@
 %%%
 %%% PropEr supports the symbolic representation of datatypes, using the
 %%% following syntax:
-%%% <ul>
-%%% <li>`{call,Module,Function,Arguments}': This represents a call to the
-%%%   API function `Module:Function' with arguments `Arguments'. Each of
-%%%   the arguments may be a symbolic call itself or contain other symbolic
-%%%   calls in lists or tuples of arbitrary depth.</li>
-%%% <li>``{'$call',Module,Function,Arguments}'': Identical to the above,
-%%%   but gets evaluated automatically before being applied to a property.</li>
-%%% <li>`{var,'{@type var_id()}`}': This contruct serves as a placeholder for
-%%%   values that are not known at type construction time. It will be replaced
-%%%   by the actual value of the variable during evaluation.</li>
-%%% </ul>
+%%% <dl>
+%%% <dt>`{call,Module,Function,Arguments}'</dt>
+%%% <dd>This represents a call to the API function `Module:Function' with
+%%%   arguments `Arguments'. Each of the arguments may be a symbolic call itself
+%%%   or contain other symbolic calls in lists or tuples of arbitrary
+%%%   depth.</dd>
+%%% <dt id="$call">``{'$call',Module,Function,Arguments}''</dt>
+%%% <dd>Identical to the above, but gets evaluated automatically before being
+%%%   applied to a property.</dd>
+%%% <dt id="var">`{var,'{@type var_id()}`}'</dt>
+%%% <dd>This contruct serves as a placeholder for values that are not known at
+%%%   type construction time. It will be replaced by the actual value of the
+%%%   variable during evaluation.</dd>
+%%% </dl>
 %%%
-%%% When including the <code>"proper/include/proper.hrl"</code> header file,
-%%% all <a href="#index">API functions </a> of {@module} are automatically
+%%% When including the PropEr header file, all
+%%% <a href="#index">API functions</a> of this module are automatically
 %%% imported, unless `PROPER_NO_IMPORTS' is defined.
 %%%
 %%% == Auto-ADT ==
@@ -65,21 +69,28 @@
 %%% to be an abstract data type, causing PropEr to ignore its internal
 %%% representation and instead construct symbolic instances of the type. The
 %%% API functions used in these symbolic instances are extracted from the ADT's
-%%% definition module, which is expected to contain one or more '-spec'ed
+%%% defining module, which is expected to contain one or more `-spec'ed and
 %%% exported functions that can be used to construct instances of the ADT.
 %%% Specifically, PropEr will use all functions that return at least one
 %%% instance of the ADT. As with recursive native types, the base case is
 %%% automatically detected (in the case of ADTs, calls to functions like
 %%% `new/0' and `from_list/1' would be considered the base case). The produced
-%%% symbolic calls will be `$call' tuples, which are automatically evaluated,
-%%% thus no call to `eval/1' is required inside the property. Produced instances
-%%% are guaranteed to evaluate successfully. Parametric ADTs are fully
-%%% supported, as long as they appear instantiated inside `?FORALLs'. ADTs
-%%% hard-coded in the Erlang type system (array, dict, digraph, gb_set,
-%%% gb_tree, queue, and set) are automatically detected and handled as such.
-%%% PropEr also accepts parametric versions of the above ADTs in `?FORALLs'
-%%% (`array/1', `dict/2', `gb_set/1', `gb_tree/2', `queue/1', `set/1', also
-%%% `orddict/2' and `ordset/1').
+%%% symbolic calls will be <a href="#$call">`$call' tuples</a>, which are
+%%% automatically evaluated, thus no call to {@link eval/1} is required inside
+%%% the property. Produced instances are guaranteed to evaluate successfully.
+%%% Parametric ADTs are supported, so long as they appear fully instantiated
+%%% inside `?FORALL's.
+%%%
+%%% ADTs hard-coded in the Erlang type system (`array', `dict', `digraph',
+%%% `gb_set', `gb_tree', `queue', and `set') are automatically detected and
+%%% handled as such. PropEr also accepts parametric versions of the above ADTs
+%%% in `?FORALL's (`array/1', `dict/2', `gb_set/1', `gb_tree/2', `queue/1',
+%%% `set/1', also `orddict/2' and `ordset/1'). If you would like to use these
+%%% parametric versions in `-type' and `-spec' declarations as well, to better
+%%% document your code and facilitate spec testing, you can include the
+%%% complementary header file `proper/include/proper_param_adts.hrl', which
+%%% provides the corresponding `-type' definitions. Please note that Dialyzer
+%%% currenty treats these the same way as their non-parametric counterparts.
 %%%
 %%% The use of Auto-ADT is currently subject to the following limitations:
 %%% <ul>
@@ -98,7 +109,7 @@
 %%%   This includes using the same type variable twice in the parameters of
 %%%   an ADT.</li>
 %%% <li>While parsing the return type of specs in search of ADT references,
-%%%   PropEr only recurses into tuples, unions and lists - all other constructs
+%%%   PropEr only recurses into tuples, unions and lists; all other constructs
 %%%   are ignored. This prohibits, among others, indirect references to the ADT
 %%%   through other custom types and records.</li>
 %%% <li>When encountering a union in the return type, PropEr will pick the
@@ -122,8 +133,9 @@
 %%%
 %%% For an example on how to write Auto-ADT-compatible parametric specs, see
 %%% the `examples/stack' module, which contains a simple implementation of a
-%%% stack, or the `proper/proper_dict module', which wraps the STDLIB dict ADT.
-%%% @end
+%%% stack, or the `proper/proper_dict module', which wraps the `STDLIB' `dict'
+%%% ADT.
+
 
 -module(proper_symb).
 -export([eval/1, eval/2, defined/1, well_defined/1, pretty_print/1,
@@ -158,17 +170,16 @@
 %% Evaluation functions
 %%------------------------------------------------------------------------------
 
-%% @doc Intended for use inside the property-testing code, this function
-%%      evaluates a symbolic instance.
-
+%% @equiv eval([], SymbTerm)
 -spec eval(symb_term()) -> term().
 eval(SymbTerm) ->
     eval([], SymbTerm).
 
-%% @doc Same as {@link eval/1}, but accepts a proplist of variable names and
-%%      values, to be replaced anywhere inside the symbolic instance before
-%%      proceeding with the evaluation.
-
+%% @doc Intended for use inside the property-testing code, this function
+%% evaluates a symbolic instance `SymbTerm'. It also accepts a proplist
+%% `VarValues' that maps variable names to values, which is used to replace any
+%% <a href="#var">var tuples</a> inside `SymbTerm' before proceeding with its
+%% evaluation.
 -spec eval(var_values(), symb_term()) -> term().
 eval(VarValues, SymbTerm) ->
     eval(VarValues, SymbTerm, user).
@@ -183,9 +194,8 @@ eval(VarValues, SymbTerm, Caller) ->
 internal_eval(SymbTerm) ->
     eval([], SymbTerm, system).
 
-%% @doc Returns true if the symbolic instance can be successfully evaluated
-%%     (its evaluation doesn't raise an error or exception).
-
+%% @doc Returns true if the `SymbTerm' symbolic instance can be successfully
+%% evaluated (its evaluation doesn't raise an error or exception).
 -spec defined(symb_term()) -> boolean().
 defined(SymbTerm) ->
     defined(SymbTerm, user).
@@ -198,10 +208,9 @@ defined(SymbTerm, Caller) ->
 	_Exception:_Reason -> false
     end.
 
-%% @doc An attribute which can be applied to symbolic generators that may
-%%      produce invalid sequences of operations when called. The resulting type
-%%      is guaranteed to only produce well-defined symbolic instances.
-
+%% @doc An attribute which can be applied to any symbolic generator `SymbType'
+%% that may produce invalid sequences of operations when called. The resulting
+%% generator is guaranteed to only produce well-defined symbolic instances.
 -spec well_defined(proper_types:raw_type()) -> proper_types:type().
 well_defined(SymbType) ->
     well_defined(SymbType, user).
@@ -220,16 +229,13 @@ internal_well_defined(SymbType) ->
 %% Pretty-printing functions
 %%------------------------------------------------------------------------------
 
-%% @doc Similar in calling convention to {@link eval/1} but returns a string
-%%      representation of the call sequence instead of evaluating it.
-
+%% @equiv pretty_print([], SymbTerm)
 -spec pretty_print(symb_term()) -> string().
 pretty_print(SymbTerm) ->
     pretty_print([], SymbTerm).
 
-%% @doc Similar in calling convention to {@link eval/2} but returns a string
-%%      representation of the call sequence instead of evaluating it.
-
+%% @doc Similar in calling convention to {@link eval/2}, but returns a string
+%% representation of the call sequence `SymbTerm' instead of evaluating it.
 -spec pretty_print(var_values(), symb_term()) -> string().
 pretty_print(VarValues, SymbTerm) ->
     HandleInfo = {user, fun parse_fun/3, fun parse_term/1},

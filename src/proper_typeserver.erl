@@ -20,33 +20,35 @@
 %%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
-%%% @doc This module contains the subsystem responsible for integration with
-%%% Erlang's built-in type system. PropEr can parse types expressed in Erlang's
-%%% native type format and convert them to its own type format. Such expressions
-%%% can be used instead of regular type constructors in the second argument of
-%%% `?FORALLs'. No extra notation is required -PropEr will detect which calls
-%%% correspond to native types by applying a parse transform during compilation.
-%%% This parse transform is automatically applied to any module that includes
-%%% the `proper.hrl' header file. You can disable this feature by compiling your
-%%% modules with `-DPROPER_NO_TRANS'. Note that this will currently also disable
-%%% the automatic exporting of properties.
+
+%%% @doc Erlang type system - PropEr type system integration module.
+%%%
+%%% PropEr can parse types expressed in Erlang's type language and convert them
+%%% to its own type format. Such expressions can be used instead of regular type
+%%% constructors in the second argument of `?FORALL's. No extra notation is
+%%% required; PropEr will detect which calls correspond to native types by
+%%% applying a parse transform during compilation. This parse transform is
+%%% automatically applied to any module that includes the `proper.hrl' header
+%%% file. You can disable this feature by compiling your modules with
+%%% `-DPROPER_NO_TRANS'. Note that this will currently also disable the
+%%% automatic exporting of properties.
 %%%
 %%% The use of native types in properties is subject to the following usage
 %%% rules:
 %%% <ul>
-%%% <li>Native types cannot be used outside of `?FORALLs'.</li>
-%%% <li>Inside `?FORALLs', native types can be combined with other native
+%%% <li>Native types cannot be used outside of `?FORALL's.</li>
+%%% <li>Inside `?FORALL's, native types can be combined with other native
 %%%   types, and even with PropEr types, inside tuples and lists (the constructs
 %%%   `[...]', `{...}' and `++' are all allowed).</li>
 %%% <li>All other constructs of Erlang's built-in type system (e.g. `|' for
-%%%   union, `_' as an alias of `any()', `<<_:_>>' binary type syntax or
-%%%   `fun((...) -> ...)' function type syntax) are not allowed in `?FORALLs',
-%%%   since they are rejected by the Erlang parser.</li>
+%%%   union, `_' as an alias of `any()', `<<_:_>>' binary type syntax and
+%%%   `fun((...) -> ...)' function type syntax) are not allowed in `?FORALL's,
+%%%   because they are rejected by the Erlang parser.</li>
 %%% <li>Anything other than a tuple constructor, list constructor, `++'
 %%%   application, local or remote call will automatically be considered a
 %%%   PropEr type constructor and not be processed further by the parse
 %%%   transform.</li>
-%%% <li>Parametric native types are fully supported - of course, they can only
+%%% <li>Parametric native types are fully supported; of course, they can only
 %%%   appear instantiated in a `?FORALL'. The arguments of parametric native
 %%%   types are always interpreted as native types.</li>
 %%% <li>Parametric PropEr types, on the other hand, can take any kind of
@@ -55,12 +57,12 @@
 %%%   present:
 %%%   ``` my_proper_type() -> ?LET(...).
 %%%       -type my_native_type() :: ... .'''
-%%%  Then the following expressions are all legal:
-%%%  ``` vector(2, my_native_type())
-%%%      function(0, my_native_type())
-%%%      union([my_proper_type(), my_native_type()])''' </li>
+%%%   Then the following expressions are all legal:
+%%%   ``` vector(2, my_native_type())
+%%%       function(0, my_native_type())
+%%%       union([my_proper_type(), my_native_type()])''' </li>
 %%% <li>Some type constructors can take native types as arguments (but only
-%%%   inside `?FORALLs'):
+%%%   inside `?FORALL's):
 %%%   <ul>
 %%%   <li>`?SUCHTHAT', `?SUCHTHATMAYBE', `non_empty', `noshrink': these work
 %%%     with native types too</li>
@@ -69,38 +71,43 @@
 %%%   <li>`?LET', `?LETSHRINK': only the top-level base type can be a native
 %%%     type</li>
 %%%   </ul></li>
-%%% <li>Native type declarations in the `?FORALLs' of a module can reference any
+%%% <li>Native type declarations in the `?FORALL's of a module can reference any
 %%%   custom type declared in a `-type' or `-opaque' attribute of the same
 %%%   module, as long as no module identifier is used.</li>
-%%% <li>Typed records cannot be referenced inside `?FORALLs' using the
+%%% <li>Typed records cannot be referenced inside `?FORALL's using the
 %%%   `#rec_name{}' syntax. To use a typed record in a `?FORALL', enclose the
 %%%   record in a custom type like so:
 %%%   ``` -type rec_name() :: #rec_name{}. '''
 %%%   and use the custom type instead.</li>
-%%% <li>`?FORALLs' may contain references to self-recursive or mutually
+%%% <li>`?FORALL's may contain references to self-recursive or mutually
 %%%   recursive native types, so long as each type in the hierarchy has a clear
 %%%   base case.
 %%%   Currently, PropEr requires that the toplevel of any recursive type
 %%%   declaration is either a (maybe empty) list or a union containing at least
-%%%   one choice that doesn't reference the type (it may, however, reference any
-%%%   of the types that are mutually recursive with it). This means, for
-%%%   example, that some valid recursive type declarations, such as this one:
-%%%   ``` ?FORALL(..., a(), ...) ''' where:
+%%%   one choice that doesn't reference the type directly (it may, however,
+%%%   reference any of the types that are mutually recursive with it). This
+%%%   means, for example, that some valid recursive type declarations, such as
+%%%   this one:
+%%%   ``` ?FORALL(..., a(), ...) '''
+%%%   where:
 %%%   ``` -type a() :: {'a','none' | a()}. '''
 %%%   are not accepted by PropEr. However, such types can be rewritten in a way
 %%%   that allows PropEr to parse them:
-%%%   ``` ?FORALL(..., a(), ...) ''' where:
+%%%   ``` ?FORALL(..., a(), ...) '''
+%%%   where:
 %%%   ``` -type a() :: {'a','none'} | {'a',a()}. '''
 %%%   This also means that recursive record declarations are not allowed:
-%%%   ``` ?FORALL(..., rec(), ...) ''' where:
+%%%   ``` ?FORALL(..., rec(), ...) '''
+%%%   where:
 %%%   ``` -type rec() :: #rec{}.
 %%%       -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}). '''
 %%%   A little rewritting can usually remedy this problem as well:
-%%%   ``` ?FORALL(..., rec(), ...) ''' where:
+%%%   ``` ?FORALL(..., rec(), ...) '''
+%%%   where:
 %%%   ``` -type rec() :: #rec{b :: 'nil'} | #rec{b :: rec()}.
 %%%       -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}). '''
 %%%   </li>
-%%% <li>Remote types may be referenced in a `?FORALL', as long as they are
+%%% <li>Remote types may be referenced in a `?FORALL', so long as they are
 %%%   exported from the remote module. Currently, PropEr requires that any
 %%%   remote modules whose types are directly referenced from within properties
 %%%   are present in the code path at compile time, either compiled with
@@ -112,14 +119,14 @@
 %%%   contains the `?FORALL' declaration as well as any module that contains
 %%%   the declaration of a type referenced (directly or indirectly) from inside
 %%%   a `?FORALL' must be present in the code path at runtime, either compiled
-%%%   with debug_info enabled or in source form.</li>
+%%%   with `debug_info' enabled or in source form.</li>
 %%% <li>Local types with the same name as an auto-imported BIF are not accepted
 %%%   by PropEr, unless the BIF in question has been declared in a
 %%%   `no_auto_import' option.</li>
 %%% <li>When an expression can be interpreted both as a PropEr type and as a
 %%%   native type, the former takes precedence. This means that a function
 %%%   `foo()' will shadow a type `foo()' if they are both present in the module.
-%%%  The same rule applies to remote functions and types as well.</li>
+%%%   The same rule applies to remote functions and types as well.</li>
 %%% <li>The above may cause some confusion when list syntax is used:
 %%%   <ul>
 %%%   <li>The expression `[integer()]' can be interpreted both ways, so the
@@ -130,8 +137,7 @@
 %%%     `foo([integer()])' can only be interpreted as a native type declaration,
 %%%     which means that the generic type of integer lists will be passed to
 %%%     `foo/1'.</li>
-%%%   </ul>
-%%% </li>
+%%%   </ul></li>
 %%% <li>Currently, PropEr does not detect the following mistakes:
 %%%   <ul>
 %%%   <li>inline record-field specializations that reference non-existent
@@ -145,12 +151,11 @@
 %%% </li>
 %%% </ul>
 %%%
-%%% You can use the <a href="#index">these </a> functions to try out the type
+%%% You can use <a href="#index">these</a> functions to try out the type
 %%% translation subsystem.
 %%%
-%%% CAUTION: <a href="#index">These </a> functions should never be used inside
-%%% properties. They are meant for demonstration purposes only.
-%%% @end
+%%% CAUTION: These functions should never be used inside properties. They are
+%%% meant for demonstration purposes only.
 
 -module(proper_typeserver).
 -behaviour(gen_server).
@@ -339,10 +344,9 @@ translate_type(ImmType) ->
     gen_server:call(TypeserverPid, {translate_type,ImmType}).
 
 %% @doc Translates the native type expression `TypeExpr' (which should be
-%% provided inside a string) into a PropEr type,
-%% which can then be passed to any of the demo functions defined in
-%% {@link proper_gen} module. PropEr acts as if it found this type expression
-%% inside the code of module `Mod'.
+%% provided inside a string) into a PropEr type, which can then be passed to any
+%% of the demo functions defined in the {@link proper_gen} module. PropEr acts
+%% as if it found this type expression inside the code of module `Mod'.
 -spec demo_translate_type(mod_name(), string()) -> rich_result(fin_type()).
 demo_translate_type(Mod, TypeExpr) ->
     start(),
