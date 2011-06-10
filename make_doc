@@ -108,10 +108,10 @@ process(Filename) ->
 pretty_print(Forms, Comments) ->
     FormsWithLines = add_lines_to_forms(Forms),
     CommentsWithLines =
-	[{[Line],[["%",Str,"\n"] || Str <- Text]}
+	[{[Line],[["%",Str,"\n"] || Str <- Text] ++ "%@end\n"}
 	 || {Line,_Col,_Ind,Text} <- Comments],
     CodeWithLines = lists:keymerge(1, FormsWithLines, CommentsWithLines),
-    [[S,"\n"] || {_L,S} <- CodeWithLines].
+    [S || {_L,S} <- CodeWithLines].
 
 -spec add_lines_to_forms([abs_form()]) -> [charlist_with_lines()].
 add_lines_to_forms(Forms) ->

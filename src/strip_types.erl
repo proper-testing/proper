@@ -20,10 +20,13 @@
 %%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
-%%% @doc This modules contains a parse transformer that removes all type-related
-%%%	 annotations from a module. Its intended use within PropEr is to allow
-%%%	 the main application modules, which make heavy use of recursive types,
-%%%	 to compile on older versions of the Erlang/OTP distribution.
+
+%%% @doc A parse transform that removes all type-related annotations from a
+%%% module. Its intended use within PropEr is to allow the main application
+%%% modules, which make heavy use of recursive types, to compile on versions of
+%%% the Erlang/OTP distribution older than R13B04. To enable this
+%%% transformation, add ``{d,'NO_TYPES'}'' to the option `erl_opts' inside
+%%% `rebar.config'.
 
 -module(strip_types).
 -export([parse_transform/2]).

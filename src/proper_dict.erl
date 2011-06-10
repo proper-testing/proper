@@ -44,13 +44,14 @@
 %% Here are some valid symbolic calls that could be automatically produced using
 %% this module's exported functions, for the type dict(atom(),integer()):
 %% * {'$call',proper_dict,store,[aa,12,{'$call',proper_dict,new,[]}]}
-%% * {'$call',proper_dict,filter,[<fun>,{'$call',proper_dict,from_list,
-%%					 [[{a,1},{b,2}]]}]}
-%% * {'$call',proper_dict,merge,[<fun>, {'$call',proper_dict,from_list,[[]]},
-%%				 {'$call',proper_dict,update,
-%%				  [aa,<fun>,3,{'$call',proper_dict,new,[]}]}]}
+%% * {'$call',proper_dict,filter,[Fun,{'$call',proper_dict,from_list,
+%%                                     [[{a,1},{b,2}]]}]}
+%% * {'$call',proper_dict,merge,[Fun,
+%%                               {'$call',proper_dict,from_list,[[]]},
+%%                               {'$call',proper_dict,update,
+%%                                [aa,Fun,3,{'$call',proper_dict,new,[]}]}]}
 %% Notice that PropEr will never produce a call like this one:
-%%   {'$call',proper_dict,update,[aa,<fun>,{'$call',proper_dict,new,[]}]}
+%%   {'$call',proper_dict,update,[aa,Fun,{'$call',proper_dict,new,[]}]}
 %% which would raise an exception if we tried to evaluate it.
 
 %% This header is only included so that the strip_types parse transform will be
