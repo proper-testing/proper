@@ -271,12 +271,30 @@ rewrite_expr({record_field,Line,RecExpr,RecName,FieldName}, ModInfo) ->
     {record_field,Line,rewrite_expr(RecExpr,ModInfo),RecName,FieldName};
 rewrite_expr({'catch',Line,Expr}, ModInfo) ->
     {'catch',Line,rewrite_expr(Expr,ModInfo)};
-rewrite_expr({call,Line,
-	      {remote,_,{atom,_,proper},{atom,_,forall}} = FunRef,
-	      [RawType,Prop]}, ModInfo) ->
-    NewRawType = rewrite_type(RawType, ModInfo),
-    NewProp = rewrite_expr(Prop, ModInfo),
-    {call,Line,FunRef,[NewRawType,NewProp]};
+rewrite_expr({call,Line,{remote,_,{atom,_,Mod},{atom,_,Call}} = FunRef,
+	      Args} = Expr,
+	     #mod_info{name = ModName, helper_pid = HelperPid} = ModInfo) ->
+    case is_exported_type(Mod, Call, length(Args), HelperPid) of
+	true ->
+	    native_type_call(ModName, Expr);
+	false ->
+	    NewArgs = [rewrite_expr(A,ModInfo) || A <- Args],
+	    {call,Line,FunRef,NewArgs}
+    end;
+rewrite_expr({call,Line,{atom,_,Fun} = FunRef,Args} = Expr,
+	     #mod_info{name = ModName, funs = Funs, imports = Imports,
+		       no_autos = NoAutos} = ModInfo) ->
+    Arity = length(Args),
+    CallRef = {Fun,Arity},
+    case sets:is_element(CallRef,Funs) orelse sets:is_element(CallRef,Imports)
+	 orelse erl_internal:bif(Fun,Arity)
+		andalso not sets:is_element(CallRef,NoAutos) of
+	true ->
+	    NewArgs = [rewrite_expr(A,ModInfo) || A <- Args],
+	    {call,Line,FunRef,NewArgs};
+	false ->
+	    native_type_call(ModName, Expr)
+    end;
 rewrite_expr({call,Line,FunRef,Args}, ModInfo) ->
     NewFunRef = rewrite_expr(FunRef, ModInfo),
     NewArgs = [rewrite_expr(A,ModInfo) || A <- Args],
@@ -339,45 +357,6 @@ rewrite_expr(Expr, _ModInfo) ->
 %%------------------------------------------------------------------------------
 %% Type rewriting functions
 %%------------------------------------------------------------------------------
-
--spec rewrite_type(abs_expr(), mod_info()) -> abs_expr().
-rewrite_type({tuple,Line,FieldExprs}, ModInfo) ->
-    NewFieldExprs = [rewrite_type(F,ModInfo) || F <- FieldExprs],
-    {tuple,Line,NewFieldExprs};
-rewrite_type({cons,Line,HeadExpr,TailExpr}, ModInfo) ->
-    NewHeadExpr = rewrite_type(HeadExpr, ModInfo),
-    NewTailExpr = rewrite_type(TailExpr, ModInfo),
-    {cons,Line,NewHeadExpr,NewTailExpr};
-rewrite_type({op,Line,'++',LeftExpr,RightExpr}, ModInfo) ->
-    NewLeftExpr = rewrite_type(LeftExpr, ModInfo),
-    NewRightExpr = rewrite_type(RightExpr, ModInfo),
-    {op,Line,'++',NewLeftExpr,NewRightExpr};
-rewrite_type({call,Line,{remote,_,{atom,_,Mod},{atom,_,Call}} = FunRef,
-	      Args} = Expr,
-	     #mod_info{name = ModName, helper_pid = HelperPid} = ModInfo) ->
-    case is_exported_type(Mod, Call, length(Args), HelperPid) of
-	true ->
-	    native_type_call(ModName, Expr);
-	false ->
-	    NewArgs = [rewrite_type(A,ModInfo) || A <- Args],
-	    {call,Line,FunRef,NewArgs}
-    end;
-rewrite_type({call,Line,{atom,_,Fun} = FunRef,Args} = Expr,
-	     #mod_info{name = ModName, funs = Funs, imports = Imports,
-		       no_autos = NoAutos} = ModInfo) ->
-    Arity = length(Args),
-    CallRef = {Fun,Arity},
-    case sets:is_element(CallRef,Funs) orelse sets:is_element(CallRef,Imports)
-	 orelse erl_internal:bif(Fun,Arity)
-		andalso not sets:is_element(CallRef,NoAutos) of
-	true ->
-	    NewArgs = [rewrite_type(A,ModInfo) || A <- Args],
-	    {call,Line,FunRef,NewArgs};
-	false ->
-	    native_type_call(ModName, Expr)
-    end;
-rewrite_type(Expr, _ModInfo) ->
-    Expr.
 
 -spec native_type_call(mod_name(), abs_expr()) -> abs_expr().
 native_type_call(ModName, Expr) ->

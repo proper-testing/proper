@@ -30,6 +30,9 @@
 
 -include_lib("proper/include/proper.hrl").
 
+-type key() :: 'a' | 'b' | 'c' | 'd'.
+-type value() :: integer().
+
 -define(KEYS, [a,b,c,d]).
 
 %% A simple fsm test for the process dictionary; tests the
@@ -59,9 +62,6 @@ set_up() -> ok.
 clean_up() ->
     lists:foreach(fun(Key) -> erlang:erase(Key) end, ?KEYS).
 
-key() ->
-    elements(?KEYS).
-
 key(List) ->
     elements(proplists:get_keys(List)).
 
@@ -70,10 +70,10 @@ initial_state() -> empty_pdict.
 initial_state_data() -> [].
 
 empty_pdict(_S) ->
-    [{non_empty_pdict, {call,erlang,put,[key(),integer()]}}].
+    [{non_empty_pdict, {call,erlang,put,[key(),value()]}}].
 
 non_empty_pdict(S) ->
-    [{history, {call,erlang,put,[key(),integer()]}},
+    [{history, {call,erlang,put,[key(),value()]}},
      {history, {call,erlang,get,[key(S)]}},
      {history, {call,erlang,erase,[key(S)]}},
      {empty_pdict, {call,erlang,erase,[key(S)]}}].

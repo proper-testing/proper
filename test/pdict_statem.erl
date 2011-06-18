@@ -30,6 +30,9 @@
 
 -include_lib("proper/include/proper.hrl").
 
+-type key() :: 'a' | 'b' | 'c' | 'd'.
+-type value() :: integer().
+
 -define(KEYS, [a,b,c,d]).
 
 %% A simple statem test for the process dictionary; tests the
@@ -57,17 +60,15 @@ set_up() -> ok.
 clean_up() ->
     lists:foreach(fun(Key) -> erlang:erase(Key) end, ?KEYS).
 
-key() ->
-    elements(?KEYS).
-
 initial_state() ->
-    [KV || {Key, _} = KV <- erlang:get(), lists:member(Key, ?KEYS)].
+    [].
 
+-spec command([{key(),value()}]) -> proper_types:type().
 command([]) ->
-    {call,erlang,put,[key(), integer()]};
+    {call,erlang,put,[key(), value()]};
 command(Props) ->
     ?LET({Key,Value}, weighted_union([{2, elements(Props)},
-				      {1, {key(),integer()}}]),
+				      {1, {key(),value()}}]),
 	 oneof([{call,erlang,put,[Key,Value]},
 		{call,erlang,get,[Key]},
 		{call,erlang,erase,[Key]}

@@ -25,7 +25,7 @@
 
 -module(proper_tests).
 
--include("proper.hrl").
+-include_lib("proper/include/proper.hrl").
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -701,7 +701,7 @@ parse_transform_test_() ->
     [?_passes(auto_export_test1:prop_1()),
      ?_assertError(undef, auto_export_test2:prop_1()),
      ?_assertError(undef, no_native_parse_test:prop_1()),
-     ?_assertError(undef, no_out_of_forall_test:prop_1())].
+     ?_passes(no_out_of_forall_test:prop_1())].
 
 native_type_props_test_() ->
     [?_passes(?FORALL({X,Y}, {my_native_type(),my_proper_type()},
@@ -739,11 +739,10 @@ native_type_props_test_() ->
      ?_passes(?FORALL(F, function(0,my_native_type()), is_integer(F()))),
      ?_passes(?FORALL(X, union([my_proper_type(),my_native_type()]),
 		      is_integer(X) orelse is_atom(X))),
-     ?_assertError(undef, begin
-			    Vector5 = fun(T) -> vector(5,T) end,
-			    ?FORALL(V, Vector5(types_test1:exp1()),
-				    length(V) =:= 5)
-			end),
+     ?_passes(begin
+		  Vector5 = fun(T) -> vector(5, T) end,
+		  ?FORALL(V, Vector5(types_test1:exp1()), length(V) =:= 5)
+	      end),
      ?_passes(?FORALL(X, ?SUCHTHAT(Y,types_test1:exp1(),is_atom(Y)),
 		      is_atom(X))),
      ?_passes(?FORALL(L,non_empty(lof()),length(L) > 0)),
