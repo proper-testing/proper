@@ -36,7 +36,7 @@
 %%% The use of native types in properties is subject to the following usage
 %%% rules:
 %%% <ul>
-%%% <li>Native types cannot be used outside of `?FORALL's.</li>
+%%% <li>Native types cannot be used outside of `?FORALL's.</li> *****
 %%% <li>Inside `?FORALL's, native types can be combined with other native
 %%%   types, and even with PropEr types, inside tuples and lists (the constructs
 %%%   `[...]', `{...}' and `++' are all allowed).</li>
@@ -47,7 +47,7 @@
 %%% <li>Anything other than a tuple constructor, list constructor, `++'
 %%%   application, local or remote call will automatically be considered a
 %%%   PropEr type constructor and not be processed further by the parse
-%%%   transform.</li>
+%%%   transform.</li> *****
 %%% <li>Parametric native types are fully supported; of course, they can only
 %%%   appear instantiated in a `?FORALL'. The arguments of parametric native
 %%%   types are always interpreted as native types.</li>
@@ -67,9 +67,9 @@
 %%%   <li>`?SUCHTHAT', `?SUCHTHATMAYBE', `non_empty', `noshrink': these work
 %%%     with native types too</li>
 %%%   <li>`?LAZY', `?SHRINK', `resize', `?SIZED': these don't work with native
-%%%     types</li>
+%%%     types</li> ???
 %%%   <li>`?LET', `?LETSHRINK': only the top-level base type can be a native
-%%%     type</li>
+%%%     type</li> ???
 %%%   </ul></li>
 %%% <li>Native type declarations in the `?FORALL's of a module can reference any
 %%%   custom type declared in a `-type' or `-opaque' attribute of the same

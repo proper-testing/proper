@@ -513,14 +513,15 @@ undefined_symb_calls() ->
      {call,erlang,'+',[1,2,3]}].
 
 combinations() ->
-    [{[{1,[1,3,5,7,9,10]}, {2,[2,4,6,8,11]}], 5, 11, [1,2,3,4,5,6,7,8,9,10,11], 2, 2,
-      [{1,[1,3,5,7,8,11]}, {2,[2,4,6,9,10]}]},
+    [{[{1,[1,3,5,7,9,10]}, {2,[2,4,6,8,11]}], 5, 11, [1,2,3,4,5,6,7,8,9,10,11],
+      2, 2, [{1,[1,3,5,7,8,11]}, {2,[2,4,6,9,10]}]},
      {[{1,[1,3,5]}, {2,[7,8,9]}, {3,[2,4,6]}], 3, 9, [1,3,5,7,8,9], 3, 2,
       [{1,[6,8,9]}, {2,[1,3,5]}, {3,[2,4,7]}]}].
 
-first_comb() -> [{10,3,3,[{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]},
-		 {11,5,2,[{1,[6,7,8,9,10,11]}, {2,[1,2,3,4,5]}]},
-		 {12,3,4,[{1,[10,11,12]}, {2,[7,8,9]}, {3,[4,5,6]}, {4,[1,2,3]}]}].
+first_comb() ->
+    [{10,3,3,[{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]},
+     {11,5,2,[{1,[6,7,8,9,10,11]}, {2,[1,2,3,4,5]}]},
+     {12,3,4,[{1,[10,11,12]}, {2,[7,8,9]}, {3,[4,5,6]}, {4,[1,2,3]}]}].
 
 lists_to_zip() ->
     [{[],[],[]},
@@ -564,7 +565,8 @@ valid_command_sequences() ->
       [{a,5}], [{a,5}], []},
      {pdict_statem, [], [{init,[]},
 			 {set,{var,1},{call,erlang,put,[a,{var,start_value}]}},
-			 {set,{var,2},{call,erlang,put,[b,{var,another_start_value}]}},
+			 {set,{var,2},{call,erlang,put,
+				       [b,{var,another_start_value}]}},
 			 {set,{var,3},{call,erlang,get,[b]}},
 			 {set,{var,4},{call,erlang,get,[b]}}],
       [{b,{var,another_start_value}}, {a,{var,start_value}}], [{b,-1}, {a, 0}],
@@ -701,7 +703,10 @@ parse_transform_test_() ->
     [?_passes(auto_export_test1:prop_1()),
      ?_assertError(undef, auto_export_test2:prop_1()),
      ?_assertError(undef, no_native_parse_test:prop_1()),
-     ?_passes(no_out_of_forall_test:prop_1())].
+     ?_passes(no_out_of_forall_test:prop_1()),
+     ?_passes(no_out_of_forall_test:prop_2()),
+     ?_passes(no_out_of_forall_test:prop_3()),
+     ?_passes(no_out_of_forall_test:prop_4())].
 
 native_type_props_test_() ->
     [?_passes(?FORALL({X,Y}, {my_native_type(),my_proper_type()},
@@ -736,7 +741,11 @@ native_type_props_test_() ->
      ?_passes(?FORALL(L, vector(2,my_native_type()),
 		      length(L) =:= 2
 		      andalso lists:all(fun erlang:is_integer/1, L))),
-     ?_passes(?FORALL(F, function(0,my_native_type()), is_integer(F()))),
+     ?_passes(?FORALL(F, function(0, my_native_type()), is_integer(F()))),
+     ?_passes(begin
+		  Foo = function(0, my_native_type()),
+		  ?FORALL(F, Foo, is_integer(F()))
+	      end),
      ?_passes(?FORALL(X, union([my_proper_type(),my_native_type()]),
 		      is_integer(X) orelse is_atom(X))),
      ?_passes(begin

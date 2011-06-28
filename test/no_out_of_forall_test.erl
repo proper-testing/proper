@@ -25,8 +25,18 @@
 -module(no_out_of_forall_test).
 -export([]).
 
+-type local_type() :: integer().
+-type parametric(T) :: {0,T}.
+
 -include_lib("proper/include/proper.hrl").
 
 foo() -> ?LET(X, types_test1:exp1(), {42,X}).
 
+bar2() -> ?LAZY(rec_props_test2:exp2()).
+bar3() -> ?SHRINK(local_type(), [42, local_type()]).
+bar4() -> ?SIZED(Size, resize(Size * 2, parametric(local_type()))).
+
 prop_1() -> ?FORALL(_, foo(), true).
+prop_2() -> ?FORALL(_, bar2(), true).
+prop_3() -> ?FORALL(_, bar3(), true).
+prop_4() -> ?FORALL(_, bar4(), true).
