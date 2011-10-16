@@ -748,7 +748,7 @@ check(OuterTest, CExm, UserOpts) ->
     end.
 
 %% @doc Tests all properties (i.e., all 0-arity functions whose name begins with
-%% `prop_')exported from module `Mod'.
+%% `prop_') exported from module `Mod'.
 -spec module(mod_name()) -> module_result().
 module(Mod) ->
     module(Mod, []).
