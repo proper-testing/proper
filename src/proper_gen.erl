@@ -269,8 +269,9 @@ contains_fun(_Term) ->
 normal_gen(Type) ->
     Gen = proper_types:get_prop(generator, Type),
     if
-	is_function(Gen, 0) -> Gen();
-	is_function(Gen, 1) -> Gen(proper:get_size(Type))
+  is_function(Gen, 0) -> Gen();
+	is_function(Gen, 1) -> Gen(Type);
+	is_function(Gen, 2) -> Gen(Type, proper:get_size(Type))
     end.
 
 %% @private
@@ -483,7 +484,7 @@ loose_tuple_gen(Size, ElemType) ->
 loose_tuple_rev(Tuple, ElemType) ->
     CleanList = tuple_to_list(Tuple),
     List = case proper_types:find_prop(reverse_gen, ElemType) of
-	       {ok,ReverseGen} -> [ReverseGen(X) || X <- CleanList];
+	       {ok,ReverseGen} -> [ReverseGen(ElemType,X) || X <- CleanList];
 	       error           -> CleanList
 	   end,
     {'$used', List, Tuple}.

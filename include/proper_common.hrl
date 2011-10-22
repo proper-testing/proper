@@ -43,7 +43,7 @@
 -define(FORCE(X), (X)()).
 -define(DELAY(X), fun() -> X end).
 -define(LAZY(X), proper_types:lazy(?DELAY(X))).
--define(SIZED(SizeArg,Gen), proper_types:sized(fun(SizeArg) -> Gen end)).
+-define(SIZED(SizeArg,Gen), proper_types:sized(fun(_, SizeArg) -> Gen end)).
 -define(LET(X,RawType,Gen), proper_types:bind(RawType,fun(X) -> Gen end,false)).
 -define(SHRINK(Gen,AltGens),
 	proper_types:shrinkwith(?DELAY(Gen),?DELAY(AltGens))).

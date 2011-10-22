@@ -345,7 +345,7 @@ remove_shrinker(Instance, Type, {shrunk,1,{indices,Checked,_ToCheck}}) ->
     %%       compares elements with == instead of =:=, that could cause us to
     %%       miss some elements in some cases
     GetIndices = proper_types:get_prop(get_indices, Type),
-    Indices = ordsets:from_list(GetIndices(Instance)),
+    Indices = ordsets:from_list(GetIndices(Type, Instance)),
     NewToCheck = ordsets:subtract(Indices, Checked),
     remove_shrinker(Instance, Type, {indices,Checked,NewToCheck}).
 
@@ -369,7 +369,7 @@ elements_shrinker(Instance, Type, init) ->
 			    proper_types:get_prop(internal_types, Type),
 			fun(I) -> Retrieve(I, InnerTypes) end
 		end,
-	    Indices = GetIndices(Instance),
+	    Indices = GetIndices(Type, Instance),
 	    elements_shrinker(Instance, Type, {inner,Indices,GetElemType,init});
 	_ ->
 	    {[], done}
