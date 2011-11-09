@@ -207,7 +207,8 @@
 %%%   IO device associated with a file opened for writing.</dd>
 %%% <dt>`{on_output, <Output_function>}'</dt>
 %%% <dd>PropEr will use the supplied function for all output printing. This
-%%%   function should accept two arguments in the style of `io:format/2'.<br/>
+%%%   function should accept two arguments in the style of `io:format/2'.
+%%%   Alternatively, an MFA tuple can be passed.<br/>
 %%%   CAUTION: The above output control options are incompatible with each
 %%%   other.</dd>
 %%% <dt>`long_result'</dt>
@@ -382,12 +383,15 @@
 -type side_effects_fun() :: fun(() -> 'ok').
 -type fail_actions() :: [side_effects_fun()].
 -type output_fun() :: fun((string(),[term()]) -> 'ok').
+-type output_mfa() :: mfa().
+-type output_spec() :: output_fun() | output_mfa().
+
 %% A fun to be used by PropEr for output printing. Such a fun should follow the
 %% conventions of `io:format/2'.
 -type tag() :: atom().
 -type title() :: atom() | string().
 -type stats_printer() :: fun((sample()) -> 'ok')
-		       | fun((sample(),output_fun()) -> 'ok').
+		       | fun((sample(), output_spec()) -> 'ok').
 %% A stats-printing function that can be passed to some of the statistics
 %% collection functions, to be used instead of the predefined stats-printer.
 %% Such a function will be called at the end of testing (in case no test fails)
@@ -429,7 +433,7 @@
 
 -type numtests_clause() :: {'numtests', pos_integer(), outer_test()}.
 -type fails_clause() :: {'fails', outer_test()}.
--type on_output_clause() :: {'on_output', output_fun(), outer_test()}.
+-type on_output_clause() :: {'on_output', output_spec(), outer_test()}.
 
 -type forall_clause() :: {'forall', proper_types:raw_type(), dependent_test()}.
 -type conjunction_clause() :: {'conjunction', [{tag(),test()}]}.
@@ -450,7 +454,7 @@
 -type user_opt() :: 'quiet'
 		  | 'verbose'
 		  | {'to_file',file:io_device()}
-		  | {'on_output',output_fun()}
+		  | {'on_output', output_spec()}
 		  | 'long_result'
 		  | {'numtests', pos_integer()}
 		  | pos_integer()
@@ -463,7 +467,7 @@
 		  | 'any_to_integer'
 		  | {'spec_timeout',timeout()}.
 -type user_opts() :: [user_opt()] | user_opt().
--record(opts, {output_fun       = fun io:format/2 :: output_fun(),
+-record(opts, {output_fun   = fun io:format/2 :: output_spec(),
 	       long_result      = false           :: boolean(),
 	       numtests         = 100             :: pos_integer(),
 	       start_size       = 1               :: size(),
@@ -863,8 +867,8 @@ fails(Test) ->
 %% @doc Specifies an output function `Print' to be used by PropEr for all output
 %% printing during the testing of property `Test'. This wrapper is equivalent to
 %% the `on_output' option.
-%% @spec on_output(output_fun(), outer_test()) -> outer_test()
--spec on_output(output_fun(), outer_test()) -> on_output_clause().
+%% @spec on_output(output_spec(), outer_test()) -> outer_test()
+-spec on_output(output_spec(), outer_test()) -> on_output_clause().
 on_output(Print, Test) ->
     {on_output, Print, Test}.
 
@@ -982,7 +986,7 @@ inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
 			  output_fun = Print} = Opts) ->
     Test = cook_test(RawTest, Opts),
     ImmResult = perform(NumTests, Test, Opts),
-    Print("~n", []),
+    write(Print, "~n", []),
     report_imm_result(ImmResult, Opts),
     {ShortResult,LongResult} = get_result(ImmResult, Test, Opts),
     case ReturnLong of
@@ -1042,9 +1046,9 @@ mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
 		{{spec,MFA}, ImmOpts}
 	end,
     global_state_reset(Opts),
-    Print("Testing ~w:~w/~b~n", [Mod,Fun,Arity]),
+    write(Print, "Testing ~w:~w/~b~n", [Mod,Fun,Arity]),
     LongResult = inner_test(RawTest, Opts#opts{long_result = true}),
-    Print("~n", []),
+    write(Print, "~n", []),
     LongResult.
 
 -spec cook_test(raw_test(), opts()) -> test().
@@ -1101,7 +1105,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
     case run(Test) of
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
-	    Print(".", []),
+	    write(Print, ".", []),
 	    NewSamples = add_samples(MoreSamples, Samples),
 	    NewPrinters = case Printers of
 			      none -> MorePrinters;
@@ -1111,10 +1115,10 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	    perform(Passed + 1, ToPass, TriesLeft - 1, Test,
 		    NewSamples, NewPrinters, Opts);
 	#fail{} = FailResult ->
-	    Print("!", []),
+	    write(Print, "!", []),
 	    FailResult#fail{performed = Passed + 1};
 	{error, rejected} ->
-	    Print("x", []),
+	    write(Print, "x", []),
 	    grow_size(Opts),
 	    perform(Passed, ToPass, TriesLeft - 1, Test,
 		    Samples, Printers, Opts);
@@ -1425,7 +1429,7 @@ finalize_input(Instance) ->
 shrink(ImmTestCase, Test, Reason,
        #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
 	     output_fun = Print} = Opts) ->
-    Print("~nShrinking ", []),
+    write(Print, "~nShrinking ", []),
     try
 	StrTest = skip_to_next(Test),
 	fix_shrink(ImmTestCase, StrTest, Reason, 0, MaxShrinks, Opts)
@@ -1441,12 +1445,12 @@ shrink(ImmTestCase, Test, Reason,
 				     Print),
 		    {ok, MinImmTestCase};
 		{error,_Reason} = Error ->
-		    Print("~n", []),
+		    write(Print, "~n", []),
 		    Error
 	    end
     catch
 	throw:non_boolean_result ->
-	    Print("~n", []),
+	    write(Print, "~n", []),
 	    {error, non_boolean_result}
     end;
 shrink(ImmTestCase, _Test, _Reason, _Opts) ->
@@ -1495,7 +1499,7 @@ shrink(Shrunk, [ImmInstance | Rest] = TestTail, {Type,Prop} = StrTest, Reason,
 	    shrink(Shrunk, TestTail, StrTest, Reason,
 		   Shrinks, ShrinksLeft, NewState, Opts);
 	{Pos, ShrunkImmInstance} ->
-	    (Opts#opts.output_fun)(".", []),
+	    write(Opts#opts.output_fun, ".", []),
 	    shrink(Shrunk, [ShrunkImmInstance | Rest], StrTest, Reason,
 		   Shrinks+1, ShrinksLeft-1, {shrunk,Pos,NewState}, Opts)
     end;
@@ -1622,9 +1626,9 @@ report_imm_result(#pass{samples = Samples, printers = Printers,
 			performed = Performed},
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("Failed: All tests passed when a failure was expected."
-		       "~n", []);
-	false -> Print("OK: Passed ~b test(s).~n", [Performed])
+	true  -> write(Print,
+	    "Failed: All tests passed when a failure was expected.~n", []);
+	false -> write(Print, "OK: Passed ~b test(s).~n", [Performed])
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Print) end,
@@ -1635,9 +1639,9 @@ report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
 	true ->
-	    Print("OK: Failed as expected, after ~b test(s).~n", [Performed]);
+	    write(Print, "OK: Failed as expected, after ~b test(s).~n", [Performed]);
 	false ->
-	    Print("Failed: After ~b test(s).~n", [Performed])
+	    write(Print, "Failed: After ~b test(s).~n", [Performed])
     end,
     report_fail_reason(Reason, "", Print),
     print_imm_testcase(Bound, "", Print),
@@ -1649,20 +1653,20 @@ report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
 report_rerun_result(#pass{reason = Reason},
 		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("Failed: ", []);
-	false -> Print("OK: ", [])
+	true  -> write(Print, "Failed: ", []);
+	false -> write(Print, "OK: ", [])
     end,
     case Reason of
-	true_prop   -> Print("The input passed the test.~n", []);
-	didnt_crash -> Print("The input didn't raise an early exception.~n", [])
+	true_prop   -> write(Print, "The input passed the test.~n", []);
+	didnt_crash -> write(Print, "The input didn't raise an early exception.~n", [])
     end;
 report_rerun_result(#fail{reason = Reason, actions = Actions},
 		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("OK: ", []);
-	false -> Print("Failed: ", [])
+	true  -> write(Print, "OK: ", []);
+	false -> write(Print, "Failed: ", [])
     end,
-    Print("The input fails the test.~n", []),
+    write(Print, "The input fails the test.~n", []),
     report_fail_reason(Reason, "", Print),
     execute_actions(Actions);
 report_rerun_result({error,Reason}, #opts{output_fun = Print}) ->
@@ -1671,51 +1675,57 @@ report_rerun_result({error,Reason}, #opts{output_fun = Print}) ->
 %% @private
 -spec report_error(error_reason(), output_fun()) -> 'ok'.
 report_error(arity_limit, Print) ->
-    Print("Error: Couldn't produce a function of the desired arity, please "
+    write(Print, "Error: Couldn't produce a function of the desired arity, please "
 	  "recompile PropEr with an increased value for ?MAX_ARITY.~n", []);
 report_error(cant_generate, Print) ->
-    Print("Error: Couldn't produce an instance that satisfies all strict "
+    write(Print, "Error: Couldn't produce an instance that satisfies all strict "
 	  "constraints after ~b tries.~n", [get('$constraint_tries')]);
 report_error(cant_satisfy, Print) ->
-    Print("Error: No valid test could be generated.~n", []);
+    write(Print, "Error: No valid test could be generated.~n", []);
 report_error(non_boolean_result, Print) ->
-    Print("Error: The property code returned a non-boolean result.~n", []);
+    write(Print, "Error: The property code returned a non-boolean result.~n", []);
 report_error(rejected, Print) ->
-    Print(?MISMATCH_MSG ++ "It failed an ?IMPLIES check.~n", []);
+    write(Print, ?MISMATCH_MSG ++ "It failed an ?IMPLIES check.~n", []);
 report_error(too_many_instances, Print) ->
-    Print(?MISMATCH_MSG ++ "It's too long.~n", []); %% that's what she said
+    write(Print, ?MISMATCH_MSG ++ "It's too long.~n", []); %% that's what she said
 report_error(type_mismatch, Print) ->
-    Print("Error: The variables' and types' structures inside a ?FORALL don't "
+    write(Print, "Error: The variables' and types' structures inside a ?FORALL don't "
 	  "match.~n", []);
 report_error(wrong_type, Print) ->
-    Print("Internal error: 'wrong_type' error reached toplevel.~n"
+    write(Print, "Internal error: 'wrong_type' error reached toplevel.~n"
 	  "Please notify the maintainers about this error.~n", []);
 report_error({typeserver,SubReason}, Print) ->
-    Print("Error: The typeserver encountered an error: ~w.~n", [SubReason]);
+    write(Print, "Error: The typeserver encountered an error: ~w.~n", [SubReason]);
 report_error({unexpected,Unexpected}, Print) ->
-    Print("Internal error: The last run returned an unexpected result:~n~w~n"
+    write(Print, "Internal error: The last run returned an unexpected result:~n~w~n"
 	  "Please notify the maintainers about this error.~n", [Unexpected]);
 report_error({unrecognized_option,UserOpt}, Print) ->
-    Print("Error: Unrecognized option: ~w.~n", [UserOpt]).
+    write(Print, "Error: Unrecognized option: ~w.~n", [UserOpt]).
 
 -spec report_fail_reason(fail_reason(), string(), output_fun()) -> 'ok'.
 report_fail_reason(false_prop, _Prefix, _Print) ->
     ok;
 report_fail_reason(time_out, Prefix, Print) ->
-    Print(Prefix ++ "Test execution timed out.~n", []);
+    write(Print, Prefix ++ "Test execution timed out.~n", []);
 report_fail_reason({trapped,ExcReason}, Prefix, Print) ->
-    Print(Prefix ++ "A linked process died with reason ~w.~n", [ExcReason]);
+    write(Print, Prefix ++ "A linked process died with reason ~w.~n", [ExcReason]);
 report_fail_reason({exception,ExcKind,ExcReason,StackTrace}, Prefix, Print) ->
-    Print(Prefix ++ "An exception was raised: ~w:~w.~n", [ExcKind,ExcReason]),
-    Print(Prefix ++ "Stacktrace: ~p.~n", [StackTrace]);
+    write(Print, Prefix ++ "An exception was raised: ~w:~w.~n", [ExcKind,ExcReason]),
+    write(Print, Prefix ++ "Stacktrace: ~p.~n", [StackTrace]);
 report_fail_reason({sub_props,SubReasons}, Prefix, Print) ->
     Report =
 	fun({Tag,Reason}) ->
-	    Print(Prefix ++ "Sub-property ~w failed.~n", [Tag]),
+	    write(Print, Prefix ++ "Sub-property ~w failed.~n", [Tag]),
 	    report_fail_reason(Reason, ">> " ++ Prefix, Print)
 	end,
     lists:foreach(Report, SubReasons),
     ok.
+
+-spec write(output_spec(), string(), list(term())) -> ok.
+write(OutputSpec, String, Terms) when is_function(OutputSpec) ->
+    OutputSpec(String, Terms);
+write({M, F, A}, String, Terms) ->
+    apply(M, F, [String, Terms|A]).
 
 -spec print_imm_testcase(imm_testcase(), string(), output_fun()) -> 'ok'.
 print_imm_testcase(ImmTestCase, Prefix, Print) ->
@@ -1733,13 +1743,13 @@ print_imm_counterexample(ImmCExm, Prefix, Print) ->
 print_imm_clean_input({'$conjunction',SubImmCExms}, Prefix, Print) ->
     PrintSubImmCExm =
 	fun({Tag,ImmCExm}) ->
-	    Print(Prefix ++ "~w:~n", [Tag]),
+	    write(Print, Prefix ++ "~w:~n", [Tag]),
 	    print_imm_counterexample(ImmCExm, ">> " ++ Prefix, Print)
 	end,
     lists:foreach(PrintSubImmCExm, SubImmCExms),
     ok;
 print_imm_clean_input(Instance, Prefix, Print) ->
-    Print(Prefix ++ "~w~n", [Instance]).
+    write(Print, Prefix ++ "~w~n", [Instance]).
 
 -spec execute_actions(fail_actions()) -> 'ok'.
 execute_actions(Actions) ->
@@ -1749,7 +1759,7 @@ execute_actions(Actions) ->
 -spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
 		       output_fun()) -> 'ok'.
 report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
-    Print("(~b time(s))~n", [Shrinks]),
+    write(Print, "(~b time(s))~n", [Shrinks]),
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
@@ -1778,19 +1788,19 @@ plain_stats_printer(SortedSample, Print, Title) ->
     print_title(Title, Print),
     Total = length(SortedSample),
     FreqSample = process_sorted_sample(SortedSample),
-    lists:foreach(fun({X,F}) -> Print("~b\% ~w~n", [100 * F div Total,X]) end,
+    lists:foreach(fun({X,F}) -> write(Print, "~b\% ~w~n", [100 * F div Total,X]) end,
 		  FreqSample).
 
 -spec print_title(title(), output_fun()) -> 'ok'.
 print_title(RawTitle, Print) ->
-    Print("~n", []),
+    write(Print, "~n", []),
     Title = if
                 is_atom(RawTitle) -> atom_to_list(RawTitle);
                 is_list(RawTitle) -> RawTitle
 	    end,
     case Title of
 	"" -> ok;
-	_  -> Print(Title ++ "~n", [])
+	_  -> write(Print, Title ++ "~n", [])
     end.
 
 -spec process_sorted_sample(sample()) -> freq_sample().
@@ -1819,7 +1829,7 @@ numeric_with_title(Title) ->
 num_stats_printer(SortedSample, Print, Title) ->
     print_title(Title, Print),
     {Min,Avg,Max} = get_numeric_stats(SortedSample),
-    Print("minimum: ~w~naverage: ~w~nmaximum: ~w~n", [Min,Avg,Max]).
+    write(Print, "minimum: ~w~naverage: ~w~nmaximum: ~w~n", [Min,Avg,Max]).
 
 -spec get_numeric_stats([number()]) -> numeric_stats().
 get_numeric_stats([]) ->
