@@ -506,7 +506,8 @@
 -type exception() :: {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
--type stacktrace() :: [{atom(),atom(),arity() | [term()]}].
+-type stacktrace() :: [{atom(),atom(),arity() | list()}]         % prior to R15B
+                    | [{atom(),atom(),arity() | list(),list()}]. % R15B onwards
 -type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
 		      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
@@ -1357,7 +1358,12 @@ clear_mailbox() ->
     end.
 
 -spec threw_exception(function(), stacktrace()) -> boolean().
-threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) ->
+threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) -> % prior to R15B
+    threw_exception_aux(Fun, TopMod, TopName, TopArgs);
+threw_exception(Fun, [{TopMod,TopName,TopArgs,_FileLine} | _Rest]) -> % R15B
+    threw_exception_aux(Fun, TopMod, TopName, TopArgs).
+
+threw_exception_aux(Fun, TopMod, TopName, TopArgs) ->
     {module,FunMod} = erlang:fun_info(Fun, module),
     {name,FunName} = erlang:fun_info(Fun, name),
     {arity,FunArity} = erlang:fun_info(Fun, arity),
