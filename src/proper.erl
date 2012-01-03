@@ -1376,7 +1376,9 @@ threw_exception_aux(Fun, TopMod, TopName, TopArgs) ->
 -spec clean_stacktrace(stacktrace()) -> stacktrace().
 clean_stacktrace(RawTrace) ->
     IsNotPropErCall =
-	fun({Mod,_Fun,_Args}) ->
+	fun({Mod,_Fun,_Args}) ->            % for versions prior to R15B
+	    not lists:prefix("proper", atom_to_list(Mod));
+	    ({Mod,_Fun,_Args,_Location}) -> % R15B onwards
 	    not lists:prefix("proper", atom_to_list(Mod))
 	end,
     {Trace,_Rest} = lists:splitwith(IsNotPropErCall, RawTrace),
