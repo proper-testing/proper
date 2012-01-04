@@ -1557,9 +1557,24 @@ still_fails(ImmInstance, TestTail, Prop, OldReason) ->
 same_fail_reason({trapped,{SameExcReason,_StackTrace1}},
 		 {trapped,{SameExcReason,_StackTrace2}}) ->
     true;
-same_fail_reason({exception,SameExcKind,SameExcReason,_StackTrace1},
-		 {exception,SameExcKind,SameExcReason,_StackTrace2}) ->
-    true; %% We don't mind if the stacktraces are different.
+same_fail_reason({exception,SameExcKind,SameExcReason1,_StackTrace1},
+		 {exception,SameExcKind,SameExcReason2,_StackTrace2}) ->
+    %% We don't mind if the stacktraces are different, but we assume
+    %% that exception reasons are either atoms or tagged tuples.
+    %% What we try to do is force the generation of the same exception reason.
+    case is_atom(SameExcReason1) of
+	true ->
+	    SameExcReason1 =:= SameExcReason2;
+	false ->
+	    case is_tuple(SameExcReason1) andalso is_tuple(SameExcReason2) of
+		true -> % we assume that the tag is the first element
+		    [Tag1|Rest1] = tuple_to_list(SameExcReason1),
+		    [Tag2|Rest2] = tuple_to_list(SameExcReason2),
+		    Tag1 =:= Tag2 andalso length(Rest1) =:= length(Rest2);
+		false ->
+		    false
+	    end
+    end;
 same_fail_reason({sub_props,SubReasons1}, {sub_props,SubReasons2}) ->
     length(SubReasons1) =:= length(SubReasons2) andalso
     lists:all(fun({A,B}) -> same_sub_reason(A,B) end,
