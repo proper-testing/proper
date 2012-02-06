@@ -506,8 +506,12 @@
 -type exception() :: {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
--type stacktrace() :: [{atom(),atom(),arity() | list()}]         % prior to R15B
-                    | [{atom(),atom(),arity() | list(),list()}]. % R15B onwards
+-type stacktrace() :: [call_record()].
+-type call_record() :: %% prior to R15B:
+		       {mod_name(),fun_name(),arity() | list()}
+		       %% R15B onwards:
+		     | {mod_name(),fun_name(),arity() | list(),location()}.
+-type location() :: [{atom(),term()}].
 -type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
 		      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
@@ -1360,9 +1364,11 @@ clear_mailbox() ->
 -spec threw_exception(function(), stacktrace()) -> boolean().
 threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) -> % prior to R15B
     threw_exception_aux(Fun, TopMod, TopName, TopArgs);
-threw_exception(Fun, [{TopMod,TopName,TopArgs,_FileLine} | _Rest]) -> % R15B
+threw_exception(Fun, [{TopMod,TopName,TopArgs,_Location} | _Rest]) -> % R15B
     threw_exception_aux(Fun, TopMod, TopName, TopArgs).
 
+-spec threw_exception_aux(function(), mod_name(), fun_name(),
+			  arity() | list()) -> boolean().
 threw_exception_aux(Fun, TopMod, TopName, TopArgs) ->
     {module,FunMod} = erlang:fun_info(Fun, module),
     {name,FunName} = erlang:fun_info(Fun, name),
@@ -1375,14 +1381,14 @@ threw_exception_aux(Fun, TopMod, TopName, TopArgs) ->
 
 -spec clean_stacktrace(stacktrace()) -> stacktrace().
 clean_stacktrace(RawTrace) ->
-    IsNotPropErCall =
-	fun({Mod,_Fun,_Args}) ->            % for versions prior to R15B
-	    not lists:prefix("proper", atom_to_list(Mod));
-	    ({Mod,_Fun,_Args,_Location}) -> % R15B onwards
-	    not lists:prefix("proper", atom_to_list(Mod))
-	end,
-    {Trace,_Rest} = lists:splitwith(IsNotPropErCall, RawTrace),
+    {Trace,_Rest} = lists:splitwith(fun is_not_proper_call/1, RawTrace),
     Trace.
+
+-spec is_not_proper_call(call_record()) -> boolean().
+is_not_proper_call({Mod,_Fun,_Args}) ->           % for versions prior to R15B
+    not lists:prefix("proper", atom_to_list(Mod));
+is_not_proper_call({Mod,_Fun,_Args,_Location}) -> % R15B onwards
+    not lists:prefix("proper", atom_to_list(Mod)).
 
 -spec clean_testcase(imm_testcase()) -> counterexample().
 clean_testcase(ImmTestCase) ->
@@ -1554,27 +1560,13 @@ still_fails(ImmInstance, TestTail, Prop, OldReason) ->
     end.
 
 -spec same_fail_reason(fail_reason(), fail_reason()) -> boolean().
-same_fail_reason({trapped,{SameExcReason,_StackTrace1}},
-		 {trapped,{SameExcReason,_StackTrace2}}) ->
-    true;
-same_fail_reason({exception,SameExcKind,SameExcReason1,_StackTrace1},
-		 {exception,SameExcKind,SameExcReason2,_StackTrace2}) ->
-    %% We don't mind if the stacktraces are different, but we assume
-    %% that exception reasons are either atoms or tagged tuples.
-    %% What we try to do is force the generation of the same exception reason.
-    case is_atom(SameExcReason1) of
-	true ->
-	    SameExcReason1 =:= SameExcReason2;
-	false ->
-	    case is_tuple(SameExcReason1) andalso is_tuple(SameExcReason2) of
-		true -> % we assume that the tag is the first element
-		    [Tag1|Rest1] = tuple_to_list(SameExcReason1),
-		    [Tag2|Rest2] = tuple_to_list(SameExcReason2),
-		    Tag1 =:= Tag2 andalso length(Rest1) =:= length(Rest2);
-		false ->
-		    false
-	    end
-    end;
+ %% We don't mind if the stacktraces are different.
+same_fail_reason({trapped,{ExcReason1,_StackTrace1}},
+		 {trapped,{ExcReason2,_StackTrace2}}) ->
+    same_exc_reason(ExcReason1, ExcReason2);
+same_fail_reason({exception,SameExcKind,ExcReason1,_StackTrace1},
+		 {exception,SameExcKind,ExcReason2,_StackTrace2}) ->
+    same_exc_reason(ExcReason1, ExcReason2);
 same_fail_reason({sub_props,SubReasons1}, {sub_props,SubReasons2}) ->
     length(SubReasons1) =:= length(SubReasons2) andalso
     lists:all(fun({A,B}) -> same_sub_reason(A,B) end,
@@ -1583,6 +1575,24 @@ same_fail_reason(SameReason, SameReason) ->
     true;
 same_fail_reason(_, _) ->
     false.
+
+-spec same_exc_reason(exc_reason(), exc_reason()) -> boolean().
+same_exc_reason(ExcReason1, ExcReason2) ->
+    %% We assume that exception reasons are either atoms or tagged tuples.
+    %% What we try to do is force the generation of the same exception reason.
+    if
+	is_atom(ExcReason1) ->
+	    ExcReason1 =:= ExcReason2;
+	is_tuple(ExcReason1) ->
+	    is_tuple(ExcReason2)
+	    andalso tuple_size(ExcReason1) >= 1
+	    andalso tuple_size(ExcReason1) =:= tuple_size(ExcReason2)
+	    %% We assume that the tag is the first element.
+	    andalso is_atom(element(1, ExcReason1))
+	    andalso element(1, ExcReason1) =:= element(1, ExcReason2);
+	true ->
+	    false
+    end.
 
 -spec same_sub_reason({tag(),fail_reason()},{tag(),fail_reason()}) -> boolean().
 same_sub_reason({SameTag,Reason1}, {SameTag,Reason2}) ->
