@@ -119,15 +119,6 @@ The main issue is that both systems define a `?LET` macro. To avoid a potential
 clash, simply include PropEr's header file before EUnit's. That way, any
 instance of `?LET` will count as a PropEr `?LET`.
 
-### Using PropEr under Erlang/OTP R13B03 or older
-
-PropEr makes heavy use of recursive types, which are unsupported on versions of
-the Erlang/OTP distribution prior to R13B04. To compile PropEr on such a system,
-add `{d,'NO_TYPES'}` to the `erl_opts` option inside `rebar.config`. This
-enables the spec+type-stripping parse transform included in PropEr, which fixes
-the problem by stripping all type information from PropEr's source files during
-compilation.
-
 
 Incompatibilities with QuviQ's QuickCheck
 -----------------------------------------

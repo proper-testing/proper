@@ -507,11 +507,12 @@
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [call_record()].
--type call_record() :: %% prior to R15B:
-		       {mod_name(),fun_name(),arity() | list()}
-		       %% R15B onwards:
-		     | {mod_name(),fun_name(),arity() | list(),location()}.
+-ifdef(OLD_STACKTRACE_FORMAT).
+-type call_record() :: {mod_name(),fun_name(),arity() | list()}.
+-else.
+-type call_record() :: {mod_name(),fun_name(),arity() | list(),location()}.
 -type location() :: [{atom(),term()}].
+-endif.
 -type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
 		      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
@@ -1362,10 +1363,13 @@ clear_mailbox() ->
     end.
 
 -spec threw_exception(function(), stacktrace()) -> boolean().
-threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) -> % prior to R15B
-    threw_exception_aux(Fun, TopMod, TopName, TopArgs);
-threw_exception(Fun, [{TopMod,TopName,TopArgs,_Location} | _Rest]) -> % R15B
+-ifdef(OLD_STACKTRACE_FORMAT).
+threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) ->
     threw_exception_aux(Fun, TopMod, TopName, TopArgs).
+-else.
+threw_exception(Fun, [{TopMod,TopName,TopArgs,_Location} | _Rest]) ->
+    threw_exception_aux(Fun, TopMod, TopName, TopArgs).
+-endif.
 
 -spec threw_exception_aux(function(), mod_name(), fun_name(),
 			  arity() | list()) -> boolean().
@@ -1385,10 +1389,13 @@ clean_stacktrace(RawTrace) ->
     Trace.
 
 -spec is_not_proper_call(call_record()) -> boolean().
-is_not_proper_call({Mod,_Fun,_Args}) ->           % for versions prior to R15B
-    not lists:prefix("proper", atom_to_list(Mod));
-is_not_proper_call({Mod,_Fun,_Args,_Location}) -> % R15B onwards
+-ifdef(OLD_STACKTRACE_FORMAT).
+is_not_proper_call({Mod,_Fun,_Args}) ->
     not lists:prefix("proper", atom_to_list(Mod)).
+-else.
+is_not_proper_call({Mod,_Fun,_Args,_Location}) ->
+    not lists:prefix("proper", atom_to_list(Mod)).
+-endif.
 
 -spec clean_testcase(imm_testcase()) -> counterexample().
 clean_testcase(ImmTestCase) ->
