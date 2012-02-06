@@ -1446,17 +1446,19 @@ shrink(ImmTestCase, Test, Reason,
     of
 	{Shrinks,MinImmTestCase} ->
 	    case rerun(Test, true, MinImmTestCase) of
-		#pass{} ->
-		    %% TODO: The fail actions are silently skipped.
-		    report_shrinking(Shrinks, MinImmTestCase, [], Print),
-		    {ok, MinImmTestCase};
 		#fail{actions = MinActions} ->
 		    report_shrinking(Shrinks, MinImmTestCase, MinActions,
 				     Print),
 		    {ok, MinImmTestCase};
-		{error,_Reason} = Error ->
-		    Print("~n", []),
-		    Error
+		%% The cases below should never occur for deterministic tests.
+		%% When they do happen, we have no choice but to silently
+		%% skip the fail actions.
+		#pass{} ->
+		    report_shrinking(Shrinks, MinImmTestCase, [], Print),
+		    {ok, MinImmTestCase};
+		{error,_Reason} ->
+		    report_shrinking(Shrinks, MinImmTestCase, [], Print),
+		    {ok, MinImmTestCase}
 	    end
     catch
 	throw:non_boolean_result ->
