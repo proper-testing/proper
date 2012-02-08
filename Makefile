@@ -26,10 +26,7 @@ default: compile
 
 all: compile doc
 
-include/compile_flags.hrl:
-	./write_compile_flags $@
-
-compile: include/compile_flags.hrl
+compile:
 	./rebar compile
 
 dialyze: compile
