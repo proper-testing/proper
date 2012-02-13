@@ -79,7 +79,7 @@ Quickstart guide
     the tool (look under `Tags` on github) or you can clone the current code
     base:
 
-	git clone git://github.com/manopapad/proper.git
+        git clone git://github.com/manopapad/proper.git
 
 *   Compile PropEr: Run `make` (or `make all` if you also want to build the
     documentation; in that case, you are going to need the `syntax_tools`
