@@ -26,6 +26,9 @@ default: compile
 
 all: compile doc
 
+include/compile_flags.hrl:
+	./write_compile_flags $@
+
 compile:
 	./rebar compile
 
