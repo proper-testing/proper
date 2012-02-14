@@ -48,6 +48,7 @@ clean:
 	./clean_temp.sh
 
 distclean: clean
+	rm include/compile_flags.hrl
 	./rebar clean
 
 rebuild: distclean include/compile_flags.hrl
