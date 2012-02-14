@@ -115,7 +115,7 @@ if you prefer, by running `make doc`), as well as links to more resources on
 property-based testing.
 
 
-Common Problems
+Common problems
 ---------------
 
 ### Using PropEr in conjunction with EUnit
@@ -139,4 +139,4 @@ known incompatibilities:
 *   `proper_gen:pick/1` differs from `eqc_gen:pick/1` in return value format.
 *   PropEr handles `size` differently from QuickCheck.
 *   `proper:module/2` accepts options in the second argument instead of the
-    first
+    first; this is for consistency with other `module/2` functions in Erlang/OTP.
