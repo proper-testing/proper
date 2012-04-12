@@ -837,9 +837,8 @@ distlist_gen(Gen) ->
 -spec vector(length(), ElemType::raw_type()) -> proper_types:type().
 vector(Len, RawElemType) ->
     ElemType = cook_outer(RawElemType),
-    Indices = lists:seq(1, Len),
     ?CONTAINER([
-  {env, {Len, Indices}},
+  {env, Len},
 	{generator, fun vector_gen/1},
 	{is_instance, fun vector_is_instance/2},
 	{internal_type, ElemType},
@@ -849,16 +848,15 @@ vector(Len, RawElemType) ->
     ]).
 
 vector_get_indices(Gen, _X) ->
-  {_, Indices} = proper_types:get_prop(env, Gen),
-  Indices.
+  lists:seq(1, proper_types:get_prop(env, Gen)).
 
 vector_gen(Gen) ->
- {Len, _} = proper_types:get_prop(env, Gen),
+ Len = proper_types:get_prop(env, Gen),
  ElemType = proper_types:get_prop(internal_type, Gen),
  proper_gen:vector_gen(Len, ElemType).
 
 vector_is_instance(Gen, X) ->
-  {Len, _} = proper_types:get_prop(env, Gen),
+  Len = proper_types:get_prop(env, Gen),
   ElemType = proper_types:get_prop(internal_type, Gen),
   vector_test(X, Len, ElemType).
 
@@ -964,9 +962,8 @@ safe_weighted_union_gen(Gen) ->
 -spec tuple(ListOfTypes::[raw_type()]) -> proper_types:type().
 tuple(RawFields) ->
     Fields = [cook_outer(F) || F <- RawFields],
-    Indices = lists:seq(1, length(Fields)),
     ?CONTAINER([
-  {env, {Fields, Indices}},
+  {env, Fields},
 	{generator, fun tuple_gen/1},
 	{is_instance, fun tuple_is_instance/2},
 	{internal_types, list_to_tuple(Fields)},
@@ -976,17 +973,15 @@ tuple(RawFields) ->
     ]).
 
 tuple_gen(Gen) ->
-  {Fields, _} = proper_types:get_prop(env, Gen),
+  Fields = proper_types:get_prop(env, Gen),
   proper_gen:tuple_gen(Fields).
 
 tuple_is_instance(Gen, X) ->
-  {Fields, _} = proper_types:get_prop(env, Gen),
+  Fields = proper_types:get_prop(env, Gen),
   tuple_test(X, Fields).
 
 tuple_get_indices(Gen, _X) ->
-  {_, Indices} = proper_types:get_prop(env, Gen),
-  Indices.
-
+  lists:seq(1, length(proper_types:get_prop(env, Gen))).
 
 -spec tuple_test(proper_gen:imm_instance(), [proper_types:type()]) -> boolean().
 tuple_test(X, Fields) ->
@@ -1060,14 +1055,14 @@ fixed_list(MaybeImproperRawFields) ->
 		CookedTail = cook_outer(ImproperRawTail),
 		{{CookedHead,CookedTail},
 		 CookedHead ++ CookedTail,
-		 lists:seq(1, HeadLen + 1),
+         HeadLen + 1,
 		 fun(I,L) -> improper_list_retrieve(I, L, HeadLen) end,
 		 fun(I,V,L) -> improper_list_update(I, V, L, HeadLen) end};
 	    ProperRawFields ->
 		LocalFields = [cook_outer(F) || F <- ProperRawFields],
 		{LocalFields,
 		 LocalFields,
-		 lists:seq(1, length(ProperRawFields)),
+         length(ProperRawFields),
 		 fun lists:nth/2,
 		 fun proper_arith:list_update/3}
 	end,
@@ -1091,7 +1086,7 @@ fixed_list_is_instance(Gen, X) ->
 
 fixed_list_get_indices(Gen, _X) ->
   {_, Indices} = proper_types:get_prop(env, Gen),
-  Indices.
+  lists:seq(1, Indices).
 
 -spec fixed_list_test(proper_gen:imm_instance(),
 		      [proper_types:type()] | {[proper_types:type()],
