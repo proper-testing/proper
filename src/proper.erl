@@ -343,7 +343,8 @@
 -export([counterexample/0, counterexamples/0]).
 -export([clean_garbage/0, global_state_erase/0]).
 
--export([get_size/1, global_state_init_size/1, report_error/2]).
+-export([get_size/1, global_state_init_size/1,
+	 global_state_init_size_seed/2,report_error/2]).
 -export([pure_check/1, pure_check/2]).
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
 
@@ -467,6 +468,7 @@
 	       long_result      = false           :: boolean(),
 	       numtests         = 100             :: pos_integer(),
 	       start_size       = 1               :: size(),
+	       seed                               :: seed(),
 	       max_size         = 42              :: size(),
 	       max_shrinks      = 500             :: non_neg_integer(),
 	       noshrink         = false           :: boolean(),
@@ -589,20 +591,30 @@ get_size(Type) ->
     end.
 
 %% @private
+-spec global_state_init_size_seed(size(), seed()) -> 'ok'.
+global_state_init_size_seed(Size, Seed) ->
+    global_state_init(#opts{start_size = Size, seed = Seed}).
+
 -spec global_state_init_size(size()) -> 'ok'.
 global_state_init_size(Size) ->
     global_state_init(#opts{start_size = Size}).
 
 -spec global_state_init(opts()) -> 'ok'.
 global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
-			any_type = AnyType} = Opts) ->
+			any_type = AnyType, seed = Seed} = Opts) ->
     clean_garbage(),
     put('$size', StartSize - 1),
     put('$left', 0),
     grow_size(Opts),
     put('$constraint_tries', CTries),
     put('$any_type',AnyType),
-    proper_arith:rand_start(),
+    S = case Seed of
+        undefined ->
+            now();
+        _ ->
+            Seed
+    end,
+    proper_arith:rand_start(S),
     proper_typeserver:start(),
     ok.
 
