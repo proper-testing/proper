@@ -347,8 +347,9 @@ add_prop(PropName, Value, {'$type',Props}) ->
 
 -spec add_props([type_prop()], proper_types:type()) -> proper_types:type().
 add_props(PropList, {'$type',OldProps}) ->
-    {'$type', lists:foldl(fun({N,V},Acc) -> lists:keystore(N, 1, Acc, {N,V}) end,
-			  OldProps, PropList)}.
+    {'$type', lists:foldl(fun({N,_}=NV,Acc) ->
+                    lists:keystore(N, 1, Acc, NV)
+                end, OldProps, PropList)}.
 
 -spec append_to_prop(type_prop_name(), type_prop_value(),
 		     proper_types:type()) -> proper_types:type().
@@ -360,7 +361,7 @@ append_to_prop(PropName, Value, {'$type',Props}) ->
             []
     end,
     {'$type', lists:keystore(PropName, 1, Props,
-                             {PropName, lists:reverse([Value|Val]), Props})}.
+                             {PropName, lists:reverse([Value|Val])})}.
 
 -spec append_list_to_prop(type_prop_name(), [type_prop_value()],
 			  proper_types:type()) -> proper_types:type().
