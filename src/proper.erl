@@ -591,13 +591,14 @@ get_size(Type) ->
     end.
 
 %% @private
--spec global_state_init_size_seed(size(), seed()) -> 'ok'.
-global_state_init_size_seed(Size, Seed) ->
-    global_state_init(#opts{start_size = Size, seed = Seed}).
-
 -spec global_state_init_size(size()) -> 'ok'.
 global_state_init_size(Size) ->
     global_state_init(#opts{start_size = Size}).
+
+%% @private
+-spec global_state_init_size_seed(size(), seed()) -> 'ok'.
+global_state_init_size_seed(Size, Seed) ->
+    global_state_init(#opts{start_size = Size, seed = Seed}).
 
 -spec global_state_init(opts()) -> 'ok'.
 global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,

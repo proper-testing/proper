@@ -267,9 +267,9 @@ assert_seeded_runs_return_same_result(Type) ->
 
 try_generate_seeded(Type, Size) ->
     Seed = now(),
-    {ok, Instance} = proper_gen:pick(Type, Size, Seed),
+    {ok, Instance1} = proper_gen:pick(Type, Size, Seed),
     {ok, Instance2} = proper_gen:pick(Type, Size, Seed),
-    ?assert(Instance =:= Instance2).
+    ?assert(Instance1 =:= Instance2).
 
 assert_native_can_generate(Mod, TypeStr, CheckIsInstance) ->
     assert_can_generate(assert_can_translate(Mod,TypeStr), CheckIsInstance).
