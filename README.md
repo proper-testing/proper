@@ -84,6 +84,8 @@ Quickstart guide
 *   Compile PropEr: Run `make` (or `make all` if you also want to build the
     documentation; in that case, you are going to need the `syntax_tools`
     application and a recent version of `EDoc`).
+    Optionally sfmt-erlang can be selected as an alternative random number
+    generator using `./configure --use-sfmt` before running `make`.
 *   Add PropEr's base directory to your Erlang library path, using one of the
     following methods:
     1.   `ERL_LIBS` environment variable: Add the following line to your shell
@@ -95,6 +97,7 @@ Quickstart guide
 
              code:load_abs("/full/path/to/proper").
 
+    If using the sfmt RNG be sure to add /full/path/to/proper/deps/sfmt too.
 *   Add the following include line to all source files that contain properties:
 
         -include_lib("proper/include/proper.hrl").

@@ -574,6 +574,14 @@ get_ret_type(Fun) ->
     erase('$get_ret_type'),
     RetType.
 
+-ifdef(USE_SFMT).
+update_seed(Seed) ->
+    sfmt:seed(Seed).
+-else.
+update_seed(Seed) ->
+	put(random_seed, Seed).
+-endif.
+
 -spec function_body([term()], proper_types:type(), fun_seed()) ->
 	  proper_types:type() | instance().
 function_body(Args, RetType, {Seed1,Seed2}) ->
@@ -581,9 +589,9 @@ function_body(Args, RetType, {Seed1,Seed2}) ->
 	true ->
 	    RetType;
 	_ ->
-	    SavedSeed = get(sfmt_seed),
-	    sfmt:seed({Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
+	    SavedSeed = get(?SEED_NAME),
+	    update_seed({Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
 	    Ret = clean_instance(generate(RetType)),
-	    put(sfmt_seed, SavedSeed),
+	    put(?SEED_NAME, SavedSeed),
 	    proper_symb:internal_eval(Ret)
     end.

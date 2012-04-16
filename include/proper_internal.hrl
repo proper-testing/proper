@@ -35,6 +35,17 @@
 -compile({parse_transform, strip_types}).
 -endif.
 
+%%------------------------------------------------------------------------------
+%% Random generator selection
+%%------------------------------------------------------------------------------
+
+-ifdef(USE_SFMT).
+-define(RANDOM_MOD, sfmt).
+-define(SEED_NAME, sfmt_seed).
+-else.
+-define(RANDOM_MOD, random).
+-define(SEED_NAME, random_seed).
+-endif.
 
 %%------------------------------------------------------------------------------
 %% Macros
