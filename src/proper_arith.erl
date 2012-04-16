@@ -213,7 +213,7 @@ remove_n(N, {List,Acc}) ->
 %% calling any random function from this module.
 -spec rand_start(seed()) -> 'ok'.
 rand_start(Seed) ->
-    _ = random:seed(Seed),
+    _ = sfmt:seed(Seed),
     %% TODO: read option for RNG bijections here
     ok.
 
@@ -221,12 +221,12 @@ rand_start(Seed) ->
 rand_reseed() ->
     %% TODO: This should use the pid of the process somehow, in case two
     %%       spawned functions call it simultaneously?
-    _ = random:seed(now()),
+    _ = sfmt:seed(now()),
     ok.
 
 -spec rand_stop() -> 'ok'.
 rand_stop() ->
-    erase(random_seed),
+    erase(sfmt_seed),
     ok.
 
 -spec rand_int(non_neg_integer()) -> integer().
@@ -239,26 +239,26 @@ rand_non_neg_int(Const) ->
 
 -spec rand_int(integer(), integer()) -> integer().
 rand_int(Low, High) when is_integer(Low), is_integer(High), Low =< High ->
-    Low + random:uniform(High - Low + 1) - 1.
+    Low + sfmt:uniform(High - Low + 1) - 1.
 
 -spec rand_float(non_neg_integer()) -> float().
 rand_float(Const) ->
     X = rand_non_neg_float(Const),
-    case random:uniform(2) of
+    case sfmt:uniform(2) of
 	1 -> X;
 	2 -> -X
     end.
 
 -spec rand_non_neg_float(non_neg_integer()) -> float().
 rand_non_neg_float(Const) when is_integer(Const), Const >= 0 ->
-    case random:uniform() of
+    case sfmt:uniform() of
 	1.0 -> rand_non_neg_float(Const);
 	X   -> Const * zero_one_to_zero_inf(X)
     end.
 
 -spec rand_float(float(), float()) -> float().
 rand_float(Low, High) when is_float(Low), is_float(High), Low =< High ->
-    Low + random:uniform() * (High - Low).
+    Low + sfmt:uniform() * (High - Low).
 
 -spec zero_one_to_zero_inf(float()) -> float().
 %% This function must return only non-negative values and map 0.0 to 0.0, but
