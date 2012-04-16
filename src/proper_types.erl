@@ -338,38 +338,53 @@ from_binary(Binary) ->
 
 -spec type_from_list([type_prop()]) -> proper_types:type().
 type_from_list(KeyValueList) ->
-    {'$type',orddict:from_list(KeyValueList)}.
+    {'$type',KeyValueList}.
 
 -spec add_prop(type_prop_name(), type_prop_value(), proper_types:type()) ->
 	  proper_types:type().
 add_prop(PropName, Value, {'$type',Props}) ->
-    {'$type',orddict:store(PropName, Value, Props)}.
+    {'$type',lists:keystore(PropName, 1, Props, {PropName, Value})}.
 
 -spec add_props([type_prop()], proper_types:type()) -> proper_types:type().
 add_props(PropList, {'$type',OldProps}) ->
-    {'$type', lists:foldl(fun({N,V},Acc) -> orddict:store(N, V, Acc) end,
-			  OldProps, PropList)}.
+    {'$type', lists:foldl(fun({N,_}=NV,Acc) ->
+                    lists:keystore(N, 1, Acc, NV)
+                end, OldProps, PropList)}.
 
 -spec append_to_prop(type_prop_name(), type_prop_value(),
 		     proper_types:type()) -> proper_types:type().
 append_to_prop(PropName, Value, {'$type',Props}) ->
-    {'$type',orddict:append(PropName, Value, Props)}.
+    Val = case lists:keyfind(PropName, 1, Props) of
+        {PropName, V} ->
+            V;
+        _ ->
+            []
+    end,
+    {'$type', lists:keystore(PropName, 1, Props,
+                             {PropName, lists:reverse([Value|Val])})}.
 
 -spec append_list_to_prop(type_prop_name(), [type_prop_value()],
 			  proper_types:type()) -> proper_types:type().
 append_list_to_prop(PropName, List, {'$type',Props}) ->
-    {'$type',orddict:append_list(PropName, List, Props)}.
+    {PropName, Val} = lists:keyfind(PropName, 1, Props),
+    {'$type', lists:keystore(PropName, 1, Props, {PropName, Val++List})}.
 
 %% @private
 -spec get_prop(type_prop_name(), proper_types:type()) -> type_prop_value().
 get_prop(PropName, {'$type',Props}) ->
-    orddict:fetch(PropName, Props).
+    {_PropName, Val} = lists:keyfind(PropName, 1, Props),
+    Val.
 
 %% @private
 -spec find_prop(type_prop_name(), proper_types:type()) ->
 	  {'ok',type_prop_value()} | 'error'.
 find_prop(PropName, {'$type',Props}) ->
-    orddict:find(PropName, Props).
+    case lists:keyfind(PropName, 1, Props) of
+        {PropName, Value} ->
+            {ok, Value};
+        _ ->
+            error
+    end.
 
 %% @private
 -spec new_type([type_prop()], type_kind()) -> proper_types:type().
