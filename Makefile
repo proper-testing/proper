@@ -20,7 +20,7 @@
 # Author:      Manolis Papadakis
 # Description: Instructions for make
 
-.PHONY: default all compile dialyze check_escripts tests doc clean distclean rebuild retest
+.PHONY: default all compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
 default: get-deps compile
 
@@ -35,8 +35,8 @@ get-deps:
 compile:
 	./rebar compile
 
-dialyze: compile
-	./rebar dialyze
+dialyzer: compile
+	dialyzer -Wunmatched_returns ebin
 
 check_escripts:
 	./check_escripts.sh make_doc write_compile_flags
