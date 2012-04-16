@@ -261,6 +261,16 @@ try_generate(Type, Size, CheckIsInstance) ->
 	false -> ok
     end.
 
+assert_seeded_runs_return_same_result(Type) ->
+    lists:foreach(fun(Size) -> try_generate_seeded(Type, Size) end,
+                  [1, 2, 5, 10, 20, 40, 50]).
+
+try_generate_seeded(Type, Size) ->
+    Seed = now(),
+    {ok, Instance1} = proper_gen:pick(Type, Size, Seed),
+    {ok, Instance2} = proper_gen:pick(Type, Size, Seed),
+    ?assert(Instance1 =:= Instance2).
+
 assert_native_can_generate(Mod, TypeStr, CheckIsInstance) ->
     assert_can_generate(assert_can_translate(Mod,TypeStr), CheckIsInstance).
 
@@ -1011,6 +1021,10 @@ can_generate_parallel_commands1_test_() ->
 	       proper_statem:parallel_commands(Mod, Mod:initial_state()),
 	       false))
       || Mod <- [ets_counter]]}.
+
+seeded_runs_return_same_result_test_() ->
+    [?_test(assert_seeded_runs_return_same_result(proper_statem:commands(Mod)))
+      || Mod <- [pdict_statem]].
 
 run_valid_commands_test_() ->
     [?_assertMatch({_H,DynState,ok}, setup_run_commands(Mod, Cmds, Env))

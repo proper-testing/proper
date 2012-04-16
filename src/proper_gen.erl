@@ -30,7 +30,7 @@
 %%% meant for demonstration purposes only.
 
 -module(proper_gen).
--export([pick/1, pick/2, sample/1, sample/3, sampleshrink/1, sampleshrink/2]).
+-export([pick/1, pick/2, pick/3, sample/1, sample/3, sampleshrink/1, sampleshrink/2]).
 
 -export([safe_generate/1]).
 -export([generate/1, normal_gen/1, alt_gens/1, clean_instance/1,
@@ -179,11 +179,16 @@ generate(Type, TriesLeft, Fallback) ->
 pick(RawType) ->
     pick(RawType, 10).
 
-%% @doc Generates a random instance of `Type', of size `Size'.
--spec pick(Type::proper_types:raw_type(), size()) ->
-	  {'ok',instance()} | 'error'.
+%% @equiv pick(Type, Size, now())
+-spec pick(Type::proper_types:raw_type(), size()) -> {'ok', instance()} | 'error'.
 pick(RawType, Size) ->
-    proper:global_state_init_size(Size),
+    pick(RawType, Size, now()).
+
+%% @doc Generates a random instance of `Type', of size `Size' with seed `Seed'.
+-spec pick(Type::proper_types:raw_type(), size(), seed()) ->
+	  {'ok',instance()} | 'error'.
+pick(RawType, Size, Seed) ->
+    proper:global_state_init_size_seed(Size, Seed),
     case clean_instance(safe_generate(RawType)) of
 	{ok,Instance} = Result ->
 	    Msg = "WARNING: Some garbage has been left in the process registry "
