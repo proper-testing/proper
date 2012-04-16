@@ -47,6 +47,8 @@
 -define(ATTRS_TO_STRIP, [export_type,type,opaque,spec,callback]).
 
 %% @private
+-spec parse_transform([erl_parse:abstract_form()], [compile:option()]) ->
+		[erl_parse:abstract_form()].
 parse_transform(Forms, _Options) ->
     strip_types(Forms, []).
 
