@@ -1,0 +1,55 @@
+#! /bin/sh
+
+usage()
+{
+    echo "usage: $0 --use-fmt|--use-random"
+    exit 1
+}
+
+sfmt()
+{
+    echo "Using the sfmt-erlang random module"
+    grep -q sfmt rebar.config || cat >> rebar.config <<DONE
+{deps, [
+    {sfmt, ".*", {git, "https://github.com/jj1bdx/sfmt-erlang.git",
+                  {branch, "master"}}}
+    ]}.
+DONE
+    grep -q USE_SFMT rebar.config || \
+        sed -i "s/debug_info/debug_info, {d, 'USE_SFMT'}/" rebar.config
+    grep -q sfmt src/proper.app.src || \
+        sed -i 's/stdlib/stdlib,sfmt/' src/proper.app.src
+}
+
+random()
+{
+    echo "Using Erlang's random module"
+    grep -q USE_SFMT rebar.config && \
+        sed -i "s/debug_info, {d, 'USE_SFMT'}/debug_info/" rebar.config
+    grep -q sfmt rebar.config && sed -i '/^{deps/,$d' rebar.config
+    grep -q sfmt src/proper.app.src && \
+        sed -i 's/stdlib,sfmt/stdlib/' src/proper.app.src
+}
+
+cleanup()
+{
+    rm -f ebin/*
+    rm -f .eunit/*
+}
+
+if [ $# -ne 1 ]; then
+    usage
+fi
+case $1 in
+    --use-sfmt)
+        cleanup
+        sfmt
+        ;;
+    --use-random)
+        cleanup
+        random
+        ;;
+    *)
+        usage
+        ;;
+esac

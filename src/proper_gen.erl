@@ -581,9 +581,17 @@ function_body(Args, RetType, {Seed1,Seed2}) ->
 	true ->
 	    RetType;
 	_ ->
-	    SavedSeed = get(random_seed),
-	    put(random_seed, {Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
+	    SavedSeed = get(?SEED_NAME),
+	    update_seed({Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
 	    Ret = clean_instance(generate(RetType)),
-	    put(random_seed, SavedSeed),
+	    put(?SEED_NAME, SavedSeed),
 	    proper_symb:internal_eval(Ret)
     end.
+
+-ifdef(USE_SFMT).
+update_seed(Seed) ->
+    sfmt:seed(Seed).
+-else.
+update_seed(Seed) ->
+    put(random_seed, Seed).
+-endif.

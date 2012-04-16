@@ -22,12 +22,15 @@
 
 .PHONY: default all compile dialyze check_escripts tests doc clean distclean rebuild retest
 
-default: compile
+default: get-deps compile
 
 all: compile doc
 
 include/compile_flags.hrl:
 	./write_compile_flags $@
+
+get-deps:
+	./rebar get-deps
 
 compile:
 	./rebar compile

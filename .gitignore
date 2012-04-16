@@ -4,6 +4,7 @@
 *.tar.gz
 *.beam
 *.app
+deps/
 doc/*.html
 doc/*.css
 doc/*.png
