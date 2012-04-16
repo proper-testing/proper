@@ -2,7 +2,7 @@
 
 usage()
 {
-    echo "usage: $0 --use-fmt|--use-random"
+    echo "usage: $0 --use-sfmt|--use-random"
     exit 1
 }
 
