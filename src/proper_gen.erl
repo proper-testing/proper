@@ -574,14 +574,6 @@ get_ret_type(Fun) ->
     erase('$get_ret_type'),
     RetType.
 
--ifdef(USE_SFMT).
-update_seed(Seed) ->
-    sfmt:seed(Seed).
--else.
-update_seed(Seed) ->
-	put(random_seed, Seed).
--endif.
-
 -spec function_body([term()], proper_types:type(), fun_seed()) ->
 	  proper_types:type() | instance().
 function_body(Args, RetType, {Seed1,Seed2}) ->
@@ -595,3 +587,11 @@ function_body(Args, RetType, {Seed1,Seed2}) ->
 	    put(?SEED_NAME, SavedSeed),
 	    proper_symb:internal_eval(Ret)
     end.
+
+-ifdef(USE_SFMT).
+update_seed(Seed) ->
+    sfmt:seed(Seed).
+-else.
+update_seed(Seed) ->
+    put(random_seed, Seed).
+-endif.
