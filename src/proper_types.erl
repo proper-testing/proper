@@ -1185,8 +1185,9 @@ resize(NewSize, RawType) ->
     end.
 
 %% @doc This is a predefined constraint that can be applied to random-length
-%% list and binary types (e.g. {@link list/0}, {@link string/0},
-%% {@link binary/0}) to ensure that the produced values are never empty.
+%% list and binary types to ensure that the produced values are never empty.
+%%
+%% e.g. {@link list/0}, {@link string/0}, {@link binary/0})
 -spec non_empty(ListType::raw_type()) -> proper_types:type().
 non_empty(RawListType) ->
     ?SUCHTHAT(L, RawListType, L =/= [] andalso L =/= <<>>).
