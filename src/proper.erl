@@ -1399,7 +1399,12 @@ threw_exception_aux(Fun, TopMod, TopName, TopArgs) ->
 -spec clean_stacktrace(stacktrace()) -> stacktrace().
 clean_stacktrace(RawTrace) ->
     {Trace,_Rest} = lists:splitwith(fun is_not_proper_call/1, RawTrace),
-    Trace.
+    %% If the clean trace is empty it's probably because of a bad call to
+    %% the proper API, so we let the whole stacktrace through
+    case Trace of
+        [] -> RawTrace;
+        _ -> Trace
+    end.
 
 -spec is_not_proper_call(call_record()) -> boolean().
 -ifdef(OLD_STACKTRACE_FORMAT).
