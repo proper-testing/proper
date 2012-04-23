@@ -68,11 +68,28 @@
 %% @private_type
 -type sized_generator() :: fun((size()) -> imm_instance()).
 %% @private_type
+-type typed_sized_generator() :: {typed,
+                                  fun((proper_types:type(),size()) ->
+                                      imm_instance())}.
+%% @private_type
 -type nosize_generator() :: fun(() -> imm_instance()).
 %% @private_type
--type generator() :: sized_generator() | nosize_generator().
+-type typed_nosize_generator() :: {typed,
+                                   fun((proper_types:type()) ->
+                                       imm_instance())}.
 %% @private_type
--type reverse_gen() :: fun((instance()) -> imm_instance()).
+-type generator() :: sized_generator()
+                   | typed_sized_generator()
+                   | nosize_generator()
+                   | typed_nosize_generator().
+%% @private_type
+-type plain_reverse_gen() :: fun((instance()) -> imm_instance()).
+%% @private_type
+-type typed_reverse_gen() :: {typed,
+                              fun((proper_types:type(),instance()) ->
+                                  imm_instance())}.
+%% @private_type
+-type reverse_gen() :: plain_reverse_gen() | typed_reverse_gen().
 %% @private_type
 -type combine_fun() :: fun((instance()) -> imm_instance()).
 %% @private_type
@@ -272,10 +289,17 @@ contains_fun(_Term) ->
 %% @private
 -spec normal_gen(proper_types:type()) -> imm_instance().
 normal_gen(Type) ->
-    Gen = proper_types:get_prop(generator, Type),
-    if
-	is_function(Gen, 0) -> Gen();
-	is_function(Gen, 1) -> Gen(proper:get_size(Type))
+    case proper_types:get_prop(generator, Type) of
+        {typed, Gen} ->
+            if
+                is_function(Gen, 1) -> Gen(Type);
+                is_function(Gen, 2) -> Gen(Type, proper:get_size(Type))
+            end;
+        Gen ->
+            if
+                is_function(Gen, 0) -> Gen();
+                is_function(Gen, 1) -> Gen(proper:get_size(Type))
+            end
     end.
 
 %% @private
@@ -488,9 +512,11 @@ loose_tuple_gen(Size, ElemType) ->
 loose_tuple_rev(Tuple, ElemType) ->
     CleanList = tuple_to_list(Tuple),
     List = case proper_types:find_prop(reverse_gen, ElemType) of
-	       {ok,ReverseGen} -> [ReverseGen(X) || X <- CleanList];
-	       error           -> CleanList
-	   end,
+                {ok,{typed, ReverseGen}} ->
+                    [ReverseGen(ElemType,X) || X <- CleanList];
+                {ok,ReverseGen} -> [ReverseGen(X) || X <- CleanList];
+                error           -> CleanList
+            end,
     {'$used', List, Tuple}.
 
 %% @private
