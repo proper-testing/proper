@@ -44,6 +44,9 @@ main([OutFile]) ->
     ok = file:close(Handle),
     ok.
 
+%% the stupid try-catch construct below is due to e.g. the R15A
+%% release being denoted as having "5.9.pre" as version info :-(
 -spec parse_version_string(string()) -> [non_neg_integer()].
 parse_version_string(VerStr) ->
-    [list_to_integer(S) || S <- string:tokens(VerStr, ".")].
+    [try list_to_integer(S)
+     catch _:_ -> 0 end || S <- string:tokens(VerStr, ".")].
