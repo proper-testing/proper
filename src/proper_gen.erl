@@ -68,13 +68,13 @@
 %% @private_type
 -type sized_generator() :: fun((size()) -> imm_instance()).
 %% @private_type
--type typed_sized_generator() :: {typed,
+-type typed_sized_generator() :: {'typed',
                                   fun((proper_types:type(),size()) ->
                                       imm_instance())}.
 %% @private_type
 -type nosize_generator() :: fun(() -> imm_instance()).
 %% @private_type
--type typed_nosize_generator() :: {typed,
+-type typed_nosize_generator() :: {'typed',
                                    fun((proper_types:type()) ->
                                        imm_instance())}.
 %% @private_type
@@ -85,7 +85,7 @@
 %% @private_type
 -type plain_reverse_gen() :: fun((instance()) -> imm_instance()).
 %% @private_type
--type typed_reverse_gen() :: {typed,
+-type typed_reverse_gen() :: {'typed',
                               fun((proper_types:type(),instance()) ->
                                   imm_instance())}.
 %% @private_type

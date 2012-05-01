@@ -153,7 +153,7 @@
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, to_binary/1,
 	 from_binary/1, get_prop/2, find_prop/2, safe_is_instance/2,
 	 is_instance/2, unwrap/1, weakly/1, strongly/1, satisfies_all/2,
-	 new_type/2, subtype/2, list_get_indices/2]).
+	 new_type/2, subtype/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
 	 native_type/2, distlist/3, with_parameter/3, with_parameters/2,
 	 parameter/1, parameter/2]).
@@ -200,13 +200,14 @@
 -define(CONTAINER(PropList), new_type(PropList,container)).
 -define(SUBTYPE(Type,PropList), subtype(PropList,Type)).
 
+
 %%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | atom().
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean())
-                       | {typed,
+                       | {'typed',
                           fun((proper_types:type(),
                                proper_gen:imm_instance()) -> boolean())}.
 -type index() :: pos_integer().
@@ -230,7 +231,7 @@
 			| 'noshrink' | 'internal_type' | 'internal_types'
 			| 'get_length' | 'split' | 'join' | 'get_indices'
 			| 'remove' | 'retrieve' | 'update' | 'constraints'
-			| 'content' | 'default'.
+			| 'content' | 'default' | 'env' | 'subenv'.
 
 -type type_prop_value() :: term().
 -type type_prop() ::
@@ -276,7 +277,9 @@
       %% A list of constraints on instances of this type: each constraint is a
       %% tuple of a fun that must return 'true' for each valid instance and a
       %% boolean field that specifies whether the condition is strict.
-    |{'parameters',[{atom(),value()}]}.
+    | {'parameters', [{atom(),value()}]}
+    | {'env', term()}
+    | {'subenv', term()}.
 
 
 %%------------------------------------------------------------------------------
@@ -776,7 +779,7 @@ list_test(X, ElemType) ->
 
 %% @private
 -spec list_get_indices(proper_gen:generator(), list()) -> [position()].
-list_get_indices(_,List) ->
+list_get_indices(_, List) ->
     lists:seq(1, length(List)).
 
 %% @private
@@ -1107,6 +1110,7 @@ any() ->
 	{generator, fun proper_gen:any_gen/1}
     ]).
 
+
 %%------------------------------------------------------------------------------
 %% Type aliases
 %%------------------------------------------------------------------------------
@@ -1182,6 +1186,7 @@ timeout() -> union([non_neg_integer(), 'infinity']).
 %% @equiv integer(0, 255)
 -spec arity() -> proper_types:type().
 arity() -> integer(0, 255).
+
 
 %%------------------------------------------------------------------------------
 %% QuickCheck compatibility types
