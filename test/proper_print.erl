@@ -37,7 +37,7 @@ stacktrace_test_() ->
                    proper:quickcheck(bad_call_property()))].
 
 set_stacktrace_thrower(Prop) ->
-    proper:on_output(fun(F, A) -> throw_stacktrace(F, A) end, Prop).
+    proper:on_output(fun throw_stacktrace/2, Prop).
 
 throw_stacktrace("Stacktrace: ~p.~n", [Stacktrace]) ->
     throw({stacktrace, Stacktrace});
