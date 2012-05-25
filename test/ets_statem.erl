@@ -247,7 +247,7 @@ prop_parallel_ets() ->
 
 set_up() ->
     catch ets:delete(?TAB),
-    Type = lists:nth(proper_arith:rand_int(4),
+    Type = lists:nth(proper_arith:rand_int(1, 4),
 		     [set, ordered_set, bag, duplicate_bag]),
     ?TAB = ets:new(?TAB, [Type, public, named_table]).
 

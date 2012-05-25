@@ -64,6 +64,7 @@
 -define(ANY_SIMPLE_PROB, 3).
 -define(ANY_BINARY_PROB, 1).
 -define(ANY_EXPAND_PROB, 8).
+-define(SMALL_RANGE_THRESHOLD, 16#FFFF).
 
 
 %%------------------------------------------------------------------------------

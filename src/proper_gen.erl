@@ -341,8 +341,8 @@ integer_gen(Size, inf, High) ->
     High - proper_arith:rand_non_neg_int(Size);
 integer_gen(Size, Low, inf) ->
     Low + proper_arith:rand_non_neg_int(Size);
-integer_gen(_Size, Low, High) ->
-    proper_arith:rand_int(Low, High).
+integer_gen(Size, Low, High) ->
+    proper_arith:smart_rand_int(Size, Low, High).
 
 %% @private
 -spec float_gen(size(), proper_types:extnum(), proper_types:extnum()) ->

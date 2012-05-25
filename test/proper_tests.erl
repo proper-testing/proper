@@ -666,7 +666,7 @@ dollar_data() ->
 %% TODO: conversion of maybe_improper_list
 %% TODO: use demo_is_instance and demo_translate_type
 %% TODO: debug option to output tests passed, fail reason, etc.
-
+%% TODO: test expected distribution of random functions
 
 simple_types_test_() ->
     [?_test(assert_type_works(TD, true)) || TD <- simple_types_with_data()].
