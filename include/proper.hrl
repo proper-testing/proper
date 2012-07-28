@@ -89,6 +89,11 @@
 			command_names/1, zip/2, run_parallel_commands/2,
 			run_parallel_commands/3]).
 
+-ifndef(PROPER_NO_IMPORT_PARSE).
+-import(proper_unused_imports_remover, []).
+-compile({parse_transform, proper_unused_imports_remover}).
+-endif.
+
 -endif.
 
 
