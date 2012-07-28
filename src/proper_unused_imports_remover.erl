@@ -6,8 +6,11 @@
 -define(imported_modules, [proper, proper_types, proper_symb, proper_statem]).
 
 -spec parse_transform([abs_form()], [compile:option()]) -> [abs_form()].
-parse_transform(Forms, _Options) ->
-    parse(Forms, [], []).
+parse_transform(Forms, Options) ->
+    case lists:member(warn_unused_import, Options) of
+        true  -> parse(Forms, [], []);
+        false -> Forms
+    end.
 
 -spec parse([abs_form()], list(), list()) -> [abs_form()].
 parse([{attribute, _L, import, {?MODULE, []}} | Rest], Imports, Acc) ->
