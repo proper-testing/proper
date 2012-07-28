@@ -27,7 +27,7 @@ use_new_imports(Dict0, Forms) ->
 
 -spec mark_used_imports(dict(), [abs_form()]) -> dict().
 mark_used_imports(Dict, Forms) ->
-  lists:foldl(fun scan_forms/2, Dict, Forms).
+    lists:foldl(fun scan_forms/2, Dict, Forms).
 
 -spec scan_forms(abs_form(), dict()) -> dict().
 scan_forms({function, _L, _F, _A, Clauses}, Dict) ->
@@ -82,7 +82,7 @@ new_import_attributes(Dict) ->
 -spec add_new_attribute({non_neg_integer(), atom(), atom()},
                         [abs_form()]) -> [abs_form()].
 add_new_attribute({Line, Mod, Fun}, [{_, Line, _, {Mod, FunL}} | Attributes]) ->
-  [{attribute, Line, import, {Mod, [Fun | FunL]}} | Attributes];
+    [{attribute, Line, import, {Mod, [Fun | FunL]}} | Attributes];
 add_new_attribute({Line, Mod, Fun}, Attributes) ->
-  [{attribute, Line, import, {Mod, [Fun]}} | Attributes].
+    [{attribute, Line, import, {Mod, [Fun]}} | Attributes].
 
