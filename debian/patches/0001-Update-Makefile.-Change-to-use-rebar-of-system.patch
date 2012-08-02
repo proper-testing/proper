@@ -1,0 +1,53 @@
+From 9011fe7b857e10cbd3bd1c619598450c375a02fc Mon Sep 17 00:00:00 2001
+From: Nobuhiro Iwamatsu <iwamatsu@debian.org>
+Date: Thu, 2 Aug 2012 12:56:41 +0900
+Subject: [PATCH] Update Makefile. Change to use rebar of system.
+
+---
+ Makefile |   12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index db896fe..f80a36e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -30,10 +30,10 @@ include/compile_flags.hrl:
+ 	./write_compile_flags $@
+ 
+ get-deps:
+-	./rebar get-deps
++	rebar get-deps
+ 
+ compile:
+-	./rebar compile
++	rebar compile
+ 
+ dialyzer: compile
+ 	dialyzer -Wunmatched_returns ebin
+@@ -42,7 +42,7 @@ check_escripts:
+ 	./check_escripts.sh make_doc write_compile_flags
+ 
+ tests: compile
+-	./rebar eunit
++	rebar eunit
+ 
+ doc:
+ 	./make_doc
+@@ -52,11 +52,11 @@ clean:
+ 
+ distclean: clean
+ 	rm -f include/compile_flags.hrl
+-	./rebar clean
++	rebar clean
+ 
+ rebuild: distclean include/compile_flags.hrl
+-	./rebar compile
++	rebar compile
+ 
+ retest: compile
+ 	rm -rf .eunit
+-	./rebar eunit
++	rebar eunit
+-- 
+1.7.10
+
