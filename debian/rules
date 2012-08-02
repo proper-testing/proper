@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+
+PACKAGE=proper
+VERSION = $(shell dpkg-parsechangelog | grep ^Version | cut -d" " -f2 | cut -d"-" -f1)
+
+%:
+	dh $@
+override_dh_auto_configure:
+
+override_dh_auto_install:
+	dh_auto_install
+
+	install -d \
+		$(CURDIR)/debian/erlang-$(PACKAGE)/usr/lib/erlang/lib/$(PACKAGE)-$(VERSION)/ebin
+	install -m 644 ebin/* \
+		$(CURDIR)/debian/erlang-$(PACKAGE)/usr/lib/erlang/lib/$(PACKAGE)-$(VERSION)/ebin/
+	install -d \
+		$(CURDIR)/debian/erlang-$(PACKAGE)/usr/lib/erlang/lib/$(PACKAGE)-$(VERSION)/include
+	install -m 644 include/* \
+		$(CURDIR)/debian/erlang-$(PACKAGE)/usr/lib/erlang/lib/$(PACKAGE)-$(VERSION)/include/

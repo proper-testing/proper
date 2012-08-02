@@ -1,0 +1,5 @@
+erlang-proper (1.0+20120524+dfsg-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Nobuhiro Iwamatsu <iwamatsu@debian.org>  Thu, 02 Aug 2012 12:38:43 +0900

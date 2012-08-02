@@ -1,0 +1,22 @@
+Source: erlang-proper
+Maintainer: Nobuhiro Iwamatsu <iwamatsu@debian.org>
+Section: devel
+Priority: optional
+Standards-Version: 3.9.3
+Homepage: https://github.com/manopapad/proper
+Build-Depends: debhelper (>= 9), dpkg-dev (>= 1.16.1~), erlang-dev,
+	erlang-base (>= 1:15.b.1-dfsg) | erlang-base-hipe (>= 1:15.b.1-dfsg),
+	erlang-crypto, erlang-syntax-tools, erlang-tools, rebar
+
+Package: erlang-proper
+Architecture: any
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, ${shlibs:Depends},
+	erlang-base (>= 1:13.b.4-dfsg) | erlang-base-hipe (>= 1:13.b.4-dfsg),
+	erlang-crypto, erlang-syntax-tools,
+	erlang-tools, erlang-dev
+Enhances: erlang
+Description: QuickCheck-inspired property-based testing tool for Erlang
+ PropEr (PROPerty-based testing tool for ERlang) is a QuickCheck-inspired
+ open-source property-based testing tool for Erlang, 
