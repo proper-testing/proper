@@ -20,6 +20,11 @@
 # Author:      Manolis Papadakis
 # Description: Instructions for make
 
+REBAR_BIN = $(shell which rebar)
+ifeq ($(REBAR_BIN),)
+	REBAR_BIN = ./rebar
+endif
+
 .PHONY: default all compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
 default: get-deps compile
@@ -30,10 +35,10 @@ include/compile_flags.hrl:
 	./write_compile_flags $@
 
 get-deps:
-	./rebar get-deps
+	$(REBAR_BIN) get-deps
 
 compile:
-	./rebar compile
+	$(REBAR_BIN) compile
 
 dialyzer: compile
 	dialyzer -Wunmatched_returns ebin
@@ -42,7 +47,7 @@ check_escripts:
 	./check_escripts.sh make_doc write_compile_flags
 
 tests: compile
-	./rebar eunit
+	$(REBAR_BIN) eunit
 
 doc:
 	./make_doc
@@ -52,11 +57,11 @@ clean:
 
 distclean: clean
 	rm -f include/compile_flags.hrl
-	./rebar clean
+	$(REBAR_BIN) clean
 
 rebuild: distclean include/compile_flags.hrl
-	./rebar compile
+	$(REBAR_BIN) compile
 
 retest: compile
 	rm -rf .eunit
-	./rebar eunit
+	$(REBAR_BIN) eunit
