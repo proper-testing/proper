@@ -8,6 +8,7 @@ VERSION = $(shell dpkg-parsechangelog | grep ^Version | cut -d" " -f2 | cut -d"-
 
 %:
 	dh $@
+override_dh_auto_configure:
 
 override_dh_auto_install:
 	dh_auto_install
