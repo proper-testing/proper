@@ -231,7 +231,7 @@
 			| 'noshrink' | 'internal_type' | 'internal_types'
 			| 'get_length' | 'split' | 'join' | 'get_indices'
 			| 'remove' | 'retrieve' | 'update' | 'constraints'
-			| 'content' | 'default' | 'env' | 'subenv'.
+			| 'parameters' | 'env' | 'subenv'.
 
 -type type_prop_value() :: term().
 -type type_prop() ::
