@@ -182,7 +182,7 @@
 %%% Then, we parallelize a random suffix (up to 12 commands) of the initial
 %%% sequence by splitting it into 2 subsequences that will be executed
 %%% concurrently. Limitations arise from the fact that each subsequence should
-%%% be a <i>valid</i> command sequnece (i.e. all commands should satisfy
+%%% be a <i>valid</i> command sequence (i.e. all commands should satisfy
 %%% preconditions and use only symbolic variables bound to the results of
 %%% preceding calls in the same sequence). Furthermore, we apply an additional
 %%% check: we have to ensure that preconditions are satisfied in all possible
