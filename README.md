@@ -135,7 +135,7 @@ so normally PropEr output is not visible when `proper:quickcheck()` is
 invoked from EUnit. You can work around this by passing the option
 `{to_file, user}` to `proper:quickcheck/2`. For example:
 
-     ?assertEqual(true, proper:quickcheck(your_mod:some_prop(), [{to_file,user}]).
+	   ?assertEqual(true, proper:quickcheck(your_mod:some_prop(), [{to_file, user}]).
 
 This will make PropEr properties visible also when invoked from EUnit.
 
