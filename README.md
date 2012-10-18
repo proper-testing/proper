@@ -107,6 +107,18 @@ Quickstart guide
 
         proper:quickcheck(your_module:some_property()).
 
+A note about running PropEr from EUnit
+--------------------------------------
+
+[EUnit captures standard output][eunit stdout], so normally PropEr output is
+not visible when `proper:quickcheck()` is invoked from EUnit. You can work
+around this by passing an `{to_file, user}` to `proper:quickcheck/2`. For
+example:
+
+        ?assertEqual(true,
+            proper:quickcheck(your_module:some_property(), [{to_file, user}]).
+
+This will make PropEr properties visible also when invoked from EUnit.
 
 Where to go from here
 ---------------------
@@ -143,3 +155,5 @@ known incompatibilities:
 *   PropEr handles `size` differently from QuickCheck.
 *   `proper:module/2` accepts options in the second argument instead of the
     first; this is for consistency with other `module/2` functions in Erlang/OTP.
+
+[eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
