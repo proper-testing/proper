@@ -92,7 +92,6 @@ Quickstart guide
          startup file (`~/.bashrc` in the case of the Bash shell):
 
              export ERL_LIBS=/full/path/to/proper
-
     2.   Erlang resource file: Add the following line to your `~/.erlang` file:
 
              code:load_abs("/full/path/to/proper").
@@ -106,6 +105,9 @@ Quickstart guide
 *   For each property, run:
 
         proper:quickcheck(your_module:some_property()).
+
+    See also the section common problems below if you want to run
+    PropEr from EUnit.
 
 
 Where to go from here
@@ -127,6 +129,15 @@ The main issue is that both systems define a `?LET` macro. To avoid a potential
 clash, simply include PropEr's header file before EUnit's. That way, any
 instance of `?LET` will count as a PropEr `?LET`.
 
+Another issue is that [EUnit captures standard output][eunit stdout],
+so normally PropEr output is not visible when `proper:quickcheck()` is
+invoked from EUnit. You can work around this by passing the option
+`{to_file, user}` to `proper:quickcheck/2`. For example:
+
+	   ?assertEqual(true, proper:quickcheck(your_mod:some_prop(), [{to_file, user}]).
+
+This will make PropEr properties visible also when invoked from EUnit.
+
 
 Incompatibilities with QuviQ's QuickCheck
 -----------------------------------------
@@ -143,3 +154,5 @@ known incompatibilities:
 *   PropEr handles `size` differently from QuickCheck.
 *   `proper:module/2` accepts options in the second argument instead of the
     first; this is for consistency with other `module/2` functions in Erlang/OTP.
+
+[eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
