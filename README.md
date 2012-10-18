@@ -107,18 +107,9 @@ Quickstart guide
 
         proper:quickcheck(your_module:some_property()).
 
-A note about running PropEr from EUnit
---------------------------------------
+    See also the section common problems below if you want to run
+    PropEr from EUnit.
 
-[EUnit captures standard output][eunit stdout], so normally PropEr output is
-not visible when `proper:quickcheck()` is invoked from EUnit. You can work
-around this by passing an `{to_file, user}` to `proper:quickcheck/2`. For
-example:
-
-        ?assertEqual(true,
-            proper:quickcheck(your_module:some_property(), [{to_file, user}]).
-
-This will make PropEr properties visible also when invoked from EUnit.
 
 Where to go from here
 ---------------------
@@ -138,6 +129,15 @@ Common problems
 The main issue is that both systems define a `?LET` macro. To avoid a potential
 clash, simply include PropEr's header file before EUnit's. That way, any
 instance of `?LET` will count as a PropEr `?LET`.
+
+Another issue is that [EUnit captures standard output][eunit stdout],
+so normally PropEr output is not visible when `proper:quickcheck()` is
+invoked from EUnit. You can work around this by passing the option
+`{to_file, user}` to `proper:quickcheck/2`. For example:
+
+   ?assertEqual(true, proper:quickcheck(your_mod:some_prop(), [{to_file,user}]).
+
+This will make PropEr properties visible also when invoked from EUnit.
 
 
 Incompatibilities with QuviQ's QuickCheck
