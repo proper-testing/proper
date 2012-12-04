@@ -89,6 +89,14 @@
 			command_names/1, zip/2, run_parallel_commands/2,
 			run_parallel_commands/3]).
 
+
+%%------------------------------------------------------------------------------
+%% Unicode functions
+%%------------------------------------------------------------------------------
+
+-import(proper_unicode, [unicode_char/0, unicode_string/0, unicode_string/1,
+			unicode_binary/0, unicode_binary/1]).
+
 -endif.
 
 
