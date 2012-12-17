@@ -46,7 +46,8 @@
 -import(proper_types, [integer/2, float/2, atom/0, binary/0, binary/1,
 		       bitstring/0, bitstring/1, list/1, vector/2, union/1,
 		       weighted_union/1, tuple/1, loose_tuple/1, exactly/1,
-		       fixed_list/1, function/2, any/0]).
+		       fixed_list/1, function/2, any/0, improper_list/2, 
+               maybe_improper_list/2]).
 
 
 %%------------------------------------------------------------------------------
@@ -95,7 +96,8 @@
 %%------------------------------------------------------------------------------
 
 -import(proper_unicode, [unicode_char/0, unicode_string/0, unicode_string/1,
-			unicode_binary/0, unicode_binary/1]).
+			unicode_binary/0, unicode_binary/1, unicode_binary/2, 
+            unicode_characters/0, unicode_characters/1]).
 
 -endif.
 
