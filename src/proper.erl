@@ -633,8 +633,8 @@ global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
         _ ->
             Seed
     end,
-    proper_arith:rand_start(S),
-    proper_typeserver:start(),
+    proper_arith:rand_restart(S),
+    proper_typeserver:restart(),
     ok.
 
 -spec global_state_reset(opts()) -> 'ok'.
