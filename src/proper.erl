@@ -245,6 +245,9 @@
 %%%   integers. This is provided as a means to speed up the testing of specs,
 %%%   where `any()' is a commonly used type (see the {@section Spec testing}
 %%%   section for details).</dd>
+%%% <dt>`{skip_mfas, [<MFA>]}'</dt>
+%%% <dd> When checking a module's specs, PropEr will not test the
+%%%   specified MFAs.  Default is [].</dd>
 %%% </dl>
 %%%
 %%% == Spec testing ==
@@ -462,7 +465,8 @@
 		  | {'constraint_tries',pos_integer()}
 		  | 'fails'
 		  | 'any_to_integer'
-		  | {'spec_timeout',timeout()}.
+		  | {'spec_timeout',timeout()}
+		  | {'skip_mfas', [mfa()]}.
 -type user_opts() :: [user_opt()] | user_opt().
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
 	       long_result      = false           :: boolean(),
@@ -476,7 +480,8 @@
 	       expect_fail      = false           :: boolean(),
 	       any_type	                          :: {'type',
 						      proper_types:type()},
-	       spec_timeout     = infinity        :: timeout()}).
+	       spec_timeout     = infinity        :: timeout(),
+	       skip_mfas        = []              :: [mfa()]}).
 -type opts() :: #opts{}.
 -record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
 	      bound    = []  :: imm_testcase() | counterexample(),
@@ -845,6 +850,8 @@ parse_opt(UserOpt, Opts) ->
 				    {type,proper_types:integer()}
 				};
 	{spec_timeout,N}     -> Opts#opts{spec_timeout = N};
+	{skip_mfas,L} when is_list(L)
+	                     -> Opts#opts{skip_mfas = L};
 	_                    -> throw({unrecognized_option,UserOpt})
     end.
 
@@ -1020,7 +1027,8 @@ retry(Test, CExm, Opts) ->
 
 -spec multi_test(mod_name(), raw_test_kind(), opts()) -> module_result().
 multi_test(Mod, RawTestKind,
-	   #opts{long_result = ReturnLong, output_fun = Print} = Opts) ->
+	   #opts{long_result = ReturnLong, output_fun = Print,
+             skip_mfas = SkipMFAs} = Opts) ->
     global_state_init(Opts),
     MaybeMFAs =
 	case RawTestKind of
@@ -1032,7 +1040,7 @@ multi_test(Mod, RawTestKind,
     {ShortResult, LongResult} =
 	case MaybeMFAs of
 	    {ok,MFAs} ->
-		RawLRes = [{MFA,mfa_test(MFA,RawTestKind,Opts)} || MFA <- MFAs],
+		RawLRes = [{MFA,mfa_test(MFA,RawTestKind,Opts)} || MFA <- MFAs--SkipMFAs],
 		LRes = [T || {_MFA,Res} = T <- RawLRes, is_list(Res)],
 		SRes = [MFA || {MFA,_Res} <- LRes],
 		save_counterexamples(LRes),
