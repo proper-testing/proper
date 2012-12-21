@@ -248,6 +248,15 @@
 %%% <dt>`{skip_mfas, [<MFA>]}'</dt>
 %%% <dd> When checking a module's specs, PropEr will not test the
 %%%   specified MFAs.  Default is [].</dd>
+%%% <dt>`{false_positive_mfas, fun((mfa(),[Arg::term()],{fail, Result::term()} | {error | exit | throw, Reason::term()}) -> boolean()) | undefined}'</dt>
+%%% <dd> When checking a module's spec(s), PropEr will treat a
+%%% counterexample as a false positive if the user supplied function
+%%% returns true.  Otherwise, PropEr will treat the counterexample as
+%%% it normally does.  The inputs to the user supplied function are
+%%% the MFA, the arguments passed to the MFA, and the result returned
+%%% from the MFA or an exception with it's reason.  If needed, the
+%%% user supplied function can call erlang:get_stacktrace/0.  Default
+%%% is undefined.</dd>
 %%% </dl>
 %%%
 %%% == Spec testing ==
@@ -351,7 +360,7 @@
 -export([pure_check/1, pure_check/2]).
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
 
--export_type([test/0, outer_test/0, counterexample/0, exception/0]).
+-export_type([test/0, outer_test/0, counterexample/0, exception/0, false_positive_mfas/0]).
 
 -include("proper_internal.hrl").
 
@@ -445,6 +454,7 @@
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
+-type false_positive_mfas() :: fun((mfa(),Args::[term()],{fail,Result::term()} | {error | exit | throw,Reason::term()}) -> boolean()) | 'undefined'.
 
 %%-----------------------------------------------------------------------------
 %% Options and Context types
@@ -466,7 +476,9 @@
 		  | 'fails'
 		  | 'any_to_integer'
 		  | {'spec_timeout',timeout()}
-		  | {'skip_mfas', [mfa()]}.
+		  | {'skip_mfas', [mfa()]}
+		  | {'false_positive_mfas', false_positive_mfas()}.
+
 -type user_opts() :: [user_opt()] | user_opt().
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
 	       long_result      = false           :: boolean(),
@@ -481,7 +493,8 @@
 	       any_type	                          :: {'type',
 						      proper_types:type()},
 	       spec_timeout     = infinity        :: timeout(),
-	       skip_mfas        = []              :: [mfa()]}).
+	       skip_mfas        = []              :: [mfa()],
+	       false_positive_mfas                :: false_positive_mfas()}).
 -type opts() :: #opts{}.
 -record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
 	      bound    = []  :: imm_testcase() | counterexample(),
@@ -852,6 +865,8 @@ parse_opt(UserOpt, Opts) ->
 	{spec_timeout,N}     -> Opts#opts{spec_timeout = N};
 	{skip_mfas,L} when is_list(L)
 	                     -> Opts#opts{skip_mfas = L};
+	{false_positive_mfas,F} when is_function(F); F == undefined
+	                     -> Opts#opts{false_positive_mfas = F};
 	_                    -> throw({unrecognized_option,UserOpt})
     end.
 
@@ -1077,8 +1092,8 @@ mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
 -spec cook_test(raw_test(), opts()) -> test().
 cook_test({test,Test}, _Opts) ->
     Test;
-cook_test({spec,MFA}, #opts{spec_timeout = SpecTimeout}) ->
-    case proper_typeserver:create_spec_test(MFA, SpecTimeout) of
+cook_test({spec,MFA}, #opts{spec_timeout = SpecTimeout, false_positive_mfas = FalsePositiveMFAs}) ->
+    case proper_typeserver:create_spec_test(MFA, SpecTimeout, FalsePositiveMFAs) of
 	{ok,Test} ->
 	    Test;
 	{error,Reason}  ->
