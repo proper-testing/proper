@@ -26,28 +26,23 @@ prop_unicode_binary() ->
                     unicode:characters_to_list(Bin)))
         end).
 
+
 %% Check a binary generator with fixed length.
 prop_sized_unicode_binary() ->
     ?FORALL({Len, Bin}, ?LET(Len, byte(), {Len, unicode_binary(Len)}),
-        begin
-            equals(Len, length(unicode:characters_to_list(Bin)))
-        end).
+            equals(Len, length(unicode:characters_to_list(Bin)))).
 
+
+%% Check, that the `characters_to_list/1' does not fail.
 prop_unicode_string() ->
     ?FORALL(Str, unicode_string(),
-        begin
-%           io:format(user, "~p~n", [Str]),
-        equals(Str, unicode:characters_to_list(
-                    unicode:characters_to_binary(Str)))
-        end).
+            equals(Str, unicode:characters_to_list(
+                           unicode:characters_to_binary(Str)))).
 
 
 prop_unicode_characters() ->
     ?FORALL(Chars, unicode_characters(),
-        begin
-%           io:format(user, "~p~n", [Chars]),
-            is_binary(unicode:characters_to_binary(Chars))
-        end).
+            is_binary(unicode:characters_to_binary(Chars))).
 
 
 encoding() ->
@@ -61,9 +56,6 @@ prop_unicode_external_characters() ->
                 || Encoding <- encoding()]),
             begin
                 List = unicode:characters_to_list(Chars, Encoding),
-%               [erlang:error(1) || 
-%                length(List) > 2, hd(tl(List)) > 1000000],
-%               io:format(user, "~p~n", [Chars]),
                 is_binary(unicode:characters_to_binary(Chars, Encoding))
             end).
 
