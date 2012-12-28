@@ -1,12 +1,12 @@
 *~
 \#*\#
+*.app
+*.beam
 *.dump
 *.tar.gz
-*.beam
-*.app
 deps/
-doc/*.html
 doc/*.css
+doc/*.html
 doc/*.png
 doc/edoc-info
 include/compile_flags.hrl
