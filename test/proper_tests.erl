@@ -744,10 +744,10 @@ native_type_props_test_() ->
 		      code:delete(to_remove),
 		      code:purge(to_remove),
 		      file:rename("tests/to_remove.beam",
-				  "tests/to_remove.bak") end,
-	     fun(_) -> file:rename("tests/to_remove.bak",
-				   "tests/to_remove.beam") end,
-	     ?_passes(?FORALL(_, to_remove:exp1(), true))},
+     				  "tests/to_remove.bak") end,
+     	     fun(_) -> file:rename("tests/to_remove.bak",
+     				   "tests/to_remove.beam") end,
+     	     ?_passes(?FORALL(_, to_remove:exp1(), true))},
      ?_passes(rec_props_test1:prop_1()),
      ?_passes(rec_props_test2:prop_2()),
      ?_passes(?FORALL(L, vector(2,my_native_type()),
@@ -810,12 +810,12 @@ true_props_test_() ->
 		  {three, conjunction([{a,true},{b,true}])}
 	      ])),
      ?_passes(?FORALL(X, untyped(), is_record(X, untyped))),
-     ?_passes(pdict_statem:prop_pdict()),
-     ?_passes(symb_statem:prop_simple()),
+     {timeout, 20, ?_passes(pdict_statem:prop_pdict())},
+     {timeout, 20, ?_passes(symb_statem:prop_simple())},
      {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
-     {timeout, 10, ?_passes(ets_statem:prop_ets())},
-     {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
-     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}].
+     {timeout, 20, ?_passes(ets_statem:prop_ets())},
+     {timeout, 40, ?_passes(ets_statem:prop_parallel_ets())},
+     {timeout, 40, ?_passes(pdict_fsm:prop_pdict())}].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
@@ -958,12 +958,12 @@ options_test_() ->
 		 [{start_size,12}])].
 
 adts_test_() ->
-    [{timeout, 20,	% for Kostis' old laptop
+    [{timeout, 40,	% for Kostis' old laptop
       ?_passes(?FORALL({X,S},{integer(),set()},
 		       sets:is_element(X,sets:add_element(X,S))), [20])},
-     ?_passes(?FORALL({X,Y,D},
+     {timeout, 10, ?_passes(?FORALL({X,Y,D},
 		      {integer(),float(),dict(integer(),float())},
-		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30]),
+		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])},
      ?_fails(?FORALL({X,D},
 	     {boolean(),dict(boolean(),integer())},
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
