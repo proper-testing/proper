@@ -1,6 +1,8 @@
 %% @doc This module provides basic unicode generators.
 %% @end
 %% @todo add `unicode_characters'.
+%%
+%% @author Uvarov Michael <arcusfelis@gmail.com>
 -module(proper_unicode).
 -export([unicode_char/0,
          unicode_string/0,
@@ -44,13 +46,11 @@ proper_char() ->
 %% @doc Generate a list of unicode code points.
 -spec unicode_string() -> generator().
 unicode_string() ->
-    unicode_string(undefined).
+    list(unicode_char()).
 
 
 %% @doc Generate a list of unicode code points of length `Size'.
--spec unicode_string(non_neg_integer() | undefined) -> generator().
-unicode_string(undefined) ->
-    list(unicode_char());
+-spec unicode_string(non_neg_integer()) -> generator().
 
 unicode_string(Size) ->
     vector(Size, unicode_char()).
@@ -64,7 +64,7 @@ unicode_binary() ->
 
 %% @doc Generate an unicode binary binary.
 -spec unicode_binary(Size | Encoding) -> generator() when
-    Size :: non_neg_integer() | undefined,
+    Size :: non_neg_integer(),
     Encoding :: unicode:encoding().
 
 unicode_binary(Size) when is_integer(Size) ->
@@ -78,6 +78,10 @@ unicode_binary(Encoding) ->
 -spec unicode_binary(Size, Encoding) -> generator() when
     Size :: non_neg_integer() | undefined,
     Encoding :: unicode:encoding().
+
+unicode_binary(undefined, Encoding) ->
+    ?LET(Str, unicode_string(),
+         unicode:characters_to_binary(Str, unicode, Encoding));
 
 unicode_binary(Size, Encoding) ->
     ?LET(Str, unicode_string(Size),

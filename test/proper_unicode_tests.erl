@@ -1,3 +1,4 @@
+%% @author Uvarov Michael <arcusfelis@gmail.com>
 -module(proper_unicode_tests).
 
 %% ------------------------------------------------------------------
