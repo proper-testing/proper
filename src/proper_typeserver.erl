@@ -1273,23 +1273,13 @@ is_instance(X, _Mod, {type,_,atom,[]}, _Stack) ->
 is_instance(X, _Mod, {type,_,binary,[]}, _Stack) ->
     is_binary(X);
 is_instance(X, _Mod, {type,_,binary,[BaseExpr,UnitExpr]}, _Stack) ->
+    %% <<_:X,_:_*Y>> means "bitstrings of X + k*Y bits, k >= 0"
     case eval_int(BaseExpr) of
-	{ok,0} ->
+	{ok,Base} when Base >= 0 ->
 	    case eval_int(UnitExpr) of
-		{ok,0} ->
-		    X =:= <<>>;
-		{ok,Unit} when Unit > 0 ->
-		    is_bitstring(X) andalso bit_size(X) rem Unit =:= 0;
-		_ ->
-		    abs_expr_error(invalid_unit, UnitExpr)
-	    end;
-	{ok,Len} when Len > 0 ->
-	    case eval_int(UnitExpr) of
-		{ok,0} ->
-		    %% TODO: Unspecified unit means 1-byte units?
-		    is_binary(X) andalso byte_size(X) =:= Len;
-		{ok,Unit} when Unit > 0 ->
-		    is_bitstring(X) andalso bit_size(X) =:= Len * Unit;
+		{ok,Unit} when Unit >= 0 ->
+		    is_bitstring(X) andalso bit_size(X) >= Base
+			andalso (bit_size(X) - Base) rem Unit =:= 0;
 		_ ->
 		    abs_expr_error(invalid_unit, UnitExpr)
 	    end;
@@ -1527,19 +1517,27 @@ convert(_Mod, {op,_,_Op,_Arg} = OpExpr, State, _Stack, _VarDict) ->
 convert(_Mod, {op,_,_Op,_Arg1,_Arg2} = OpExpr, State, _Stack, _VarDict) ->
     convert_integer(OpExpr, State);
 convert(_Mod, {type,_,binary,[BaseExpr,UnitExpr]}, State, _Stack, _VarDict) ->
+    %% <<_:X,_:_*Y>> means "bitstrings of X + k*Y bits, k >= 0"
     case eval_int(BaseExpr) of
 	{ok,0} ->
 	    case eval_int(UnitExpr) of
 		{ok,0} -> {ok, {simple,proper_types:exactly(<<>>)}, State};
 		{ok,1} -> {ok, {simple,proper_types:bitstring()}, State};
 		{ok,8} -> {ok, {simple,proper_types:binary()}, State};
+		{ok,N} when N >= 0 -> {error, {unsupported_unit,N}};
 		_      -> expr_error(invalid_unit, UnitExpr)
 	    end;
-	{ok,Len} when Len > 0 ->
+	{ok,Base} when Base > 0 ->
+	    Head = proper_types:bitstring(Base),
 	    case eval_int(UnitExpr) of
-		{ok,0} -> {ok, {simple,proper_types:binary(Len)}, State};
-		{ok,1} -> {ok, {simple,proper_types:bitstring(Len)}, State};
-		{ok,8} -> {ok, {simple,proper_types:binary(Len)}, State};
+		{ok,0} -> {ok, {simple,Head}, State};
+		{ok,1} ->
+		    Tail = proper_types:bitstring(),
+		    {ok, {simple,concat_binary_gens(Head, Tail)}, State};
+		{ok,8} ->
+		    Tail = proper_types:binary(),
+		    {ok, {simple,concat_binary_gens(Head, Tail)}, State};
+		{ok,N} when N >= 0 -> {error, {unsupported_unit,N}};
 		_      -> expr_error(invalid_unit, UnitExpr)
 	    end;
 	_ ->
@@ -1601,6 +1599,11 @@ convert(Mod, {type,_,Name,ArgForms}, State, Stack, VarDict) ->
     convert_maybe_hard_adt(Mod, Name, ArgForms, State, Stack, VarDict);
 convert(_Mod, TypeForm, _State, _Stack, _VarDict) ->
     {error, {unsupported_type,TypeForm}}.
+
+
+-spec concat_binary_gens(fin_type(), fin_type()) -> fin_type().
+concat_binary_gens(HeadType, TailType) ->
+    ?LET({H,T}, {HeadType,TailType}, <<H/bits,T/bits>>).
 
 -spec convert_fun(mod_name(), arity(), abs_type(), state(), stack(),
 		  var_dict()) -> rich_result2(ret_type(),state()).
