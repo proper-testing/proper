@@ -328,14 +328,15 @@ simple_types_with_data() ->
      {non_neg_float(), [88.8,98.9,0.0], 0.0, [-12,1,-0.01], none},
      {atom(), [elvis,'Another Atom',''], '', ["not_an_atom",12,12.2], "atom()"},
      {binary(), [<<>>,<<12,21>>], <<>>, [<<1,2:3>>,binary_atom,42], "binary()"},
-     {binary(3), [<<41,42,43>>], <<0,0,0>>, [<<1,2,3,4>>], "<<_:3>>"},
-     {binary(0), [<<>>], <<>>, [<<1>>], none},
+     {binary(), [], <<>>, [], "<<_:_*8>>"},
+     {binary(3), [<<41,42,43>>], <<0,0,0>>, [<<1,2,3,4>>], "<<_:24>>"},
+     {binary(0), [<<>>], <<>>, [<<1>>], "<<_:0>>"},
      {bitstring(), [<<>>,<<87,76,65,5:4>>], <<>>, [{12,3},11], "bitstring()"},
+     {bitstring(), [], <<>>, [], "<<_:_*1>>"},
      {bitstring(18), [<<0,1,2:2>>,<<1,32,123:2>>], <<0,0,0:2>>, [<<12,1,1:3>>],
-      "<<_:18, _:_*1>>"},
-     {bitstring(32), [<<120,120,120,120>>], <<0,0,0,0>>, [7,8],
-      "<<_:32, _:_*1>>"},
-     {bitstring(0), [<<>>], <<>>, [<<1>>], none},
+      "<<_:18, _:_*0>>"},
+     {bitstring(32), [<<120,120,120,120>>], <<0,0,0,0>>, [7,8], "<<_:32>>"},
+     {bitstring(0), [<<>>], <<>>, [<<1>>], "<<>>"},
      {list(integer()), [[],[2,42],[0,1,1,2,3,5,8,13,21,34,55,89,144]], [],
       [[4,4.2],{12,1},<<12,113>>], "[integer()]"},
      {list(atom()), [[on,the,third,day,'of',christmas,my,true,love,sent,to,me]],
@@ -404,7 +405,10 @@ simple_types_with_data() ->
 
 %% TODO: These rely on the intermediate form of the instances.
 constructed_types_with_data() ->
-    [{?LET(X,range(1,5),X*X), [{'$used',1,1},{'$used',5,25}], 1,
+    [{?LET({A,B},{bitstring(3),binary()},<<A/bits,B/bits>>),
+      [{'$used',{<<1:3>>,<<3,4>>},<<32,96,4:3>>}], <<0:3>>, [],
+      "<<_:3,_:_*8>>"},
+     {?LET(X,range(1,5),X*X), [{'$used',1,1},{'$used',5,25}], 1,
       [4,{'$used',3,8},{'$used',0,0}], none},
      {?LET(L,non_empty(list(atom())),oneof(L)),
       [{'$used',[aa],aa},{'$used',[aa,bb],aa},{'$used',[aa,bb],bb}], '',
@@ -772,12 +776,21 @@ native_type_props_test_() ->
      ?_passes(weird_types:prop_export_all_works()),
      ?_passes(weird_types:prop_no_auto_import_works())].
 
+-type bin4() :: <<_:32>>.
+-type bits42() :: <<_:42>>.
+%% -type bits5x() :: <<_:_*5>>.
+%% -type bits7x() :: <<_:_*7>>.
+
 -record(untyped, {a, b = 12}).
 -type untyped() :: #untyped{}.
 
 true_props_test_() ->
     [?_passes(?FORALL(X,integer(),X < X + 1)),
-     ?_passes(?FORALL(X,atom(),list_to_atom(atom_to_list(X)) =:= X)),
+     ?_passes(?FORALL(A,atom(),list_to_atom(atom_to_list(A)) =:= A)),
+     ?_passes(?FORALL(B,bin4(),byte_size(B) =:= 4)),
+     ?_passes(?FORALL(B,bits42(),bit_size(B) =:= 42)),
+     %% ?_passes(?FORALL(B,bits5x(),bit_size(B) =/= 42)),
+     %% ?_passes(?FORALL(B,bits7x(),bit_size(B) rem 7 =:= 0)),
      ?_passes(?FORALL(L,list(integer()),is_sorted(L,quicksort(L)))),
      ?_passes(?FORALL(L,ulist(integer()),is_sorted(L,lists:usort(L)))),
      ?_passes(?FORALL(L,non_empty(list(integer())),L =/= [])),
