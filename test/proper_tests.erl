@@ -305,6 +305,8 @@ assert_is_pure_function(F) ->
 %% Unit test arguments
 %%------------------------------------------------------------------------------
 
+%% Returns a list of tuples.
+%% Each tuple is `{TypeGen, ValidSamples, Target, InvalidSamples, TypeStr}'.
 simple_types_with_data() ->
     [{integer(), [-1,0,1,42,-200], 0, [0.3,someatom,<<1>>], "integer()"},
      {integer(7,88), [7,8,87,88,23], 7, [1,90,a], "7..88"},
