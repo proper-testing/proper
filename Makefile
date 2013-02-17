@@ -1,4 +1,4 @@
-# Copyright 2010-2012 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -36,7 +36,7 @@ compile:
 	./rebar compile
 
 dialyzer: compile
-	dialyzer -n -nn -Wunmatched_returns ebin deps/*/ebin
+	dialyzer -n -nn -Wunmatched_returns ebin -r deps
 
 check_escripts:
 	./check_escripts.sh make_doc write_compile_flags
