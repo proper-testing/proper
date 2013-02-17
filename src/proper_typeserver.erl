@@ -651,7 +651,7 @@ get_code_and_exports_from_source(Mod, ObjError) ->
     SrcFileName = atom_to_list(Mod) ++ ?SRC_FILE_EXT,
     case code:where_is_file(SrcFileName) of
 	FullSrcFileName when is_list(FullSrcFileName) ->
-	    Opts = [binary,debug_info,return_errors,{d,'PROPER_REMOVE_PROPS'}],
+	    Opts = [binary,debug_info,return_errors,{d,'PROPER_REMOVE_PROPS'}, {i, "../include"}, {i, "./include"}],
 	    case compile:file(FullSrcFileName, Opts) of
 		{ok,Mod,Binary} ->
 		    get_chunks(Binary);
