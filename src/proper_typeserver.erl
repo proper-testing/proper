@@ -161,7 +161,7 @@
 -behaviour(gen_server).
 -export([demo_translate_type/2, demo_is_instance/3]).
 
--export([start/0, stop/0, create_spec_test/2, get_exp_specced/1, is_instance/3,
+-export([start/0, stop/0, create_spec_test/3, get_exp_specced/1, is_instance/3,
 	 translate_type/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 	 code_change/3]).
@@ -290,8 +290,9 @@
 %% @alias
 -type rich_result(T) :: {'ok',T} | {'error',term()}.
 -type rich_result2(T,S) :: {'ok',T,S} | {'error',term()}.
+-type false_positive_mfas() :: proper:false_positive_mfas().
 
--type server_call() :: {'create_spec_test',mfa(),timeout()}
+-type server_call() :: {'create_spec_test',mfa(),timeout(),false_positive_mfas()}
 		     | {'get_exp_specced',mod_name()}
 		     | {'get_type_repr',mod_name(),type_ref(),boolean()}
 		     | {'translate_type',imm_type()}.
@@ -320,10 +321,10 @@ stop() ->
     gen_server:cast(TypeserverPid, stop).
 
 %% @private
--spec create_spec_test(mfa(), timeout()) -> rich_result(proper:test()).
-create_spec_test(MFA, SpecTimeout) ->
+-spec create_spec_test(mfa(), timeout(), false_positive_mfas()) -> rich_result(proper:test()).
+create_spec_test(MFA, SpecTimeout, FalsePositiveMFAs) ->
     TypeserverPid = get('$typeserver_pid'),
-    gen_server:call(TypeserverPid, {create_spec_test,MFA,SpecTimeout}).
+    gen_server:call(TypeserverPid, {create_spec_test,MFA,SpecTimeout,FalsePositiveMFAs}).
 
 %% @private
 -spec get_exp_specced(mod_name()) -> rich_result([mfa()]).
@@ -393,8 +394,8 @@ init(_) ->
 %% @private
 -spec handle_call(server_call(), _, state()) ->
 	  {'reply',server_response(),state()}.
-handle_call({create_spec_test,MFA,SpecTimeout}, _From, State) ->
-    case create_spec_test(MFA, SpecTimeout, State) of
+handle_call({create_spec_test,MFA,SpecTimeout,FalsePositiveMFAs}, _From, State) ->
+    case create_spec_test(MFA, SpecTimeout, FalsePositiveMFAs, State) of
 	{ok,Test,NewState} ->
 	    {reply, {ok,Test}, NewState};
 	{error,_Reason} = Error ->
@@ -447,12 +448,12 @@ code_change(_OldVsn, State, _) ->
 %% Top-level interface
 %%------------------------------------------------------------------------------
 
--spec create_spec_test(mfa(), timeout(), state()) ->
+-spec create_spec_test(mfa(), timeout(), false_positive_mfas(), state()) ->
 	  rich_result2(proper:test(),state()).
-create_spec_test(MFA, SpecTimeout, State) ->
+create_spec_test(MFA, SpecTimeout, FalsePositiveMFAs, State) ->
     case get_exp_spec(MFA, State) of
 	{ok,FunRepr,NewState} ->
-	    make_spec_test(MFA, FunRepr, SpecTimeout, NewState);
+	    make_spec_test(MFA, FunRepr, SpecTimeout, FalsePositiveMFAs, NewState);
 	{error,_Reason} = Error ->
 	    Error
     end.
@@ -472,23 +473,49 @@ get_exp_spec({Mod,Fun,Arity} = MFA, State) ->
 	    Error
     end.
 
--spec make_spec_test(mfa(), fun_repr(), timeout(), state()) ->
+-spec make_spec_test(mfa(), fun_repr(), timeout(), false_positive_mfas(), state()) ->
 	  rich_result2(proper:test(),state()).
-make_spec_test({Mod,Fun,_Arity}, {Domain,Range}, SpecTimeout, State) ->
+make_spec_test({Mod,_Fun,_Arity}=MFA, {Domain,_Range}=FunRepr, SpecTimeout, FalsePositiveMFAs, State) ->
     case convert(Mod, {type,0,'$fixed_list',Domain}, State) of
 	{ok,FinType,NewState} ->
-	    %% TODO: We just catch all exceptions, plus error:badarg.
-	    Test = ?FORALL(Args, FinType, ?TIMEOUT(SpecTimeout,
-			try apply(Mod,Fun,Args) of
-			    X -> ?MODULE:is_instance(X,Mod,Range)
-			catch
-			    throw:_      -> true;
-			    error:badarg -> true
-			end)),
-	    {ok, Test, NewState};
+            Test = ?FORALL(Args, FinType, apply_spec_test(MFA, FunRepr, SpecTimeout, FalsePositiveMFAs, Args)),
+            {ok, Test, NewState};
 	{error,_Reason} = Error ->
 	    Error
     end.
+
+-spec apply_spec_test(mfa(), fun_repr(), timeout(), false_positive_mfas(), term()) -> proper:test().
+apply_spec_test({Mod,Fun,_Arity}=MFA, {_Domain,Range}, SpecTimeout, FalsePositiveMFAs, Args) ->
+    ?TIMEOUT(SpecTimeout,
+             begin
+                 %% NOTE: only call apply/3 inside try/catch (do not trust ?MODULE:is_instance/3)
+                 Result =
+                     try apply(Mod,Fun,Args) of
+                         X -> {ok, X}
+                     catch
+                         X:Y -> {X, Y}
+                     end,
+                 case Result of
+                     {ok, Z} ->
+                         case ?MODULE:is_instance(Z,Mod,Range) of
+                             true ->
+                                 true;
+                             false when is_function(FalsePositiveMFAs) ->
+                                 FalsePositiveMFAs(MFA, Args, {fail, Z});
+                             false ->
+                                 false
+                         end;
+                     Exception when is_function(FalsePositiveMFAs) ->
+                         case FalsePositiveMFAs(MFA, Args, Exception) of
+                             true ->
+                                 true;
+                             false ->
+                                 error(Exception, erlang:get_stacktrace())
+                         end;
+                     Exception ->
+                         error(Exception, erlang:get_stacktrace())
+                 end
+             end).
 
 -spec get_exp_specced(mod_name(), state()) -> rich_result2([mfa()],state()).
 get_exp_specced(Mod, State) ->
