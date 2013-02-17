@@ -1,6 +1,6 @@
 #! /bin/sh
 # --------------------------------------------------------------------
-# Copyright 2010-2012 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -53,7 +53,7 @@ random()
 
 cleanup()
 {
-    rm -f ebin/*
+    rm -f ebin/* deps/*/ebin/*
     rm -f .eunit/*
 }
 
