@@ -36,7 +36,7 @@ compile:
 	./rebar compile
 
 dialyzer: compile
-	dialyzer -n -nn -Wunmatched_returns ebin -r deps
+	dialyzer -n -nn -Wunmatched_returns ebin $(find .  -path 'deps/*/ebin/*.beam')
 
 check_escripts:
 	./check_escripts.sh make_doc write_compile_flags
