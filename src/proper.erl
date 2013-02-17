@@ -865,7 +865,7 @@ parse_opt(UserOpt, Opts) ->
 	{spec_timeout,N}     -> Opts#opts{spec_timeout = N};
 	{skip_mfas,L} when is_list(L)
 	                     -> Opts#opts{skip_mfas = L};
-	{false_positive_mfas,F} when is_function(F); F == undefined
+	{false_positive_mfas,F} when is_function(F); F =:= undefined
 	                     -> Opts#opts{false_positive_mfas = F};
 	_                    -> throw({unrecognized_option,UserOpt})
     end.
