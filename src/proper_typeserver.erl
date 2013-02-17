@@ -1551,7 +1551,10 @@ convert(_Mod, {type,_,binary,[BaseExpr,UnitExpr]}, State, _Stack, _VarDict) ->
 		{ok,0} -> {ok, {simple,proper_types:exactly(<<>>)}, State};
 		{ok,1} -> {ok, {simple,proper_types:bitstring()}, State};
 		{ok,8} -> {ok, {simple,proper_types:binary()}, State};
-		{ok,N} when N >= 0 -> {error, {unsupported_unit,N}};
+		{ok,N} when N > 0 ->
+		    Gen = ?LET(L, proper_types:list(proper_types:bitstring(N)),
+			       concat_bitstrings(L)),
+		    {ok, {simple,Gen}, State};
 		_      -> expr_error(invalid_unit, UnitExpr)
 	    end;
 	{ok,Base} when Base > 0 ->
@@ -1564,7 +1567,11 @@ convert(_Mod, {type,_,binary,[BaseExpr,UnitExpr]}, State, _Stack, _VarDict) ->
 		{ok,8} ->
 		    Tail = proper_types:binary(),
 		    {ok, {simple,concat_binary_gens(Head, Tail)}, State};
-		{ok,N} when N >= 0 -> {error, {unsupported_unit,N}};
+		{ok,N} when N > 0 ->
+		    Tail =
+			?LET(L, proper_types:list(proper_types:bitstring(N)),
+			     concat_bitstrings(L)),
+		    {ok, {simple,concat_binary_gens(Head, Tail)}, State};
 		_      -> expr_error(invalid_unit, UnitExpr)
 	    end;
 	_ ->
@@ -1627,6 +1634,15 @@ convert(Mod, {type,_,Name,ArgForms}, State, Stack, VarDict) ->
 convert(_Mod, TypeForm, _State, _Stack, _VarDict) ->
     {error, {unsupported_type,TypeForm}}.
 
+-spec concat_bitstrings([bitstring()]) -> bitstring().
+concat_bitstrings(BitStrings) ->
+    concat_bitstrings_tr(BitStrings, <<>>).
+
+-spec concat_bitstrings_tr([bitstring()], bitstring()) -> bitstring().
+concat_bitstrings_tr([], Acc) ->
+    Acc;
+concat_bitstrings_tr([BitString | Rest], Acc) ->
+    concat_bitstrings_tr(Rest, <<Acc/bits,BitString/bits>>).
 
 -spec concat_binary_gens(fin_type(), fin_type()) -> fin_type().
 concat_binary_gens(HeadType, TailType) ->

@@ -776,8 +776,8 @@ native_type_props_test_() ->
 
 -type bin4() :: <<_:32>>.
 -type bits42() :: <<_:42>>.
-%% -type bits5x() :: <<_:_*5>>.
-%% -type bits7x() :: <<_:_*7>>.
+-type bits5x() :: <<_:_*5>>.
+-type bits7x() :: <<_:_*7>>.
 
 -record(untyped, {a, b = 12}).
 -type untyped() :: #untyped{}.
@@ -787,8 +787,8 @@ true_props_test_() ->
      ?_passes(?FORALL(A,atom(),list_to_atom(atom_to_list(A)) =:= A)),
      ?_passes(?FORALL(B,bin4(),byte_size(B) =:= 4)),
      ?_passes(?FORALL(B,bits42(),bit_size(B) =:= 42)),
-     %% ?_passes(?FORALL(B,bits5x(),bit_size(B) =/= 42)),
-     %% ?_passes(?FORALL(B,bits7x(),bit_size(B) rem 7 =:= 0)),
+     ?_passes(?FORALL(B,bits5x(),bit_size(B) =/= 42)),
+     ?_passes(?FORALL(B,bits7x(),bit_size(B) rem 7 =:= 0)),
      ?_passes(?FORALL(L,list(integer()),is_sorted(L,quicksort(L)))),
      ?_passes(?FORALL(L,ulist(integer()),is_sorted(L,lists:usort(L)))),
      ?_passes(?FORALL(L,non_empty(list(integer())),L =/= [])),
