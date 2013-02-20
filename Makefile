@@ -17,14 +17,16 @@
 # You should have received a copy of the GNU General Public License
 # along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-# Author:      Manolis Papadakis
+# Author(s):   Manolis Papadakis, Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default all compile dialyzer check_escripts tests doc clean distclean rebuild retest
+.PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
-default: get-deps compile
+default: fast dialyzer
 
-all: compile doc
+fast: get-deps compile
+
+all: default doc tests
 
 include/compile_flags.hrl:
 	./write_compile_flags $@
