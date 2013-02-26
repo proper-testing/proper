@@ -81,8 +81,11 @@ Quickstart guide
 
         git clone git://github.com/manopapad/proper.git
 
-*   Compile PropEr: Run `make` (or `make all` if you also want to build the
-    documentation; in that case, you are going to need the `syntax_tools`
+*   Compile PropEr: Run `make fast` if you just want to build PropEr, optionally
+    followed by a `make tests` to also run its unit tests. (A plain `make` call
+    does a `make fast` but also runs dialyzer on PropEr's code base; this
+    requires having a dialyzer PLT. To also build PropEr's documentation issue
+    a `make all` call; in that case, you are going to need the `syntax_tools`
     application and a recent version of `EDoc`).
     Optionally sfmt-erlang can be selected as an alternative random number
     generator using `./configure --use-sfmt` before running `make`.
