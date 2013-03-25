@@ -1,3 +1,12 @@
+Fork Info
+---------
+
+Differences from the original repo:
+
+* M:next_state/3 is not called if M:postcondition/3 returns false.
+  Change set is kept in branch: fredrikelinder_no_nextstate_if_postcond_fail
+
+
 Contact information and license
 -------------------------------
 
