@@ -531,19 +531,15 @@ run_commands(Cmds, Env, Mod, History, State) ->
 		    case safe_apply(M2, F2, A2) of
 			{ok,Res} ->
 			    Env2 = [{V,Res}|Env],
-			    State2 = proper_symb:eval(
-				       Env2, Mod:next_state(State, Res, Call)),
 			    History2 = [{State,Res}|History],
 			    case check_postcondition(Mod, State, Call, Res) of
 				true ->
-				    run_commands(Rest, Env2, Mod, History2,
-						 State2);
+				    State2 = proper_symb:eval(Env2, Mod:next_state(State, Res, Call)),
+				    run_commands(Rest, Env2, Mod, History2, State2);
 				false ->
-				    {{lists:reverse(History2), State2,
-				      {postcondition,false}}, []};
+				    {{lists:reverse(History2), State, {postcondition,false}}, []};
 				{exception,_,_,_} = Exception ->
-				    {{lists:reverse(History2), State2,
-				      {postcondition,Exception}}, []}
+				    {{lists:reverse(History2), State, {postcondition,Exception}}, []}
 			    end;
 			{error,Exception} ->
 			    {{lists:reverse(History), State, Exception}, []}
