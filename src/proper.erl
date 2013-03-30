@@ -562,11 +562,10 @@ grow_size(#opts{max_size = MaxSize} = Opts) ->
 	true ->
 	    case get('$left') of
 		0 ->
-		    put('$size', Size + 1),
-		    case tests_at_size(Size + 1, Opts) of
-			0 -> grow_size(Opts);
-			N -> put('$left', N - 1), ok
-		    end;
+		    {ToRun, NextSize} = tests_at_next_size(Size, Opts),
+		    put('$size', NextSize),
+		    put('$left', ToRun - 1),
+		    ok;
 		Left ->
 		    put('$left', Left - 1),
 		    ok
@@ -575,24 +574,34 @@ grow_size(#opts{max_size = MaxSize} = Opts) ->
 	    ok
     end.
 
--spec tests_at_size(size(), opts()) -> non_neg_integer().
-tests_at_size(Size, #opts{numtests = NumTests, start_size = StartSize,
-			  max_size = MaxSize}) ->
+-spec tests_at_next_size(size(), opts()) -> {pos_integer(), size()}.
+tests_at_next_size(_Size, #opts{numtests = 1, start_size = StartSize}) ->
+    {1, StartSize};
+tests_at_next_size(Size, #opts{numtests = NumTests, start_size = StartSize,
+			       max_size = MaxSize})
+  when Size < MaxSize, StartSize =< MaxSize, NumTests > 1 ->
     SizesToTest = MaxSize - StartSize + 1,
     case NumTests >= SizesToTest of
 	true ->
 	    TotalOverflow = NumTests rem SizesToTest,
-	    Overflow = case MaxSize - Size < TotalOverflow of
+	    NextSize = erlang:max(StartSize, Size + 1),
+	    Overflow = case NextSize - StartSize < TotalOverflow of
 			   true  -> 1;
 			   false -> 0
 		       end,
-	    NumTests div SizesToTest + Overflow;
+	    {NumTests div SizesToTest + Overflow, NextSize};
 	false ->
-	    EverySoManySizes = SizesToTest div NumTests,
-	    case (Size - StartSize) rem EverySoManySizes of
-		0 -> 1;
-		_ -> 0
-	    end
+	    EverySoManySizes = (SizesToTest - 1) div (NumTests - 1),
+	    NextSize =
+		case Size < StartSize of
+		    true ->
+			StartSize;
+		    false ->
+			PrevMultiple =
+			    Size - (Size - StartSize) rem EverySoManySizes,
+			PrevMultiple + EverySoManySizes
+		end,
+	    {1, NextSize}
     end.
 
 %% @private

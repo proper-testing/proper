@@ -864,7 +864,7 @@ false_props_test_() ->
 				  ?WHENFAIL(inc_temp(),length(L) < 5))),
      ?_assertTempBecomesN(3, false,
 			  ?FORALL(S, ?SIZED(Size,Size),
-				  begin inc_temp(), S < 20 end),
+				  begin inc_temp(), S =< 20 end),
 			  [{numtests,3},{max_size,40},noshrink]),
      ?_failsWithOneOf([[{true,false}],[{false,true}]],
 		      ?FORALL({B1,B2}, {boolean(),boolean()}, equals(B1,B2))),
