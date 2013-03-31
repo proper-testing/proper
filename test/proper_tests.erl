@@ -1,4 +1,4 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This modules contains PropEr's Unit tests. You need the EUnit
@@ -774,7 +774,7 @@ native_type_props_test_() ->
      ?_passes(weird_types:prop_export_all_works()),
      ?_passes(weird_types:prop_no_auto_import_works())].
 
--type bin4() :: <<_:32>>.
+-type bin4()   :: <<_:32>>.
 -type bits42() :: <<_:42>>.
 -type bits5x() :: <<_:_*5>>.
 -type bits7x() :: <<_:_*7>>.
@@ -1092,6 +1092,24 @@ dollar_only_cp_test_() ->
        [K || K <- all_data(),
 	     is_atom(K),
 	     re:run(atom_to_list(K), ["^[$]"], [{capture,none}]) =:= match]).
+
+
+%%------------------------------------------------------------------------------
+%% Performance tests
+%%------------------------------------------------------------------------------
+
+max_size_test() ->
+    %% issue a call to load the test module and ensure the test exists
+    true = lists:member({prop_identity,0}, perf_max_size:module_info(exports)),
+    %% run some tests with a small and a big max_size option
+    {Ts,true} = timer:tc(fun() -> max_size_test_aux(42) end),
+    {Tb,true} = timer:tc(fun() -> max_size_test_aux(16#ffffffff) end),
+    %% ensure that the test with the big max_size option does not take
+    %% much longer than the small one to complete
+    ?assertEqual(true, 2*Ts >= Tb).
+
+max_size_test_aux(Size) ->
+    proper:quickcheck(perf_max_size:prop_identity(), [5,{max_size,Size}]).
 
 
 %%------------------------------------------------------------------------------
