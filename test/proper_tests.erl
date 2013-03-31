@@ -1100,13 +1100,14 @@ dollar_only_cp_test_() ->
 
 max_size_test() ->
     %% issue a call to load the test module and ensure the test exists
-    true = lists:member({prop_identity,0}, perf_max_size:module_info(exports)),
+    ?assert(lists:member({prop_identity,0},
+			 perf_max_size:module_info(exports))),
     %% run some tests with a small and a big max_size option
     {Ts,true} = timer:tc(fun() -> max_size_test_aux(42) end),
     {Tb,true} = timer:tc(fun() -> max_size_test_aux(16#ffffffff) end),
     %% ensure that the test with the big max_size option does not take
     %% much longer than the small one to complete
-    ?assertEqual(true, 2*Ts >= Tb).
+    ?assert(2*Ts >= Tb).
 
 max_size_test_aux(Size) ->
     proper:quickcheck(perf_max_size:prop_identity(), [5,{max_size,Size}]).
