@@ -642,15 +642,15 @@ get_exp_info(Mod) ->
 -spec get_code_and_exports(mod_name()) ->
 	  rich_result2([abs_form()],mod_exp_funs()).
 get_code_and_exports(Mod) ->
-    case code:which(Mod) of
-	ObjFileName when is_list(ObjFileName) ->
-	    case get_chunks(ObjFileName) of
+    case code:get_object_code(Mod) of
+	{Mod, ObjBin, _ObjFileName} ->
+	    case get_chunks(ObjBin) of
 		{ok,_AbsCode,_ModExpFuns} = Result ->
 		    Result;
 		{error,Reason} ->
 		    get_code_and_exports_from_source(Mod, Reason)
 	    end;
-	_ErrAtom when is_atom(_ErrAtom) ->
+	error ->
 	    get_code_and_exports_from_source(Mod, cant_find_object_file)
     end.
 
