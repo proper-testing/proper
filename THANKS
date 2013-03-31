@@ -1,25 +1,25 @@
 The following people, in chronological order, have sent us patches and
 pull requests that have been incorporated in PropEr's code base:
 
-1. Joseph Wayne Norton
-2. Yurii Rashkovskii
-3. Ryosuke Nakai
-4. Krzysiek Goj
-5. Thomas Charbonnel
-6. Samuel Rivas
-7. Motiejus Jakštys
-8. Dave Cottlehuber
-9. Fredrik Linder
+  1. Joseph Wayne Norton
+  2. Yurii Rashkovskii
+  3. Ryosuke Nakai
+  4. Krzysiek Goj
+  5. Thomas Charbonnel
+  6. Samuel Rivas
+  7. Motiejus Jakštys
+  8. Dave Cottlehuber
+  9. Fredrik Linder
+ 10. Jeff Hlywa
 
 We sincerely thank them for making PropEr a better tool.
 
 In addition to code contributors, the following people have sent us
 bug reports that have also improved the quality of PropEr.
 
-1. Geoff Cant
-2. ...
-N-1. Jorge Diz Pico
-N. Jeff Hlywa
+  1. Geoff Cant
+  2. ...
+  N. Jorge Diz Pico
 
 Apologies to those who we forgot to mention; we can assure you it's
 not intentional, we are simply getting older... If you want to be 
