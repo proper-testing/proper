@@ -464,7 +464,9 @@ move_shrinker(Seq, Par, I) ->
 %%   {{@type dynamic_state()}, {@type term()}}, specifying the state prior to
 %%   command execution and the actual result of the command.</li>
 %% <li>`DynamicState' contains the state of the abstract state machine at
-%%   the moment when execution stopped.</li>
+%%   the moment when execution stopped. In case execution has stopped due to a
+%%   false postcondition, `DynamicState' corresponds to the state prior to
+%%   execution of the last command.</li>
 %% <li>`Result' specifies the outcome of command execution. It can be
 %%   classified in one of the following categories:
 %%   <ul>
