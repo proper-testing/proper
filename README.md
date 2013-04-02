@@ -95,7 +95,6 @@ Quickstart guide
          startup file (`~/.bashrc` in the case of the Bash shell):
 
              export ERL_LIBS=/full/path/to/proper
-
     2.   Erlang resource file: Add the following line to your `~/.erlang` file:
 
              code:load_abs("/full/path/to/proper").
