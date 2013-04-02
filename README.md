@@ -17,7 +17,7 @@ You can reach PropEr's developers in the following ways:
 We welcome user contributions and feedback (comments, suggestions, feature
 requests, bug reports, patches etc.).
 
-Copyright 2010-2012 by Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas.
+Copyright 2010-2013 by Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas.
 
 This program is distributed under the [GPL](http://www.gnu.org/licenses/gpl.html),
 version 3 or later. Please see the COPYING file for details.
@@ -95,6 +95,7 @@ Quickstart guide
          startup file (`~/.bashrc` in the case of the Bash shell):
 
              export ERL_LIBS=/full/path/to/proper
+
     2.   Erlang resource file: Add the following line to your `~/.erlang` file:
 
              code:load_abs("/full/path/to/proper").
