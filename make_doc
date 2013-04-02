@@ -77,7 +77,16 @@
 
 -spec main([string()]) -> 'ok'.
 main(_CmdlineArgs) ->
-    ok = file:make_dir(?TEMP_SRC_DIR),
+    Delete = fun(Filename,ok) -> file:delete(Filename) end,
+    case file:make_dir(?TEMP_SRC_DIR) of
+	ok ->
+	    ok;
+	{error,eexist} ->
+	    ok = filelib:fold_files(?TEMP_SRC_DIR, ?SRC_FILES_RE, false,
+				    Delete, ok),
+	    ok = file:del_dir(?TEMP_SRC_DIR),
+	    ok
+    end,
     Copy =
 	fun(SrcFilename, ok) ->
 	    Basename = filename:basename(SrcFilename),
@@ -89,7 +98,6 @@ main(_CmdlineArgs) ->
     Process = fun(Filename,ok) -> process(Filename) end,
     ok = filelib:fold_files(?TEMP_SRC_DIR, ?SRC_FILES_RE, false, Process, ok),
     ok = edoc:application(?APP_NAME, ?BASE_DIR, ?EDOC_OPTS),
-    Delete = fun(Filename,ok) -> file:delete(Filename) end,
     ok = filelib:fold_files(?TEMP_SRC_DIR, ?SRC_FILES_RE, false, Delete, ok),
     ok = file:del_dir(?TEMP_SRC_DIR),
     ok.
