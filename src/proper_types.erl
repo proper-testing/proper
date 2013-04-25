@@ -142,7 +142,7 @@
 	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0,
 	 shrink_list/1, safe_union/1, safe_weighted_union/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
-	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
+	 float/0, node/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
@@ -1213,6 +1213,10 @@ real() -> float().
 %% @equiv boolean()
 -spec bool() -> proper_types:type().
 bool() -> boolean().
+
+%% @equiv atom()
+-spec node() -> proper_types:type().
+node() -> atom().
 
 %% @equiv integer(Low, High)
 -spec choose(extint(), extint()) -> proper_types:type().

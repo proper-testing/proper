@@ -181,7 +181,7 @@
 %% CAUTION: all these must be sorted
 -define(STD_TYPES_0,
 	[any,arity,atom,binary,bitstring,bool,boolean,byte,char,float,integer,
-	 list,neg_integer,non_neg_integer,number,pos_integer,string,term,
+	 list,neg_integer,node,non_neg_integer,number,pos_integer,string,term,
 	 timeout]).
 -define(HARD_ADTS,
 	%% gb_trees:iterator and gb_sets:iterator are NOT hardcoded
@@ -552,7 +552,7 @@ get_type_repr(Mod, TypeRef, false, #state{types = Types} = State) ->
 	{ok,TypeRepr} ->
 	    {ok, TypeRepr, State};
 	error ->
-	    {error, {missing_type,Mod,TypeRef}}
+	    {error, {missing_typy,Mod,TypeRef}}
     end.
 
 -spec prepare_for_remote(mod_name(), type_name(), arity(), state()) ->
