@@ -552,7 +552,7 @@ get_type_repr(Mod, TypeRef, false, #state{types = Types} = State) ->
 	{ok,TypeRepr} ->
 	    {ok, TypeRepr, State};
 	error ->
-	    {error, {missing_typy,Mod,TypeRef}}
+	    {error, {missing_type,Mod,TypeRef}}
     end.
 
 -spec prepare_for_remote(mod_name(), type_name(), arity(), state()) ->
