@@ -81,9 +81,9 @@ Quickstart guide
 
         git clone git://github.com/manopapad/proper.git
 
-*   Compile PropEr: Run `make fast` if you just want to build PropEr, optionally
-    followed by a `make tests` to also run its unit tests. (A plain `make` call
-    does a `make fast` but also runs dialyzer on PropEr's code base; this
+*   Compile PropEr: Run `make` if you just want to build PropEr, optionally
+    followed by a `make tests` to also run its unit tests. `make fast dialyzer`
+    does a `make fast` and also runs dialyzer on PropEr's code base; this
     requires having a dialyzer PLT. To also build PropEr's documentation issue
     a `make all` call; in that case, you are going to need the `syntax_tools`
     application and a recent version of `EDoc`).
@@ -137,7 +137,7 @@ so normally PropEr output is not visible when `proper:quickcheck()` is
 invoked from EUnit. You can work around this by passing the option
 `{to_file, user}` to `proper:quickcheck/2`. For example:
 
-	   ?assertEqual(true, proper:quickcheck(your_mod:some_prop(), [{to_file, user}]).
+       ?assertEqual(true, proper:quickcheck(your_mod:some_prop(), [{to_file, user}]).
 
 This will make PropEr properties visible also when invoked from EUnit.
 

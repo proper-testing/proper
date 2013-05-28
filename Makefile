@@ -1,6 +1,6 @@
 # Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
-#                     Eirini Arvaniti <eirinibob@gmail.com>
-#                 and Kostis Sagonas <kostis@cs.ntua.gr>
+#											Eirini Arvaniti <eirinibob@gmail.com>
+#									and Kostis Sagonas <kostis@cs.ntua.gr>
 #
 # This file is part of PropEr.
 #
@@ -11,18 +11,18 @@
 #
 # PropEr is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
+# along with PropEr.	If not, see <http://www.gnu.org/licenses/>.
 
-# Author(s):   Manolis Papadakis, Kostis Sagonas
+# Author(s):	 Manolis Papadakis, Kostis Sagonas
 # Description: Instructions for make
 
 .PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
-default: fast dialyzer
+default: fast
 
 fast: get-deps compile
 
@@ -38,7 +38,7 @@ compile:
 	./rebar compile
 
 dialyzer: compile
-	dialyzer -n -nn -Wunmatched_returns ebin $(find .  -path 'deps/*/ebin/*.beam')
+	dialyzer -n -nn -Wunmatched_returns ebin $(find .	 -path 'deps/*/ebin/*.beam')
 
 check_escripts:
 	./check_escripts.sh make_doc write_compile_flags
