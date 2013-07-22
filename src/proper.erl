@@ -1098,14 +1098,14 @@ mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
     Print("~n", []),
     LongResult.
 
--spec cook_test(raw_test(), opts()) -> test().
+-spec cook_test(raw_test(), opts()) -> test() | no_return().
 cook_test({test,Test}, _Opts) ->
     Test;
 cook_test({spec,MFA}, #opts{spec_timeout = SpecTimeout, false_positive_mfas = FalsePositiveMFAs}) ->
     case proper_typeserver:create_spec_test(MFA, SpecTimeout, FalsePositiveMFAs) of
 	{ok,Test} ->
 	    Test;
-	{error,Reason}  ->
+	{error,Reason} ->
 	    ?FORALL(_, dummy, throw({'$typeserver',Reason}))
     end.
 
