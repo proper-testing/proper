@@ -111,8 +111,9 @@ tuple_map(Fun, Tuple) ->
 cut_improper_tail(List) ->
     cut_improper_tail_tr(List, []).
 
--spec cut_improper_tail_tr(maybe_improper_list(T,T | []) | T, [T]) ->
-	  [T] | {[T],T}.
+%-spec cut_improper_tail_tr(maybe_improper_list(T::any(), T::any() | []) | T::any(), [T::any()]) ->
+%	  [T::any()] | {[T::any()],T::any()}.
+-spec cut_improper_tail_tr(_, [T::any()]) -> [T::any()] | {[T::any()], _}.
 cut_improper_tail_tr([], AccList) ->
     lists:reverse(AccList);
 cut_improper_tail_tr([Head | Tail], AccList) ->
@@ -131,7 +132,7 @@ head_length_tr([_Head | Tail], Len) ->
 head_length_tr(_ImproperTail, Len) ->
     Len.
 
--spec find_first(fun((T) -> boolean()), [T]) -> {position(),T} | 'none'.
+-spec find_first(fun((T::any()) -> boolean()), [T::any()]) -> {position(),T::any()} | 'none'.
 find_first(Pred, List) ->
     find_first_tr(Pred, List, 1).
 

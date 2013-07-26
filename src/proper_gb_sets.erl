@@ -135,11 +135,12 @@ largest(Set) ->
 to_list(Set) ->
     gb_sets:to_list(Set).
 
--spec iterator(gb_set(T)) -> iterator(T).
+-spec iterator(gb_set(_T)) -> gb_sets:iter().
 iterator(Set) ->
     gb_sets:iterator(Set).
 
--spec next(iterator(T)) -> {T, iterator(T)} | 'none'.
+% underspec -spec next(iterator(T)) -> {T, iterator(T)} | 'none'.
+-spec next(gb_sets:iter()) -> none | {_, gb_sets:iter()}.
 next(Iter) ->
     gb_sets:next(Iter).
 
@@ -147,7 +148,7 @@ next(Iter) ->
 union(Set1, Set2) ->
     gb_sets:union(Set1, Set2).
 
--spec union([gb_set(T)]) -> gb_set(T).
+-spec union([gb_set(T),...]) -> gb_set(T).
 union(Sets) ->
     gb_sets:union(Sets).
 

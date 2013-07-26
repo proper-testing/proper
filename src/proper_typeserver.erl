@@ -597,7 +597,7 @@ translate_type({Mod,Str} = ImmType, #state{cached = Cached} = State) ->
 	    end
     end.
 
--spec parse_type(string()) -> rich_result(abs_type()).
+-spec parse_type(string()) -> {error, {integer() | {integer(), pos_integer()}, atom() | tuple(), _}} | {'ok',_}.
 parse_type(Str) ->
     TypeStr = "-type mytype() :: " ++ Str ++ ".",
     case erl_scan:string(TypeStr) of
@@ -629,7 +629,19 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
     end.
 
 %% @private
--spec get_exp_info(mod_name()) -> rich_result2(mod_exp_types(),mod_exp_funs()).
+-spec get_exp_info(mod_name()) -> {error, no_abstract_code 
+    | unsupported_abstract_code_format 
+    | {cant_find_object_file | no_abstract_code | not_a_beam_file 
+	| unsupported_abstract_code_format | {not_a_beam_file, [any()]} 
+	| {file_error | invalid_beam_file | invalid_chunk 
+	    | key_missing_or_invalid | missing_chunk | unknown_chunk,
+	    [any()], atom() | [any(),...] | non_neg_integer()}
+	| {chunk_too_big, [any()], [any(),...], non_neg_integer(), non_neg_integer()},
+	cant_find_source_file | string() | {cant_compile_source_file,[any()]}}
+    | {file_error | invalid_beam_file | invalid_chunk | key_missing_or_invalid
+	| missing_chunk | unknown_chunk, string(), atom() | nonempty_string() | non_neg_integer()}
+    | {chunk_too_big, string(), nonempty_string(), non_neg_integer(), non_neg_integer()}}
+    | {'ok',set(),set()}.
 get_exp_info(Mod) ->
     case get_code_and_exports(Mod) of
 	{ok,AbsCode,ModExpFuns} ->
@@ -654,8 +666,30 @@ get_code_and_exports(Mod) ->
 	    get_code_and_exports_from_source(Mod, cant_find_object_file)
     end.
 
--spec get_code_and_exports_from_source(mod_name(), term()) ->
-	  rich_result2([abs_form()],mod_exp_funs()).
+-spec get_code_and_exports_from_source(mod_name(), cant_find_object_file
+	| no_abstract_code | unsupported_abstract_code_format
+	| {not_a_beam_file, string()} 
+	| {file_error | invalid_beam_file | invalid_chunk 
+	| key_missing_or_invalid | missing_chunk | unknown_chunk,
+	    string(), atom() | nonempty_string() | non_neg_integer()}
+	| {chunk_too_big, string(), nonempty_string(), non_neg_integer(),
+	    non_neg_integer()}) -> 
+    {error, no_abstract_code | unsupported_abstract_code_format
+	| {cant_find_object_file | no_abstract_code | not_a_beam_file
+	    | unsupported_abstract_code_format | {not_a_beam_file, [any()]} 
+	| {file_error | invalid_beam_file | invalid_chunk
+	    | key_missing_or_invalid | missing_chunk | unknown_chunk,
+	    [any()], atom() | [any(),...] | non_neg_integer()} 
+	| {chunk_too_big, [any()], [any(),...], non_neg_integer(),
+	    non_neg_integer()},
+	cant_find_source_file | string() 
+	| {cant_compile_source_file, [any()]}} 
+	| {file_error | invalid_beam_file | invalid_chunk 
+	    | key_missing_or_invalid | missing_chunk | unknown_chunk,
+	    string(), atom() | nonempty_string() | non_neg_integer()}
+	| {'chunk_too_big', string(), nonempty_string(), non_neg_integer(),
+	   non_neg_integer()}}
+    | {'ok', [any(),...], set()}.
 get_code_and_exports_from_source(Mod, ObjError) ->
     SrcFileName = atom_to_list(Mod) ++ ?SRC_FILE_EXT,
     case code:where_is_file(SrcFileName) of
@@ -1107,7 +1141,7 @@ match(Pattern, Term) when tuple_size(Pattern) =:= tuple_size(Term) ->
 match(_Pattern, _Term) ->
     throw(no_match).
 
--spec match([pat_field()], [term()], 'none' | {'ok',T}, boolean()) -> T.
+-spec match([pat_field()], [term()], 'none' | {'ok',T::any()}, boolean()) -> T::any().
 match([], [], {ok,Target}, _TypeMode) ->
     Target;
 match([0|PatRest], [_|ToMatchRest], Acc, TypeMode) ->
@@ -1224,7 +1258,10 @@ cant_have_head(_Type) ->
 %% Only covers atoms, integers and tuples, i.e. those that can be specified
 %% through singleton types.
 -spec term_to_singleton_type(atom() | integer()
-			     | loose_tuple(atom() | integer())) -> abs_type().
+                            | loose_tuple(atom() | integer())) ->
+    {'atom', 0, atom()} | {'integer',0,non_neg_integer()} 
+    | {'op', 0, '-', {'integer', 0, pos_integer()}} 
+    | {'type',0,'tuple',[{_,_,_} | {_,_,_,_}]}.
 term_to_singleton_type(Atom) when is_atom(Atom) ->
     {atom,0,Atom};
 term_to_singleton_type(Int) when is_integer(Int), Int >= 0 ->
@@ -1474,7 +1511,7 @@ is_custom_instance(X, Mod, RemMod, Name, RawArgForms, IsRemote, Stack) ->
 	    is_instance(X, RemMod, AbsType, [FullTypeRef|Stack])
     end.
 
--spec get_abs_type(mod_name(), type_ref(), [abs_type()], boolean()) ->
+-spec get_abs_type(mod_name(), {type, atom(), byte()}, [abs_type()], boolean()) ->
 	  abs_type().
 get_abs_type(RemMod, TypeRef, ArgForms, IsRemote) ->
     case get_type_repr(RemMod, TypeRef, IsRemote) of
@@ -1990,8 +2027,8 @@ convert_new_type(_TypeRef, {Mod,record,Name,SubstsDict} = FullTypeRef,
 	    Error
     end.
 
--spec cache_type(mod_name(), type_ref(), fin_type(), abs_type(), symb_info(),
-		 state()) -> state().
+-spec cache_type(mod_name(), {'record', atom(), 0} | {'type', atom(), byte()},
+      fin_type(), abs_type(), 'not_symb'|{'orig_abs', _}, state()) -> state().
 cache_type(Mod, TypeRef, FinType, TypeForm, SymbInfo,
 	   #state{types = Types} = State) ->
     TypeRepr = {cached,FinType,TypeForm,SymbInfo},
@@ -2109,17 +2146,21 @@ eval_int(Expr) ->
 	    error
     end.
 
--spec expr_error(atom(), abs_expr()) -> {'error',term()}.
+-spec expr_error(Reason::invalid_base|invalid_int_const|invalid_unit, abs_expr()) ->
+    {'error', {Reason::invalid_base|invalid_int_const|invalid_unit, list()}}.
 expr_error(Reason, Expr) ->
     {error, {Reason,lists:flatten(erl_pp:expr(Expr))}}.
 
--spec expr_error(atom(), abs_expr(), abs_expr()) -> {'error',term()}.
+-spec expr_error(invalid_range, abs_expr(), abs_expr()) ->
+    {'error', {invalid_range, list(), list()}}.
 expr_error(Reason, Expr1, Expr2) ->
     Str1 = lists:flatten(erl_pp:expr(Expr1)),
     Str2 = lists:flatten(erl_pp:expr(Expr2)),
     {error, {Reason,Str1,Str2}}.
 
--spec base_case_error(stack()) -> {'error',term()}.
+-spec base_case_error(['fun'|list|tuple|union|{atom(),record|type,atom(),[any()] | dict()},...]) ->
+    {'error', {'no_base_case',{atom(),'record',atom()} 
+			  | {atom(),'type',atom(),non_neg_integer()}}}.
 %% TODO: This might confuse, since it doesn't record the arguments to parametric
 %%	 types or the type subsitutions of a record.
 base_case_error([{Mod,type,Name,Args} | _Upper]) ->
@@ -2283,7 +2324,7 @@ soft_clean_rec_args_tr([Arg | Rest], Acc, RecFunInfo, ToList, FoundListInst,
     soft_clean_rec_args_tr(Rest, [Arg | Acc], RecFunInfo, ToList, FoundListInst,
 			   Pos+1).
 
--spec get_group(pos_integer(), [non_neg_integer()]) -> pos_integer().
+-spec get_group(pos_integer(), [byte(),...]) -> pos_integer().
 get_group(Pos, AllMembers) ->
     get_group_tr(Pos, AllMembers, 1).
 

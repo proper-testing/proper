@@ -369,7 +369,7 @@ atom_gen(Size) ->
 	 list_to_atom(Str)).
 
 %% @private
--spec atom_rev(atom()) -> imm_instance().
+-spec atom_rev(atom()) -> {'$used',string(),atom()}.
 atom_rev(Atom) ->
     {'$used', atom_to_list(Atom), Atom}.
 
@@ -382,7 +382,7 @@ binary_gen(Size) ->
 	 list_to_binary(Bytes)).
 
 %% @private
--spec binary_rev(binary()) -> imm_instance().
+-spec binary_rev(binary()) -> {'$used', [byte()], binary()}.
 binary_rev(Binary) ->
     {'$used', binary_to_list(Binary), Binary}.
 
@@ -402,7 +402,9 @@ bitstring_gen(Size) ->
 	 <<BytesHead/binary, TailByte:NumBits>>).
 
 %% @private
--spec bitstring_rev(bitstring()) -> imm_instance().
+-spec bitstring_rev(bitstring()) ->
+    {'$used', {{'$used', [any()], binary()}, non_neg_integer(),
+		integer()}, bitstring()}.
 bitstring_rev(BitString) ->
     List = bitstring_to_list(BitString),
     {BytesList, BitsTail} = lists:splitwith(fun erlang:is_integer/1, List),
@@ -508,7 +510,7 @@ loose_tuple_gen(Size, ElemType) ->
 	 list_to_tuple(L)).
 
 %% @private
--spec loose_tuple_rev(tuple(), proper_types:type()) -> imm_instance().
+-spec loose_tuple_rev(tuple(), proper_types:type()) -> {'$used', [any()], tuple()}.
 loose_tuple_rev(Tuple, ElemType) ->
     CleanList = tuple_to_list(Tuple),
     List = case proper_types:find_prop(reverse_gen, ElemType) of
@@ -585,10 +587,14 @@ native_type_gen(Mod, TypeStr) ->
 %% Function-generation functions
 %%------------------------------------------------------------------------------
 
+%% @private
+-spec arity_lim_err() -> no_return().
+arity_lim_err() -> throw('$arity_limit').
+
 -spec create_fun(arity(), proper_types:type(), fun_seed()) -> function().
 create_fun(Arity, RetType, FunSeed) ->
     Handler = fun(Args) -> function_body(Args, RetType, FunSeed) end,
-    Err = fun() -> throw('$arity_limit') end,
+    Err = fun arity_lim_err/0,
     'MAKE_FUN'(Arity, Handler, Err).
 
 %% @private

@@ -365,7 +365,8 @@ choose_weighted_transition(Mod, From, T_list) ->
 cook_history(From, history) -> From;
 cook_history(_, To)         -> To.
 
--spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
+% underspec -spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
+-spec is_exported(mod_name(), {weight, 3}) -> boolean().
 is_exported(Mod, Fun) ->
     lists:member(Fun, Mod:module_info(exports)).
 

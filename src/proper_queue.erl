@@ -126,7 +126,7 @@ join(Queue1, Queue2) ->
 split(N, Queue) ->
     queue:split(N, Queue).
 
--spec filter(fun((T) -> boolean() | [T]), queue()) -> queue().
+-spec filter(fun((T::any()) -> boolean() | [T::any()]), queue()) -> queue().
 filter(Pred, Queue) ->
     queue:filter(Pred, Queue).
 

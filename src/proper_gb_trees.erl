@@ -60,7 +60,7 @@ is_empty(Tree) ->
 size(Tree) ->
     gb_trees:size(Tree).
 
--spec lookup(K, gb_tree(K,V)) -> 'none' | {'value', V}.
+-spec lookup(K::any(), gb_tree(K::any(),V::any())) -> 'none' | {'value', V::any()}.
 lookup(Key, Tree) ->
     gb_trees:lookup(Key, Tree).
 
@@ -128,11 +128,13 @@ keys(Tree) ->
 values(Tree) ->
     gb_trees:values(Tree).
 
--spec iterator(gb_tree(K,V)) -> iterator(K,V).
+% underspec: -spec iterator(gb_tree(K,V)) -> iterator(K,V).
+-spec iterator(gb_tree(_K,_V)) -> gb_trees:iter().
 iterator(Tree) ->
     gb_trees:iterator(Tree).
 
--spec next(iterator(K,V)) -> 'none' | {K, V, iterator(K,V)}.
+% underspec: -spec next(iterator(K,V)) -> 'none' | {K, V, iterator(K,V)}.
+-spec next(gb_trees:iter()) -> 'none' | {_, _, gb_trees:iter()}.
 next(Iter) ->
     gb_trees:next(Iter).
 

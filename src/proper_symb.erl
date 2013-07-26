@@ -246,7 +246,7 @@ pretty_print(VarValues, SymbTerm) ->
 parse_fun(Module, Function, ArgTreeList) ->
     {call,0,{remote,0,{atom,0,Module},{atom,0,Function}},ArgTreeList}.
 
--spec parse_term(term()) -> abs_expr().
+-spec parse_term(atom() | bitstring() | maybe_improper_list() | number() | tuple()) -> abs_expr().
 parse_term(TreeList) when is_list(TreeList) ->
     {RestOfList, Acc0} =
 	case proper_arith:cut_improper_tail(TreeList) of

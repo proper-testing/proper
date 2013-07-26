@@ -339,7 +339,8 @@ to_binary(Type) ->
     term_to_binary(Type).
 
 %% @private
-%% TODO: restore: -spec from_binary(binary()) -> proper_types:type().
+%% TODO: restore: 
+-spec from_binary(binary()) -> proper_types:type().
 from_binary(Binary) ->
     binary_to_term(Binary).
 
@@ -347,8 +348,8 @@ from_binary(Binary) ->
 type_from_list(KeyValueList) ->
     {'$type',KeyValueList}.
 
--spec add_prop(type_prop_name(), type_prop_value(), proper_types:type()) ->
-	  proper_types:type().
+-spec add_prop(kind | noshrink | parameters | size_transform,
+    type_prop_value(), proper_types:type()) -> proper_types:type().
 add_prop(PropName, Value, {'$type',Props}) ->
     {'$type',lists:keystore(PropName, 1, Props, {PropName, Value})}.
 
@@ -358,8 +359,7 @@ add_props(PropList, {'$type',OldProps}) ->
                     lists:keystore(N, 1, Acc, NV)
                 end, OldProps, PropList)}.
 
--spec append_to_prop(type_prop_name(), type_prop_value(),
-		     proper_types:type()) -> proper_types:type().
+-spec append_to_prop(constraints, {_, _}, proper_types:type()) -> proper_types:type().
 append_to_prop(PropName, Value, {'$type',Props}) ->
     Val = case lists:keyfind(PropName, 1, Props) of
         {PropName, V} ->
@@ -455,8 +455,8 @@ wrapper_test(ImmInstance, Type) ->
     lists:any(fun(T) -> is_instance(ImmInstance, T) end, unwrap(Type)).
 
 %% @private
-%% TODO: restore:-spec unwrap(proper_types:type()) -> [proper_types:type(),...].
 %% TODO: check if it's actually a raw type that's returned?
+-spec unwrap(proper_types:type()) -> [proper_types:type(),...].
 unwrap(Type) ->
     RawInnerTypes = proper_gen:alt_gens(Type) ++ [proper_gen:normal_gen(Type)],
     [cook_outer(T) || T <- RawInnerTypes].
