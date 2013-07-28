@@ -27,6 +27,8 @@
 
 -include_lib("proper/include/proper.hrl").
 
+-spec foo() -> any().
 foo() -> ?LET(X, types_test1:exp1(), {42,X}).
 
+-spec prop_1() -> any().
 prop_1() -> ?FORALL(_, foo(), true).

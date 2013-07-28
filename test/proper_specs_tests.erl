@@ -29,9 +29,10 @@
 -include("proper.hrl").
 
 -include_lib("eunit/include/eunit.hrl").
+-spec test() -> any().
 
--export([check1_specs_test_/0,
-         check2_specs_test_/0]).
+%-export([check1_specs_test_/0,
+%         check2_specs_test_/0]).
 
 -export([test1_any/1,
          test2_skip/1,
@@ -41,9 +42,11 @@
          test6_exc_fp/2,
          test7_exc_fp/2]).
 
+-spec check1_specs_test_() -> any().
 check1_specs_test_() ->
     ?_test(?assert(check1_specs_test())).
 
+-spec check2_specs_test_() -> any().
 check2_specs_test_() ->
     ?_test(?assert(check2_specs_test())).
 
@@ -51,6 +54,7 @@ check2_specs_test_() ->
 %% Unit tests
 %%------------------------------------------------------------------------------
 
+-spec check1_specs_test() -> any().
 check1_specs_test() ->
     Options = [quiet, long_result,
                {skip_mfas, [{?MODULE, check1_specs_test_, 0},
@@ -67,6 +71,7 @@ check1_specs_test() ->
             error(failed, Else)
     end.
 
+-spec check2_specs_test() -> any().
 check2_specs_test() ->
     Options = [quiet, long_result,
                {skip_mfas, [{?MODULE, check1_specs_test_, 0},
@@ -128,7 +133,7 @@ test1_any(Any) ->
 test2_skip(Any) ->
     Any.
 
--spec test3_fail(any()) -> true.
+-spec test3_fail(any()) -> {ng, any()}.
 test3_fail(Any) ->
     {ng, Any}.
 

@@ -28,3 +28,5 @@
 -type exp1(T) :: {'a' | 'b', binary()} | {'c', T}.
 -type exp2() :: atom() | [types_test1:exp1()].
 -record(rec1, {f :: exp1(fun(() -> integer())), g :: fun((_,_) -> float())}).
+-type rec() :: #rec1{}.
+-type dummy() :: dummy() | rec(). % suppress unusued warning

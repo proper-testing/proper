@@ -35,12 +35,15 @@
 %% A simple fsm test for the process dictionary; tests the
 %% operations erlang:put/2, erlang:get/1, erlang:erase/1
 
+-spec test() -> any().
 test() ->
     test(100).
 
+-spec test(_) -> any().
 test(N) ->
     proper:quickcheck(?MODULE:prop_pdict(), N).
 
+-spec prop_pdict() -> any().
 prop_pdict() ->
     ?FORALL(Cmds, proper_fsm:commands(?MODULE),
 	    begin
@@ -54,30 +57,41 @@ prop_pdict() ->
 			     Res == ok))
 	    end).
 
+-spec set_up() -> ok.
 set_up() -> ok.
 
+-spec clean_up() -> ok.
 clean_up() ->
     lists:foreach(fun(Key) -> erlang:erase(Key) end, ?KEYS).
 
+-spec key() -> any().
 key() ->
     elements(?KEYS).
 
+-spec key([any()]) -> any().
 key(List) ->
     elements(proplists:get_keys(List)).
 
+-spec initial_state() -> empty_pdict.
 initial_state() -> empty_pdict.
 
+-spec initial_state_data() -> [].
 initial_state_data() -> [].
 
+-spec empty_pdict(_) -> [{non_empty_pdict, {call, erlang, put, [any(),...]}},...].
 empty_pdict(_S) ->
     [{non_empty_pdict, {call,erlang,put,[key(),integer()]}}].
 
+-spec non_empty_pdict([any()]) ->
+    [{empty_pdict, {call, erlang, erase, [any(),...]}}
+    | {history, {call, erlang, erase | get | put,[any(),...]}},...].
 non_empty_pdict(S) ->
     [{history, {call,erlang,put,[key(),integer()]}},
      {history, {call,erlang,get,[key(S)]}},
      {history, {call,erlang,erase,[key(S)]}},
      {empty_pdict, {call,erlang,erase,[key(S)]}}].
 
+-spec precondition(_,_,_,_) -> boolean().
 precondition(non_empty_pdict, non_empty_pdict, S, {call,erlang,erase,[Key]}) ->
     proplists:is_defined(Key, S) andalso proplists:delete(Key, S) =/= [];
 precondition(non_empty_pdict, empty_pdict, S, {call,erlang,erase,[Key]}) ->
@@ -87,6 +101,7 @@ precondition(_, _, S, {call,erlang,get,[Key]}) ->
 precondition(_, _, _, _) ->
     true.
 
+-spec postcondition(_,_,_,_,_) -> boolean().
 postcondition(_, _, Props, {call,erlang,put,[Key,_]}, undefined) ->
     not proplists:is_defined(Key, Props);
 postcondition(_, _, Props, {call,erlang,put,[Key,_]}, Old) ->
@@ -98,6 +113,7 @@ postcondition(_, _, Props, {call,erlang,erase,[Key]}, Val) ->
 postcondition(_, _, _, _, _) ->
     false.
 
+-spec next_state_data(_,_,_,_,{call, erlang, erase | get | put, [any(),...]}) -> any().
 next_state_data(_, _, Props, _Var, {call,erlang,put,[Key,Value]}) ->
     %% correct model
     [{Key,Value}|proplists:delete(Key, Props)];
@@ -108,9 +124,11 @@ next_state_data(_, _, Props, _Var, {call,erlang,erase,[Key]}) ->
 next_state_data(_, _, Props, _Var, {call,erlang,get,[_]}) ->
     Props.
 
+-spec weight(_,_,{call, erlang, erase | get | put, _}) -> 2 | 5.
 weight(_, _, {call,erlang,get,_}) -> 5;
 weight(_, _, {call,erlang,erase,_}) -> 2;
 weight(_, _, {call,erlang,put,_}) -> 5.
 
+-spec sample_commands() -> any().
 sample_commands() ->
     proper_gen:sample(proper_fsm:commands(?MODULE)).

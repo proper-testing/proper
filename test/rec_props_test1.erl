@@ -30,4 +30,5 @@
 
 -type exp1() :: integer().
 
+-spec prop_1() -> any().
 prop_1() -> ?FORALL(_, rec_props_test2:exp2(), true).

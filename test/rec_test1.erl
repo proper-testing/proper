@@ -38,6 +38,7 @@
 -type aa() :: {} | mylist(aa()).
 -type bb() :: mylist(integer()).
 -type cc() :: mylist(cc()).
+-type dummy() :: dummy() | bb(). % make dialyzer happy
 
 -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
 

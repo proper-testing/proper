@@ -30,7 +30,7 @@
 -include_lib("proper/include/proper.hrl").
 
 -type object() :: tuple().
--type table_type() :: 'set' | 'ordered_set' | 'bag' | 'duplicate_bag'.
+-type table_type() :: set | ordered_set | bag | duplicate_bag.
 
 -record(state, {stored = []  :: [object()],     %% list of objects
 		                                %% stored in ets table
@@ -43,41 +43,52 @@
 
 %%% Generators
 
+-spec key() -> any().
 key() -> frequency([{5, integer_key()},
 		    {1, float_key()}]).
 
+-spec integer_key() -> any().
 integer_key() ->
     elements(?INT_KEYS).
 
+-spec float_key() -> any().
 float_key() ->
     elements(?FLOAT_KEYS).
 
+-spec int_or_bin() -> any().
 int_or_bin() ->
     frequency([{5, integer()}, {1, binary()}]).
 
+-spec object() -> any().
 object() ->
     oneof([{key(), int_or_bin()},
 	   {key(), int_or_bin(), binary()},
 	   {key(), int_or_bin(), binary(), binary()}]).
 
+-spec object(#state{stored::[tuple()],type::table_type()}) -> any().
 object(S) ->
     elements(S#state.stored).
 
+-spec key(#state{stored::[tuple()],type::table_type()}) -> any().
 key(S) ->
     ?LET(Object, object(S), element(1, Object)).
 
+-spec small_int() -> any().
 small_int() ->
     resize(10, integer()).
 
 
 %%% Abstract state machine for ets table
 
+-spec initial_state(table_type()) -> #state{stored::[],type::table_type()}.
 initial_state(Type) ->
     #state{type = Type}.
 
+-spec initial_state() -> #state{stored::[],type::set}.
 initial_state() ->
     #state{}.
 
+-spec command(_) -> any().
 command(S) ->
     oneof([{call,ets,delete_object,[?TAB, object(S)]} || S#state.stored =/= []] ++
 	  [{call,ets,delete,[?TAB, key(S)]} || S#state.stored =/= []] ++
@@ -88,6 +99,7 @@ command(S) ->
 	   || S#state.stored =/= [],
 	      S#state.type =:= set orelse S#state.type =:= ordered_set]).
 
+-spec precondition(_,{call,_,_,_}) -> boolean().
 precondition(S, {call,_,update_counter,[?TAB,Key,_Incr]}) ->
     Object = case S#state.type of
 		 set ->
@@ -99,6 +111,7 @@ precondition(S, {call,_,update_counter,[?TAB,Key,_Incr]}) ->
 precondition(_S, {call,_,_,_}) ->
     true.
 
+-spec next_state(_,_,{call,_,_,_}) -> any().
 next_state(S, _V, {call,_,update_counter,[?TAB,Key,Incr]}) ->
     case S#state.type of
 	set ->
@@ -174,6 +187,7 @@ next_state(S, _V, {call,_,delete,[?TAB,Key]}) ->
     end;
 next_state(S, _V, {call,_,_,_}) -> S.
 
+-spec postcondition(_,{call, _, delete | delete_object | insert | insert_new | lookup | update_counter, [any(),...]},_) -> boolean().
 postcondition(S, {call,_,update_counter,[?TAB,Key,Incr]}, Res) ->
     Object = case S#state.type of
 		 set ->
@@ -217,6 +231,7 @@ postcondition(S, {call,_,lookup,[?TAB,Key]}, Res) ->
 
 %%% Sample properties
 
+-spec prop_ets() -> any().
 prop_ets() ->
     ?FORALL(Type, noshrink(table_type()),
         ?FORALL(Cmds, commands(?MODULE, initial_state(Type)),
@@ -229,6 +244,7 @@ prop_ets() ->
 		   collect(Type, Res =:= ok))
 	    end)).
 
+-spec prop_parallel_ets() -> any().
 prop_parallel_ets() ->
     ?FORALL(Type, noshrink(table_type()),
         ?FORALL(Cmds, parallel_commands(?MODULE, initial_state(Type)),
@@ -245,17 +261,21 @@ prop_parallel_ets() ->
 
 %%% Utility Functions
 
+-spec set_up() -> table.
 set_up() ->
     catch ets:delete(?TAB),
     Type = lists:nth(proper_arith:rand_int(1, 4),
 		     [set, ordered_set, bag, duplicate_bag]),
     ?TAB = ets:new(?TAB, [Type, public, named_table]).
 
+-spec clean_up() -> ok.
 clean_up() -> ok.
 
+-spec keyreplace(_,1,[tuple()],tuple()) -> [tuple()].
 keyreplace(Key, Pos, List, NewTuple) ->
     keyreplace(Key, Pos, List, NewTuple, []).
 
+-spec keyreplace(_,1,[tuple()],tuple(),[tuple()]) -> [tuple()].
 keyreplace(_Key, _Pos, [], _NewTuple, Acc) ->
     lists:reverse(Acc);
 keyreplace(Key, Pos, [Tuple|Rest], NewTuple, Acc) ->
@@ -266,9 +286,11 @@ keyreplace(Key, Pos, [Tuple|Rest], NewTuple, Acc) ->
 	    keyreplace(Key, Pos, Rest, NewTuple, [Tuple|Acc])
     end.
 
+-spec delete_all(_,[tuple()]) -> [tuple()].
 delete_all(X, List) ->
     delete_all(X, List, []).
 
+-spec delete_all(_,[tuple()],[tuple()]) -> [tuple()].
 delete_all(_X, [], Acc) ->
     lists:reverse(Acc);
 delete_all(X, [H|T], Acc) ->

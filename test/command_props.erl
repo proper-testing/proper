@@ -27,23 +27,28 @@
 -define(MOD, ets_counter).
 -define(MOD1, pdict_statem).
 
+-spec ne_nd_list(_) -> any().
 ne_nd_list(ElemType) ->
     ?LET(L,
 	 non_empty(list(ElemType)),
 	 lists:usort(L)).
 
+-spec short_ne_nd_list(_) -> any().
 short_ne_nd_list(ElemType) ->
     ?LET(L,
 	 resize(8, non_empty(list(ElemType))),
 	 lists:usort(L)).
 
+-spec no_duplicates([any()]) -> boolean().
 no_duplicates(L) -> length(L) =:= length(lists:usort(L)).
 
+-spec prop_index() -> any().
 prop_index() ->
     ?FORALL(List, ne_nd_list(integer()),
 	    ?FORALL(X, union(List),
 		    lists:nth(proper_statem:index(X,List),List) =:= X)).
 
+-spec prop_all_insertions() -> any().
 prop_all_insertions() ->
      ?FORALL(List, list(integer()),
         begin
@@ -56,6 +61,7 @@ prop_all_insertions() ->
 		       end))
 	end).
 
+-spec prop_insert_all() -> any().
 prop_insert_all() ->
     ?FORALL(List, short_ne_nd_list(integer()),
        begin
@@ -70,6 +76,7 @@ prop_insert_all() ->
 				end, AllIns))
        end).
 
+-spec prop_zip() -> any().
 prop_zip() ->
     ?FORALL({X,Y}, {list(),list()},
 	    begin
@@ -85,6 +92,7 @@ prop_zip() ->
 		equals(zip(X, Y), Res)
 	    end).
 
+-spec prop_state_after() -> any().
 prop_state_after() ->
     ?FORALL(Cmds, proper_statem:commands(?MOD1),
 	    begin
@@ -94,6 +102,7 @@ prop_state_after() ->
 		equals(proper_symb:eval(SymbState), S)
 	    end).
 
+-spec prop_p() -> any().
 prop_p() ->
     ?FORALL(
        Workers, range(2, 3),
@@ -112,6 +121,7 @@ prop_p() ->
 			length(lists:last(Res)) =:= Len)
 	  end)).
 
+-spec prop_check_true() -> any().
 prop_check_true() ->
     ?FORALL({Seq,Parallel}, proper_statem:parallel_commands(?MOD),
 	    begin
