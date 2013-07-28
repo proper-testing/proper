@@ -832,6 +832,7 @@ native_type_props_test_() ->
      ?_passes(?FORALL(X, type_and_fun(), is_atom(X))),
      ?_passes(?FORALL(X, type_only(), is_integer(X))),
      ?_passes(?FORALL(L, [integer()], length(L) =:= 1)),
+     %%TODO: check why the following emits a clause warning
      ?_fails(?FORALL(L, id([integer()]), length(L) =:= 1)),
      ?_passes(?FORALL(_, types_test1:exp1(), true)),
      ?_assertError(undef, ?FORALL(_,types_test1:rec1(),true)),
@@ -941,12 +942,14 @@ false_props_test_() ->
 				  true  -> throw(not_zero);
 				  false -> true
 			      end)),
+     %%TODO: check why the following emits a clause warning
      ?_fails(?FORALL(_,1,lists:min([]) > 0)),
      ?_failsWith([[12,42]], ?FORALL(L, [12,42|list(integer())],
 				    case lists:member(42, L) of
 					true  -> erlang:exit(you_got_it);
 					false -> true
 				    end)),
+     %%TODO: check why the following emits a clause warning
      ?_fails(?FORALL(_, integer(), ?TIMEOUT(100,timer:sleep(150) =:= ok))),
      ?_failsWith([20], ?FORALL(X, pos_integer(), ?TRAPEXIT(creator(X) =:= ok))),
      ?_assertTempBecomesN(7, false,
@@ -962,19 +965,23 @@ false_props_test_() ->
 			  ?FORALL(S, ?SIZED(Size,Size),
 				  begin inc_temp(), S =< 20 end),
 			  [{numtests,3},{max_size,40},noshrink]),
+     %%TODO: check why the following emits a clause warning
      ?_failsWithOneOf([[{true,false}],[{false,true}]],
 		      ?FORALL({B1,B2}, {boolean(),boolean()}, equals(B1,B2))),
      ?_failsWith([2,1],
 		 ?FORALL(X, integer(1,10), ?FORALL(Y, integer(1,10), X =< Y))),
      ?_failsWith([1,2],
 		 ?FORALL(Y, integer(1,10), ?FORALL(X, integer(1,10), X =< Y))),
+     %%TODO: check why the following emits a clause warning
      ?_failsWithOneOf([[[0,1]],[[0,-1]],[[1,0]],[[-1,0]]],
 		     ?FORALL(L, list(integer()), lists:reverse(L) =:= L)),
      ?_failsWith([[1,2,3,4,5,6,7,8,9,10]],
 		 ?FORALL(_L, shuffle(lists:seq(1,10)), false)),
      %% TODO: check that these don't shrink
      ?_fails(?FORALL(_, integer(0,0), false)),
+     %%TODO: check why the following emits a clause warning
      ?_fails(?FORALL(_, float(0.0,0.0), false)),
+     %%TODO: check why the following emits a clause warning
      ?_fails(fails(?FORALL(_, integer(), false))),
      ?_failsWith([16], ?FORALL(X, ?LET(Y,integer(),Y*Y), X < 15)),
      ?_failsWith([0.0],
@@ -1004,8 +1011,11 @@ false_props_test_() ->
 		      ])},
 		     {stupid, ?FORALL(_, pos_integer(), throw(woot))}
 		 ]))),
+     %%TODO: check why the following emits a clause warning
      {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
+     %%TODO: check why the following emits a clause warning
      ?_fails(post_false:prop_simple()),
+     %%TODO: check why the following emits a clause warning
      ?_fails(error_statem:prop_simple())].
 
 -spec error_props_test_() -> [{916 | 918 | 920 | 922 | 924 | 926 
@@ -1065,6 +1075,7 @@ options_test_() ->
 			  [300]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
+     %%TODO: check why the following emits a clause warning
      ?_fails(?FORALL(_,integer(),false), [fails]),
      ?_assertRun({error,cant_generate},
 		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X > 0),true),
@@ -1082,6 +1093,7 @@ adts_test_() ->
      ?_passes(?FORALL({X,Y,D},
 		      {integer(),float(),dict(integer(),float())},
 		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30]),
+     %%TODO: check why the following emits a clause warning
      ?_fails(?FORALL({X,D},
 	     {boolean(),dict(boolean(),integer())},
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
