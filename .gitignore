@@ -4,6 +4,7 @@
 *.beam
 *.dump
 *.tar.gz
+ebin/
 deps/
 doc/*.css
 doc/*.html
