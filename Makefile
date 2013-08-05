@@ -22,10 +22,11 @@
 
 REBAR=`which rebar || ./rebar`
 REBAR_PLT_DIR?=.
+DIALYZER_FLAGS=`./dialyzer_flags.sh`
 
 .PHONY: fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
-default: fast $(REBAR_PLT_DIR)/.dialyzer_plt dialyzer
+default: fast .dialyzer.plt dialyzer
 
 fast: get-deps compile
 
@@ -40,9 +41,9 @@ get-deps:
 compile:
 	@$(REBAR) compile
 
-$(REBAR_PLT_DIR)/.dialyzer_plt:
+.dialyzer.plt:
 	dialyzer --build_plt \
-		--output_plt $(REBAR_PLT_DIR)/.dialyzer_plt \
+		--output_plt .dialyzer.plt \
 		--apps erts kernel stdlib sasl \
 			compiler crypto tools runtime_tools \
 			mnesia inets ssl public_key asn1 \
@@ -51,12 +52,8 @@ $(REBAR_PLT_DIR)/.dialyzer_plt:
 
 dialyzer: compile
 	dialyzer \
-		--plt $(REBAR_PLT_DIR)/.dialyzer_plt \
-		-n -nn \
-		-Wunmatched_returns \
-		-Werror_handling \
-		-Wrace_conditions \
-		-Wunderspecs \
+		--plt .dialyzer.plt \
+		$(DIALYZER_FLAGS) \
 		ebin $(find .  -path 'deps/*/ebin/*.beam')
 
 check_escripts:

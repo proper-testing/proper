@@ -13,4 +13,4 @@ doc/edoc-info
 include/compile_flags.hrl
 .directory
 .eunit
-.dialyzer_plt
+.dialyzer.plt
