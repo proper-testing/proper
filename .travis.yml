@@ -1,7 +1,7 @@
 language: erlang
 notifications:
     email: git@ingostruck.de
-before_script: find ${REBAR_PLT_DIR} -name "\\*plt\\*"
+before_script: find ${REBAR_PLT_DIR} -name "*plt*"
 install: make get-deps
 script: make all
 otp_release:
