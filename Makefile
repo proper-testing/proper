@@ -43,12 +43,12 @@ compile:
 
 .dialyzer.plt:
 	dialyzer --build_plt \
+		--statistics \
 		--output_plt .dialyzer.plt \
 		--apps erts kernel stdlib sasl \
 			compiler crypto tools runtime_tools \
 			mnesia inets ssl public_key asn1 \
-			edoc eunit syntax_tools xmerl \
-	| fgrep -v -f ./dialyzer.build.ignore-warnings
+			edoc eunit syntax_tools xmerl
 
 dialyzer: compile
 	dialyzer \
