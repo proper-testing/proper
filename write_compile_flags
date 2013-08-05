@@ -29,6 +29,11 @@ main([OutFile]) ->
     CurrVer = parse_version_string(erlang:system_info(version)),
     {ok,Handle} = file:open(OutFile, [write]),
     ToDefine =
+	%% older than R15B => no location information in stacktraces
+	case CurrVer < [5,9] of
+	    true  -> ["OLD_STACKTRACE_FORMAT"];
+	    false -> []
+	end ++
 	%% older than R13B04 => can't handle recursive type declarations
 	case CurrVer < [5,7,5] of
 	    true  -> ["NO_TYPES"];

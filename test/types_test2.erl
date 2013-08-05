@@ -29,4 +29,4 @@
 -type exp2() :: atom() | [types_test1:exp1()].
 -record(rec1, {f :: exp1(fun(() -> integer())), g :: fun((_,_) -> float())}).
 -type rec() :: #rec1{}.
--type dummy() :: dummy() | rec(). % suppress unusued warning
+-type dummy() :: dummy() | rec(). % suppress unused type warning

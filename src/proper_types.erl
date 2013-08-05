@@ -344,7 +344,6 @@ to_binary(Type) ->
     term_to_binary(Type).
 
 %% @private
-%% TODO: restore: 
 -spec from_binary(binary()) -> proper_types:type().
 from_binary(Binary) ->
     binary_to_term(Binary).

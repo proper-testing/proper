@@ -33,7 +33,7 @@
 -type foo() :: atom().
 foo() -> integer().
 -type hd(T) :: {'head',T}.
--type dummy() :: dummy() | hd(_). % make dialyzer happy
+-type dummy() :: dummy() | hd(_). % suppress unused type warning
 
 prop_export_all_works() ->
     ?FORALL(X, ?MODULE:foo(), is_integer(X)).
