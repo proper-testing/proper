@@ -2,6 +2,7 @@ language: erlang
 notifications:
     email: git@ingostruck.de
 before_script: env | sort
+dependencies: make get-deps
 script: make all
 otp_release:
     - R16B
