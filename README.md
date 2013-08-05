@@ -1,6 +1,8 @@
 Contact information and license
 -------------------------------
 
+![Travis CI](https://secure.travis-ci.org/istr/proper.png)
+
 PropEr (PROPerty-based testing tool for ERlang) is a QuickCheck-inspired
 open-source property-based testing tool for Erlang, developed by Manolis
 Papadakis, Eirini Arvaniti and Kostis Sagonas. The base PropEr system was
