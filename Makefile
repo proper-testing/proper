@@ -20,9 +20,11 @@
 # Author(s):   Manolis Papadakis, Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
+REBAR=`which rebar || ./rebar`
 
-default: fast dialyzer
+.PHONY: fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
+
+default: buildplt fast dialyzer
 
 fast: get-deps compile
 
@@ -32,19 +34,35 @@ include/compile_flags.hrl:
 	./write_compile_flags $@
 
 get-deps:
-	./rebar get-deps
+	@$(REBAR) get-deps
 
 compile:
-	./rebar compile
+	@$(REBAR) compile
 
-dialyzer: compile
-	dialyzer -n -nn -Wunmatched_returns ebin $(find .  -path 'deps/*/ebin/*.beam')
+.dialyzer.plt:
+	dialyzer --build_plt \
+	--output_plt .dialyzer.plt \
+	--apps erts kernel stdlib sasl \
+	       compiler crypto tools runtime_tools \
+	       mnesia inets ssl public_key asn1 \
+	       edoc eunit syntax_tools xmerl \
+	| fgrep -v -f ./dialyzer.build.ignore-warnings
+
+dialyzer: .dialyzer.plt compile
+	dialyzer \
+		--plt .dialyzer.plt \
+		-n -nn \
+		-Wunmatched_returns \
+		-Werror_handling \
+		-Wrace_conditions \
+		-Wunderspecs \
+		ebin $(find .  -path 'deps/*/ebin/*.beam')
 
 check_escripts:
 	./check_escripts.sh make_doc write_compile_flags
 
 tests: compile
-	./rebar eunit
+	@$(REBAR) eunit
 
 doc:
 	./make_doc
@@ -54,11 +72,11 @@ clean:
 
 distclean: clean
 	rm -f include/compile_flags.hrl
-	./rebar clean
+	@$(REBAR) clean
 
 rebuild: distclean include/compile_flags.hrl
-	./rebar compile
+	@$(REBAR) compile
 
 retest: compile
 	rm -rf .eunit
-	./rebar eunit
+	@$(REBAR) eunit
