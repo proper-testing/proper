@@ -1,7 +1,7 @@
 language: erlang
 notifications:
     email: git@ingostruck.de
-before_script: env | sort
+before_script: env | sort; ls -lisa ${REBAR_PLT_DIR}
 install: make get-deps
 script: make all
 otp_release:
