@@ -211,20 +211,25 @@
                           fun((proper_types:type(),
                                proper_gen:imm_instance()) -> boolean())}.
 -type index() :: pos_integer().
-%% @alias
+% % @alias
+
 -type value() :: term().
-%% @private_type
-%% @alias
+% % @private
+% % @alias
+
 -type extint()  :: integer() | 'inf'.
-%% @private_type
-%% @alias
+% % @private
+% % @alias
+
 -type extnum()  :: number()  | 'inf'.
 -type constraint_fun() :: fun((proper_gen:instance()) -> boolean()).
 
 -opaque type() :: {'$type', [type_prop()]}.
-%% A type of the PropEr type system
-%% @type raw_type(). You can consider this as an equivalent of {@type type()}.
+%% type() is a type of the PropEr type system
+
 -type raw_type() :: type() | [raw_type()] | loose_tuple(raw_type()) | term().
+%% raw_type() can be considered as an equivalent of {@type type()}.
+
 -type type_prop_name() :: 'kind' | 'generator' | 'reverse_gen' | 'parts_type'
 			| 'combine' | 'alt_gens' | 'shrink_to_parts'
 			| 'size_transform' | 'is_instance' | 'shrinkers'

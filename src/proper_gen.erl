@@ -56,7 +56,7 @@
 
 %% TODO: update imm_instance() when adding more types: be careful when reading
 %%	 anything that returns it
-%% @private_type
+% % @private
 -type imm_instance() :: proper_types:raw_type()
 		      | instance()
 		      | {'$used', imm_instance(), imm_instance()}
@@ -65,36 +65,36 @@
 %% A value produced by the random instance generator.
 -type error_reason() :: 'arity_limit' | 'cant_generate' | {'typeserver',term()}.
 
-%% @private_type
+% % @private
 -type sized_generator() :: fun((size()) -> imm_instance()).
-%% @private_type
+% % @private
 -type typed_sized_generator() :: {'typed',
                                   fun((proper_types:type(),size()) ->
                                       imm_instance())}.
-%% @private_type
+% % @private
 -type nosize_generator() :: fun(() -> imm_instance()).
-%% @private_type
+% % @private
 -type typed_nosize_generator() :: {'typed',
                                    fun((proper_types:type()) ->
                                        imm_instance())}.
-%% @private_type
+% % @private
 -type generator() :: sized_generator()
                    | typed_sized_generator()
                    | nosize_generator()
                    | typed_nosize_generator().
-%% @private_type
+% % @private
 -type plain_reverse_gen() :: fun((instance()) -> imm_instance()).
-%% @private_type
+% % @private
 -type typed_reverse_gen() :: {'typed',
                               fun((proper_types:type(),instance()) ->
                                   imm_instance())}.
-%% @private_type
+% % @private
 -type reverse_gen() :: plain_reverse_gen() | typed_reverse_gen().
-%% @private_type
+% % @private
 -type combine_fun() :: fun((instance()) -> imm_instance()).
-%% @private_type
+% % @private
 -type alt_gens() :: fun(() -> [imm_instance()]).
-%% @private_type
+% % @private
 -type fun_seed() :: {non_neg_integer(),non_neg_integer()}.
 
 

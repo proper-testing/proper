@@ -259,11 +259,14 @@
 -type pattern() :: loose_tuple(pat_field()).
 -type next_step() :: 'none' | 'take_head' | {'match_with',pattern()}.
 
-%% @private_type
 -type mod_exp_types() :: set(). %% set(imm_type_ref())
+% % @private
+
 -type mod_types() :: dict(). %% dict(type_ref(),type_repr())
-%% @private_type
+
 -type mod_exp_funs() :: set(). %% set(fun_ref())
+% % @private
+
 -type mod_specs() :: dict(). %% dict(fun_ref(),fun_repr())
 -record(state,
 	{cached    = dict:new() :: dict(),   %% dict(imm_type(),fin_type())
@@ -281,13 +284,15 @@
 
 -type stack() :: [full_type_ref() | 'tuple' | 'list' | 'union' | 'fun'].
 -type var_dict() :: dict(). %% dict(var_name(),ret_type())
-%% @private_type
+
 -type imm_type() :: {mod_name(),string()}.
-%% @alias
+% % @private
+
 -type fin_type() :: proper_types:type().
+% % @alias
+
 -type tagged_result(T) :: {'ok',T} | 'error'.
 -type tagged_result2(T,S) :: {'ok',T,S} | 'error'.
-%% @alias
 -type rich_result(T) :: {'ok',T} | {'error',term()}.
 -type rich_result2(T,S) :: {'ok',T,S} | {'error',term()}.
 -type false_positive_mfas() :: proper:false_positive_mfas().
