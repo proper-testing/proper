@@ -385,9 +385,7 @@
 			 | {'$conjunction',sub_imm_counterexamples()}.
 -type sub_imm_counterexamples() :: [{tag(),imm_counterexample()}].
 -type counterexample() :: [clean_input()].
-%% @alias
 -type clean_input() :: proper_gen:instance() | sub_counterexamples().
-%% @alias
 -type sub_counterexamples() :: [{tag(),counterexample()}].
 
 -type sample() :: [term()].
@@ -516,23 +514,17 @@
 	       bound     :: imm_testcase() | counterexample(),
 	       actions   :: fail_actions(),
 	       performed :: pos_integer()}).
-%% @alias
 -type error() :: {'error', error_reason()}.
 
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
 -type fail_reason() :: 'false_prop' | 'time_out' | {'trapped',exc_reason()}
 		     | exception() | {'sub_props',[{tag(),fail_reason()},...]}.
-%% @private_type
+% % @private
 -type exception() :: {'exception',exc_kind(),exc_reason(),stacktrace()}.
 -type exc_kind() :: 'throw' | 'error' | 'exit'.
 -type exc_reason() :: term().
 -type stacktrace() :: [call_record()].
--ifdef(OLD_STACKTRACE_FORMAT).
--type call_record() :: {mod_name(),fun_name(),arity() | list()}.
--else.
--type call_record() :: {mod_name(),fun_name(),arity() | list(),location()}.
--type location() :: [{atom(),term()}].
--endif.
+
 -type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
 		      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
@@ -1412,14 +1404,21 @@ clear_mailbox() ->
 	ok
     end.
 
+-type call_record() :: {mod_name(),fun_name(),arity() | list()} %% older than R15B
+    | {mod_name(),fun_name(),arity() | list(),location()}. %% since R15B
+-type location() :: [{atom(),term()}].
+
+-spec is_not_proper_call(call_record()) -> boolean().
+is_not_proper_call({Mod,_Fun,_Args,_Location}) -> %% since R15B
+    not lists:prefix("proper", atom_to_list(Mod));
+is_not_proper_call({Mod,_Fun,_Args}) -> %% pre R15B
+    not lists:prefix("proper", atom_to_list(Mod)).
+
 -spec threw_exception(function(), stacktrace()) -> boolean().
--ifdef(OLD_STACKTRACE_FORMAT).
-threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) ->
+threw_exception(Fun, [{TopMod,TopName,TopArgs,_Location} | _Rest]) -> %% since R15B
+    threw_exception_aux(Fun, TopMod, TopName, TopArgs);
+threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) -> %% pre R15B
     threw_exception_aux(Fun, TopMod, TopName, TopArgs).
--else.
-threw_exception(Fun, [{TopMod,TopName,TopArgs,_Location} | _Rest]) ->
-    threw_exception_aux(Fun, TopMod, TopName, TopArgs).
--endif.
 
 -spec threw_exception_aux(function(), mod_name(), fun_name(),
 			  arity() | list()) -> boolean().
@@ -1442,15 +1441,6 @@ clean_stacktrace(RawTrace) ->
         [] -> RawTrace;
         _ -> Trace
     end.
-
--spec is_not_proper_call(call_record()) -> boolean().
--ifdef(OLD_STACKTRACE_FORMAT).
-is_not_proper_call({Mod,_Fun,_Args}) ->
-    not lists:prefix("proper", atom_to_list(Mod)).
--else.
-is_not_proper_call({Mod,_Fun,_Args,_Location}) ->
-    not lists:prefix("proper", atom_to_list(Mod)).
--endif.
 
 -spec clean_testcase(imm_testcase()) -> counterexample().
 clean_testcase(ImmTestCase) ->
