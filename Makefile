@@ -20,9 +20,9 @@
 # Author(s):   Manolis Papadakis, Kostis Sagonas
 # Description: Instructions for make
 
-REBAR=`which rebar || ./rebar`
+REBAR=$(shell which rebar || ./rebar)
 REBAR_PLT_DIR?=.
-DIALYZER_FLAGS=`./dialyzer_flags.sh`
+DIALYZER_FLAGS=$(shell ./dialyzer_flags.sh)
 
 .PHONY: fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
