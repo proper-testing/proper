@@ -24,7 +24,7 @@ REBAR=`which rebar || ./rebar`
 
 .PHONY: fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
-default: buildplt fast dialyzer
+default: .dialyzer.plt fast dialyzer
 
 fast: get-deps compile
 
