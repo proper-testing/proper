@@ -1,6 +1,6 @@
 language: erlang
 notifications:
     email: git@ingostruck.de
-before_script: env
+before_script: env | sort
 otp_release:
     - R16B
