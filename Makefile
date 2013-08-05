@@ -21,10 +21,11 @@
 # Description: Instructions for make
 
 REBAR=`which rebar || ./rebar`
+REBAR_PLT_DIR?=.
 
 .PHONY: fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
-default: fast dialyzer
+default: fast $(REBAR_PLT_DIR)/.dialyzer_plt dialyzer
 
 fast: get-deps compile
 
@@ -39,8 +40,18 @@ get-deps:
 compile:
 	@$(REBAR) compile
 
+$(REBAR_PLT_DIR)/.dialyzer_plt:
+	dialyzer --build_plt \
+		--output_plt $(REBAR_PLT_DIR)/.dialyzer_plt \
+		--apps erts kernel stdlib sasl \
+			compiler crypto tools runtime_tools \
+			mnesia inets ssl public_key asn1 \
+			edoc eunit syntax_tools xmerl \
+	| fgrep -v -f ./dialyzer.build.ignore-warnings
+
 dialyzer: compile
 	dialyzer \
+		--plt $(REBAR_PLT_DIR)/.dialyzer_plt \
 		-n -nn \
 		-Wunmatched_returns \
 		-Werror_handling \
