@@ -24,7 +24,7 @@ REBAR=`which rebar || ./rebar`
 
 .PHONY: fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
-default: .dialyzer.plt fast dialyzer
+default: fast dialyzer
 
 fast: get-deps compile
 
@@ -39,18 +39,8 @@ get-deps:
 compile:
 	@$(REBAR) compile
 
-.dialyzer.plt:
-	dialyzer --build_plt \
-	--output_plt .dialyzer.plt \
-	--apps erts kernel stdlib sasl \
-	       compiler crypto tools runtime_tools \
-	       mnesia inets ssl public_key asn1 \
-	       edoc eunit syntax_tools xmerl \
-	| fgrep -v -f ./dialyzer.build.ignore-warnings
-
-dialyzer: .dialyzer.plt compile
+dialyzer: compile
 	dialyzer \
-		--plt .dialyzer.plt \
 		-n -nn \
 		-Wunmatched_returns \
 		-Werror_handling \
