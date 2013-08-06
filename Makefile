@@ -49,14 +49,15 @@ get-deps:
 compile:
 	@$(REBAR) compile
 
-.dialyzer.plt:
+.dialyzer.plt: Makefile
 	-dialyzer --build_plt \
+		--statistics \
 		--output_plt .dialyzer.plt \
-		$(DIALYZER_FLAGS) \
-		--apps erts kernel stdlib sasl \
-			compiler crypto tools runtime_tools \
-			mnesia inets ssl public_key asn1 \
-			edoc eunit syntax_tools xmerl
+		--apps erts kernel stdlib sasl compiler \
+		crypto public_key asn1 inets ssl \
+		mnesia xmerl \
+		edoc eunit \
+		tools syntax_tools runtime_tools webtool
 
 run-dialyzer:
 	dialyzer \
