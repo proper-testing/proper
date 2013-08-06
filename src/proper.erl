@@ -528,12 +528,8 @@
 -type exc_kind() :: throw | error | exit.
 -type exc_reason() :: term().
 -type stacktrace() :: [call_record(), ...].
--ifdef(OLD_STACKTRACE_FORMAT).
--type call_record() :: {mod_name(),fun_name(),arity() | list()}.
--else.
 -type call_record() :: {mod_name(),fun_name(),arity() | list(),location()}.
 -type location() :: [{atom(),term()}].
--endif.
 
 -type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
 		      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
@@ -1427,15 +1423,8 @@ is_not_proper_call({Mod,_Fun,_Args}) -> %% pre R15B
     not lists:prefix("proper", atom_to_list(Mod)).
 
 -spec threw_exception(function(), stacktrace()) -> boolean().
--ifdef(OLD_STACKTRACE_FORMAT).
-%% pre R15B
-threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) ->
-    threw_exception_aux(Fun, TopMod, TopName, TopArgs).
--else.
-%% since R15B
 threw_exception(Fun, [{TopMod,TopName,TopArgs,_Location} | _Rest]) ->
     threw_exception_aux(Fun, TopMod, TopName, TopArgs).
--endif.
 
 -spec threw_exception_aux(function(), mod_name(), fun_name(),
 			  arity() | list()) -> boolean().
