@@ -50,7 +50,7 @@ compile:
 	@$(REBAR) compile
 
 .dialyzer.plt:
-	dialyzer --build_plt \
+	-dialyzer --build_plt \
 		--output_plt .dialyzer.plt \
 		$(DIALYZER_FLAGS) \
 		--apps erts kernel stdlib sasl \

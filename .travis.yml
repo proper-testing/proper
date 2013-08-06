@@ -4,7 +4,6 @@ notifications:
 install: make get-deps
 script: make all
 otp_release:
-    - R16B01
     - R16B
     - R15B03
     - R15B02
