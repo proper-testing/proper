@@ -28,5 +28,10 @@
 -define(PROPER_NO_TRANS, true).
 
 -include_lib("proper/include/proper.hrl").
+-export([dummy/0]).
 
 prop_1() -> ?FORALL(_, integer(), true).
+
+%% dummy makes use of prop_1 to suppress an unused warning
+-spec dummy() -> true.
+dummy() -> prop_1().

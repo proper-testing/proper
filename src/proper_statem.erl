@@ -842,7 +842,7 @@ insert_all([X|[Y|Rest]], List) ->
 	   L2 <- all_insertions(X, index(Y, L1), L1)].
 
 %% @private
--spec all_insertions(term(), pos_integer(), [term()]) -> [[term()]].
+-spec all_insertions(term(), pos_integer(), [term()]) -> [[term(),...]].
 all_insertions(X, Limit, List) ->
     all_insertions_tr(X, Limit, 0, [], List, []).
 
@@ -880,7 +880,7 @@ mk_dict([H|T], N)        -> [{N,H}|mk_dict(T, N+1)].
 
 %% @private
 -spec mk_first_comb(pos_integer(), non_neg_integer(), pos_integer()) ->
-         combination().
+    [{pos_integer(),[pos_integer()]},...].
 mk_first_comb(N, Len, W) ->
     mk_first_comb_tr(1, N, Len, [], W).
 
@@ -971,7 +971,7 @@ get_slices_tr([], _, _, Acc) -> Acc;
 get_slices_tr([_|Tail], List, N, Acc) ->
     get_slices_tr(Tail, List, N+1, [lists:sublist(List, N)|Acc]).
 
--spec spawn_link_cp(fun(() -> _)) -> pid().
+-spec spawn_link_cp(fun(() -> {pid(), _})) -> pid().
 spawn_link_cp(ActualFun) ->
     PDictStuff = [Pair || {K,_V} = Pair <- get(),
 			  is_atom(K),

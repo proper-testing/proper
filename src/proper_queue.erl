@@ -82,11 +82,11 @@ in(X, Queue) ->
 in_r(X, Queue) ->
     queue:in_r(X, Queue).
 
--spec out(queue(T)) -> {'empty' | {'value',T}, queue(T)}.
+-spec out(queue()) -> {'empty' | {'value',_}, queue()}.
 out(Queue) ->
     queue:out(Queue).
 
--spec out_r(queue(T)) -> {'empty' | {'value',T}, queue(T)}.
+-spec out_r(queue()) -> {'empty' | {'value',_}, queue()}.
 out_r(Queue) ->
     queue:out_r(Queue).
 
@@ -98,11 +98,11 @@ get(Queue) ->
 get_r(Queue) ->
     queue:get_r(Queue).
 
--spec peek(queue(T)) -> 'empty' | {'value',T}.
+-spec peek(queue()) -> 'empty' | {'value',_}.
 peek(Queue) ->
     queue:peek(Queue).
 
--spec peek_r(queue(T)) -> 'empty' | {'value',T}.
+-spec peek_r(queue()) -> 'empty' | {'value',_}.
 peek_r(Queue) ->
     queue:peek_r(Queue).
 
@@ -126,7 +126,7 @@ join(Queue1, Queue2) ->
 split(N, Queue) ->
     queue:split(N, Queue).
 
--spec filter(fun((T) -> boolean() | [T]), queue(T)) -> queue(T).
+-spec filter(fun((T::any()) -> boolean() | [T::any()]), queue()) -> queue().
 filter(Pred, Queue) ->
     queue:filter(Pred, Queue).
 

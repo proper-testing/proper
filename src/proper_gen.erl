@@ -56,7 +56,7 @@
 
 %% TODO: update imm_instance() when adding more types: be careful when reading
 %%	 anything that returns it
-%% @private_type
+% % @private
 -type imm_instance() :: proper_types:raw_type()
 		      | instance()
 		      | {'$used', imm_instance(), imm_instance()}
@@ -65,36 +65,36 @@
 %% A value produced by the random instance generator.
 -type error_reason() :: 'arity_limit' | 'cant_generate' | {'typeserver',term()}.
 
-%% @private_type
+% % @private
 -type sized_generator() :: fun((size()) -> imm_instance()).
-%% @private_type
+% % @private
 -type typed_sized_generator() :: {'typed',
                                   fun((proper_types:type(),size()) ->
                                       imm_instance())}.
-%% @private_type
+% % @private
 -type nosize_generator() :: fun(() -> imm_instance()).
-%% @private_type
+% % @private
 -type typed_nosize_generator() :: {'typed',
                                    fun((proper_types:type()) ->
                                        imm_instance())}.
-%% @private_type
+% % @private
 -type generator() :: sized_generator()
                    | typed_sized_generator()
                    | nosize_generator()
                    | typed_nosize_generator().
-%% @private_type
+% % @private
 -type plain_reverse_gen() :: fun((instance()) -> imm_instance()).
-%% @private_type
+% % @private
 -type typed_reverse_gen() :: {'typed',
                               fun((proper_types:type(),instance()) ->
                                   imm_instance())}.
-%% @private_type
+% % @private
 -type reverse_gen() :: plain_reverse_gen() | typed_reverse_gen().
-%% @private_type
+% % @private
 -type combine_fun() :: fun((instance()) -> imm_instance()).
-%% @private_type
+% % @private
 -type alt_gens() :: fun(() -> [imm_instance()]).
-%% @private_type
+% % @private
 -type fun_seed() :: {non_neg_integer(),non_neg_integer()}.
 
 
@@ -369,7 +369,7 @@ atom_gen(Size) ->
 	 list_to_atom(Str)).
 
 %% @private
--spec atom_rev(atom()) -> imm_instance().
+-spec atom_rev(atom()) -> {'$used',string(),atom()}.
 atom_rev(Atom) ->
     {'$used', atom_to_list(Atom), Atom}.
 
@@ -382,7 +382,7 @@ binary_gen(Size) ->
 	 list_to_binary(Bytes)).
 
 %% @private
--spec binary_rev(binary()) -> imm_instance().
+-spec binary_rev(binary()) -> {'$used', [byte()], binary()}.
 binary_rev(Binary) ->
     {'$used', binary_to_list(Binary), Binary}.
 
@@ -402,7 +402,9 @@ bitstring_gen(Size) ->
 	 <<BytesHead/binary, TailByte:NumBits>>).
 
 %% @private
--spec bitstring_rev(bitstring()) -> imm_instance().
+-spec bitstring_rev(bitstring()) ->
+    {'$used', {{'$used', [any()], binary()}, non_neg_integer(),
+		integer()}, bitstring()}.
 bitstring_rev(BitString) ->
     List = bitstring_to_list(BitString),
     {BytesList, BitsTail} = lists:splitwith(fun erlang:is_integer/1, List),
@@ -508,7 +510,7 @@ loose_tuple_gen(Size, ElemType) ->
 	 list_to_tuple(L)).
 
 %% @private
--spec loose_tuple_rev(tuple(), proper_types:type()) -> imm_instance().
+-spec loose_tuple_rev(tuple(), proper_types:type()) -> {'$used', [any()], tuple()}.
 loose_tuple_rev(Tuple, ElemType) ->
     CleanList = tuple_to_list(Tuple),
     List = case proper_types:find_prop(reverse_gen, ElemType) of
@@ -585,10 +587,14 @@ native_type_gen(Mod, TypeStr) ->
 %% Function-generation functions
 %%------------------------------------------------------------------------------
 
+%% @private
+-spec arity_lim_err() -> no_return().
+arity_lim_err() -> throw('$arity_limit').
+
 -spec create_fun(arity(), proper_types:type(), fun_seed()) -> function().
 create_fun(Arity, RetType, FunSeed) ->
     Handler = fun(Args) -> function_body(Args, RetType, FunSeed) end,
-    Err = fun() -> throw('$arity_limit') end,
+    Err = fun arity_lim_err/0,
     'MAKE_FUN'(Arity, Handler, Err).
 
 %% @private

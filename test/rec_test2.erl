@@ -23,7 +23,7 @@
 %%% @doc This module contains types for testing the typeserver.
 
 -module(rec_test2).
--export_type([expa/0]).
+-export_type([expa/0,b/0]).
 
 -type a() :: 'aleaf' | {'anode',b()}.
 -opaque b() :: {'bnode',b()} | a().

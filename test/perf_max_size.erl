@@ -28,14 +28,17 @@
 -record(msg, {a = 0 :: 0..16#ffffffff, b = 0 :: 0..16#f}).
 -type msg() :: #msg{}.
 
+-spec prop_identity() -> any().
 prop_identity() ->
     ?FORALL(Msg, msg(), Msg =:= decode(encode(Msg))).
 
--spec encode(msg()) -> binary().
+-spec encode(msg()) -> <<_:36>>.
+
 encode(#msg{a = A, b = B}) ->
     <<A:32, B:4>>.
 
--spec decode(binary()) -> msg().
+-spec decode(<<_:36>>) -> msg().
+
 decode(<<A:32, B:4>>) ->
     #msg{a=A, b=B}.
 

@@ -36,7 +36,7 @@
 
 %% When parsed by the typeserver, this becomes opaque (it's declared as a
 %% simple type because dialyzer can't handle parametric opaque types yet).
--type ordset(T) :: [T].
+-type ordset(T) :: [T, ...].
 
 %% This header is only included so that the strip_types parse transform will be
 %% applied to this file as well.
@@ -47,7 +47,7 @@
 %% API functions
 %%-----------------------------------------------------------------------------
 
--spec new() -> ordset(_T).
+-spec new() -> [].
 new() ->
     ordsets:new().
 
@@ -71,7 +71,7 @@ from_list(List) ->
 is_element(X, Set) ->
     ordsets:is_element(X, Set).
 
--spec add_element(T, ordset(T)) -> ordset(T).
+-spec add_element(T::any(), ordset(T::any())) -> ordset(T::any()).
 add_element(X, Set) ->
     ordsets:add_element(X, Set).
 

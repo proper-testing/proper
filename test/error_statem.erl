@@ -26,32 +26,40 @@
 
 -include_lib("proper/include/proper.hrl").
 
--record(state, {step = 0}).
+-record(state, {step = 0::non_neg_integer()}).
 
+-spec initial_state() -> #state{step::0}.
 initial_state() ->
     #state{}.
 
+-spec command(_) -> any().
 command(_S) ->
     oneof([{call,?MODULE,foo,[integer()]},
 	   {call,?MODULE,bar,[]}]).
 
+-spec precondition(_,_) -> true.
 precondition(_, _) ->
     true.
 
+-spec next_state(#state{step::number()},_,_) -> #state{step::number()}.
 next_state(#state{step=Step}, _, _) ->
     #state{step=Step+1}.
 
+-spec postcondition(_,_,_) -> true.
 postcondition(_, _, _) ->
     true.
 
+-spec foo(_) -> ok.
 foo(I) ->
     case I > 10 of
 	false -> ok;
 	true  -> throw(badarg)
     end.
 
+-spec bar() -> 42.
 bar() -> 42.
 
+-spec prop_simple() -> any().
 prop_simple() ->
     ?FORALL(Cmds, commands(?MODULE),
 	    begin

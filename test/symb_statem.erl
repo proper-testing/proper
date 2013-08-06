@@ -26,8 +26,8 @@
 
 -include_lib("proper/include/proper.hrl").
 
--record(state, {foo = [],
-		bar = []}).
+-record(state, {foo = [] :: list(),
+		bar = [] :: list()}).
 
 initial_state() ->
     #state{}.

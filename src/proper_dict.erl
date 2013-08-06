@@ -87,7 +87,7 @@ size(Dict) ->
 fetch(Key, Dict) ->
     dict:fetch(Key, Dict).
 
--spec find(K, dict(K,V)) -> {'ok', V} | 'error'.
+-spec find(K::any(), dict(K::any(), V::any())) -> {'ok', V::any()} | 'error'.
 find(Key, Dict) ->
     dict:find(Key, Dict).
 

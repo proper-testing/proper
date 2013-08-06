@@ -30,4 +30,5 @@
 
 -include_lib("proper/include/proper.hrl").
 
+-spec prop_1() -> true.
 prop_1() -> ?FORALL(_, types_test1:exp1(), true).

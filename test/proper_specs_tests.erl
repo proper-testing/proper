@@ -30,9 +30,6 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([check1_specs_test_/0,
-         check2_specs_test_/0]).
-
 -export([test1_any/1,
          test2_skip/1,
          test3_fail/1,
@@ -41,9 +38,11 @@
          test6_exc_fp/2,
          test7_exc_fp/2]).
 
+-spec check1_specs_test_() -> any().
 check1_specs_test_() ->
     ?_test(?assert(check1_specs_test())).
 
+-spec check2_specs_test_() -> any().
 check2_specs_test_() ->
     ?_test(?assert(check2_specs_test())).
 
@@ -51,6 +50,9 @@ check2_specs_test_() ->
 %% Unit tests
 %%------------------------------------------------------------------------------
 
+% WARNING: adding this spec makes the specs_tests fail (timeout).
+% TODO: check why this is the case
+% -spec check1_specs_test() -> true.
 check1_specs_test() ->
     Options = [quiet, long_result,
                {skip_mfas, [{?MODULE, check1_specs_test_, 0},
@@ -67,6 +69,9 @@ check1_specs_test() ->
             error(failed, Else)
     end.
 
+% WARNING: adding this spec makes the specs_tests fail (timeout).
+% TODO: check why this is the case
+% -spec check2_specs_test() -> true.
 check2_specs_test() ->
     Options = [quiet, long_result,
                {skip_mfas, [{?MODULE, check1_specs_test_, 0},
@@ -128,7 +133,7 @@ test1_any(Any) ->
 test2_skip(Any) ->
     Any.
 
--spec test3_fail(any()) -> true.
+-spec test3_fail(any()) -> {ng,_}.
 test3_fail(Any) ->
     {ng, Any}.
 
@@ -147,3 +152,7 @@ test6_exc_fp(Class, Any) ->
 -spec test7_exc_fp(error | exit | throw, badarg | any()) -> any().
 test7_exc_fp(Class, Any) ->
     erlang:Class(Any).
+
+% WARNING: adding this spec makes the specs_tests fail (timeout).
+% TODO: check why this is the case
+% -spec test() -> any().

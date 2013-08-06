@@ -30,4 +30,8 @@
 
 -type exp1() :: integer().
 
+%% WARNING: adding a spec here breaks the test, which
+%% is clearly a bug in the parse transform.
+%% TODO: check why adding a spec makes this test fail
+%% -spec prop_1() -> any().
 prop_1() -> ?FORALL(_, rec_props_test2:exp2(), true).

@@ -35,12 +35,15 @@
 %% A simple statem test for the process dictionary; tests the
 %% operations erlang:put/2, erlang:get/1, erlang:erase/1.
 
+-spec test() -> any().
 test() ->
     test(100).
 
+-spec test(_) -> any().
 test(N) ->
     proper:quickcheck(?MODULE:prop_pdict(), N).
 
+-spec prop_pdict() -> any().
 prop_pdict() ->
     ?FORALL(Cmds, commands(?MODULE),
 	    begin
@@ -52,17 +55,22 @@ prop_pdict() ->
 		   aggregate(command_names(Cmds), Res =:= ok))
 	    end).
 
+-spec set_up() -> ok.
 set_up() -> ok.
 
+-spec clean_up() -> ok.
 clean_up() ->
     lists:foreach(fun(Key) -> erlang:erase(Key) end, ?KEYS).
 
+-spec key() -> any().
 key() ->
     elements(?KEYS).
 
+-spec initial_state() -> [{_,_}].
 initial_state() ->
     [KV || {Key, _} = KV <- erlang:get(), lists:member(Key, ?KEYS)].
 
+-spec command(_) -> any().
 command([]) ->
     {call,erlang,put,[key(), integer()]};
 command(Props) ->
@@ -73,6 +81,7 @@ command(Props) ->
 		{call,erlang,erase,[Key]}
 	       ])).
 
+-spec precondition(_,_) -> boolean().
 precondition(_, {call,erlang,put,[_,_]}) ->
     true;
 precondition(Props, {call,erlang,get,[Key]}) ->
@@ -82,6 +91,7 @@ precondition(Props, {call,erlang,erase,[Key]}) ->
 precondition(_, _) ->
     false.
 
+-spec postcondition(_,_,_) -> boolean().
 postcondition(Props, {call,erlang,put,[Key,_]}, undefined) ->
     not proplists:is_defined(Key, Props);
 postcondition(Props, {call,erlang,put,[Key,_]}, Old) ->
@@ -93,6 +103,7 @@ postcondition(Props, {call,erlang,erase,[Key]}, Val) ->
 postcondition(_, _, _) ->
     false.
 
+-spec next_state(_,_,{call, erlang, erase | get | put,[any(),...]}) -> any().
 next_state(Props, _Var, {call,erlang,put,[Key,Value]}) ->
     %% correct model
     [{Key,Value}|proplists:delete(Key, Props)];

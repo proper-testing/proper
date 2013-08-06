@@ -4,6 +4,7 @@
 *.beam
 *.dump
 *.tar.gz
+ebin/
 deps/
 doc/*.css
 doc/*.html
@@ -12,3 +13,4 @@ doc/edoc-info
 include/compile_flags.hrl
 .directory
 .eunit
+.dialyzer.plt

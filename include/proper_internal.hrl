@@ -86,7 +86,7 @@
 
 %% TODO: Replace these with the appropriate types from stdlib.
 -type abs_type() :: term().
--type abs_rec_field() :: term().
+-type abs_rec_field() :: {record_field, _, _} | {record_field,_ ,_ ,_}.
 
 -type loose_tuple(T) :: {} | {T} | {T,T} | {T,T,T} | {T,T,T,T} | {T,T,T,T,T}
 		      | {T,T,T,T,T,T} | {T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T}

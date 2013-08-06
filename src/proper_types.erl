@@ -211,20 +211,25 @@
                           fun((proper_types:type(),
                                proper_gen:imm_instance()) -> boolean())}.
 -type index() :: pos_integer().
-%% @alias
+% % @alias
+
 -type value() :: term().
-%% @private_type
-%% @alias
+% % @private
+% % @alias
+
 -type extint()  :: integer() | 'inf'.
-%% @private_type
-%% @alias
+% % @private
+% % @alias
+
 -type extnum()  :: number()  | 'inf'.
 -type constraint_fun() :: fun((proper_gen:instance()) -> boolean()).
 
 -opaque type() :: {'$type', [type_prop()]}.
-%% A type of the PropEr type system
-%% @type raw_type(). You can consider this as an equivalent of {@type type()}.
+%% type() is a type of the PropEr type system
+
 -type raw_type() :: type() | [raw_type()] | loose_tuple(raw_type()) | term().
+%% raw_type() can be considered as an equivalent of {@type type()}.
+
 -type type_prop_name() :: 'kind' | 'generator' | 'reverse_gen' | 'parts_type'
 			| 'combine' | 'alt_gens' | 'shrink_to_parts'
 			| 'size_transform' | 'is_instance' | 'shrinkers'
@@ -339,7 +344,7 @@ to_binary(Type) ->
     term_to_binary(Type).
 
 %% @private
-%% TODO: restore: -spec from_binary(binary()) -> proper_types:type().
+-spec from_binary(binary()) -> proper_types:type().
 from_binary(Binary) ->
     binary_to_term(Binary).
 
@@ -347,8 +352,8 @@ from_binary(Binary) ->
 type_from_list(KeyValueList) ->
     {'$type',KeyValueList}.
 
--spec add_prop(type_prop_name(), type_prop_value(), proper_types:type()) ->
-	  proper_types:type().
+-spec add_prop(kind | noshrink | parameters | size_transform,
+    type_prop_value(), proper_types:type()) -> proper_types:type().
 add_prop(PropName, Value, {'$type',Props}) ->
     {'$type',lists:keystore(PropName, 1, Props, {PropName, Value})}.
 
@@ -358,8 +363,7 @@ add_props(PropList, {'$type',OldProps}) ->
                     lists:keystore(N, 1, Acc, NV)
                 end, OldProps, PropList)}.
 
--spec append_to_prop(type_prop_name(), type_prop_value(),
-		     proper_types:type()) -> proper_types:type().
+-spec append_to_prop(constraints, {_, _}, proper_types:type()) -> proper_types:type().
 append_to_prop(PropName, Value, {'$type',Props}) ->
     Val = case lists:keyfind(PropName, 1, Props) of
         {PropName, V} ->
@@ -455,8 +459,8 @@ wrapper_test(ImmInstance, Type) ->
     lists:any(fun(T) -> is_instance(ImmInstance, T) end, unwrap(Type)).
 
 %% @private
-%% TODO: restore:-spec unwrap(proper_types:type()) -> [proper_types:type(),...].
 %% TODO: check if it's actually a raw type that's returned?
+-spec unwrap(proper_types:type()) -> [proper_types:type(),...].
 unwrap(Type) ->
     RawInnerTypes = proper_gen:alt_gens(Type) ++ [proper_gen:normal_gen(Type)],
     [cook_outer(T) || T <- RawInnerTypes].

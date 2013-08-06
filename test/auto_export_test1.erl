@@ -28,4 +28,5 @@
 
 -include_lib("proper/include/proper.hrl").
 
+-spec prop_1() -> any().
 prop_1() -> ?FORALL(_, integer(), true).

@@ -34,7 +34,7 @@
 
 %% When parsed by the typeserver, this becomes opaque (it's declared as a simple
 %% type because dialyzer can't handle parametric opaque types yet).
--type orddict(K,V) :: [{K,V}].
+-type orddict(K,V) :: [{K,V}, ...].
 
 %% This header is only included so that the strip_types parse transform will be
 %% applied to this file as well.
@@ -45,7 +45,7 @@
 %% API functions
 %%------------------------------------------------------------------------------
 
--spec new() -> orddict(_K,_V).
+-spec new() -> [].
 new() ->
     orddict:new().
 

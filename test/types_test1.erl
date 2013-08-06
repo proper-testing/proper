@@ -25,10 +25,11 @@
 -module(types_test1).
 -export_type([exp1/0]).
 
--record(rec1, {a = 42 :: integer(), b :: float(), c = this_atom}).
+-record(rec1, {a = 42 :: integer(), b :: float(), c = this_atom :: atom()}).
 -type rec1() :: #rec1{}.
 -opaque exp1() :: rec1() | atom().
 -type type1() :: {exp1(), [float() | boolean()]}.
 -type type2(T) :: {T,T} | [T].
 -type rem1() :: types_test2:exp1(integer()) | integer().
 -type rem2() :: {bitstring(), types_test2:exp2()}.
+-type dummy() :: dummy() | type1() | type2(_) | rem1() | rem2(). % suppress unused warning

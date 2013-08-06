@@ -28,24 +28,30 @@
 
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-spec test() -> ok.
 
 %% Test that the stacktrace is not empty when something crashes in the property
+-spec stacktrace_test_() -> any().
 stacktrace_test_() ->
     [?_assertThrow({stacktrace, [_|_]},
                    proper:quickcheck(bad_proper_call_property())),
      ?_assertThrow({stacktrace, [_|_]},
                    proper:quickcheck(bad_call_property()))].
 
+-spec set_stacktrace_thrower(any()) -> any().
 set_stacktrace_thrower(Prop) ->
     proper:on_output(fun throw_stacktrace/2, Prop).
 
+-spec throw_stacktrace(string(), list()) -> ok.
 throw_stacktrace("Stacktrace: ~p.~n", [Stacktrace]) ->
     throw({stacktrace, Stacktrace});
 throw_stacktrace(_, _) ->
     ok.
 
+-spec bad_proper_call_property() -> any().
 bad_proper_call_property() ->
     set_stacktrace_thrower(?FORALL(_X, proper_types:int(), proper:foo())).
 
+-spec bad_call_property() -> any().
 bad_call_property() ->
     set_stacktrace_thrower(?FORALL(_X, proper_types:int(), foo:bar())).

@@ -377,37 +377,37 @@
 %%-----------------------------------------------------------------------------
 
 -type imm_testcase() :: [imm_input()].
+-type imm_testcases() :: [imm_input(),...].
 -type imm_input() :: proper_gen:imm_instance()
 		   | {'$conjunction',sub_imm_testcases()}.
--type sub_imm_testcases() :: [{tag(),imm_testcase()}].
+-type sub_imm_testcases() :: [{tag(),imm_testcases()}].
 -type imm_counterexample() :: [imm_clean_input()].
 -type imm_clean_input() :: proper_gen:instance()
 			 | {'$conjunction',sub_imm_counterexamples()}.
 -type sub_imm_counterexamples() :: [{tag(),imm_counterexample()}].
 -type counterexample() :: [clean_input()].
-%% @alias
 -type clean_input() :: proper_gen:instance() | sub_counterexamples().
-%% @alias
 -type sub_counterexamples() :: [{tag(),counterexample()}].
 
 -type sample() :: [term()].
 -type freq_sample() :: [{term(),frequency()}].
--type side_effects_fun() :: fun(() -> 'ok').
+-type side_effects_fun() :: fun(() -> ok).
 -type fail_actions() :: [side_effects_fun()].
--type output_fun() :: fun((string(),[term()]) -> 'ok').
+-type output_fun() :: fun((string(),[any()]) -> ok).
 %% A fun to be used by PropEr for output printing. Such a fun should follow the
 %% conventions of `io:format/2'.
 -type tag() :: atom().
 -type title() :: atom() | string().
--type stats_printer() :: fun((sample()) -> 'ok')
-		       | fun((sample(),output_fun()) -> 'ok').
+-type stats_printer() :: fun((sample()) -> ok)
+		       | fun((sample(),output_fun()) -> ok).
 %% A stats-printing function that can be passed to some of the statistics
 %% collection functions, to be used instead of the predefined stats-printer.
 %% Such a function will be called at the end of testing (in case no test fails)
 %% with a sorted list of collected terms. A commonly used stats-printer is
 %% `with_title/1'.
 -type numeric_stat() :: number() | 'undefined'.
--type numeric_stats() :: {numeric_stat(),numeric_stat(),numeric_stat()}.
+-type float_stat() :: float() | undefined.
+-type numeric_stats() :: {numeric_stat(),float_stat(),numeric_stat()}.
 -type time_period() :: non_neg_integer().
 
 %% TODO: This should be opaque.
@@ -496,13 +496,14 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas()}).
 -type opts() :: #opts{}.
--record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
-	      bound    = []  :: imm_testcase() | counterexample(),
+-type bound() :: undefined | imm_testcase() | counterexample().
+-type mode() :: new | try_shrunk | try_cexm.
+-record(ctx, {mode     = new :: mode(),
+	      bound    = []  :: bound(),
 	      actions  = []  :: fail_actions(),
 	      samples  = []  :: [sample()],
 	      printers = []  :: [stats_printer()]}).
 -type ctx() :: #ctx{}.
-
 
 %%-----------------------------------------------------------------------------
 %% Result types
@@ -513,26 +514,23 @@
 	       printers  :: [stats_printer()],
 	       performed :: pos_integer()}).
 -record(fail, {reason    :: fail_reason(),
-	       bound     :: imm_testcase() | counterexample(),
+	       bound     :: bound(),
 	       actions   :: fail_actions(),
 	       performed :: pos_integer()}).
-%% @alias
 -type error() :: {'error', error_reason()}.
 
 -type pass_reason() :: 'true_prop' | 'didnt_crash'.
 -type fail_reason() :: 'false_prop' | 'time_out' | {'trapped',exc_reason()}
 		     | exception() | {'sub_props',[{tag(),fail_reason()},...]}.
-%% @private_type
--type exception() :: {'exception',exc_kind(),exc_reason(),stacktrace()}.
--type exc_kind() :: 'throw' | 'error' | 'exit'.
+
+% % @private
+-type exception() :: {exception,exc_kind(),exc_reason(),stacktrace()}.
+-type exc_kind() :: throw | error | exit.
 -type exc_reason() :: term().
--type stacktrace() :: [call_record()].
--ifdef(OLD_STACKTRACE_FORMAT).
--type call_record() :: {mod_name(),fun_name(),arity() | list()}.
--else.
+-type stacktrace() :: [call_record(), ...].
 -type call_record() :: {mod_name(),fun_name(),arity() | list(),location()}.
 -type location() :: [{atom(),term()}].
--endif.
+
 -type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
 		      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
 		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
@@ -555,7 +553,7 @@
 %% State handling functions
 %%-----------------------------------------------------------------------------
 
--spec grow_size(opts()) -> 'ok'.
+-spec grow_size(opts()) -> ok.
 grow_size(#opts{max_size = MaxSize} = Opts) ->
     Size = get('$size'),
     case Size < MaxSize of
@@ -618,16 +616,16 @@ get_size(Type) ->
     end.
 
 %% @private
--spec global_state_init_size(size()) -> 'ok'.
+-spec global_state_init_size(size()) -> ok.
 global_state_init_size(Size) ->
     global_state_init(#opts{start_size = Size}).
 
 %% @private
--spec global_state_init_size_seed(size(), seed()) -> 'ok'.
+-spec global_state_init_size_seed(size(), seed()) -> ok.
 global_state_init_size_seed(Size, Seed) ->
     global_state_init(#opts{start_size = Size, seed = Seed}).
 
--spec global_state_init(opts()) -> 'ok'.
+-spec global_state_init(opts()) -> ok.
 global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
 			any_type = AnyType, seed = Seed} = Opts) ->
     clean_garbage(),
@@ -646,7 +644,7 @@ global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
     proper_typeserver:restart(),
     ok.
 
--spec global_state_reset(opts()) -> 'ok'.
+-spec global_state_reset(opts()) -> ok.
 global_state_reset(#opts{start_size = StartSize} = Opts) ->
     clean_garbage(),
     put('$size', StartSize - 1),
@@ -654,7 +652,7 @@ global_state_reset(#opts{start_size = StartSize} = Opts) ->
     grow_size(Opts).
 
 %% @private
--spec global_state_erase() -> 'ok'.
+-spec global_state_erase() -> ok.
 global_state_erase() ->
     proper_typeserver:stop(),
     proper_arith:rand_stop(),
@@ -666,7 +664,7 @@ global_state_erase() ->
     ok.
 
 %% @private
--spec spawn_link_migrate(fun(() -> 'ok')) -> pid().
+-spec spawn_link_migrate(fun(() -> ok)) -> pid().
 spawn_link_migrate(ActualFun) ->
     PDictStuff = get(),
     Fun = fun() ->
@@ -676,7 +674,7 @@ spawn_link_migrate(ActualFun) ->
 	  end,
     spawn_link(Fun).
 
--spec save_counterexample(counterexample()) -> 'ok'.
+-spec save_counterexample(counterexample()) -> ok.
 save_counterexample(CExm) ->
     put('$counterexample', CExm),
     ok.
@@ -687,7 +685,7 @@ save_counterexample(CExm) ->
 counterexample() ->
     get('$counterexample').
 
--spec save_counterexamples([{mfa(),counterexample()}]) -> 'ok'.
+-spec save_counterexamples([{mfa(),counterexample()}]) -> ok.
 save_counterexamples(CExms) ->
     put('$counterexamples', CExms),
     ok.
@@ -699,7 +697,7 @@ counterexamples() ->
     get('$counterexamples').
 
 %% @doc Cleans up the process dictionary of all PropEr-produced entries.
--spec clean_garbage() -> 'ok'.
+-spec clean_garbage() -> ok.
 clean_garbage() ->
     erase('$counterexample'),
     erase('$counterexamples'),
@@ -1098,15 +1096,20 @@ mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
     Print("~n", []),
     LongResult.
 
--spec cook_test(raw_test(), opts()) -> test().
+-spec cook_test_failfun (any()) -> no_return().
+cook_test_failfun (Reason) -> throw({'$typeserver',Reason}).
+
+-spec cook_test(raw_test(), opts()) -> test() | no_return().
 cook_test({test,Test}, _Opts) ->
     Test;
 cook_test({spec,MFA}, #opts{spec_timeout = SpecTimeout, false_positive_mfas = FalsePositiveMFAs}) ->
     case proper_typeserver:create_spec_test(MFA, SpecTimeout, FalsePositiveMFAs) of
 	{ok,Test} ->
 	    Test;
-	{error,Reason}  ->
-	    ?FORALL(_, dummy, throw({'$typeserver',Reason}))
+	{error,_Reason} ->
+%TODO: howto pass Reason w/o a dialyzer warning?
+%	    ?FORALL(_, dummy, throw({'$typeserver',Reason}))
+			forall(dummy, fun cook_test_failfun/1)
     end.
 
 -spec get_result(imm_result(),test(),opts()) -> {short_result(),long_result()}.
@@ -1133,7 +1136,7 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
--spec perform(non_neg_integer(), test(), opts()) -> imm_result().
+-spec perform(pos_integer(), test(), opts()) -> imm_result().
 perform(NumTests, Test, Opts) ->
     perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
@@ -1382,24 +1385,24 @@ apply_args(Args, Prop, Ctx) ->
     end.
 
 -spec create_pass_result(ctx(), pass_reason()) ->
-	  #pass{performed :: 'undefined'}.
+	  #pass{performed :: undefined, reason :: pass_reason()}.
 create_pass_result(#ctx{samples = Samples, printers = Printers}, Reason) ->
     #pass{reason = Reason, samples = lists:reverse(Samples),
 	  printers = lists:reverse(Printers)}.
 
--spec create_fail_result(ctx(), fail_reason()) ->
-	  #fail{performed :: 'undefined'}.
+-spec create_fail_result(ctx(), 'false_prop' | 'time_out' | {'sub_props',[{_,_},...]} | {'trapped',_} | {'exception','error' | 'exit' | 'throw',_,[{_,_,_,_},...]}) ->
+#fail{reason::'false_prop' | 'time_out' | 'undefined' | {'sub_props',[any(),...]} | {'trapped',_} | {'exception','error' | 'exit' | 'throw',_,[any(),...]},bound::undefined | imm_testcase() | counterexample(), actions::'undefined' | [fun(() -> 'ok')],performed::'undefined' | pos_integer()}.
 create_fail_result(#ctx{bound = Bound, actions = Actions}, Reason) ->
     #fail{reason = Reason, bound = lists:reverse(Bound),
 	  actions = lists:reverse(Actions)}.
 
--spec child(pid(), delayed_test(), ctx()) -> 'ok'.
+-spec child(pid(), delayed_test(), ctx()) -> ok.
 child(Father, Prop, Ctx) ->
     Result = force(Prop, Ctx),
     Father ! {result,Result},
     ok.
 
--spec clear_mailbox() -> 'ok'.
+-spec clear_mailbox() -> ok.
 clear_mailbox() ->
     receive
 	_ -> clear_mailbox()
@@ -1407,14 +1410,21 @@ clear_mailbox() ->
 	ok
     end.
 
+%-type call_record() :: {mod_name(),fun_name(),arity() | list()} %% older than R15B
+%    | {mod_name(),fun_name(),arity() | list(),location()}. %% since R15B
+%-type location() :: [{atom(),term()}].
+
+
+
+-spec is_not_proper_call(call_record()) -> boolean().
+is_not_proper_call({Mod,_Fun,_Args,_Location}) -> %% since R15B
+    not lists:prefix("proper", atom_to_list(Mod));
+is_not_proper_call({Mod,_Fun,_Args}) -> %% pre R15B
+    not lists:prefix("proper", atom_to_list(Mod)).
+
 -spec threw_exception(function(), stacktrace()) -> boolean().
--ifdef(OLD_STACKTRACE_FORMAT).
-threw_exception(Fun, [{TopMod,TopName,TopArgs} | _Rest]) ->
-    threw_exception_aux(Fun, TopMod, TopName, TopArgs).
--else.
 threw_exception(Fun, [{TopMod,TopName,TopArgs,_Location} | _Rest]) ->
     threw_exception_aux(Fun, TopMod, TopName, TopArgs).
--endif.
 
 -spec threw_exception_aux(function(), mod_name(), fun_name(),
 			  arity() | list()) -> boolean().
@@ -1438,15 +1448,6 @@ clean_stacktrace(RawTrace) ->
         _ -> Trace
     end.
 
--spec is_not_proper_call(call_record()) -> boolean().
--ifdef(OLD_STACKTRACE_FORMAT).
-is_not_proper_call({Mod,_Fun,_Args}) ->
-    not lists:prefix("proper", atom_to_list(Mod)).
--else.
-is_not_proper_call({Mod,_Fun,_Args,_Location}) ->
-    not lists:prefix("proper", atom_to_list(Mod)).
--endif.
-
 -spec clean_testcase(imm_testcase()) -> counterexample().
 clean_testcase(ImmTestCase) ->
     finalize_counterexample(preclean_testcase(ImmTestCase, [])).
@@ -1464,9 +1465,11 @@ preclean_testcase([{'$conjunction',SubImmTCs} | Rest], Acc) ->
 preclean_testcase([ImmInstance | Rest], Acc) ->
     preclean_testcase(Rest, [proper_gen:clean_instance(ImmInstance) | Acc]).
 
--spec preclean_sub_imm_testcases(sub_imm_testcases(),
-				 sub_imm_counterexamples()) ->
-	  sub_imm_counterexamples().
+%-spec preclean_sub_imm_testcases(sub_imm_testcases(),
+%				 sub_imm_counterexamples()) ->
+%	  sub_imm_counterexamples().
+% TODO: check why sub_imm_testcases is supertype of [{_,[any(),...]}]
+-spec preclean_sub_imm_testcases([{_,[any()]}], [{_,[any(),...]}]) -> [{_,[any(),...]}].
 preclean_sub_imm_testcases([], Acc) ->
     lists:reverse(Acc);
 preclean_sub_imm_testcases([{Tag,ImmTC} | Rest], Acc) ->
@@ -1492,7 +1495,7 @@ finalize_input(Instance) ->
 %%-----------------------------------------------------------------------------
 
 -spec shrink(imm_testcase(), test(), fail_reason(), opts()) ->
-	  {'ok',imm_testcase()} | error().
+	  {ok,imm_testcase()} | error().
 shrink(ImmTestCase, Test, Reason,
        #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
 	     output_fun = Print} = Opts) ->
@@ -1709,7 +1712,7 @@ apply_skip(Args, Prop) ->
 %% Output functions
 %%-----------------------------------------------------------------------------
 
--spec report_imm_result(imm_result(), opts()) -> 'ok'.
+-spec report_imm_result(imm_result(), opts()) -> ok.
 report_imm_result(#pass{samples = Samples, printers = Printers,
 			performed = Performed},
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
@@ -1737,7 +1740,7 @@ report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
 report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
     report_error(Reason, Print).
 
--spec report_rerun_result(run_result(), opts()) -> 'ok'.
+-spec report_rerun_result(run_result(), opts()) -> ok.
 report_rerun_result(#pass{reason = Reason},
 		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
@@ -1761,7 +1764,7 @@ report_rerun_result({error,Reason}, #opts{output_fun = Print}) ->
     report_error(Reason, Print).
 
 %% @private
--spec report_error(error_reason(), output_fun()) -> 'ok'.
+-spec report_error(error_reason(), output_fun()) -> ok.
 report_error(arity_limit, Print) ->
     Print("Error: Couldn't produce a function of the desired arity, please "
 	  "recompile PropEr with an increased value for ?MAX_ARITY.~n", []);
@@ -1790,7 +1793,7 @@ report_error({unexpected,Unexpected}, Print) ->
 report_error({unrecognized_option,UserOpt}, Print) ->
     Print("Error: Unrecognized option: ~w.~n", [UserOpt]).
 
--spec report_fail_reason(fail_reason(), string(), output_fun()) -> 'ok'.
+-spec report_fail_reason(fail_reason(), string(), output_fun()) -> ok.
 report_fail_reason(false_prop, _Prefix, _Print) ->
     ok;
 report_fail_reason(time_out, Prefix, Print) ->
@@ -1809,19 +1812,19 @@ report_fail_reason({sub_props,SubReasons}, Prefix, Print) ->
     lists:foreach(Report, SubReasons),
     ok.
 
--spec print_imm_testcase(imm_testcase(), string(), output_fun()) -> 'ok'.
+-spec print_imm_testcase(imm_testcase(), [], output_fun()) -> ok.
 print_imm_testcase(ImmTestCase, Prefix, Print) ->
     ImmCExm = preclean_testcase(ImmTestCase, []),
     print_imm_counterexample(ImmCExm, Prefix, Print).
 
--spec print_imm_counterexample(imm_counterexample(), string(), output_fun()) ->
-	  'ok'.
+-spec print_imm_counterexample(imm_counterexample(), [32 | 62], output_fun()) ->
+	  ok.
 print_imm_counterexample(ImmCExm, Prefix, Print) ->
     PrintImmCleanInput = fun(I) -> print_imm_clean_input(I, Prefix, Print) end,
     lists:foreach(PrintImmCleanInput, ImmCExm),
     ok.
 
--spec print_imm_clean_input(imm_clean_input(), string(), output_fun()) -> 'ok'.
+-spec print_imm_clean_input(imm_clean_input(), [32 | 62], output_fun()) -> ok.
 print_imm_clean_input({'$conjunction',SubImmCExms}, Prefix, Print) ->
     PrintSubImmCExm =
 	fun({Tag,ImmCExm}) ->
@@ -1833,13 +1836,13 @@ print_imm_clean_input({'$conjunction',SubImmCExms}, Prefix, Print) ->
 print_imm_clean_input(Instance, Prefix, Print) ->
     Print(Prefix ++ "~w~n", [Instance]).
 
--spec execute_actions(fail_actions()) -> 'ok'.
+-spec execute_actions(fail_actions()) -> ok.
 execute_actions(Actions) ->
     lists:foreach(fun(A) -> ?FORCE(A) end, Actions),
     ok.
 
 -spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
-		       output_fun()) -> 'ok'.
+		       output_fun()) -> ok.
 report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
     Print("(~b time(s))~n", [Shrinks]),
     print_imm_testcase(MinImmTestCase, "", Print),
@@ -1850,7 +1853,7 @@ report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
 %% Stats printing functions
 %%-----------------------------------------------------------------------------
 
--spec apply_stats_printer(stats_printer(), sample(), output_fun()) -> 'ok'.
+-spec apply_stats_printer(stats_printer(), sample(), output_fun()) -> ok.
 apply_stats_printer(Printer, SortedSample, Print) ->
     {arity,Arity} = erlang:fun_info(Printer, arity),
     case Arity of
@@ -1865,7 +1868,7 @@ apply_stats_printer(Printer, SortedSample, Print) ->
 with_title(Title) ->
     fun(S,O) -> plain_stats_printer(S, O, Title) end.
 
--spec plain_stats_printer(sample(), output_fun(), title()) -> 'ok'.
+-spec plain_stats_printer(sample(), output_fun(), title()) -> ok.
 plain_stats_printer(SortedSample, Print, Title) ->
     print_title(Title, Print),
     Total = length(SortedSample),
@@ -1873,7 +1876,7 @@ plain_stats_printer(SortedSample, Print, Title) ->
     lists:foreach(fun({X,F}) -> Print("~b\% ~w~n", [100 * F div Total,X]) end,
 		  FreqSample).
 
--spec print_title(title(), output_fun()) -> 'ok'.
+-spec print_title(title(), output_fun()) -> ok.
 print_title(RawTitle, Print) ->
     Print("~n", []),
     Title = if
@@ -1907,7 +1910,7 @@ remove_all(_X, Freq, Sample) ->
 numeric_with_title(Title) ->
     fun(S,O) -> num_stats_printer(S, O, Title) end.
 
--spec num_stats_printer([number()], output_fun(), title()) -> 'ok'.
+-spec num_stats_printer([number()], output_fun(), title()) -> ok.
 num_stats_printer(SortedSample, Print, Title) ->
     print_title(Title, Print),
     {Min,Avg,Max} = get_numeric_stats(SortedSample),
@@ -1921,7 +1924,7 @@ get_numeric_stats([Min | _Rest] = SortedSample) ->
     {Min, Avg, Max}.
 
 -spec avg_and_last([number(),...], number(), non_neg_integer()) ->
-	  {number(),number()}.
+	  {float(),number()}.
 avg_and_last([Last], Sum, Len) ->
     {(Sum + Last) / (Len + 1), Last};
 avg_and_last([X | Rest], Sum, Len) ->

@@ -20,9 +20,21 @@
 # Author(s):   Manolis Papadakis, Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
+ERL = $(shell which erl)
+ifeq ($(ERL),)
+$(error "Erlang not available on this system")
+endif
+ 
+REBAR=$(shell which rebar || ./rebar)
+ifeq ($(REBAR),)
+$(error "Rebar not available on this system")
+endif
 
-default: fast dialyzer
+DIALYZER_FLAGS=$(shell ./dialyzer_flags.sh)
+
+.PHONY: fast all get-deps compile run-dialyzer check-escripts tests doc clean distclean rebuild retest
+
+default: fast .dialyzer.plt dialyzer
 
 fast: get-deps compile
 
@@ -32,33 +44,51 @@ include/compile_flags.hrl:
 	./write_compile_flags $@
 
 get-deps:
-	./rebar get-deps
+	@$(REBAR) get-deps
 
 compile:
-	./rebar compile
+	@$(REBAR) compile
 
-dialyzer: compile
-	dialyzer -n -nn -Wunmatched_returns ebin $(find .  -path 'deps/*/ebin/*.beam')
+.dialyzer.plt: Makefile
+	-dialyzer --build_plt \
+		--statistics \
+		--output_plt .dialyzer.plt \
+		--apps erts kernel stdlib sasl compiler \
+		crypto public_key asn1 inets ssl \
+		mnesia xmerl \
+		edoc eunit \
+		tools syntax_tools runtime_tools webtool
 
-check_escripts:
+run-dialyzer:
+	dialyzer \
+		--plt .dialyzer.plt \
+		$(DIALYZER_FLAGS) \
+		ebin $(find .  -path 'deps/*/ebin/*.beam')
+
+dialyzer: .dialyzer.plt compile run-dialyzer
+
+check-escripts:
 	./check_escripts.sh make_doc write_compile_flags
 
 tests: compile
-	./rebar eunit
+	@$(REBAR) eunit
 
 doc:
 	./make_doc
+
+pdf:
+	pandoc README.md -o README.pdf
 
 clean:
 	./clean_temp.sh
 
 distclean: clean
 	rm -f include/compile_flags.hrl
-	./rebar clean
+	@$(REBAR) clean
 
 rebuild: distclean include/compile_flags.hrl
-	./rebar compile
+	@$(REBAR) compile
 
 retest: compile
 	rm -rf .eunit
-	./rebar eunit
+	@$(REBAR) eunit
