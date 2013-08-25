@@ -1053,11 +1053,11 @@ run_init_error_test_() ->
 		   setup_run_commands(Mod, Cmds, Env))
      || {Mod,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
 
-run_postcondition_false() ->
+run_postcondition_false_test() ->
     ?_assertMatch({_H,_S,{postcondition,false}},
 		  run_commands(post_false, proper_statem:commands(post_false))).
 
-run_exception() ->
+run_exception_test() ->
     ?_assertMatch(
        {_H,_S,{exception,throw,badarg,_}},
        run_commands(post_false, proper_statem:commands(error_statem))).
