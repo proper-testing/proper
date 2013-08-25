@@ -1105,7 +1105,7 @@ cook_test({spec,MFA}, #opts{spec_timeout = SpecTimeout, false_positive_mfas = Fa
     case proper_typeserver:create_spec_test(MFA, SpecTimeout, FalsePositiveMFAs) of
 	{ok,Test} ->
 	    Test;
-	{error,Reason}  ->
+	{error,Reason} ->
 	    ?FORALL(_, dummy, throw({'$typeserver',Reason}))
     end.
 
