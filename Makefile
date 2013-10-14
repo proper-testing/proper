@@ -22,6 +22,14 @@
 
 .PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
+ifeq (,$(findstring /Windows/,$(OS)))
+    SEP := $(strip \)
+else
+    SEP := $(strip /)
+endif
+
+REBAR := .$(SEP)rebar
+
 default: fast dialyzer
 
 fast: get-deps compile
@@ -32,10 +40,10 @@ include/compile_flags.hrl:
 	./write_compile_flags $@
 
 get-deps:
-	./rebar get-deps
+	$(REBAR) get-deps
 
 compile:
-	./rebar compile
+	$(REBAR) compile
 
 dialyzer: compile
 	dialyzer -n -nn -Wunmatched_returns ebin $(find .  -path 'deps/*/ebin/*.beam')
@@ -44,7 +52,7 @@ check_escripts:
 	./check_escripts.sh make_doc write_compile_flags
 
 tests: compile
-	./rebar eunit
+	$(REBAR) eunit
 
 doc:
 	./make_doc
@@ -54,11 +62,11 @@ clean:
 
 distclean: clean
 	rm -f include/compile_flags.hrl
-	./rebar clean
+	$(REBAR) clean
 
 rebuild: distclean include/compile_flags.hrl
-	./rebar compile
+	$(REBAR) compile
 
 retest: compile
 	rm -rf .eunit
-	./rebar eunit
+	$(REBAR) eunit
