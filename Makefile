@@ -22,7 +22,7 @@
 
 .PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
-ifeq (,$(findstring /Windows/,$(OS)))
+ifneq (,$(findstring Windows,$(OS)))
     SEP := $(strip \)
 else
     SEP := $(strip /)
