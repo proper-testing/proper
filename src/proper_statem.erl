@@ -646,7 +646,7 @@ execute(Cmds, Env, Mod, History) ->
 -spec pmap(fun((command_list()) -> parallel_history()), [command_list()]) ->
          [parallel_history()].
 pmap(F, L) ->
-    await(lists:reverse(spawn_jobs(F,L))).
+    await(spawn_jobs(F,L)).
 
 -spec spawn_jobs(fun((command_list()) -> parallel_history()),
 		 [command_list()]) -> [pid()].
@@ -656,15 +656,11 @@ spawn_jobs(F, L) ->
      || X <- L].
 
 -spec await([pid()]) -> [parallel_history()].
-await(Pids) ->
-    await_tr(Pids, []).
-
--spec await_tr([pid()], [parallel_history()]) -> [parallel_history()].
-await_tr([], Acc) -> Acc;
-await_tr([H|T], Acc) ->
+await([]) -> [];
+await([H|T]) ->
     receive
 	{H, {ok, Res}} ->
-	    await_tr(T, [Res|Acc]);
+        [Res|await(T)];
 	{H, {'EXIT',_} = Err} ->
 	    _ = [exit(Pid, kill) || Pid <- T],
 	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
