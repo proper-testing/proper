@@ -741,15 +741,9 @@ state_env_after(Mod, Cmds) ->
 %% useful for zipping a command sequence with its (failing) execution history.
 
 -spec zip([A], [B]) -> [{A,B}].
-zip(X, Y) ->
-    zip(X, Y, []).
-
--spec zip([A], [B], [{A,B}]) -> [{A,B}].
-zip([], _, Accum) -> lists:reverse(Accum);
-zip(_, [], Accum) -> lists:reverse(Accum);
-zip([X|Tail1], [Y|Tail2], Accum) ->
-    zip(Tail1, Tail2, [{X,Y}|Accum]).
-
+zip([A|X], [B|Y]) -> [{A,B}|zip(X, Y)];
+zip(_, []) -> [];
+zip([], _) -> [].
 
 %% -----------------------------------------------------------------------------
 %% Utility functions
