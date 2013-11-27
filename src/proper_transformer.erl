@@ -142,7 +142,7 @@ add_exports_tr([], Acc, _ToExport) ->
     lists:reverse(Acc);
 add_exports_tr([{attribute,_,module,_} = ModAttr | Rest], Acc, ToExport) ->
     ExpAttr = {attribute,0,export,ToExport},
-    lists:reverse(Acc) ++ [ModAttr, ExpAttr | Rest];
+    lists:reverse(Acc, [ModAttr, ExpAttr | Rest]);
 add_exports_tr([Form | Rest], Acc, ToExport) ->
     add_exports_tr(Rest, [Form | Acc], ToExport).
 

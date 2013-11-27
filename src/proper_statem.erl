@@ -947,7 +947,7 @@ next_comb_tr(_MaxIndex, [], _Acc) ->
 next_comb_tr(MaxIndex, [MaxIndex | Rest], Acc) ->
     next_comb_tr(MaxIndex, Rest, [1 | Acc]);
 next_comb_tr(_MaxIndex, [X | Rest], Acc) ->
-    lists:reverse(Rest) ++ [X+1] ++ Acc.
+    lists:reverse(Rest, [X+1|Acc]).
 
 -spec remove_slice(pos_integer(), command_list(), [command_list(),...]) ->
          [command_list(),...].
@@ -957,7 +957,7 @@ remove_slice(Index, Slice, List) ->
 -spec remove_slice_tr(pos_integer(), command_list(), [command_list(),...],
 		      [command_list()], pos_integer()) -> [command_list(),...].
 remove_slice_tr(Index, Slice, [H|T], Acc, Index) ->
-    lists:reverse(Acc) ++ [H -- Slice] ++ T;
+    lists:reverse(Acc, [H -- Slice] ++ T);
 remove_slice_tr(Index, Slice, [H|T], Acc, N) ->
     remove_slice_tr(Index, Slice, T, [H|Acc], N+1).
 

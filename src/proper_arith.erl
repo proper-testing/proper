@@ -72,7 +72,7 @@ safe_map_tr(_Fun, [], AccList) ->
 safe_map_tr(Fun, [Head | Tail], AccList) ->
     safe_map_tr(Fun, Tail, [Fun(Head) | AccList]);
 safe_map_tr(Fun, ImproperTail, AccList) ->
-    lists:reverse(AccList) ++ Fun(ImproperTail).
+    lists:reverse(AccList, Fun(ImproperTail)).
 
 -spec safe_foldl(fun((T,A) -> A), A, maybe_improper_list(T,T | [])) -> A.
 safe_foldl(_Fun, Acc, []) ->
@@ -176,7 +176,7 @@ remove(Xs, Positions) ->
 
 -spec remove_tr([T], [position()], position(), [T]) -> [T].
 remove_tr(Xs, [], _Pos, Acc) ->
-    lists:reverse(Acc) ++ Xs;
+    lists:reverse(Acc, Xs);
 remove_tr([_X | XsTail], [Pos | PosTail], Pos, Acc) ->
     remove_tr(XsTail, PosTail, Pos + 1, Acc);
 remove_tr([X | XsTail], Positions, Pos, Acc) ->
@@ -188,7 +188,7 @@ insert(Xs, Positions, Ys) ->
 
 -spec insert_tr([T], [position()], [T], position(), [T]) -> [T].
 insert_tr([], [], Ys, _Pos, Acc) ->
-    lists:reverse(Acc) ++ Ys;
+    lists:reverse(Acc, Ys);
 insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos, Acc) ->
     insert_tr(XsTail, PosTail, Ys, Pos + 1, [X | Acc]);
 insert_tr(Xs, Positions, [Y | YsTail], Pos, Acc) ->
