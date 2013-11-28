@@ -93,16 +93,9 @@ safe_any(Pred, ImproperTail) ->
     Pred(ImproperTail).
 
 -spec safe_zip([T], [S]) -> [{T,S}].
-safe_zip(Xs, Ys) ->
-    safe_zip_tr(Xs, Ys, []).
-
--spec safe_zip_tr([T], [S], [{T,S}]) -> [{T,S}].
-safe_zip_tr([], _Ys, Acc) ->
-    lists:reverse(Acc);
-safe_zip_tr(_Xs, [], Acc) ->
-    lists:reverse(Acc);
-safe_zip_tr([X|Xtail], [Y|YTail], Acc) ->
-    safe_zip_tr(Xtail, YTail, [{X,Y}|Acc]).
+safe_zip([X|Xs], [Y|Ys]) -> [{X, Y} | safe_zip(Xs, Ys)];
+safe_zip(_, []) -> [];
+safe_zip([], _) -> [].
 
 -spec tuple_map(fun((T) -> S), loose_tuple(T)) -> loose_tuple(S).
 tuple_map(Fun, Tuple) ->
