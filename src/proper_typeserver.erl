@@ -1088,17 +1088,17 @@ update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
 
 -spec get_pattern(position(), [abs_type()]) -> pattern().
 get_pattern(TargetPos, FieldForms) ->
-    {0,RevPattern} = lists:foldl(fun add_field/2, {TargetPos,[]}, FieldForms),
-    list_to_tuple(lists:reverse(RevPattern)).
+    list_to_tuple(get_pattern_tr(TargetPos, FieldForms)).
 
--spec add_field(abs_type(), {non_neg_integer(),[pat_field()]}) ->
-	  {non_neg_integer(),[pat_field(),...]}.
-add_field(_Type, {1,Acc}) ->
-    {0, [1|Acc]};
-add_field({atom,_,Tag}, {Left,Acc}) ->
-    {erlang:max(0,Left-1), [Tag|Acc]};
-add_field(_Type, {Left,Acc}) ->
-    {erlang:max(0,Left-1), [0|Acc]}.
+-spec get_pattern_tr(non_neg_integer(), [abs_type()]) -> [pat_field(), ...].
+get_pattern_tr(1, [_Type|T]) ->
+    [1 | [ tag_or_zero(Type) || Type <- T ]];
+get_pattern_tr(Left, [Type|T]) ->
+    [ tag_or_zero(Type) | get_pattern_tr(Left-1, T)].
+
+-compile({inline, [tag_or_zero/1]}).
+tag_or_zero({atom,_,Tag}) -> Tag;
+tag_or_zero(_Type) -> 0.
 
 %% @private
 -spec match(pattern(), tuple()) -> term().
