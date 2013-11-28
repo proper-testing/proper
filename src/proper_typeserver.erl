@@ -2081,23 +2081,21 @@ y(M) ->
 -spec process_list(mod_name(), [abs_type() | ret_type()], state(), stack(),
 		   var_dict()) -> rich_result2([ret_type()],state()).
 process_list(Mod, RawTypes, State, Stack, VarDict) ->
-    Process = fun({simple,_FinType} = Type, {ok,Types,State1}) ->
-		     {ok, [Type|Types], State1};
-		 ({rec,_RecFun,_RecArgs} = Type, {ok,Types,State1}) ->
-		     {ok, [Type|Types], State1};
-		 (TypeForm, {ok,Types,State1}) ->
-		     case convert(Mod, TypeForm, State1, Stack, VarDict) of
-			 {ok,Type,State2} -> {ok,[Type|Types],State2};
-			 {error,_} = Err  -> Err
-		     end;
-		 (_RawType, {error,_} = Err) ->
-		     Err
-	      end,
-    case lists:foldl(Process, {ok,[],State}, RawTypes) of
-	{ok,RevTypes,NewState} ->
-	    {ok, lists:reverse(RevTypes), NewState};
-	{error,_Reason} = Error ->
-	    Error
+    Process = fun
+        ({simple,_FinType} = Type, State1) ->
+            {Type, State1};
+        ({rec,_RecFun,_RecArgs} = Type, State1) ->
+            {Type, State1};
+        (TypeForm, State1) ->
+            case convert(Mod, TypeForm, State1, Stack, VarDict) of
+                {ok, Type, State2} -> {Type, State2};
+                {error, _} = Err  -> throw(Err)
+            end
+        end,
+    try lists:mapfoldl(Process, State, RawTypes) of
+        {Types, NewState} -> {ok, Types, NewState}
+    catch
+        Error -> Error
     end.
 
 -spec convert_integer(abs_expr(), state()) -> rich_result2(ret_type(),state()).
