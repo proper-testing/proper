@@ -69,17 +69,11 @@ list_insert_tr(Pos, Elem, [H|T]) -> [H | list_insert_tr(Pos-1, Elem, T)].
 %%	 apply_to_improper_tail, combine
 -spec safe_map(fun((T) -> S), maybe_improper_list(T,T | [])) ->
 	  maybe_improper_list(S,S | []).
-safe_map(Fun, List) ->
-    safe_map_tr(Fun, List, []).
-
--spec safe_map_tr(fun((T) -> S), maybe_improper_list(T,T | []) | T, [S]) ->
-	  maybe_improper_list(S,S | []).
-safe_map_tr(_Fun, [], AccList) ->
-    lists:reverse(AccList);
-safe_map_tr(Fun, [Head | Tail], AccList) ->
-    safe_map_tr(Fun, Tail, [Fun(Head) | AccList]);
-safe_map_tr(Fun, ImproperTail, AccList) ->
-    lists:reverse(AccList, Fun(ImproperTail)).
+safe_map(Fun, [Head|Tail]) ->
+    [Fun(Head) | safe_map(Fun, Tail)];
+safe_map(_Fun, []) -> [];
+safe_map(Fun, ImproperTail) ->
+    Fun(ImproperTail).
 
 -spec safe_foldl(fun((T,A) -> A), A, maybe_improper_list(T,T | [])) -> A.
 safe_foldl(_Fun, Acc, []) ->
