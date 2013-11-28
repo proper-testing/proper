@@ -39,7 +39,9 @@
          test4_fail_fp/2,
          test5_exc/2,
          test6_exc_fp/2,
-         test7_exc_fp/2]).
+         test7_exc_fp/2,
+         test8_bitstrings/0
+        ]).
 
 check1_specs_test_() ->
     ?_test(?assert(check1_specs_test())).
@@ -147,3 +149,14 @@ test6_exc_fp(Class, Any) ->
 -spec test7_exc_fp(error | exit | throw, badarg | any()) -> any().
 test7_exc_fp(Class, Any) ->
     erlang:Class(Any).
+
+-spec test8_bitstrings() ->
+    {<<_:16>>, <<_:17>>, <<_:16,_:_*1>>, <<_:8, _:_*0>>, <<_:8, _:_*1>>}.
+test8_bitstrings() ->
+    {
+     <<"ab">>,
+     <<"ab", 1:1>>,
+     <<"ab", 1:1>>,
+     <<"a">>,
+     <<"a", 1:1>>
+    }.
