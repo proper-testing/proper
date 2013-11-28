@@ -43,19 +43,26 @@
 %%-----------------------------------------------------------------------------
 
 -spec list_remove(position(), [T]) -> [T].
-list_remove(Index, List) ->
-    {H,[_Elem | T]} = lists:split(Index - 1, List),
-    H ++ T.
+list_remove(Index, List) when is_integer(Index), Index > 0 ->
+    list_remove_tr(Index, List).
+
+list_remove_tr(1, [_Elem|T]) -> T;
+list_remove_tr(Pos, [Elem|T]) -> [Elem | list_remove_tr(Pos-1, T)].
 
 -spec list_update(position(), T, [T]) -> [T,...].
-list_update(Index, NewElem, List) ->
-    {H,[_OldElem | T]} = lists:split(Index - 1, List),
-    H ++ [NewElem] ++ T.
+list_update(Index, NewElem, List) when is_integer(Index), Index > 0 ->
+    list_update_tr(Index, NewElem, List).
+
+list_update_tr(1, NewElem, [_OldElem | T]) -> [NewElem|T];
+list_update_tr(Pos, NewElem, [Elem | T]) ->
+    [Elem | list_update_tr(Pos-1, NewElem, T)].
 
 -spec list_insert(position(), T, [T]) -> [T,...].
-list_insert(Index, Elem, List) ->
-    {H,T} = lists:split(Index - 1, List),
-    H ++ [Elem] ++ T.
+list_insert(Index, Elem, List) when is_integer(Index), Index > 0 ->
+    list_insert_tr(Index, Elem, List).
+
+list_insert_tr(1, Elem, T) -> [Elem|T];
+list_insert_tr(Pos, Elem, [H|T]) -> [H | list_insert_tr(Pos-1, Elem, T)].
 
 %% TODO: safe_map and cut_improper_tail can be combined into one generic list-
 %%	 recursing function, with 3 function arguments: apply_to_proper_elems,
