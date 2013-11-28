@@ -1779,16 +1779,15 @@ convert_union(Mod, ChoiceForms, State, Stack, VarDict) ->
 	    ProcessChoice = fun(T,A) -> process_choice(T,A,Stack) end,
 	    {RevSelfRecs,RevNonSelfRecs,RevNonRecs} =
 		lists:foldl(ProcessChoice, {[],[],[]}, RawChoices),
-	    case {lists:reverse(RevSelfRecs),lists:reverse(RevNonSelfRecs),
-		  lists:reverse(RevNonRecs)} of
-		{_SelfRecs,[],[]} ->
+	    case {RevSelfRecs, lists:reverse(RevNonSelfRecs), RevNonRecs} of
+		{_RevSelfRecs, [], []} ->
 		    base_case_error(Stack);
-		{[],NonSelfRecs,NonRecs} ->
-		    {ok, combine_ret_types(NonRecs ++ NonSelfRecs, union),
+		{[], NonSelfRecs, RevNonRecs} ->
+		    {ok, combine_ret_types(lists:reverse(RevNonRecs, NonSelfRecs), union),
 		     NewState};
-		{SelfRecs,NonSelfRecs,NonRecs} ->
+		{RevSelfRecs, NonSelfRecs, RevNonRecs} ->
 		    {BCaseRecFun,BCaseRecArgs} =
-			case combine_ret_types(NonRecs ++ NonSelfRecs, union) of
+			case combine_ret_types(lists:reverse(RevNonRecs, NonSelfRecs), union) of
 			    {simple,BCaseType} ->
 				{fun([],_Size) -> BCaseType end,[]};
 			    {rec,BCRecFun,BCRecArgs} ->
@@ -1800,8 +1799,8 @@ convert_union(Mod, ChoiceForms, State, Stack, VarDict) ->
 		    FallbackRecArgs = [{false,ParentRef}],
 		    FallbackRetType = {rec,FallbackRecFun,FallbackRecArgs},
 		    {rec,RCaseRecFun,RCaseRecArgs} =
-			combine_ret_types([FallbackRetType] ++ SelfRecs
-					  ++ NonSelfRecs, wunion),
+			combine_ret_types([FallbackRetType |
+				lists:reverse(RevSelfRecs, NonSelfRecs)], wunion),
 		    NewRecFun =
 			fun(AllGens,Size) ->
 			    {BCaseGens,RCaseGens} =
