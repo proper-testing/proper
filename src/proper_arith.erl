@@ -141,26 +141,35 @@ find_first_tr(Pred, [X | Rest], Pos) ->
 
 -spec filter(fun((T) -> boolean()), [T]) -> {[T],[position()]}.
 filter(Pred, List) ->
-    {Trues,TrueLookup,_Falses,_FalseLookup} = partition(Pred, List),
-    {Trues, TrueLookup}.
+    filter_tr(Pred, lists:reverse(List), length(List), [], []).
+
+-spec filter_tr(fun((T) -> boolean()), [T], position(), [T], [position()]) -> {[T],[position()]}.
+filter_tr(_Pred, [], _Pos, Trues, TrueLookup) ->
+    {Trues, TrueLookup};
+filter_tr(Pred, [X | Rest], Pos, Trues, TrueLookup) ->
+    case Pred(X) of
+	true ->
+	    filter_tr(Pred, Rest, Pos - 1, [X | Trues], [Pos | TrueLookup]);
+	false ->
+	    filter_tr(Pred, Rest, Pos - 1, Trues, TrueLookup)
+    end.
 
 -spec partition(fun((T) -> boolean()), [T]) ->
 	  {[T],[position()],[T],[position()]}.
 partition(Pred, List) ->
-    partition_tr(Pred, List, 1, [], [], [], []).
+    partition_tr(Pred, lists:reverse(List), length(List), [], [], [], []).
 
 -spec partition_tr(fun((T) -> boolean()), [T], position(), [T], [position()],
 		   [T], [position()]) -> {[T],[position()],[T],[position()]}.
 partition_tr(_Pred, [], _Pos, Trues, TrueLookup, Falses, FalseLookup) ->
-    {lists:reverse(Trues), lists:reverse(TrueLookup), lists:reverse(Falses),
-     lists:reverse(FalseLookup)};
+    {Trues, TrueLookup, Falses, FalseLookup};
 partition_tr(Pred, [X | Rest], Pos, Trues, TrueLookup, Falses, FalseLookup) ->
     case Pred(X) of
 	true ->
-	    partition_tr(Pred, Rest, Pos + 1, [X | Trues], [Pos | TrueLookup],
+	    partition_tr(Pred, Rest, Pos - 1, [X | Trues], [Pos | TrueLookup],
 			 Falses, FalseLookup);
 	false ->
-	    partition_tr(Pred, Rest, Pos + 1, Trues, TrueLookup, [X | Falses],
+	    partition_tr(Pred, Rest, Pos - 1, Trues, TrueLookup, [X | Falses],
 			 [Pos | FalseLookup])
     end.
 
