@@ -317,21 +317,19 @@ equal_types(SameType, SameType) ->
 equal_types(_, _) ->
     false.
 
+-compile({inline, [is_raw_type/1]}).
 %% @private
 -spec is_raw_type(term()) -> boolean().
-is_raw_type({'$type',_TypeProps}) ->
-    true;
-is_raw_type(X) ->
-    if
-	is_tuple(X) -> is_raw_type_list(tuple_to_list(X));
-	is_list(X)  -> is_raw_type_list(X);
-	true        -> false
-    end.
+is_raw_type({'$type',_TypeProps}) -> true;
+is_raw_type(X) when is_tuple(X)   -> is_raw_type_list(tuple_to_list(X));
+is_raw_type(X) when is_list(X)    -> is_raw_type_list(X);
+is_raw_type(_) -> false.
 
 -spec is_raw_type_list(maybe_improper_list()) -> boolean().
 %% CAUTION: this must handle improper lists
-is_raw_type_list(List) ->
-    proper_arith:safe_any(fun is_raw_type/1, List).
+is_raw_type_list([H|T]) -> is_raw_type(H) orelse is_raw_type_list(T);
+is_raw_type_list([])    -> false;
+is_raw_type_list(T)     -> is_raw_type(T).
 
 %% @private
 -spec to_binary(proper_types:type()) -> binary().
