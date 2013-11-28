@@ -310,23 +310,24 @@ alt_gens(Type) ->
 	error         -> []
     end.
 
+-compile({inline, [clean_instance/1]}).
 %% @private
 -spec clean_instance(imm_instance()) -> instance().
 clean_instance({'$used',_ImmParts,ImmInstance}) ->
     clean_instance(ImmInstance);
 clean_instance({'$to_part',ImmInstance}) ->
     clean_instance(ImmInstance);
-clean_instance(ImmInstance) ->
-    if
-	is_list(ImmInstance) ->
-	    %% CAUTION: this must handle improper lists
-	    proper_arith:safe_map(fun clean_instance/1, ImmInstance);
-	is_tuple(ImmInstance) ->
-	    proper_arith:tuple_map(fun clean_instance/1, ImmInstance);
-	true ->
-	    ImmInstance
-    end.
+clean_instance(ImmInstance) when is_list(ImmInstance) ->
+    %% CAUTION: this must handle improper lists
+    clean_instance_list(ImmInstance);
+clean_instance(ImmInstance) when is_tuple(ImmInstance) ->
+    list_to_tuple(clean_instance_list(tuple_to_list(ImmInstance)));
+clean_instance(ImmInstance) -> ImmInstance.
 
+clean_instance_list([H|T]) ->
+    [clean_instance(H) | clean_instance_list(T)];
+clean_instance_list([]) -> [];
+clean_instance_list(H) -> clean_instance(H).
 
 %%-----------------------------------------------------------------------------
 %% Basic type generators
