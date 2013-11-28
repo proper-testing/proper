@@ -50,16 +50,11 @@
 -spec parse_transform([erl_parse:abstract_form()], [compile:option()]) ->
 		[erl_parse:abstract_form()].
 parse_transform(Forms, _Options) ->
-    strip_types(Forms, []).
+    strip_types(Forms).
 
-strip_types([], Acc) ->
-    lists:reverse(Acc);
-strip_types([{attribute,_,Kind,_} = Attr | Rest], Acc) ->
-    case lists:member(Kind, ?ATTRS_TO_STRIP) of
-	true ->
-	    strip_types(Rest, Acc);
-	false ->
-	    strip_types(Rest, [Attr | Acc])
-    end;
-strip_types([Form | Rest], Acc) ->
-    strip_types(Rest, [Form | Acc]).
+strip_types(Forms) ->
+    [ Form || Form <- Forms,
+              case Form of
+                {attribute,_,Kind,_} -> not lists:member(Kind, ?ATTRS_TO_STRIP);
+                _ -> true
+            end ].
