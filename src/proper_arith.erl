@@ -334,15 +334,8 @@ distribute_tr(CreditsLeft, PeopleLeft, AccList) ->
 -spec jumble([T]) -> [T].
 %% @doc Produces a random permutation of a list.
 jumble(List) ->
-    jumble_tr(List, length(List), []).
-
--spec jumble_tr([T], non_neg_integer(), [T]) -> [T].
-jumble_tr([], 0, Acc) ->
-    Acc;
-jumble_tr(List, Len, Acc) ->
-    Pos = rand_int(0, Len - 1),
-    {List1, [H|List2]} = lists:split(Pos, List),
-    jumble_tr(List1 ++ List2, Len - 1, [H|Acc]).
+    [ X
+     || {_, X} <- lists:sort([{?RANDOM_MOD:uniform(), X} || X <- List ]) ].
 
 -spec rand_choose([T,...]) -> {position(),T}.
 rand_choose(Choices) when Choices =/= [] ->
