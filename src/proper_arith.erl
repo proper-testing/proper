@@ -175,38 +175,31 @@ partition_tr(Pred, [X | Rest], Pos, Trues, TrueLookup, Falses, FalseLookup) ->
 
 -spec remove([T], [position()]) -> [T].
 remove(Xs, Positions) ->
-    remove_tr(Xs, Positions, 1, []).
+    remove_tr(Xs, Positions, 1).
 
--spec remove_tr([T], [position()], position(), [T]) -> [T].
-remove_tr(Xs, [], _Pos, Acc) ->
-    lists:reverse(Acc, Xs);
-remove_tr([_X | XsTail], [Pos | PosTail], Pos, Acc) ->
-    remove_tr(XsTail, PosTail, Pos + 1, Acc);
-remove_tr([X | XsTail], Positions, Pos, Acc) ->
-    remove_tr(XsTail, Positions, Pos + 1, [X | Acc]).
+-spec remove_tr([T], [position()], position()) -> [T].
+remove_tr(Xs, [], _Pos) -> Xs;
+remove_tr([_X | XsTail], [Pos | PosTail], Pos) ->
+    remove_tr(XsTail, PosTail, Pos + 1);
+remove_tr([X | XsTail], Positions, Pos) ->
+    [X | remove_tr(XsTail, Positions, Pos + 1)].
 
 -spec insert([T], [position()], [T]) -> [T].
 insert(Xs, Positions, Ys) ->
-    insert_tr(Xs, Positions, Ys, 1, []).
+    insert_tr(Xs, Positions, Ys, 1).
 
--spec insert_tr([T], [position()], [T], position(), [T]) -> [T].
-insert_tr([], [], Ys, _Pos, Acc) ->
-    lists:reverse(Acc, Ys);
-insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos, Acc) ->
-    insert_tr(XsTail, PosTail, Ys, Pos + 1, [X | Acc]);
-insert_tr(Xs, Positions, [Y | YsTail], Pos, Acc) ->
-    insert_tr(Xs, Positions, YsTail, Pos + 1, [Y | Acc]).
+-spec insert_tr([T], [position()], [T], position()) -> [T].
+insert_tr([], [], Ys, _Pos) -> Ys;
+insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos) ->
+    [X | insert_tr(XsTail, PosTail, Ys, Pos + 1)];
+insert_tr(Xs, Positions, [Y | YsTail], Pos) ->
+    [Y | insert_tr(Xs, Positions, YsTail, Pos + 1)].
 
 -spec unflatten([T], [length()]) -> [[T]].
-unflatten(List, Lens) ->
-    {[],RevSubLists} = lists:foldl(fun remove_n/2, {List,[]}, Lens),
-    lists:reverse(RevSubLists).
-
--spec remove_n(non_neg_integer(), {[T],[[T]]}) -> {[T],[[T]]}.
-remove_n(N, {List,Acc}) ->
+unflatten(List, [N|Lens]) ->
     {Front,Back} = lists:split(N, List),
-    {Back, [Front | Acc]}.
-
+    [Front | unflatten(Back, Lens)];
+unflatten(List, []) -> List.
 
 %%-----------------------------------------------------------------------------
 %% Random functions
