@@ -252,7 +252,7 @@ sampleshrink(RawType, Size) ->
     Type = proper_types:cook_outer(RawType),
     case safe_generate(Type) of
 	{ok,ImmInstance} ->
-	    Shrunk = keep_shrinking(ImmInstance, [], Type),
+	    Shrunk = keep_shrinking(ImmInstance, Type),
 	    PrintInst = fun(I) -> io:format("~p~n",[clean_instance(I)]) end,
 	    lists:foreach(PrintInst, Shrunk);
 	{error,Reason} ->
@@ -261,15 +261,14 @@ sampleshrink(RawType, Size) ->
     proper:global_state_erase(),
     ok.
 
--spec keep_shrinking(imm_instance(), [imm_instance()], proper_types:type()) ->
-	  [imm_instance(),...].
-keep_shrinking(ImmInstance, Acc, Type) ->
-    case proper_shrink:shrink(ImmInstance, Type, init) of
-	{[], _NewState} ->
-	    lists:reverse([ImmInstance|Acc]);
-	{[Shrunk|_Rest], _NewState} ->
-	    keep_shrinking(Shrunk, [ImmInstance|Acc], Type)
-    end.
+-spec keep_shrinking(imm_instance(), proper_types:type()) ->
+    [imm_instance(),...].
+keep_shrinking(ImmInstance, Type) ->
+    [ImmInstance |
+     case proper_shrink:shrink(ImmInstance, Type, init) of
+            {[], _NewState} -> [];
+            {[Shrunk|_Rest], _NewState} -> keep_shrinking(Shrunk, Type)
+        end ].
 
 -spec contains_fun(term()) -> boolean().
 contains_fun(List) when is_list(List) ->
