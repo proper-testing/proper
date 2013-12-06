@@ -1,4 +1,4 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Joseph Wayne Norton <norton@alum.mit.edu>
 %%% @doc This modules contains PropEr's Unit tests for check
@@ -39,7 +39,8 @@
          test4_fail_fp/2,
          test5_exc/2,
          test6_exc_fp/2,
-         test7_exc_fp/2]).
+         test7_exc_fp/2,
+	 test_const_bitstrs/0]).
 
 check1_specs_test_() ->
     ?_test(?assert(check1_specs_test())).
@@ -147,3 +148,12 @@ test6_exc_fp(Class, Any) ->
 -spec test7_exc_fp(error | exit | throw, badarg | any()) -> any().
 test7_exc_fp(Class, Any) ->
     erlang:Class(Any).
+
+%% Tests constant (and quite weird) bitstr type specifications
+-spec test_const_bitstrs() ->
+    {<<_:16>>, <<_:16,_:_*0>>, <<_:16,_:_*1>>, <<_:16,_:_*3>>, <<_:8,_:_*8>>,
+     <<_:17>>, <<_:17,_:_*0>>, <<_:17,_:_*1>>, <<_:11,_:_*3>>, <<_:8,_:_*3>>}.
+test_const_bitstrs() ->
+    Bin = <<"42">>,
+    B17 = <<"42", 0:1>>,
+    {Bin, Bin, Bin, Bin, Bin, B17, B17, B17, B17, B17}.

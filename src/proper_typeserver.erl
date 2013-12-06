@@ -1314,8 +1314,19 @@ is_instance(X, _Mod, {type,_,binary,[BaseExpr,UnitExpr]}, _Stack) ->
 	{ok,Base} when Base >= 0 ->
 	    case eval_int(UnitExpr) of
 		{ok,Unit} when Unit >= 0 ->
-		    is_bitstring(X) andalso bit_size(X) >= Base
-			andalso (bit_size(X) - Base) rem Unit =:= 0;
+		    case is_bitstring(X) of
+			true ->
+			    BitSizeX = bit_size(X),
+			    case Unit =:= 0 of
+				true ->
+				    BitSizeX =:= Base;
+			        false ->
+				    BitSizeX >= Base
+					andalso
+					  (BitSizeX - Base) rem Unit =:= 0
+			    end;
+			false -> false
+		    end;
 		_ ->
 		    abs_expr_error(invalid_unit, UnitExpr)
 	    end;
