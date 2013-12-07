@@ -646,7 +646,7 @@ execute(Cmds, Env, Mod, History) ->
 -spec pmap(fun((command_list()) -> parallel_history()), [command_list()]) ->
          [parallel_history()].
 pmap(F, L) ->
-    await(lists:reverse(spawn_jobs(F,L))).
+    await(spawn_jobs(F,L)).
 
 -spec spawn_jobs(fun((command_list()) -> parallel_history()),
 		 [command_list()]) -> [pid()].
@@ -656,15 +656,11 @@ spawn_jobs(F, L) ->
      || X <- L].
 
 -spec await([pid()]) -> [parallel_history()].
-await(Pids) ->
-    await_tr(Pids, []).
-
--spec await_tr([pid()], [parallel_history()]) -> [parallel_history()].
-await_tr([], Acc) -> Acc;
-await_tr([H|T], Acc) ->
+await([]) -> [];
+await([H|T]) ->
     receive
 	{H, {ok, Res}} ->
-	    await_tr(T, [Res|Acc]);
+        [Res|await(T)];
 	{H, {'EXIT',_} = Err} ->
 	    _ = [exit(Pid, kill) || Pid <- T],
 	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
@@ -741,15 +737,9 @@ state_env_after(Mod, Cmds) ->
 %% useful for zipping a command sequence with its (failing) execution history.
 
 -spec zip([A], [B]) -> [{A,B}].
-zip(X, Y) ->
-    zip(X, Y, []).
-
--spec zip([A], [B], [{A,B}]) -> [{A,B}].
-zip([], _, Accum) -> lists:reverse(Accum);
-zip(_, [], Accum) -> lists:reverse(Accum);
-zip([X|Tail1], [Y|Tail2], Accum) ->
-    zip(Tail1, Tail2, [{X,Y}|Accum]).
-
+zip([A|X], [B|Y]) -> [{A,B}|zip(X, Y)];
+zip(_, []) -> [];
+zip([], _) -> [].
 
 %% -----------------------------------------------------------------------------
 %% Utility functions
@@ -947,7 +937,7 @@ next_comb_tr(_MaxIndex, [], _Acc) ->
 next_comb_tr(MaxIndex, [MaxIndex | Rest], Acc) ->
     next_comb_tr(MaxIndex, Rest, [1 | Acc]);
 next_comb_tr(_MaxIndex, [X | Rest], Acc) ->
-    lists:reverse(Rest) ++ [X+1] ++ Acc.
+    lists:reverse(Rest, [X+1|Acc]).
 
 -spec remove_slice(pos_integer(), command_list(), [command_list(),...]) ->
          [command_list(),...].
@@ -957,7 +947,7 @@ remove_slice(Index, Slice, List) ->
 -spec remove_slice_tr(pos_integer(), command_list(), [command_list(),...],
 		      [command_list()], pos_integer()) -> [command_list(),...].
 remove_slice_tr(Index, Slice, [H|T], Acc, Index) ->
-    lists:reverse(Acc) ++ [H -- Slice] ++ T;
+    lists:reverse(Acc, [H -- Slice] ++ T);
 remove_slice_tr(Index, Slice, [H|T], Acc, N) ->
     remove_slice_tr(Index, Slice, T, [H|Acc], N+1).
 
