@@ -466,18 +466,18 @@
 		  | {'to_file',file:io_device()}
 		  | {'on_output',output_fun()}
 		  | 'long_result'
-		  | {'numtests', pos_integer()}
+		  | {'numtests',pos_integer()}
 		  | pos_integer()
 		  | {'start_size',size()}
-		  | {'max_size', size()}
+		  | {'max_size',size()}
 		  | {'max_shrinks',non_neg_integer()}
 		  | 'noshrink'
 		  | {'constraint_tries',pos_integer()}
 		  | 'fails'
 		  | 'any_to_integer'
 		  | {'spec_timeout',timeout()}
-		  | {'skip_mfas', [mfa()]}
-		  | {'false_positive_mfas', false_positive_mfas()}.
+		  | {'skip_mfas',[mfa()]}
+		  | {'false_positive_mfas',false_positive_mfas()}.
 
 -type user_opts() :: [user_opt()] | user_opt().
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
@@ -1328,12 +1328,12 @@ run_all([{Tag,Prop}|Rest], OldSubBound, SubReasons,
 	end,
     case run(Prop, #ctx{mode = Mode, bound = SubCtxBound}) of
 	#pass{samples = MoreSamples, printers = MorePrinters} ->
-	    NewSamples = lists:reverse(MoreSamples) ++ Samples,
-	    NewPrinters = lists:reverse(MorePrinters) ++ Printers,
+	    NewSamples = lists:reverse(MoreSamples, Samples),
+	    NewPrinters = lists:reverse(MorePrinters, Printers),
 	    NewCtx = Ctx#ctx{samples = NewSamples, printers = NewPrinters},
 	    run_all(Rest, SubBound, SubReasons, NewCtx);
 	#fail{reason = Reason, bound = SubImmTC, actions = MoreActions} ->
-	    NewActions = lists:reverse(MoreActions) ++ Actions,
+	    NewActions = lists:reverse(MoreActions, Actions),
 	    NewCtx = Ctx#ctx{actions = NewActions},
 	    NewSubBound =
 		case Mode of
@@ -1547,7 +1547,7 @@ fix_shrink(ImmTestCase, StrTest, Reason, Shrinks, ShrinksLeft, Opts) ->
 shrink(Shrunk, TestTail, StrTest, _Reason,
        Shrinks, ShrinksLeft, _State, _Opts) when is_boolean(StrTest)
 					  orelse ShrinksLeft =:= 0 ->
-    {Shrinks, lists:reverse(Shrunk) ++ TestTail};
+    {Shrinks, lists:reverse(Shrunk, TestTail)};
 shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
        Shrinks, ShrinksLeft, done, Opts) ->
     Instance = proper_gen:clean_instance(ImmInstance),
@@ -1583,7 +1583,7 @@ shrink(Shrunk, [{'$conjunction',SubImmTCs}], SubProps, {sub_props,SubReasons},
 	  shrinking_result().
 shrink_all(ShrunkHead, Shrunk, SubImmTCs, _SubProps, _SubReasons,
 	   Shrinks, 0, _Opts) ->
-    ShrunkSubImmTCs = lists:reverse(Shrunk) ++ SubImmTCs,
+    ShrunkSubImmTCs = lists:reverse(Shrunk, SubImmTCs),
     ImmTC = lists:reverse([{'$conjunction',ShrunkSubImmTCs} | ShrunkHead]),
     {Shrinks, ImmTC};
 shrink_all(ShrunkHead, Shrunk, [], [], [],
