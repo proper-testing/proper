@@ -932,7 +932,7 @@ tuple_gen(Type) ->
     proper_gen:tuple_gen(Fields).
 
 tuple_is_instance(Type, X) ->
-    Fields = proper_types:get_prop(env, Type),
+    Fields = get_prop(env, Type),
     is_tuple(X) andalso fixed_list_test(tuple_to_list(X), Fields).
 
 tuple_get_indices(Type, _X) ->
@@ -959,11 +959,11 @@ loose_tuple_gen(Type, Size) ->
     proper_gen:loose_tuple_gen(Size, ElemType).
 
 loose_tuple_rev(Type, X) ->
-    ElemType = proper_types:get_prop(env, Type),
+    ElemType = get_prop(env, Type),
     proper_gen:loose_tuple_rev(X, ElemType).
 
 loose_tuple_is_instance(Type, X) ->
-    ElemType = proper_types:get_prop(env, Type),
+    ElemType = get_prop(env, Type),
     is_tuple(X) andalso list_test(tuple_to_list(X), ElemType).
 
 %% @doc Singleton type consisting only of `E'. `E' must be an evaluated term.
