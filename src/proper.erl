@@ -463,7 +463,7 @@
 %% TODO: Rename this to 'options()'?
 -type user_opt() :: 'quiet'
 		  | 'verbose'
-		  | {'to_file',file:io_device()}
+		  | {'to_file',io:device()}
 		  | {'on_output',output_fun()}
 		  | 'long_result'
 		  | {'numtests',pos_integer()}
@@ -736,7 +736,7 @@ counterexample(OuterTest) ->
 %% @doc Same as {@link counterexample/1}, but also accepts a list of options.
 -spec counterexample(outer_test(), user_opts()) -> long_result().
 counterexample(OuterTest, UserOpts) ->
-    quickcheck(OuterTest, add_user_opt(long_result,UserOpts)).
+    quickcheck(OuterTest, add_user_opt(long_result, UserOpts)).
 
 %% @private
 %% @doc Runs PropEr in pure mode. Under this mode, PropEr will perform no I/O
@@ -752,9 +752,9 @@ pure_check(OuterTest) ->
 pure_check(OuterTest, ImmUserOpts) ->
     Parent = self(),
     UserOpts = add_user_opt(quiet, ImmUserOpts),
-    spawn_link(fun() -> Parent ! {result,quickcheck(OuterTest,UserOpts)} end),
+    spawn_link(fun() -> Parent ! {result, quickcheck(OuterTest, UserOpts)} end),
     receive
-	{result,Result} -> Result
+	{result, Result} -> Result
     end.
 
 %% @doc Tests the accuracy of an exported function's spec.
