@@ -252,7 +252,7 @@ sampleshrink(RawType, Size) ->
     Type = proper_types:cook_outer(RawType),
     case safe_generate(Type) of
 	{ok,ImmInstance} ->
-	    Shrunk = keep_shrinking(ImmInstance, [], Type),
+	    Shrunk = keep_shrinking(ImmInstance, Type),
 	    PrintInst = fun(I) -> io:format("~p~n",[clean_instance(I)]) end,
 	    lists:foreach(PrintInst, Shrunk);
 	{error,Reason} ->
@@ -261,15 +261,14 @@ sampleshrink(RawType, Size) ->
     proper:global_state_erase(),
     ok.
 
--spec keep_shrinking(imm_instance(), [imm_instance()], proper_types:type()) ->
-	  [imm_instance(),...].
-keep_shrinking(ImmInstance, Acc, Type) ->
-    case proper_shrink:shrink(ImmInstance, Type, init) of
-	{[], _NewState} ->
-	    lists:reverse([ImmInstance|Acc]);
-	{[Shrunk|_Rest], _NewState} ->
-	    keep_shrinking(Shrunk, [ImmInstance|Acc], Type)
-    end.
+-spec keep_shrinking(imm_instance(), proper_types:type()) ->
+    [imm_instance(),...].
+keep_shrinking(ImmInstance, Type) ->
+    [ImmInstance |
+     case proper_shrink:shrink(ImmInstance, Type, init) of
+            {[], _NewState} -> [];
+            {[Shrunk|_Rest], _NewState} -> keep_shrinking(Shrunk, Type)
+        end ].
 
 -spec contains_fun(term()) -> boolean().
 contains_fun(List) when is_list(List) ->
@@ -310,23 +309,24 @@ alt_gens(Type) ->
 	error         -> []
     end.
 
+-compile({inline, [clean_instance/1]}).
 %% @private
 -spec clean_instance(imm_instance()) -> instance().
 clean_instance({'$used',_ImmParts,ImmInstance}) ->
     clean_instance(ImmInstance);
 clean_instance({'$to_part',ImmInstance}) ->
     clean_instance(ImmInstance);
-clean_instance(ImmInstance) ->
-    if
-	is_list(ImmInstance) ->
-	    %% CAUTION: this must handle improper lists
-	    proper_arith:safe_map(fun clean_instance/1, ImmInstance);
-	is_tuple(ImmInstance) ->
-	    proper_arith:tuple_map(fun clean_instance/1, ImmInstance);
-	true ->
-	    ImmInstance
-    end.
+clean_instance(ImmInstance) when is_list(ImmInstance) ->
+    %% CAUTION: this must handle improper lists
+    clean_instance_list(ImmInstance);
+clean_instance(ImmInstance) when is_tuple(ImmInstance) ->
+    list_to_tuple(clean_instance_list(tuple_to_list(ImmInstance)));
+clean_instance(ImmInstance) -> ImmInstance.
 
+clean_instance_list([H|T]) ->
+    [clean_instance(H) | clean_instance_list(T)];
+clean_instance_list([]) -> [];
+clean_instance_list(H) -> clean_instance(H).
 
 %%-----------------------------------------------------------------------------
 %% Basic type generators

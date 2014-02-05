@@ -237,7 +237,7 @@
 -export([index/2, all_insertions/3, insert_all/2]).
 -export([is_valid/4, args_defined/2]).
 -export([get_next/6, mk_first_comb/3, fix_parallel/8, mk_dict/2]).
--export([execute/4, check/6, run/3, get_initial_state/2]).
+-export([execute/3, check/6, run/3, get_initial_state/2]).
 
 
 %% -----------------------------------------------------------------------------
@@ -614,7 +614,7 @@ run_parallel_commands(Mod, {_Sequential, _Parallel} = Testcase) ->
 run_parallel_commands(Mod, {Sequential, Parallel}, Env) ->
     case run(Mod, Sequential, Env) of
 	{{Seq_history, State, ok}, SeqEnv} ->
-	    F = fun(T) -> execute(T, SeqEnv, Mod, []) end,
+	    F = fun(T) -> execute(T, SeqEnv, Mod) end,
 	    Parallel_history = pmap(F, Parallel),
 	    case check(Mod, State, SeqEnv, false, [], Parallel_history) of
 		true ->
@@ -627,21 +627,16 @@ run_parallel_commands(Mod, {Sequential, Parallel}, Env) ->
     end.
 
 %% @private
--spec execute(command_list(), proper_symb:var_values(), mod_name(),
-	      parallel_history()) -> parallel_history().
-execute(Cmds, Env, Mod, History) ->
-    case Cmds of
-	[] ->
-	    lists:reverse(History);
-	[{set, {var,V}, {call,M,F,A}} = Cmd|Rest] ->
-	    M2 = proper_symb:eval(Env, M),
-	    F2 = proper_symb:eval(Env, F),
-	    A2 = proper_symb:eval(Env, A),
-	    Res = apply(M2, F2, A2),
-	    Env2 = [{V,Res}|Env],
-	    History2 = [{Cmd,Res}|History],
-	    execute(Rest, Env2, Mod, History2)
-    end.
+-spec execute(command_list(), proper_symb:var_values(), mod_name()) ->
+    parallel_history().
+execute([{set, {var,V}, {call,M,F,A}} = Cmd|Rest], Env, Mod) ->
+    M2 = proper_symb:eval(Env, M),
+    F2 = proper_symb:eval(Env, F),
+    A2 = proper_symb:eval(Env, A),
+    Res = apply(M2, F2, A2),
+    Env2 = [{V,Res}|Env],
+    [{Cmd,Res} | execute(Rest, Env2, Mod)];
+execute([], _Env, _Mod) -> [].
 
 -spec pmap(fun((command_list()) -> parallel_history()), [command_list()]) ->
          [parallel_history()].

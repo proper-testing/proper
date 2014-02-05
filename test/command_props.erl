@@ -119,7 +119,7 @@ prop_check_true() ->
 		?MOD:set_up(),
 		{{_, State, ok}, Env} = proper_statem:run(?MOD, Seq, []),
 		Res = lists:map(
-			fun(C) -> proper_statem:execute(C, Env, ?MOD, []) end,
+			fun(C) -> proper_statem:execute(C, Env, ?MOD) end,
 			Parallel),
 		V = proper_statem:check(?MOD, State, Env, false, [], Res),
 		equals(V, true)

@@ -43,36 +43,37 @@
 %%-----------------------------------------------------------------------------
 
 -spec list_remove(position(), [T]) -> [T].
-list_remove(Index, List) ->
-    {H,[_Elem | T]} = lists:split(Index - 1, List),
-    H ++ T.
+list_remove(Index, List) when is_integer(Index), Index > 0 ->
+    list_remove_tr(Index, List).
+
+list_remove_tr(1, [_Elem|T]) -> T;
+list_remove_tr(Pos, [Elem|T]) -> [Elem | list_remove_tr(Pos-1, T)].
 
 -spec list_update(position(), T, [T]) -> [T,...].
-list_update(Index, NewElem, List) ->
-    {H,[_OldElem | T]} = lists:split(Index - 1, List),
-    H ++ [NewElem] ++ T.
+list_update(Index, NewElem, List) when is_integer(Index), Index > 0 ->
+    list_update_tr(Index, NewElem, List).
+
+list_update_tr(1, NewElem, [_OldElem | T]) -> [NewElem|T];
+list_update_tr(Pos, NewElem, [Elem | T]) ->
+    [Elem | list_update_tr(Pos-1, NewElem, T)].
 
 -spec list_insert(position(), T, [T]) -> [T,...].
-list_insert(Index, Elem, List) ->
-    {H,T} = lists:split(Index - 1, List),
-    H ++ [Elem] ++ T.
+list_insert(Index, Elem, List) when is_integer(Index), Index > 0 ->
+    list_insert_tr(Index, Elem, List).
+
+list_insert_tr(1, Elem, T) -> [Elem|T];
+list_insert_tr(Pos, Elem, [H|T]) -> [H | list_insert_tr(Pos-1, Elem, T)].
 
 %% TODO: safe_map and cut_improper_tail can be combined into one generic list-
 %%	 recursing function, with 3 function arguments: apply_to_proper_elems,
 %%	 apply_to_improper_tail, combine
 -spec safe_map(fun((T) -> S), maybe_improper_list(T,T | [])) ->
 	  maybe_improper_list(S,S | []).
-safe_map(Fun, List) ->
-    safe_map_tr(Fun, List, []).
-
--spec safe_map_tr(fun((T) -> S), maybe_improper_list(T,T | []) | T, [S]) ->
-	  maybe_improper_list(S,S | []).
-safe_map_tr(_Fun, [], AccList) ->
-    lists:reverse(AccList);
-safe_map_tr(Fun, [Head | Tail], AccList) ->
-    safe_map_tr(Fun, Tail, [Fun(Head) | AccList]);
-safe_map_tr(Fun, ImproperTail, AccList) ->
-    lists:reverse(AccList, Fun(ImproperTail)).
+safe_map(Fun, [Head|Tail]) ->
+    [Fun(Head) | safe_map(Fun, Tail)];
+safe_map(_Fun, []) -> [];
+safe_map(Fun, ImproperTail) ->
+    Fun(ImproperTail).
 
 -spec safe_foldl(fun((T,A) -> A), A, maybe_improper_list(T,T | [])) -> A.
 safe_foldl(_Fun, Acc, []) ->
@@ -92,16 +93,9 @@ safe_any(Pred, ImproperTail) ->
     Pred(ImproperTail).
 
 -spec safe_zip([T], [S]) -> [{T,S}].
-safe_zip(Xs, Ys) ->
-    safe_zip_tr(Xs, Ys, []).
-
--spec safe_zip_tr([T], [S], [{T,S}]) -> [{T,S}].
-safe_zip_tr([], _Ys, Acc) ->
-    lists:reverse(Acc);
-safe_zip_tr(_Xs, [], Acc) ->
-    lists:reverse(Acc);
-safe_zip_tr([X|Xtail], [Y|YTail], Acc) ->
-    safe_zip_tr(Xtail, YTail, [{X,Y}|Acc]).
+safe_zip([X|Xs], [Y|Ys]) -> [{X, Y} | safe_zip(Xs, Ys)];
+safe_zip(_, []) -> [];
+safe_zip([], _) -> [].
 
 -spec tuple_map(fun((T) -> S), loose_tuple(T)) -> loose_tuple(S).
 tuple_map(Fun, Tuple) ->
@@ -147,63 +141,65 @@ find_first_tr(Pred, [X | Rest], Pos) ->
 
 -spec filter(fun((T) -> boolean()), [T]) -> {[T],[position()]}.
 filter(Pred, List) ->
-    {Trues,TrueLookup,_Falses,_FalseLookup} = partition(Pred, List),
-    {Trues, TrueLookup}.
+    filter_tr(Pred, lists:reverse(List), length(List), [], []).
+
+-spec filter_tr(fun((T) -> boolean()), [T], position(), [T], [position()]) -> {[T],[position()]}.
+filter_tr(_Pred, [], _Pos, Trues, TrueLookup) ->
+    {Trues, TrueLookup};
+filter_tr(Pred, [X | Rest], Pos, Trues, TrueLookup) ->
+    case Pred(X) of
+	true ->
+	    filter_tr(Pred, Rest, Pos - 1, [X | Trues], [Pos | TrueLookup]);
+	false ->
+	    filter_tr(Pred, Rest, Pos - 1, Trues, TrueLookup)
+    end.
 
 -spec partition(fun((T) -> boolean()), [T]) ->
 	  {[T],[position()],[T],[position()]}.
 partition(Pred, List) ->
-    partition_tr(Pred, List, 1, [], [], [], []).
+    partition_tr(Pred, lists:reverse(List), length(List), [], [], [], []).
 
 -spec partition_tr(fun((T) -> boolean()), [T], position(), [T], [position()],
 		   [T], [position()]) -> {[T],[position()],[T],[position()]}.
 partition_tr(_Pred, [], _Pos, Trues, TrueLookup, Falses, FalseLookup) ->
-    {lists:reverse(Trues), lists:reverse(TrueLookup), lists:reverse(Falses),
-     lists:reverse(FalseLookup)};
+    {Trues, TrueLookup, Falses, FalseLookup};
 partition_tr(Pred, [X | Rest], Pos, Trues, TrueLookup, Falses, FalseLookup) ->
     case Pred(X) of
 	true ->
-	    partition_tr(Pred, Rest, Pos + 1, [X | Trues], [Pos | TrueLookup],
+	    partition_tr(Pred, Rest, Pos - 1, [X | Trues], [Pos | TrueLookup],
 			 Falses, FalseLookup);
 	false ->
-	    partition_tr(Pred, Rest, Pos + 1, Trues, TrueLookup, [X | Falses],
+	    partition_tr(Pred, Rest, Pos - 1, Trues, TrueLookup, [X | Falses],
 			 [Pos | FalseLookup])
     end.
 
 -spec remove([T], [position()]) -> [T].
 remove(Xs, Positions) ->
-    remove_tr(Xs, Positions, 1, []).
+    remove_tr(Xs, Positions, 1).
 
--spec remove_tr([T], [position()], position(), [T]) -> [T].
-remove_tr(Xs, [], _Pos, Acc) ->
-    lists:reverse(Acc, Xs);
-remove_tr([_X | XsTail], [Pos | PosTail], Pos, Acc) ->
-    remove_tr(XsTail, PosTail, Pos + 1, Acc);
-remove_tr([X | XsTail], Positions, Pos, Acc) ->
-    remove_tr(XsTail, Positions, Pos + 1, [X | Acc]).
+-spec remove_tr([T], [position()], position()) -> [T].
+remove_tr(Xs, [], _Pos) -> Xs;
+remove_tr([_X | XsTail], [Pos | PosTail], Pos) ->
+    remove_tr(XsTail, PosTail, Pos + 1);
+remove_tr([X | XsTail], Positions, Pos) ->
+    [X | remove_tr(XsTail, Positions, Pos + 1)].
 
 -spec insert([T], [position()], [T]) -> [T].
 insert(Xs, Positions, Ys) ->
-    insert_tr(Xs, Positions, Ys, 1, []).
+    insert_tr(Xs, Positions, Ys, 1).
 
--spec insert_tr([T], [position()], [T], position(), [T]) -> [T].
-insert_tr([], [], Ys, _Pos, Acc) ->
-    lists:reverse(Acc, Ys);
-insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos, Acc) ->
-    insert_tr(XsTail, PosTail, Ys, Pos + 1, [X | Acc]);
-insert_tr(Xs, Positions, [Y | YsTail], Pos, Acc) ->
-    insert_tr(Xs, Positions, YsTail, Pos + 1, [Y | Acc]).
+-spec insert_tr([T], [position()], [T], position()) -> [T].
+insert_tr([], [], Ys, _Pos) -> Ys;
+insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos) ->
+    [X | insert_tr(XsTail, PosTail, Ys, Pos + 1)];
+insert_tr(Xs, Positions, [Y | YsTail], Pos) ->
+    [Y | insert_tr(Xs, Positions, YsTail, Pos + 1)].
 
 -spec unflatten([T], [length()]) -> [[T]].
-unflatten(List, Lens) ->
-    {[],RevSubLists} = lists:foldl(fun remove_n/2, {List,[]}, Lens),
-    lists:reverse(RevSubLists).
-
--spec remove_n(non_neg_integer(), {[T],[[T]]}) -> {[T],[[T]]}.
-remove_n(N, {List,Acc}) ->
+unflatten(List, [N|Lens]) ->
     {Front,Back} = lists:split(N, List),
-    {Back, [Front | Acc]}.
-
+    [Front | unflatten(Back, Lens)];
+unflatten(List, []) -> List.
 
 %%-----------------------------------------------------------------------------
 %% Random functions
@@ -327,15 +323,8 @@ distribute_tr(CreditsLeft, PeopleLeft, AccList) ->
 -spec jumble([T]) -> [T].
 %% @doc Produces a random permutation of a list.
 jumble(List) ->
-    jumble_tr(List, length(List), []).
-
--spec jumble_tr([T], non_neg_integer(), [T]) -> [T].
-jumble_tr([], 0, Acc) ->
-    Acc;
-jumble_tr(List, Len, Acc) ->
-    Pos = rand_int(0, Len - 1),
-    {List1, [H|List2]} = lists:split(Pos, List),
-    jumble_tr(List1 ++ List2, Len - 1, [H|Acc]).
+    [ X
+     || {_, X} <- lists:sort([{?RANDOM_MOD:uniform(), X} || X <- List ]) ].
 
 -spec rand_choose([T,...]) -> {position(),T}.
 rand_choose(Choices) when Choices =/= [] ->

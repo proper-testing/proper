@@ -1088,17 +1088,17 @@ update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
 
 -spec get_pattern(position(), [abs_type()]) -> pattern().
 get_pattern(TargetPos, FieldForms) ->
-    {0,RevPattern} = lists:foldl(fun add_field/2, {TargetPos,[]}, FieldForms),
-    list_to_tuple(lists:reverse(RevPattern)).
+    list_to_tuple(get_pattern_tr(TargetPos, FieldForms)).
 
--spec add_field(abs_type(), {non_neg_integer(),[pat_field()]}) ->
-	  {non_neg_integer(),[pat_field(),...]}.
-add_field(_Type, {1,Acc}) ->
-    {0, [1|Acc]};
-add_field({atom,_,Tag}, {Left,Acc}) ->
-    {erlang:max(0,Left-1), [Tag|Acc]};
-add_field(_Type, {Left,Acc}) ->
-    {erlang:max(0,Left-1), [0|Acc]}.
+-spec get_pattern_tr(non_neg_integer(), [abs_type()]) -> [pat_field(), ...].
+get_pattern_tr(1, [_Type|T]) ->
+    [1 | [ tag_or_zero(Type) || Type <- T ]];
+get_pattern_tr(Left, [Type|T]) ->
+    [ tag_or_zero(Type) | get_pattern_tr(Left-1, T)].
+
+-compile({inline, [tag_or_zero/1]}).
+tag_or_zero({atom,_,Tag}) -> Tag;
+tag_or_zero(_Type) -> 0.
 
 %% @private
 -spec match(pattern(), tuple()) -> term().
@@ -1779,16 +1779,15 @@ convert_union(Mod, ChoiceForms, State, Stack, VarDict) ->
 	    ProcessChoice = fun(T,A) -> process_choice(T,A,Stack) end,
 	    {RevSelfRecs,RevNonSelfRecs,RevNonRecs} =
 		lists:foldl(ProcessChoice, {[],[],[]}, RawChoices),
-	    case {lists:reverse(RevSelfRecs),lists:reverse(RevNonSelfRecs),
-		  lists:reverse(RevNonRecs)} of
-		{_SelfRecs,[],[]} ->
+	    case {RevSelfRecs, lists:reverse(RevNonSelfRecs), RevNonRecs} of
+		{_RevSelfRecs, [], []} ->
 		    base_case_error(Stack);
-		{[],NonSelfRecs,NonRecs} ->
-		    {ok, combine_ret_types(NonRecs ++ NonSelfRecs, union),
+		{[], NonSelfRecs, RevNonRecs} ->
+		    {ok, combine_ret_types(lists:reverse(RevNonRecs, NonSelfRecs), union),
 		     NewState};
-		{SelfRecs,NonSelfRecs,NonRecs} ->
+		{RevSelfRecs, NonSelfRecs, RevNonRecs} ->
 		    {BCaseRecFun,BCaseRecArgs} =
-			case combine_ret_types(NonRecs ++ NonSelfRecs, union) of
+			case combine_ret_types(lists:reverse(RevNonRecs, NonSelfRecs), union) of
 			    {simple,BCaseType} ->
 				{fun([],_Size) -> BCaseType end,[]};
 			    {rec,BCRecFun,BCRecArgs} ->
@@ -1800,8 +1799,8 @@ convert_union(Mod, ChoiceForms, State, Stack, VarDict) ->
 		    FallbackRecArgs = [{false,ParentRef}],
 		    FallbackRetType = {rec,FallbackRecFun,FallbackRecArgs},
 		    {rec,RCaseRecFun,RCaseRecArgs} =
-			combine_ret_types([FallbackRetType] ++ SelfRecs
-					  ++ NonSelfRecs, wunion),
+			combine_ret_types([FallbackRetType |
+				lists:reverse(RevSelfRecs, NonSelfRecs)], wunion),
 		    NewRecFun =
 			fun(AllGens,Size) ->
 			    {BCaseGens,RCaseGens} =
@@ -2081,23 +2080,21 @@ y(M) ->
 -spec process_list(mod_name(), [abs_type() | ret_type()], state(), stack(),
 		   var_dict()) -> rich_result2([ret_type()],state()).
 process_list(Mod, RawTypes, State, Stack, VarDict) ->
-    Process = fun({simple,_FinType} = Type, {ok,Types,State1}) ->
-		     {ok, [Type|Types], State1};
-		 ({rec,_RecFun,_RecArgs} = Type, {ok,Types,State1}) ->
-		     {ok, [Type|Types], State1};
-		 (TypeForm, {ok,Types,State1}) ->
-		     case convert(Mod, TypeForm, State1, Stack, VarDict) of
-			 {ok,Type,State2} -> {ok,[Type|Types],State2};
-			 {error,_} = Err  -> Err
-		     end;
-		 (_RawType, {error,_} = Err) ->
-		     Err
-	      end,
-    case lists:foldl(Process, {ok,[],State}, RawTypes) of
-	{ok,RevTypes,NewState} ->
-	    {ok, lists:reverse(RevTypes), NewState};
-	{error,_Reason} = Error ->
-	    Error
+    Process = fun
+        ({simple,_FinType} = Type, State1) ->
+            {Type, State1};
+        ({rec,_RecFun,_RecArgs} = Type, State1) ->
+            {Type, State1};
+        (TypeForm, State1) ->
+            case convert(Mod, TypeForm, State1, Stack, VarDict) of
+                {ok, Type, State2} -> {Type, State2};
+                {error, _} = Err  -> throw(Err)
+            end
+        end,
+    try lists:mapfoldl(Process, State, RawTypes) of
+        {Types, NewState} -> {ok, Types, NewState}
+    catch
+        Error -> Error
     end.
 
 -spec convert_integer(abs_expr(), state()) -> rich_result2(ret_type(),state()).
