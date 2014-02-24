@@ -138,7 +138,7 @@
 -export([is_inst/2, is_inst/3]).
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
-	 bitstring/1, list/1, vector/2, union/1, weighted_union/1,tuple/1,
+	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
 	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0,
 	 shrink_list/1, safe_union/1, safe_weighted_union/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
@@ -601,9 +601,7 @@ integer_gen(Type, Size) ->
 
 integer_is_instance(Type, X) ->
     {Low, High} = get_prop(env, Type),
-    is_integer(X)
-    andalso le(Low, X)
-    andalso le(X, High).
+    is_integer(X) andalso le(Low, X) andalso le(X, High).
 
 number_shrinker(X, Type, S) ->
     {Low, High} = get_prop(env, Type),
@@ -630,9 +628,7 @@ float_gen(Type, Size) ->
 
 float_is_instance(Type, X) ->
     {Low, High} = get_prop(env, Type),
-    is_float(X)
-    andalso le(Low, X)
-    andalso le(X, High).
+    is_float(X) andalso le(Low, X) andalso le(X, High).
 
 %% @private
 -spec le(extnum(), extnum()) -> boolean().
@@ -774,8 +770,7 @@ is_sublist(Slice, [_|T2]) -> is_sublist(Slice, T2).
 
 -spec list_test(proper_gen:imm_instance(), proper_types:type()) -> boolean().
 list_test(X, ElemType) ->
-    is_list(X)
-    andalso lists:all(fun(E) -> is_instance(E, ElemType) end, X).
+    is_list(X) andalso lists:all(fun(E) -> is_instance(E, ElemType) end, X).
 
 %% @private
 -spec list_get_indices(proper_gen:generator(), list()) -> [position()].
