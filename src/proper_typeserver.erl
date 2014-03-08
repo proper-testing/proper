@@ -182,7 +182,7 @@
 -define(STD_TYPES_0,
 	[any,arity,atom,binary,bitstring,bool,boolean,byte,char,float,integer,
 	 list,neg_integer,non_neg_integer,number,pos_integer,string,term,
-	 timeout]).
+	 timeout,utf8]).
 -define(HARD_ADTS,
 	%% gb_trees:iterator and gb_sets:iterator are NOT hardcoded
 	[{{array,0},array},      {{array,1},proper_array},
