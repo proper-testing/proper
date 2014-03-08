@@ -56,13 +56,18 @@
 -import(proper_types, [integer/0, non_neg_integer/0, pos_integer/0,
 		       neg_integer/0, range/2, float/0, non_neg_float/0,
 		       number/0, boolean/0, byte/0, char/0, list/0, tuple/0,
-		       string/0, wunion/1, term/0, timeout/0, arity/0, utf8/0,
-		       utf8/1, utf8/2]).
+		       string/0, wunion/1, term/0, timeout/0, arity/0]).
 -import(proper_types, [int/0, nat/0, largeint/0, real/0, bool/0, choose/2,
 		       elements/1, oneof/1, frequency/1, return/1, default/2,
 		       orderedlist/1, function0/1, function1/1, function2/1,
 		       function3/1, function4/1, weighted_default/2, parameter/1,
 		       parameter/2, with_parameter/3, with_parameters/2]).
+
+%%------------------------------------------------------------------------------
+%% Unicode
+%%------------------------------------------------------------------------------
+
+-import(proper_unicode, [utf8/0, utf8/1, utf8/2]).
 
 
 %%------------------------------------------------------------------------------

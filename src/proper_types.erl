@@ -140,8 +140,7 @@
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
 	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0,
-	 shrink_list/1, safe_union/1, safe_weighted_union/1, utf8/0, utf8/1,
-	 utf8/2]).
+	 shrink_list/1, safe_union/1, safe_weighted_union/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
@@ -160,7 +159,7 @@
 	 parameter/1, parameter/2]).
 -export([le/2]).
 
--export_type([type/0, raw_type/0, extint/0, nonnegextint/0, extnum/0]).
+-export_type([type/0, raw_type/0, extint/0, extnum/0]).
 
 -include("proper_internal.hrl").
 
@@ -217,9 +216,6 @@
 %% @private_type
 %% @alias
 -type extint()  :: integer() | 'inf'.
-%% @private_type
-%% @alias
--type nonnegextint()  :: non_neg_integer() | 'inf'.
 %% @private_type
 %% @alias
 -type extnum()  :: number()  | 'inf'.
@@ -1351,18 +1347,3 @@ parameter(Parameter, Default) ->
 -spec parameter(atom()) -> value().
 parameter(Parameter) ->
     parameter(Parameter, undefined).
-
-%% @doc See {@link proper_unicode}
--spec utf8() -> proper_types:type().
-utf8() ->
-	proper_unicode:utf8().
-
-%% @doc See {@link proper_unicode}
--spec utf8(nonnegextint()) -> proper_types:type().
-utf8(N) ->
-	proper_unicode:utf8(N).
-
-%% @doc See {@link proper_unicode}
--spec utf8(nonnegextint(), 1..4) -> proper_types:type().
-utf8(N, MaxCodePointSize) ->
-	proper_unicode:utf8(N, MaxCodePointSize).

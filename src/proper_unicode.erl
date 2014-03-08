@@ -44,6 +44,10 @@
 
 -include("proper_common.hrl").
 
+%% @private_type
+%% @alias
+-type nonnegextint()  :: non_neg_integer() | 'inf'.
+
 -import(proper_types, [integer/2, union/1, vector/2]).
 
 -export([utf8/0, utf8/1, utf8/2]).
@@ -70,7 +74,7 @@ utf8() ->
     utf8(inf, 4).
 
 %% @doc utf8-encoded bounded upper size binary.
--spec utf8(proper_types:nonnegextint()) -> proper_types:type().
+-spec utf8(nonnegextint()) -> proper_types:type().
 utf8(N) ->
     utf8(N, 4).
 
@@ -81,7 +85,7 @@ utf8(N) ->
 %% unicode codepoints in VARCHAR fields.
 %%
 %% If unbounded length is needed, use `inf' as first argument.
--spec utf8(proper_types:nonnegextint(), 1..4) -> proper_types:type().
+-spec utf8(nonnegextint(), 1..4) -> proper_types:type().
 utf8(N, MaxCodePointSize) ->
     ?LET(Str,
          vector_upto(N, unicode_codepoint_upto(MaxCodePointSize)),
