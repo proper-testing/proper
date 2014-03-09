@@ -47,4 +47,6 @@ the documentation for the following modules:
 <dt>{@link proper_statem}</dt>
 <dd>using PropEr to test stateful reactive systems specified via an abstract
   state machine</dd>
+<dt>{@link proper_unicode}</dt>
+<dd>generating unicode strings and binaries</dd>
 </dl>

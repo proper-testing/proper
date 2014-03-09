@@ -325,6 +325,14 @@ simple_types_with_data() ->
      {float(0.0,0.0), [0.0], 0.0, [0.1,-0.1], none},
      {non_neg_float(), [88.8,98.9,0.0], 0.0, [-12,1,-0.01], none},
      {atom(), [elvis,'Another Atom',''], '', ["not_an_atom",12,12.2], "atom()"},
+     %{utf8(), [<<>>,<<0>>,<<127>>,<<197,161>>],<<>>,
+     % [<<128>>,<<16#C5BD:16>>,<<127,128>>], "utf8()"},
+     %{utf8(0), [<<>>], <<>>, [<<1>>], none},
+     %{utf8(1), [<<>>,<<127>>,<<197,161>>], <<>>,
+     % [<<0,127>>,<<127,128>>,<<223,191>>], none},
+     %{utf8(2), [<<197,161>>,<<127,197,161>>], <<>>, [<<0,0,0>>], none},
+     %{utf8(inf, 1), [<<>>,<<0>>,<<0,0>>,<<0,0,0>>], <<>>, [<<197,161>>], none},
+     %{utf8(inf, 2), [<<0,0,0>>,<<197,161>>], <<>>, [<<127,197,161>>], none},
      {binary(), [<<>>,<<12,21>>], <<>>, [<<1,2:3>>,binary_atom,42], "binary()"},
      {binary(), [], <<>>, [], "<<_:_*8>>"},
      {binary(3), [<<41,42,43>>], <<0,0,0>>, [<<1,2,3,4>>], "<<_:24>>"},
@@ -485,7 +493,9 @@ impossible_types() ->
      ?SUCHTHAT(X, float(0.0,10.0), X < 0.0),
      ?SUCHTHAT(L, vector(12,integer()), length(L) =/= 12),
      ?SUCHTHAT(B, binary(), lists:member(256,binary_to_list(B))),
-     ?SUCHTHAT(X, exactly('Lelouch'), X =:= 'vi Brittania')].
+     ?SUCHTHAT(X, exactly('Lelouch'), X =:= 'vi Brittania'),
+     ?SUCHTHAT(X, utf8(), unicode:characters_to_list(X) =:= [16#D800]),
+     ?SUCHTHAT(X, utf8(1, 1), size(X) > 1)].
 
 impossible_native_types() ->
     [{types_test1, ["1.1","no_such_module:type1()","no_such_type()"]},
@@ -772,7 +782,16 @@ native_type_props_test_() ->
 		      is_float(X))),
      ?_shrinksTo(0, ?LETSHRINK([X],[my_native_type()],{'tag',X})),
      ?_passes(weird_types:prop_export_all_works()),
-     ?_passes(weird_types:prop_no_auto_import_works())].
+     ?_passes(weird_types:prop_no_auto_import_works()),
+
+     ?_passes(?FORALL(B, utf8(), unicode:characters_to_binary(B) =:= B)),
+     ?_passes(?FORALL(B, utf8(1), length(unicode:characters_to_list(B)) =< 1)),
+     ?_passes(?FORALL(B, utf8(1, 1), size(B) =< 1)),
+     ?_passes(?FORALL(B, utf8(2, 1), size(B) =< 2)),
+     ?_passes(?FORALL(B, utf8(4), size(B) =< 16)),
+     ?_passes(?FORALL(B, utf8(),
+                      length(unicode:characters_to_list(B)) =< size(B)))
+    ].
 
 -type bin4()   :: <<_:32>>.
 -type bits42() :: <<_:42>>.
