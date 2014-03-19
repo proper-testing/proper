@@ -160,6 +160,7 @@
 -export([le/2]).
 
 -export_type([type/0, raw_type/0, extint/0, extnum/0]).
+-export([improper_list/2, maybe_improper_list/2]).
 
 -include("proper_internal.hrl").
 
@@ -188,7 +189,6 @@
 %%	return type
 %% any:
 %%	doesn't cover functions and improper lists
-
 
 %%------------------------------------------------------------------------------
 %% Type declaration macros
@@ -1105,6 +1105,13 @@ any() ->
 	{generator, fun proper_gen:any_gen/1}
     ]).
 
+-spec improper_list(T, T) -> T when T :: proper_types:type().
+improper_list(T,S) ->
+    ?LET({Contents, Terminator}, {list(T), S}, Contents ++ Terminator).
+
+-spec maybe_improper_list(T, T) -> T when T :: proper_types:type().
+maybe_improper_list(T, S) ->
+    union([list(T), improper_list(T, S)]).
 
 %%------------------------------------------------------------------------------
 %% Type aliases
