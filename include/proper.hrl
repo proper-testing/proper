@@ -63,6 +63,12 @@
 		       function3/1, function4/1, weighted_default/2, parameter/1,
 		       parameter/2, with_parameter/3, with_parameters/2]).
 
+%%------------------------------------------------------------------------------
+%% Unicode
+%%------------------------------------------------------------------------------
+
+-import(proper_unicode, [utf8/0, utf8/1, utf8/2]).
+
 
 %%------------------------------------------------------------------------------
 %% Type manipulation functions
