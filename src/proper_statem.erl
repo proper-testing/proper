@@ -236,7 +236,7 @@
 
 -export([index/2, all_insertions/3, insert_all/2]).
 -export([is_valid/4, args_defined/2]).
--export([get_next/6, mk_first_comb/3, fix_parallel/8, mk_dict/2]).
+-export([get_next/6, mk_first_comb/3]).
 -export([execute/4, check/6, run/3, get_initial_state/2]).
 
 

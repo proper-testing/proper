@@ -95,22 +95,12 @@ prop_state_after() ->
 	    end).
 
 prop_p() ->
-    ?FORALL(
-       Workers, range(2, 3),
-       ?FORALL(
-	  CmdList,
-	  ?SUCHTHAT(X, resize(8, commands(?MOD)), length(X) >= Workers),
-	  begin
-	      N = length(CmdList),
-	      Len = N div Workers,
-	      Comb = proper_statem:mk_first_comb(N, Len, Workers),
-	      LookUp =  orddict:from_list(proper_statem:mk_dict(CmdList,1)),
-	      State = ?MOD:initial_state(),
-	      Res = proper_statem:fix_gen(N, Len, Comb, LookUp, ?MOD, State,
-					  [], Workers),
-	      ?WHENFAIL(io:format("CmdList: ~w\nResult: ~w\n", [CmdList, Res]),
-			length(lists:last(Res)) =:= Len)
-	  end)).
+	?FORALL({_Seq, [P1, P2]}, proper_statem:parallel_commands(?MOD),
+		begin
+			Len1 = length(P1),
+			Len2 = length(P2),
+			Len1 =:= Len2 orelse (Len1 + 1) =:= Len2
+		end).
 
 prop_check_true() ->
     ?FORALL({Seq,Parallel}, proper_statem:parallel_commands(?MOD),
