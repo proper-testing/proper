@@ -251,7 +251,7 @@ assert_is_instance(X, Type) ->
 
 assert_can_generate(Type, CheckIsInstance) ->
     lists:foreach(fun(Size) -> try_generate(Type,Size,CheckIsInstance) end,
-		  [1,2,5,10,20,40,50]).
+		  [1, 2, 5, 10, 20, 40, 50]).
 
 try_generate(Type, Size, CheckIsInstance) ->
     {ok,Instance} = proper_gen:pick(Type, Size),
@@ -1102,10 +1102,10 @@ mk_first_comb_test_() ->
 
 args_not_defined_test() ->
     [?_assertNot(proper_statem:args_defined(Args, SymbEnv))
-     || {Args,SymbEnv} <- arguments_not_defined()].
+     || {Args, SymbEnv} <- arguments_not_defined()].
 
 command_props_test_() ->
-    {timeout, 150, [?_assertEqual([], proper:module(command_props, 50))]}.
+    {timeout, 150, [?_assertEqual([], proper:module(command_props))]}.
 
 %% TODO: is_instance check fails because of ?LET in fsm_commands/1?
 can_generate_fsm_commands_test_() ->
