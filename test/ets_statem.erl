@@ -1,4 +1,4 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2014 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,13 +17,14 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2014 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 %%% @doc Simple statem test for ets tables
 
 -module(ets_statem).
--export([initial_state/0, initial_state/1, command/1, precondition/2,
+
+-export([initial_state/1, command/1, precondition/2,
 	 postcondition/3, next_state/3]).
 -export([set_up/0, clean_up/0]).
 
@@ -43,8 +44,8 @@
 
 %%% Generators
 
-key() -> frequency([{5, integer_key()},
-		    {1, float_key()}]).
+key() ->
+    frequency([{5, integer_key()}, {1, float_key()}]).
 
 integer_key() ->
     elements(?INT_KEYS).
@@ -75,9 +76,6 @@ small_int() ->
 initial_state(Type) ->
     #state{type = Type}.
 
-initial_state() ->
-    #state{}.
-
 command(S) ->
     oneof([{call,ets,delete_object,[?TAB, object(S)]} || S#state.stored =/= []] ++
 	  [{call,ets,delete,[?TAB, key(S)]} || S#state.stored =/= []] ++
@@ -104,8 +102,8 @@ next_state(S, _V, {call,_,update_counter,[?TAB,Key,Incr]}) ->
 	set ->
 	    Object = proplists:lookup(Key, S#state.stored),
 	    Value = element(2, Object),
-	    NewObj =  setelement(2, Object, Value + Incr),
-	    S#state{stored=keyreplace(Key, 1, S#state.stored, NewObj)};
+	    NewObj = setelement(2, Object, Value + Incr),
+	    S#state{stored = keyreplace(Key, 1, S#state.stored, NewObj)};
 	ordered_set ->
 	    Object = lists:keyfind(Key, 1, S#state.stored),
 	    Value = element(2, Object),
@@ -224,6 +222,7 @@ prop_ets() ->
 		catch ets:delete(?TAB),
 		?TAB = ets:new(?TAB, [Type, public, named_table]),
 		{H,S,Res} = run_commands(?MODULE, Cmds),
+		clean_up(),
 		?WHENFAIL(
 		   io:format("History: ~p\nState: ~p\nRes: ~p\n", [H,S,Res]),
 		   collect(Type, Res =:= ok))

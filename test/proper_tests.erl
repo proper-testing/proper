@@ -124,15 +124,15 @@ assertEqualsOneOf(X, List) ->
 
 -define(_assertFailRun(ExpCExm, AllCExms, Test, Opts),
 	?_test(begin
-	    ShortResult = proper:quickcheck(Test, Opts),
-	    CExm1 = get_cexm(),
-	    ?checkCExm(CExm1, ExpCExm, AllCExms, Test, Opts),
-	    ?assertEqual(false, ShortResult),
-	    LongResult = proper:quickcheck(Test, [long_result|Opts]),
-	    CExm2 = get_cexm(),
-	    ?checkCExm(CExm2, ExpCExm, AllCExms, Test, Opts),
-	    ?checkCExm(LongResult, ExpCExm, AllCExms, Test, Opts)
-	end)).
+		   ShortResult = proper:quickcheck(Test, Opts),
+		   CExm1 = get_cexm(),
+		   ?checkCExm(CExm1, ExpCExm, AllCExms, Test, Opts),
+		   ?assertEqual(false, ShortResult),
+		   LongResult = proper:quickcheck(Test, [long_result|Opts]),
+		   CExm2 = get_cexm(),
+		   ?checkCExm(CExm2, ExpCExm, AllCExms, Test, Opts),
+		   ?checkCExm(LongResult, ExpCExm, AllCExms, Test, Opts)
+	       end)).
 
 get_cexm() ->
     CExm = proper:counterexample(),
@@ -152,12 +152,12 @@ get_cexm() ->
 
 -define(_assertTempBecomesN(N, ExpShortResult, Prop, Opts),
 	?_test(begin
-	    ?assertMatch(ExpShortResult, proper:quickcheck(Prop,Opts)),
-	    ?assertEqual(N, get_temp()),
-	    erase_temp(),
-	    proper:clean_garbage(),
-	    ?assert(state_is_clean())
-	end)).
+		   ?assertMatch(ExpShortResult, proper:quickcheck(Prop, Opts)),
+		   ?assertEqual(N, get_temp()),
+		   erase_temp(),
+		   proper:clean_garbage(),
+		   ?assert(state_is_clean())
+	       end)).
 
 inc_temp() ->
     inc_temp(1).
@@ -552,9 +552,10 @@ combinations() ->
      {[{1,[1,3,5]}, {2,[7,8,9]}, {3,[2,4,6]}], 3, 9, [1,3,5,7,8,9], 3, 2,
       [{1,[6,8,9]}, {2,[1,3,5]}, {3,[2,4,7]}]}].
 
-first_comb() -> [{10,3,3,[{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]},
-		 {11,5,2,[{1,[6,7,8,9,10,11]}, {2,[1,2,3,4,5]}]},
-		 {12,3,4,[{1,[10,11,12]}, {2,[7,8,9]}, {3,[4,5,6]}, {4,[1,2,3]}]}].
+first_comb() ->
+    [{10,3,3,[{1,[7,8,9,10]}, {2,[4,5,6]}, {3,[1,2,3]}]},
+     {11,5,2,[{1,[6,7,8,9,10,11]}, {2,[1,2,3,4,5]}]},
+     {12,3,4,[{1,[10,11,12]}, {2,[7,8,9]}, {3,[4,5,6]}, {4,[1,2,3]}]}].
 
 lists_to_zip() ->
     [{[],[],[]},
@@ -1189,7 +1190,7 @@ equal_ignoring_chars([Char1|Rest1] = Str1, [Char2|Rest2] = Str2, Ignore) ->
     end.
 
 smaller_lengths_than_my_own(L) ->
-    lists:seq(0,length(L)).
+    lists:seq(0, length(L)).
 
 is_zero(X) -> X =:= 0.
 
