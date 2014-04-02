@@ -262,7 +262,8 @@
 			 | {'postcondition', 'false' | proper:exception()}
 			 | proper:exception()
 			 | 'no_possible_interleaving'.
--type indices()     :: [pos_integer()].
+-type index()       :: pos_integer().
+-type indices()     :: [index()].
 -type combination() :: [{pos_integer(),indices()}].
 -type lookup()      :: orddict:orddict().
 
@@ -426,7 +427,7 @@ parallel_shrinker(Mod, [{init,I} = Init|Seq], Parallel) ->
 		fun(P) -> is_valid(Mod, I, Seq1 ++ P, []) end,
 		Parallel1));
 parallel_shrinker(Mod, Seq, Parallel) ->
-    I= Mod:initial_state(),
+    I = Mod:initial_state(),
     ?SUCHTHAT({Seq1, Parallel1},
 	      ?LET(ParInstances,
 		   [proper_types:shrink_list(P) || P <- Parallel],
@@ -437,7 +438,7 @@ parallel_shrinker(Mod, Seq, Parallel) ->
 		fun(P) -> is_valid(Mod, I, Seq1 ++ P, []) end,
 		Parallel1)).
 
--spec move_shrinker(command_list(), [command_list()], pos_integer()) ->
+-spec move_shrinker(command_list(), [command_list()], index()) ->
 	 proper_types:type().
 move_shrinker(Seq, Par, 1) ->
     ?SHRINK({Seq, Par},
@@ -778,7 +779,7 @@ get_initial_state(Mod, Cmds) when is_list(Cmds) ->
     Mod:initial_state().
 
 %% @private
--spec fix_parallel(pos_integer(), non_neg_integer(), combination() | 'done',
+-spec fix_parallel(index(), non_neg_integer(), combination() | 'done',
 		   lookup(), mod_name(), symbolic_state(), [symb_var()],
 		   pos_integer()) -> [command_list()].
 fix_parallel(_, 0, done, _, _, _, _, _) ->
@@ -854,11 +855,11 @@ all_insertions_tr(X, Limit, LengthFront, Front, Back = [BackH|BackT], Acc) ->
     end.
 
 %% @private
--spec index(term(), [term(),...]) -> pos_integer().
+-spec index(term(), [term(),...]) -> index().
 index(X, List) ->
     index(X, List, 1).
 
--spec index(term(), [term(),...], pos_integer()) -> pos_integer().
+-spec index(term(), [term(),...], index()) -> index().
 index(X, [X|_], N) -> N;
 index(X, [_|Rest], N) -> index(X, Rest, N+1).
 
@@ -891,7 +892,7 @@ lookup_cmd_lists(Combination, LookUp) ->
     [lookup_cmds(Indices, LookUp) || {_, Indices} <- Combination].
 
 %% @private
--spec get_next(combination(), non_neg_integer(), pos_integer(), indices(),
+-spec get_next(combination(), non_neg_integer(), index(), indices(),
 	       pos_integer(), pos_integer()) -> combination() | 'done'.
 get_next(L, _Len, _MaxIndex, Available, _Workers, 1) ->
     [{1,Available}|proplists:delete(1, L)];
@@ -917,7 +918,7 @@ get_next(L, Len, MaxIndex, Available, Workers, N) ->
 		     Len, MaxIndex, Available -- C, Workers, N-1)
     end.
 
--spec next_comb(pos_integer(), indices(), indices()) -> indices() | 'done'.
+-spec next_comb(index(), indices(), indices()) -> indices() | 'done'.
 next_comb(MaxIndex, Indices, Available) ->
     Res = next_comb_tr(MaxIndex, lists:reverse(Indices), []),
     case is_well_defined(Res, Available) of
@@ -931,7 +932,7 @@ is_well_defined(Comb, Available) ->
     lists:usort(Comb) =:= Comb andalso
 	lists:all(fun(X) -> lists:member(X, Available) end, Comb).
 
--spec next_comb_tr(pos_integer(), indices(), indices()) -> indices() | 'done'.
+-spec next_comb_tr(index(), indices(), indices()) -> indices() | 'done'.
 next_comb_tr(_MaxIndex, [], _Acc) ->
     done;
 next_comb_tr(MaxIndex, [MaxIndex | Rest], Acc) ->
@@ -939,12 +940,12 @@ next_comb_tr(MaxIndex, [MaxIndex | Rest], Acc) ->
 next_comb_tr(_MaxIndex, [X | Rest], Acc) ->
     lists:reverse(Rest, [X+1|Acc]).
 
--spec remove_slice(pos_integer(), command_list(), [command_list(),...]) ->
+-spec remove_slice(index(), command_list(), [command_list(),...]) ->
          [command_list(),...].
 remove_slice(Index, Slice, List) ->
     remove_slice_tr(Index, Slice, List, [], 1).
 
--spec remove_slice_tr(pos_integer(), command_list(), [command_list(),...],
+-spec remove_slice_tr(index(), command_list(), [command_list(),...],
 		      [command_list()], pos_integer()) -> [command_list(),...].
 remove_slice_tr(Index, Slice, [H|T], Acc, Index) ->
     lists:reverse(Acc, [H -- Slice] ++ T);
