@@ -22,10 +22,15 @@
 %%% @author Eirini Arvaniti
 
 -module(ets_counter).
+
+%% -export([ets_inc/2]).
+%% -export([command/1, precondition/2, postcondition/3,
+%% 	 initial_state/0, next_state/3]).
+-compile(export_all).
+
 -include_lib("proper/include/proper.hrl").
 
--compile(export_all).
--define(KEYS, lists:seq(1,10)).
+-define(KEYS, lists:seq(1, 10)).
 
 ets_inc(Key, Inc) ->
     case ets:lookup(counter, Key) of
@@ -35,7 +40,7 @@ ets_inc(Key, Inc) ->
 	    Inc;
 	[{Key,OldValue}] ->
 	    NewValue = OldValue + Inc,
-	    ets:insert(counter, {Key,NewValue}),
+	    ets:insert(counter, {Key, NewValue}),
 	    NewValue
     end.
 
@@ -51,7 +56,8 @@ prop_ets_counter() ->
 	    end).
 
 set_up() ->
-    ets:new(counter, [public, named_table]).
+    counter = ets:new(counter, [public, named_table]),
+    ok.
 
 clean_up() ->
     catch ets:delete(counter).
