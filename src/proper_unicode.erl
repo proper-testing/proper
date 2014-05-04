@@ -1,4 +1,4 @@
-%%% Copyright 2014 Motiejus Jakštys <desired.mta@gmail.com>
+%%% Copyright 2014 Motiejus Jakstys <desired.mta@gmail.com>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -15,9 +15,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2014 Motiejus Jakštys
+%%% @copyright 2014 Motiejus Jakstys
 %%% @version {@version}
-%%% @author Motiejus Jakštys
+%%% @author Motiejus Jakstys
 
 %%% @doc Unicode generators for PropEr
 %%%
