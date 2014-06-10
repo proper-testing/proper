@@ -1027,6 +1027,22 @@ command_names_test_() ->
     [?_assertEqual(proper_statem:command_names(Cmds), Expected)
      || {Cmds,Expected} <- command_names()].
 
+command_names_parallel1_test_() ->
+    [?_assertEqual(proper_statem:command_names({Cmds,[]}), Expected)
+     || {Cmds,Expected} <- command_names()].
+
+command_names_parallel2_test_() ->
+    [?_assertEqual(proper_statem:command_names({[],[Cmds]}), Expected)
+     || {Cmds,Expected} <- command_names()].
+
+command_names_parallel3_test_() ->
+    [?_assertEqual(proper_statem:command_names({Cmds,[Cmds]}), Expected++Expected)
+     || {Cmds,Expected} <- command_names()].
+
+command_names_parallel4_test_() ->
+    [?_assertEqual(proper_statem:command_names({Cmds,[Cmds,Cmds]}), Expected++Expected++Expected)
+     || {Cmds,Expected} <- command_names()].
+
 valid_cmds_test_() ->
     [?_assert(proper_statem:is_valid(Mod, State, Cmds, Env))
      || {Mod,State,Cmds,_,_,Env} <- valid_command_sequences()].

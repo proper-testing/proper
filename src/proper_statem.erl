@@ -710,7 +710,9 @@ check(Mod, State, Env, Changed, Tried, [P|ToTry]) ->
 %% {@link proper:aggregate/2} in order to collect statistics about command
 %% execution.
 
--spec command_names(command_list()) -> [mfa()].
+-spec command_names(command_list() | parallel_testcase()) -> [mfa()].
+command_names({Cmds, L}) ->
+    lists:flatten([command_names(Cmds)|[ command_names(Cs) || Cs <- L ]]);
 command_names(Cmds) ->
     [{M, F, length(Args)} || {set, _Var, {call,M,F,Args}} <- Cmds].
 
