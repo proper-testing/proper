@@ -30,11 +30,11 @@ endif
 
 REBAR := .$(SEP)rebar
 
-default: fast dialyzer
+default: fast
 
 fast: get-deps compile
 
-all: default doc tests
+all: fast dialyzer doc tests
 
 include/compile_flags.hrl:
 	./write_compile_flags $@
