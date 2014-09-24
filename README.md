@@ -83,13 +83,13 @@ Quickstart guide
 
         git clone git://github.com/manopapad/proper.git
 
-*   Compile PropEr: Run `make fast` if you just want to build PropEr, optionally
-    followed by a `make tests` to also run its unit tests. (A plain `make` call
-    does a `make fast` but also runs dialyzer on PropEr's code base; this
-    requires having a dialyzer PLT. To also build PropEr's documentation issue
+*   Compile PropEr: Run `make` if you just want to build PropEr, optionally
+    followed by a `make tests` to run its unit tests and a `make dialyzer` call
+    to also run dialyzer on PropEr's code base; the latter requires having a
+    dialyzer PLT. To do the above but also build PropEr's documentation issue
     a `make all` call; in that case, you are going to need the `syntax_tools`
     application and a recent version of `EDoc`).
-    Optionally sfmt-erlang can be selected as an alternative random number
+    Optionally, sfmt-erlang can be selected as an alternative random number
     generator using `./configure --use-sfmt` before running `make`.
 *   Add PropEr's base directory to your Erlang library path, using one of the
     following methods:
