@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -360,7 +360,8 @@
 -export([pure_check/1, pure_check/2]).
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
 
--export_type([test/0, outer_test/0, counterexample/0, exception/0, false_positive_mfas/0]).
+-export_type([test/0, outer_test/0, counterexample/0, exception/0,
+	      false_positive_mfas/0]).
 
 -include("proper_internal.hrl").
 

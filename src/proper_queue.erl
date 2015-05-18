@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Parametric wrapper to queue module.
@@ -33,9 +33,13 @@
 
 -export_type([queue/1]).
 
+-ifdef(NO_MODULES_IN_OPAQUES).
 %% When parsed by the typeserver, this becomes opaque (it's declared as a simple
 %% type because dialyzer can't handle parametric opaque types yet).
 -type queue(_T) :: queue().
+-else.
+-opaque queue(T) :: queue:queue(T).
+-endif.
 
 %% This header is only included so that the strip_types parse transform will be
 %% applied to this file as well.
