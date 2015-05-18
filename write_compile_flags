@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -27,8 +27,13 @@
 -spec main([file:filename(),...]) -> 'ok'.
 main([OutFile]) ->
     CurrVer = parse_version_string(erlang:system_info(version)),
-    {ok,Handle} = file:open(OutFile, [write]),
+    {ok, Handle} = file:open(OutFile, [write]),
     ToDefine =
+	%% older than 17.0 => queue(), set(), etc. were built-in types
+	case CurrVer < [6,0] of
+	    true -> ["NO_MODULES_IN_OPAQUES"];
+	    false -> []
+	end ++
 	%% older than R15B => no location information in stacktraces
 	case CurrVer < [5,9] of
 	    true  -> ["OLD_STACKTRACE_FORMAT"];
