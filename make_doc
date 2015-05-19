@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -34,6 +34,9 @@
 %%%              * File and line information is partially lost.
 
 
+%% Needed for some defines (e.g. NO_MODULES_IN_OPAQUES) and some types
+-include("include/proper_internal.hrl").
+
 %%------------------------------------------------------------------------------
 %% Constants
 %%------------------------------------------------------------------------------
@@ -52,12 +55,6 @@
 %%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
-
-%% TODO: Replace these with the appropriate types from stdlib.
--type abs_form() :: term().
--type abs_clause() :: term().
--type abs_type() :: term().
--type abs_rec_field() :: term().
 
 -type line() :: non_neg_integer().
 -type var_name() :: atom().
@@ -369,8 +366,12 @@ remove_private_types(Forms, PrivTypesList) ->
     PrivTypesSet = sets:from_list(PrivTypesList),
     [remove_from_exported(Form,PrivTypesSet) || Form <- Forms].
 
--spec remove_from_exported(abs_form(), set()) -> abs_form().
-%% set({type_name(),arity()})
+-ifdef(NO_MODULES_IN_OPAQUES).
+-type priv_types() :: set().
+-else.
+-type priv_types() :: sets:set({type_name(),arity()}).
+-endif.
+-spec remove_from_exported(abs_form(), priv_types()) -> abs_form().
 remove_from_exported({attribute,Line,export_type,TypesList}, PrivTypesSet) ->
     IsNotPrivate = fun(T) -> not sets:is_element(T,PrivTypesSet) end,
     {attribute, Line, export_type, lists:filter(IsNotPrivate,TypesList)};
