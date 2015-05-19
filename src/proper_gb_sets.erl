@@ -36,6 +36,10 @@
 
 -export_type([gb_set/1, iterator/1]).
 
+%% This header is included for the ifdef below and so that the
+%% strip_types parse transform will be applied to this file as well.
+-include("proper_internal.hrl").
+
 -ifdef(NO_MODULES_IN_OPAQUES).
 %% When parsed by the typeserver, this becomes opaque (it's declared as a simple
 %% type because dialyzer can't handle parametric opaque types yet).
@@ -45,10 +49,6 @@
 -endif.
 %% Based on the documentation alone, this is the best we can do.
 -type iterator(_T) :: term().
-
-%% This header is only included so that the strip_types parse transform will be
-%% applied to this file as well.
--include("proper_internal.hrl").
 
 
 %%------------------------------------------------------------------------------

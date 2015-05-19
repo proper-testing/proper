@@ -32,6 +32,10 @@
 
 -export_type([dict/2]).
 
+%% This header is included for the ifdef below and so that the
+%% strip_types parse transform will be applied to this file as well.
+-include("proper_internal.hrl").
+
 %% This would normally contain the internal representation of the ADT.
 %% This representation won't actually be used, so we could just use a dummy one.
 %% As with specs, unbound type variables are not allowed in '-type' declarations
@@ -57,10 +61,6 @@
 %% Notice that PropEr will never produce a call like this one:
 %%   {'$call',proper_dict,update,[aa,Fun,{'$call',proper_dict,new,[]}]}
 %% which would raise an exception if we tried to evaluate it.
-
-%% This header is only included so that the strip_types parse transform will be
-%% applied to this file as well.
--include("proper_internal.hrl").
 
 
 %%------------------------------------------------------------------------------

@@ -33,6 +33,10 @@
 
 -export_type([queue/1]).
 
+%% This header is included for the ifdef below and so that the
+%% strip_types parse transform will be applied to this file as well.
+-include("proper_internal.hrl").
+
 -ifdef(NO_MODULES_IN_OPAQUES).
 %% When parsed by the typeserver, this becomes opaque (it's declared as a simple
 %% type because dialyzer can't handle parametric opaque types yet).
@@ -40,10 +44,6 @@
 -else.
 -opaque queue(T) :: queue:queue(T).
 -endif.
-
-%% This header is only included so that the strip_types parse transform will be
-%% applied to this file as well.
--include("proper_internal.hrl").
 
 
 %%------------------------------------------------------------------------------
