@@ -19,7 +19,7 @@
 
 %%% @copyright 2015-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
-%%% @author Stone Shi (modifications by Kostis Sagonas
+%%% @author Zaiming Shi (modifications and update by Kostis Sagonas)
 
 -module(proper_unused_imports_remover).
 -export([parse_transform/2]).
@@ -35,7 +35,8 @@
 -type imp_dict() :: dict:dict(key(), val()).
 -endif.
 
--define(imported_modules, [proper, proper_types, proper_symb, proper_statem]).
+-define(IMP_MODULES,
+	[proper, proper_statem, proper_symb, proper_types, proper_unicode]).
 
 -spec parse_transform([abs_form()], [compile:option()]) -> [abs_form()].
 parse_transform(Forms, Options) ->
@@ -48,7 +49,7 @@ parse_transform(Forms, Options) ->
 parse([{attribute, _L, import, {?MODULE, []}} | Rest], Imports, Acc) ->
     lists:reverse(Acc) ++ use_new_imports(to_dict(Imports), Rest);
 parse([{attribute, _L, import, {Mod, _Funs}} = A | Rest], Imports, Acc) ->
-    case lists:member(Mod, ?imported_modules) of
+    case lists:member(Mod, ?IMP_MODULES) of
         true  -> parse(Rest, [A | Imports], Acc);
         false -> parse(Rest, Imports, [A | Acc])
     end;
