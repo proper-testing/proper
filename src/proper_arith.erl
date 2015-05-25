@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains helper arithmetic, list handling and random
@@ -232,7 +232,7 @@ rand_restart(Seed) ->
 rand_reseed() ->
     %% TODO: This should use the pid of the process somehow, in case two
     %%       spawned functions call it simultaneously?
-    _ = ?RANDOM_MOD:seed(now()),
+    _ = ?RANDOM_MOD:seed(os:timestamp()),
     ok.
 
 -spec rand_stop() -> 'ok'.

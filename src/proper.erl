@@ -485,7 +485,7 @@
 	       long_result      = false           :: boolean(),
 	       numtests         = 100             :: pos_integer(),
 	       start_size       = 1               :: size(),
-	       seed                               :: seed(),
+	       seed             = os:timestamp()  :: seed(),
 	       max_size         = 42              :: size(),
 	       max_shrinks      = 500             :: non_neg_integer(),
 	       noshrink         = false           :: boolean(),
@@ -636,14 +636,9 @@ global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
     put('$left', 0),
     grow_size(Opts),
     put('$constraint_tries', CTries),
-    put('$any_type',AnyType),
-    S = case Seed of
-        undefined ->
-            now();
-        _ ->
-            Seed
-    end,
-    proper_arith:rand_restart(S),
+    put('$any_type', AnyType),
+    {_, _, _} = Seed, % just an assertion
+    proper_arith:rand_restart(Seed),
     proper_typeserver:restart(),
     ok.
 

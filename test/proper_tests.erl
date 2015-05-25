@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This modules contains PropEr's Unit tests. You need the EUnit
@@ -266,7 +266,7 @@ assert_seeded_runs_return_same_result(Type) ->
                   [1, 2, 5, 10, 20, 40, 50]).
 
 try_generate_seeded(Type, Size) ->
-    Seed = now(),
+    Seed = os:timestamp(),
     {ok, Instance1} = proper_gen:pick(Type, Size, Seed),
     {ok, Instance2} = proper_gen:pick(Type, Size, Seed),
     ?assert(Instance1 =:= Instance2).

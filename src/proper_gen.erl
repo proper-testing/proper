@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -30,7 +30,8 @@
 %%% meant for demonstration purposes only.
 
 -module(proper_gen).
--export([pick/1, pick/2, pick/3, sample/1, sample/3, sampleshrink/1, sampleshrink/2]).
+-export([pick/1, pick/2, pick/3,
+	 sample/1, sample/3, sampleshrink/1, sampleshrink/2]).
 
 -export([safe_generate/1]).
 -export([generate/1, normal_gen/1, alt_gens/1, clean_instance/1,
@@ -196,10 +197,10 @@ generate(Type, TriesLeft, Fallback) ->
 pick(RawType) ->
     pick(RawType, 10).
 
-%% @equiv pick(Type, Size, now())
--spec pick(Type::proper_types:raw_type(), size()) -> {'ok', instance()} | 'error'.
+%% @equiv pick(Type, Size, os:timestamp())
+-spec pick(Type::proper_types:raw_type(), size()) -> {'ok',instance()} | 'error'.
 pick(RawType, Size) ->
-    pick(RawType, Size, now()).
+    pick(RawType, Size, os:timestamp()).
 
 %% @doc Generates a random instance of `Type', of size `Size' with seed `Seed'.
 -spec pick(Type::proper_types:raw_type(), size(), seed()) ->
