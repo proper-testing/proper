@@ -1,7 +1,39 @@
+%%% Copyright 2015-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
+%%%
+%%% This file is part of PropEr.
+%%%
+%%% PropEr is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% PropEr is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
+
+%%% @copyright 2015-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @version {@version}
+%%% @author Stone Shi (modifications by Kostis Sagonas
+
 -module(proper_unused_imports_remover).
 -export([parse_transform/2]).
 
 -include("proper_internal.hrl").
+
+-type key() :: {fun_name(), arity()}.
+-type val() :: {erl_scan:line(), mod_name(), boolean()}.
+
+-ifdef(NO_MODULES_IN_OPAQUES).
+-type imp_dict() :: dict().
+-else.
+-type imp_dict() :: dict:dict(key(), val()).
+-endif.
 
 -define(imported_modules, [proper, proper_types, proper_symb, proper_statem]).
 
@@ -12,7 +44,7 @@ parse_transform(Forms, Options) ->
         false -> Forms
     end.
 
--spec parse([abs_form()], list(), list()) -> [abs_form()].
+-spec parse([abs_form()], [abs_form()], [abs_form()]) -> [abs_form()].
 parse([{attribute, _L, import, {?MODULE, []}} | Rest], Imports, Acc) ->
     lists:reverse(Acc) ++ use_new_imports(to_dict(Imports), Rest);
 parse([{attribute, _L, import, {Mod, _Funs}} = A | Rest], Imports, Acc) ->
@@ -23,22 +55,22 @@ parse([{attribute, _L, import, {Mod, _Funs}} = A | Rest], Imports, Acc) ->
 parse([Form | Rest], Imports, Acc) ->
     parse(Rest, Imports, [Form | Acc]).
 
--spec use_new_imports(dict(), [abs_form()]) -> [abs_form()].
+-spec use_new_imports(imp_dict(), [abs_form()]) -> [abs_form()].
 use_new_imports(Dict0, Forms) ->
     Dict = mark_used_imports(Dict0, Forms),
     new_import_attributes(Dict) ++ Forms.
 
--spec mark_used_imports(dict(), [abs_form()]) -> dict().
+-spec mark_used_imports(imp_dict(), [abs_form()]) -> imp_dict().
 mark_used_imports(Dict, Forms) ->
     lists:foldl(fun scan_forms/2, Dict, Forms).
 
--spec scan_forms(abs_form(), dict()) -> dict().
+-spec scan_forms(abs_form(), imp_dict()) -> imp_dict().
 scan_forms({function, _L, _F, _A, Clauses}, Dict) ->
     lists:foldl(fun brutal_scan/2, Dict, Clauses);
 scan_forms(_, Dict) ->
     Dict.
 
--spec brutal_scan(abs_form(), dict()) -> dict().
+-spec brutal_scan(abs_form(), imp_dict()) -> imp_dict().
 brutal_scan({'fun', _L, {function, Name, Arity}}, Dict) ->
     maybe_update_dict({Name, Arity}, Dict);
 brutal_scan({call, _L1, Call, Args}, Dict0) ->
@@ -56,7 +88,7 @@ brutal_scan(Other, Dict) when is_tuple(Other) ->
 brutal_scan(_Other, Dict) ->
     Dict.
 
--spec maybe_update_dict({atom(), non_neg_integer()}, dict()) -> dict().
+-spec maybe_update_dict(key(), imp_dict()) -> imp_dict().
 maybe_update_dict(Key, Dict) ->
     case dict:find(Key, Dict) of
         {ok, {Line, Mod, false}} ->
@@ -65,10 +97,10 @@ maybe_update_dict(Key, Dict) ->
             Dict
     end.
 
--spec to_dict([abs_form()]) -> dict().
+-spec to_dict([abs_form()]) -> imp_dict().
 to_dict(Imports) -> to_dict(Imports, dict:new()).
 
--spec to_dict([abs_form()], dict()) -> dict().
+-spec to_dict([abs_form()], imp_dict()) -> imp_dict().
 to_dict([], Dict) ->
     Dict;
 to_dict([{attribute, Line, import, {Mod, FunL}} | Rest], Dict0) ->
@@ -76,14 +108,14 @@ to_dict([{attribute, Line, import, {Mod, FunL}} | Rest], Dict0) ->
                                   dict:store(Fun, {Line, Mod, false}, Dict)
                               end, Dict0, FunL)).
 
--spec new_import_attributes(dict()) -> [abs_form()].
+-spec new_import_attributes(imp_dict()) -> [abs_form()].
 new_import_attributes(Dict) ->
-    Imports = lists:keysort(1, [{Line, Mod, Fun} || {Fun, {Line, Mod, true}}
-                                                    <- dict:to_list(Dict)]),
+    LMFs = [{Line, Mod, Fun} || {Fun, {Line, Mod, true}} <- dict:to_list(Dict)],
+    Imports = lists:keysort(1, LMFs),
     lists:reverse(lists:foldl(fun add_new_attribute/2, [], Imports)).
 
--spec add_new_attribute({non_neg_integer(), atom(), atom()},
-                        [abs_form()]) -> [abs_form()].
+-type lmf() :: {erl_scan:line(), mod_name(), fun_name()}.
+-spec add_new_attribute(lmf(), [abs_form()]) -> [abs_form()].
 add_new_attribute({Line, Mod, Fun}, [{_, Line, _, {Mod, FunL}} | Attributes]) ->
     [{attribute, Line, import, {Mod, [Fun | FunL]}} | Attributes];
 add_new_attribute({Line, Mod, Fun}, Attributes) ->
