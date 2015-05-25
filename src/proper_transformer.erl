@@ -51,7 +51,7 @@
 		   no_autos   = sets:new() :: proper_typeserver:mod_exp_funs(),
 		   exp_types  = sets:new() :: proper_typeserver:mod_exp_types(),
 		   exp_funs   = sets:new() :: proper_typeserver:mod_exp_funs(),
-		   helper_pid              :: pid()}).
+		   helper_pid              :: pid() | 'undefined'}).
 -type mod_info() :: #mod_info{}.
 
 -ifdef(NO_MODULES_IN_OPAQUES).

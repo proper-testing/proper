@@ -491,8 +491,7 @@
 	       noshrink         = false           :: boolean(),
 	       constraint_tries = 50              :: pos_integer(),
 	       expect_fail      = false           :: boolean(),
-	       any_type	                          :: {'type',
-						      proper_types:type()},
+	       any_type	        :: {'type', proper_types:type()} | 'undefined',
 	       spec_timeout     = infinity        :: timeout(),
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas()}).
@@ -509,14 +508,14 @@
 %% Result types
 %%-----------------------------------------------------------------------------
 
--record(pass, {reason    :: pass_reason(),
+-record(pass, {reason    :: pass_reason() | 'undefined',
 	       samples   :: [sample()],
 	       printers  :: [stats_printer()],
-	       performed :: pos_integer()}).
--record(fail, {reason    :: fail_reason(),
+	       performed :: pos_integer() | 'undefined'}).
+-record(fail, {reason    :: fail_reason() | 'undefined',
 	       bound     :: imm_testcase() | counterexample(),
 	       actions   :: fail_actions(),
-	       performed :: pos_integer()}).
+	       performed :: pos_integer() | 'undefined'}).
 %% @alias
 -type error() :: {'error', error_reason()}.
 
