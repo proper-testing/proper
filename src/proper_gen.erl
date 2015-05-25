@@ -48,6 +48,7 @@
 	      generator/0, reverse_gen/0, combine_fun/0, alt_gens/0]).
 
 -include("proper_internal.hrl").
+
 -compile({parse_transform, vararg}).
 
 

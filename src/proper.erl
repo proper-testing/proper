@@ -407,8 +407,7 @@
 %% Such a function will be called at the end of testing (in case no test fails)
 %% with a sorted list of collected terms. A commonly used stats-printer is
 %% `with_title/1'.
--type numeric_stat() :: number() | 'undefined'.
--type numeric_stats() :: {numeric_stat(),numeric_stat(),numeric_stat()}.
+-type numeric_stats() :: {number(), float(), number()}.
 -type time_period() :: non_neg_integer().
 
 %% TODO: This should be opaque.
@@ -1128,11 +1127,11 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
--spec perform(non_neg_integer(), test(), opts()) -> imm_result().
+-spec perform(pos_integer(), test(), opts()) -> imm_result().
 perform(NumTests, Test, Opts) ->
     perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
--spec perform(non_neg_integer(), non_neg_integer(), non_neg_integer(), test(),
+-spec perform(non_neg_integer(), pos_integer(), non_neg_integer(), test(),
 	      [sample()] | 'none', [stats_printer()] | 'none', opts()) ->
 	  imm_result().
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
@@ -1715,8 +1714,7 @@ report_imm_result(#pass{samples = Samples, printers = Printers,
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Print) end,
-		  proper_arith:safe_zip(Printers, SortedSamples)),
-    ok;
+		  proper_arith:safe_zip(Printers, SortedSamples));
 report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
 			performed = Performed},
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
@@ -1801,8 +1799,7 @@ report_fail_reason({sub_props,SubReasons}, Prefix, Print) ->
 	    Print(Prefix ++ "Sub-property ~w failed.~n", [Tag]),
 	    report_fail_reason(Reason, ">> " ++ Prefix, Print)
 	end,
-    lists:foreach(Report, SubReasons),
-    ok.
+    lists:foreach(Report, SubReasons).
 
 -spec print_imm_testcase(imm_testcase(), string(), output_fun()) -> 'ok'.
 print_imm_testcase(ImmTestCase, Prefix, Print) ->
@@ -1813,8 +1810,7 @@ print_imm_testcase(ImmTestCase, Prefix, Print) ->
 	  'ok'.
 print_imm_counterexample(ImmCExm, Prefix, Print) ->
     PrintImmCleanInput = fun(I) -> print_imm_clean_input(I, Prefix, Print) end,
-    lists:foreach(PrintImmCleanInput, ImmCExm),
-    ok.
+    lists:foreach(PrintImmCleanInput, ImmCExm).
 
 -spec print_imm_clean_input(imm_clean_input(), string(), output_fun()) -> 'ok'.
 print_imm_clean_input({'$conjunction',SubImmCExms}, Prefix, Print) ->
@@ -1823,15 +1819,13 @@ print_imm_clean_input({'$conjunction',SubImmCExms}, Prefix, Print) ->
 	    Print(Prefix ++ "~w:~n", [Tag]),
 	    print_imm_counterexample(ImmCExm, ">> " ++ Prefix, Print)
 	end,
-    lists:foreach(PrintSubImmCExm, SubImmCExms),
-    ok;
+    lists:foreach(PrintSubImmCExm, SubImmCExms);
 print_imm_clean_input(Instance, Prefix, Print) ->
     Print(Prefix ++ "~w~n", [Instance]).
 
 -spec execute_actions(fail_actions()) -> 'ok'.
 execute_actions(Actions) ->
-    lists:foreach(fun(A) -> ?FORCE(A) end, Actions),
-    ok.
+    lists:foreach(fun(A) -> ?FORCE(A) end, Actions).
 
 -spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
 		       output_fun()) -> 'ok'.
@@ -1908,15 +1902,16 @@ num_stats_printer(SortedSample, Print, Title) ->
     {Min,Avg,Max} = get_numeric_stats(SortedSample),
     Print("minimum: ~w~naverage: ~w~nmaximum: ~w~n", [Min,Avg,Max]).
 
--spec get_numeric_stats([number()]) -> numeric_stats().
+-spec get_numeric_stats([]) -> {'undefined', 'undefined', 'undefined'};
+		       ([number(),...]) -> numeric_stats().
 get_numeric_stats([]) ->
     {undefined, undefined, undefined};
 get_numeric_stats([Min | _Rest] = SortedSample) ->
-    {Avg,Max} = avg_and_last(SortedSample, 0, 0),
+    {Avg, Max} = avg_and_last(SortedSample, 0, 0),
     {Min, Avg, Max}.
 
 -spec avg_and_last([number(),...], number(), non_neg_integer()) ->
-	  {number(),number()}.
+	  {float(), number()}.
 avg_and_last([Last], Sum, Len) ->
     {(Sum + Last) / (Len + 1), Last};
 avg_and_last([X | Rest], Sum, Len) ->
