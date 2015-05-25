@@ -75,12 +75,12 @@ add_vararg_wrapper(Arity, Handler, Err) ->
     Clauses = lists:reverse([CatchAll | RevClauses]),
     {'case',0,Arity,Clauses}.
 
--spec wrapper_clauses(arity(), abs_expr()) -> [abs_clause()].
+-spec wrapper_clauses(arity(), abs_expr()) -> [abs_clause(),...].
 wrapper_clauses(MaxArity, Handler) ->
     wrapper_clauses(0, MaxArity, Handler, [], [], {nil,0}).
 
 -spec wrapper_clauses(arity(), arity(), abs_expr(), [abs_clause()],
-		      [abs_expr()], abs_expr()) -> [abs_clause()].
+		      [abs_expr()], abs_expr()) -> [abs_clause(),...].
 wrapper_clauses(MaxArity, MaxArity, Handler, Clauses, Args, ArgsList) ->
     FinalClause = wrapper_clause(MaxArity, Handler, Args, ArgsList),
     [FinalClause | Clauses];
