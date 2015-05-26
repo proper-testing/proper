@@ -29,6 +29,11 @@ main([OutFile]) ->
     CurrVer = parse_version_string(erlang:system_info(version)),
     {ok, Handle} = file:open(OutFile, [write]),
     ToDefine =
+	%% older than 18.0 => erl_scan:line() type not marked deprecated
+	case CurrVer < [7,0] of
+	    true -> ["USE_ERL_SCAN_LINE"];
+	    false -> []
+	end ++
 	%% older than 17.0 => queue(), set(), etc. were built-in types
 	case CurrVer < [6,0] of
 	    true -> ["NO_MODULES_IN_OPAQUES"];

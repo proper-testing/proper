@@ -26,8 +26,14 @@
 
 -include("proper_internal.hrl").
 
+-ifdef(USE_ERL_SCAN_LINE).
+-define(LINE_MOD, erl_scan).
+-else.
+-define(LINE_MOD, erl_anno).
+-endif.
+
 -type key() :: {fun_name(), arity()}.
--type val() :: {erl_scan:line(), mod_name(), boolean()}.
+-type val() :: {?LINE_MOD:line(), mod_name(), boolean()}.
 
 -ifdef(NO_MODULES_IN_OPAQUES).
 -type imp_dict() :: dict().
@@ -115,7 +121,7 @@ new_import_attributes(Dict) ->
     Imports = lists:keysort(1, LMFs),
     lists:reverse(lists:foldl(fun add_new_attribute/2, [], Imports)).
 
--type lmf() :: {erl_scan:line(), mod_name(), fun_name()}.
+-type lmf() :: {?LINE_MOD:line(), mod_name(), fun_name()}.
 -spec add_new_attribute(lmf(), [abs_form()]) -> [abs_form()].
 add_new_attribute({Line, Mod, Fun}, [{_, Line, _, {Mod, FunL}} | Attributes]) ->
     [{attribute, Line, import, {Mod, [Fun | FunL]}} | Attributes];
