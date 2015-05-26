@@ -36,7 +36,7 @@ fast: get-deps compile
 
 all: fast dialyzer doc tests
 
-include/compile_flags.hrl:
+include/compile_flags.hrl: write_compile_flags
 	./write_compile_flags $@
 
 get-deps:
