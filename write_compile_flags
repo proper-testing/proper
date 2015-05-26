@@ -31,13 +31,13 @@ main([OutFile]) ->
     ToDefine =
 	%% older than 18.0 => erl_scan:line() type not marked deprecated
 	case CurrVer < [7,0] of
-	    true -> ["USE_ERL_SCAN_LINE"];
+	    true  -> ["USE_ERL_SCAN_LINE"];
 	    false -> []
 	end ++
 	%% older than 17.0 => queue(), set(), etc. were built-in types
 	case CurrVer < [6,0] of
-	    true -> ["NO_MODULES_IN_OPAQUES"];
-	    false -> []
+	    true  -> ["NO_MODULES_IN_OPAQUES"];
+	    false -> ["AT_LEAST_17"]
 	end ++
 	%% older than R15B => no location information in stacktraces
 	case CurrVer < [5,9] of

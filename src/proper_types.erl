@@ -339,7 +339,9 @@ to_binary(Type) ->
     term_to_binary(Type).
 
 %% @private
-%% TODO: restore: -spec from_binary(binary()) -> proper_types:type().
+-ifdef(AT_LEAST_17).
+-spec from_binary(binary()) -> proper_types:type().
+-endif.
 from_binary(Binary) ->
     binary_to_term(Binary).
 
@@ -455,7 +457,9 @@ wrapper_test(ImmInstance, Type) ->
     lists:any(fun(T) -> is_instance(ImmInstance, T) end, unwrap(Type)).
 
 %% @private
-%% TODO: restore:-spec unwrap(proper_types:type()) -> [proper_types:type(),...].
+-ifdef(AT_LEAST_17).
+-spec unwrap(proper_types:type()) -> [proper_types:type(),...].
+-endif.
 %% TODO: check if it's actually a raw type that's returned?
 unwrap(Type) ->
     RawInnerTypes = proper_gen:alt_gens(Type) ++ [proper_gen:normal_gen(Type)],
