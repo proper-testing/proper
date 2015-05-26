@@ -51,21 +51,26 @@
 		    {pretty_printer,erl_pp}, {preprocess,true},
 		    {source_path, [?TEMP_SRC_DIR]}]).
 
+-ifdef(USE_ERL_SCAN_LINE).
+-define(LINE_MOD, erl_scan).
+-else.
+-define(LINE_MOD, erl_anno).
+-endif.
 
 %%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
 
--type line() :: non_neg_integer().
--type var_name() :: atom().
--type rec_name() :: atom().
--type var_form() :: {'var', line(), var_name()}.
+-type line()      :: ?LINE_MOD:line().
+-type var_name()  :: atom().
+-type rec_name()  :: atom().
+-type var_form()  :: {'var', line(), var_name()}.
 -type type_name() :: atom().
--type type_ref() :: {'type', type_name(), arity()}.
--type type_def() :: {abs_type(), [var_form()]}.
+-type type_ref()  :: {'type', type_name(), arity()}.
+-type type_def()  :: {abs_type(), [var_form()]}.
 
--type charlist() :: [char() | charlist()].
--type charlist_with_lines() :: {[line(),...],charlist()}.
+-type charlist()  :: [char() | charlist()].
+-type charlist_with_lines() :: {[line(),...], charlist()}.
 
 
 %%------------------------------------------------------------------------------
