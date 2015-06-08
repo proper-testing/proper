@@ -1104,7 +1104,7 @@ update_vars({remote_type,Line,[RemModForm,NameForm,ArgForms]}, VarSubstsDict,
 	    UnboundToAny) ->
     NewArgForms = [update_vars(A,VarSubstsDict,UnboundToAny) || A <- ArgForms],
     {remote_type, Line, [RemModForm,NameForm,NewArgForms]};
-update_vars({type,_,tuple,any} = Call, _VarSubstsDict, _UnboundToAny) ->
+update_vars({type,_,_,any} = Call, _VarSubstsDict, _UnboundToAny) ->
     Call;
 update_vars({type,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) ->
     {type, Line, Name, [update_vars(A,VarSubstsDict,UnboundToAny)
@@ -1680,7 +1680,8 @@ convert(Mod, {type,_,Name,[]}, State, Stack, VarDict) ->
 	false ->
 	    convert_maybe_hard_adt(Mod, Name, [], State, Stack, VarDict)
     end;
-convert(Mod, {type,_,Name,ArgForms}, State, Stack, VarDict) ->
+convert(Mod, {type,_,Name,ArgForms}, State, Stack, VarDict)
+  when is_list(ArgForms) ->
     convert_maybe_hard_adt(Mod, Name, ArgForms, State, Stack, VarDict);
 convert(_Mod, TypeForm, _State, _Stack, _VarDict) ->
     {error, {unsupported_type,TypeForm}}.
