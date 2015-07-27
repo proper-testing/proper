@@ -1673,14 +1673,16 @@ convert(Mod, {type,_,nonempty_maybe_improper_list,[Cont,_Term]}, State, Stack,
 convert(Mod, {type,_,iodata,[]}, State, Stack, VarDict) ->
     RealType = {type,0,union,[{type,0,binary,[]},{type,0,iolist,[]}]},
     convert(Mod, RealType, State, Stack, VarDict);
-convert(Mod, {type,_,Name,[]}, State, Stack, VarDict) ->
+convert(Mod, {T,_,Name,[]}, State, Stack, VarDict)
+	when T =:= type; T =:= user_type ->
     case ordsets:is_element(Name, ?STD_TYPES_0) of
 	true ->
 	    {ok, {simple,proper_types:Name()}, State};
 	false ->
 	    convert_maybe_hard_adt(Mod, Name, [], State, Stack, VarDict)
     end;
-convert(Mod, {type,_,Name,ArgForms}, State, Stack, VarDict) ->
+convert(Mod, {T,_,Name,ArgForms}, State, Stack, VarDict)
+	when T =:= type; T =:= user_type ->
     convert_maybe_hard_adt(Mod, Name, ArgForms, State, Stack, VarDict);
 convert(_Mod, TypeForm, _State, _Stack, _VarDict) ->
     {error, {unsupported_type,TypeForm}}.
