@@ -1,3 +1,4 @@
+sudo: false
 language: erlang
 script: "make all"
 before_install: dialyzer --build_plt --apps erts kernel stdlib compiler crypto
