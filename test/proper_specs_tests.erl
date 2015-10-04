@@ -26,12 +26,11 @@
 
 -module(proper_specs_tests).
 
--include("proper.hrl").
-
+-include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--export([check1_specs_test_/0,
-         check2_specs_test_/0]).
+%% These are automatically exported
+%% -export([check1_specs_test_/0, check2_specs_test_/0, check3_specs_test_/0]).
 
 -export([test1_any/1,
          test2_skip/1,
@@ -41,13 +40,16 @@
          test6_exc_fp/2,
          test7_exc_fp/2,
 	 test_const_bitstrs/0,
-	 t0/2, t1/2, t2/2, tp1/2, tp2/2]).
+	 t0/2, t1/2, t2/2, t3/2, tp1/2, tp2/2, tp3/2]).
 
 check1_specs_test_() ->
     ?_test(?assert(check1_specs_test())).
 
 check2_specs_test_() ->
     ?_test(?assert(check2_specs_test())).
+
+check3_specs_test_() ->
+    ?_test(?assert(check3_specs_test())).
 
 %%------------------------------------------------------------------------------
 %% Unit tests
@@ -57,13 +59,15 @@ check1_specs_test() ->
     Options = [quiet, long_result,
                {skip_mfas, [{?MODULE, check1_specs_test_, 0},
                             {?MODULE, check2_specs_test_, 0},
+                            {?MODULE, check3_specs_test_, 0},
+                            {?MODULE, t3, 2},
+                            {?MODULE, tp3, 2},
                             {?MODULE, test2_skip, 1},
                             {?MODULE, test7_exc_fp, 2}]},
                {false_positive_mfas, fun check1_false_positive_mfas/3}],
-
     %% check for expected 1 test failure
     case proper:check_specs(?MODULE, Options) of
-        [{{proper_specs_tests, test5_exc, 2}, [_]}] ->
+        [{{?MODULE, test5_exc, 2}, [_]}] ->
             true;
         Else ->
             error(failed, Else)
@@ -73,6 +77,9 @@ check2_specs_test() ->
     Options = [quiet, long_result,
                {skip_mfas, [{?MODULE, check1_specs_test_, 0},
                             {?MODULE, check2_specs_test_, 0},
+                            {?MODULE, check3_specs_test_, 0},
+                            {?MODULE, t3, 2},
+                            {?MODULE, tp3, 2},
                             {?MODULE, test1_any, 1},
                             {?MODULE, test2_skip, 1},
                             {?MODULE, test3_fail, 1},
@@ -80,15 +87,19 @@ check2_specs_test() ->
                             {?MODULE, test5_exc, 2},
                             {?MODULE, test6_exc_fp, 2}]},
                {false_positive_mfas, fun check2_false_positive_mfas/3}],
-
     %% check for expected 1 test failure
     case proper:check_specs(?MODULE, Options) of
-        [{{proper_specs_tests, test7_exc_fp, 2}, [[Exception,_]]}]
-          when Exception==error; Exception==exit; Exception==throw ->
+        [{{?MODULE, test7_exc_fp, 2}, [[Exception,_]]}]
+          when Exception =:= error; Exception =:= exit; Exception =:= throw ->
             true;
         Else ->
             error(failed, Else)
     end.
+
+%% contains all functions whose specs are erroneous, so their check should fail
+check3_specs_test() ->
+    Fun = fun ({M, A}) -> false =:= proper:check_spec({?MODULE, M, A}) end,
+    lists:all(Fun, [{t3, 2}, {tp3, 2}]).
 
 %%------------------------------------------------------------------------------
 %% Test helpers
@@ -174,10 +185,16 @@ t1(A, B) -> [{A, B}].
 -spec t2(integer(), atom()) -> ia_pair_list(). % deep access to a type def
 t2(A, B) -> [{A, B}].
 
--type param_pair(X, Y) :: {X, Y}.  % shallow parametric type
+-spec t3(integer(), atom()) -> [ia_pair_list()].
+t3(A, B) -> [{B, A}]. % fails
+
+-type param_pair(X, Y) :: {X, Y}. % shallow parametric type
 -spec tp1(integer(), atom()) -> [param_pair(integer(), atom())].
 tp1(A, B) -> [{A, B}].
 
 -type param_pair_list(X, Y) :: [param_pair(X, Y)]. % deep parametric type
 -spec tp2(integer(), atom()) -> param_pair_list(integer(), atom()).
 tp2(A, B) -> [{A, B}].
+
+-spec tp3(integer(), atom()) -> param_pair_list(integer(), atom()).
+tp3(A, B) -> [{B, A}]. % fails

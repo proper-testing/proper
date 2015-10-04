@@ -1108,11 +1108,11 @@ update_vars({remote_type,Line,[RemModForm,NameForm,ArgForms]}, VarSubstsDict,
 	    UnboundToAny) ->
     NewArgForms = [update_vars(A,VarSubstsDict,UnboundToAny) || A <- ArgForms],
     {remote_type, Line, [RemModForm,NameForm,NewArgForms]};
-update_vars({type,_,tuple,any} = Call, _VarSubstsDict, _UnboundToAny) ->
+update_vars({T,_,tuple,any} = Call, _VarSubstsDict, _UnboundToAny) when ?IS_TYPE_TAG(T) ->
     Call;
-update_vars({type,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) ->
-    {type, Line, Name, [update_vars(A,VarSubstsDict,UnboundToAny)
-			|| A <- ArgForms]};
+update_vars({T,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) when ?IS_TYPE_TAG(T) ->
+    NewArgForms = [update_vars(A,VarSubstsDict,UnboundToAny) || A <- ArgForms],
+    {T, Line, Name, NewArgForms};
 update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
     Call.
 
