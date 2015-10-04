@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,11 +17,11 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
-%%% @author Joseph Wayne Norton <norton@alum.mit.edu>
-%%% @doc This modules contains PropEr's Unit tests for check
-%%% specs. You need the EUnit application to compile it.
+%%% @author Joseph Wayne Norton <norton@alum.mit.edu>, Kostis Sagonas
+%%% @doc This modules contains PropEr's Unit tests for check specs.
+%%% You need the EUnit application to compile it.
 
 
 -module(proper_specs_tests).
@@ -40,7 +40,8 @@
          test5_exc/2,
          test6_exc_fp/2,
          test7_exc_fp/2,
-	 test_const_bitstrs/0]).
+	 test_const_bitstrs/0,
+	 t0/2, t1/2, t2/2, tp1/2, tp2/2]).
 
 check1_specs_test_() ->
     ?_test(?assert(check1_specs_test())).
@@ -157,3 +158,26 @@ test_const_bitstrs() ->
     Bin = <<"42">>,
     B17 = <<"42", 0:1>>,
     {Bin, Bin, Bin, Bin, Bin, B17, B17, B17, B17, B17}.
+
+%%
+%% Tests that type definitions are properly handled
+%%
+
+-spec t0(integer(), atom()) -> [{integer(), atom()}]. % only built-in types
+t0(A, B) -> [{A, B}].
+
+-type ia_pair() :: {integer(), atom()}.
+-spec t1(integer(), atom()) -> [ia_pair()]. % shallow access to a type def
+t1(A, B) -> [{A, B}].
+
+-type ia_pair_list() :: [ia_pair()].
+-spec t2(integer(), atom()) -> ia_pair_list(). % deep access to a type def
+t2(A, B) -> [{A, B}].
+
+-type param_pair(X, Y) :: {X, Y}.  % shallow parametric type
+-spec tp1(integer(), atom()) -> [param_pair(integer(), atom())].
+tp1(A, B) -> [{A, B}].
+
+-type param_pair_list(X, Y) :: [param_pair(X, Y)]. % deep parametric type
+-spec tp2(integer(), atom()) -> param_pair_list(integer(), atom()).
+tp2(A, B) -> [{A, B}].

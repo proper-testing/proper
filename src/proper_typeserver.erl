@@ -178,6 +178,10 @@
 
 -define(SRC_FILE_EXT, ".erl").
 
+%% Starting with 18.0 we need to handle both 'type' and 'user_type' tags;
+%% prior Erlang/OTP releases had only 'type' as a tag.
+-define(IS_TYPE_TAG(T), (T =:= type orelse T =:= user_type)).
+
 %% CAUTION: all these must be sorted
 -define(STD_TYPES_0,
 	[any,arity,atom,binary,bitstring,bool,boolean,byte,char,float,integer,
@@ -526,14 +530,14 @@ apply_spec_test({Mod,Fun,_Arity}=MFA, {_Domain,Range}, SpecTimeout, FalsePositiv
              begin
                  %% NOTE: only call apply/3 inside try/catch (do not trust ?MODULE:is_instance/3)
                  Result =
-                     try apply(Mod,Fun,Args) of
+                     try apply(Mod, Fun, Args) of
                          X -> {ok, X}
                      catch
                          X:Y -> {X, Y}
                      end,
                  case Result of
                      {ok, Z} ->
-                         case ?MODULE:is_instance(Z,Mod,Range) of
+                         case ?MODULE:is_instance(Z, Mod, Range) of
                              true ->
                                  true;
                              false when is_function(FalsePositiveMFAs) ->
@@ -649,7 +653,7 @@ add_module(Mod, #state{exp_types = ExpTypes} = State) ->
 		{ok,AbsCode,ModExpFuns} ->
 		    RawModInfo = get_mod_info(Mod, AbsCode, ModExpFuns),
 		    ModInfo = process_adts(Mod, RawModInfo),
-		    {ok, store_mod_info(Mod,ModInfo,State)};
+		    {ok, store_mod_info(Mod, ModInfo, State)};
 		{error,Reason} ->
 		    {error, {cant_load_code,Mod,Reason}}
 	    end
@@ -1440,14 +1444,14 @@ is_instance(X, Mod, {type,_,tuple,Fields}, _Stack) ->
 is_instance(X, Mod, {type,_,union,Choices}, Stack) ->
     IsInstance = fun(Choice) -> is_instance(X,Mod,Choice,Stack) end,
     lists:any(IsInstance, Choices);
-is_instance(X, Mod, {type,_,Name,[]}, Stack) ->
+is_instance(X, Mod, {T,_,Name,[]}, Stack) when ?IS_TYPE_TAG(T) ->
     case orddict:find(Name, ?EQUIV_TYPES) of
 	{ok,EquivType} ->
 	    is_instance(X, Mod, EquivType, Stack);
 	error ->
 	    is_maybe_hard_adt(X, Mod, Name, [], Stack)
     end;
-is_instance(X, Mod, {type,_,Name,ArgForms}, Stack) ->
+is_instance(X, Mod, {T,_,Name,ArgForms}, Stack) when ?IS_TYPE_TAG(T) ->
     is_maybe_hard_adt(X, Mod, Name, ArgForms, Stack);
 is_instance(_X, _Mod, _Type, _Stack) ->
     false.
@@ -1673,16 +1677,14 @@ convert(Mod, {type,_,nonempty_maybe_improper_list,[Cont,_Term]}, State, Stack,
 convert(Mod, {type,_,iodata,[]}, State, Stack, VarDict) ->
     RealType = {type,0,union,[{type,0,binary,[]},{type,0,iolist,[]}]},
     convert(Mod, RealType, State, Stack, VarDict);
-convert(Mod, {T,_,Name,[]}, State, Stack, VarDict)
-	when T =:= type; T =:= user_type ->
+convert(Mod, {T,_,Name,[]}, State, Stack, VarDict) when ?IS_TYPE_TAG(T) ->
     case ordsets:is_element(Name, ?STD_TYPES_0) of
 	true ->
 	    {ok, {simple,proper_types:Name()}, State};
 	false ->
 	    convert_maybe_hard_adt(Mod, Name, [], State, Stack, VarDict)
     end;
-convert(Mod, {T,_,Name,ArgForms}, State, Stack, VarDict)
-	when T =:= type; T =:= user_type ->
+convert(Mod, {T,_,Name,ArgForms}, State, Stack, VarDict) when ?IS_TYPE_TAG(T) ->
     convert_maybe_hard_adt(Mod, Name, ArgForms, State, Stack, VarDict);
 convert(_Mod, TypeForm, _State, _Stack, _VarDict) ->
     {error, {unsupported_type,TypeForm}}.
