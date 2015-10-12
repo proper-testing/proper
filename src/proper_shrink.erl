@@ -27,7 +27,8 @@
 -module(proper_shrink).
 
 -export([shrink/3]).
--export([number_shrinker/4, union_first_choice_shrinker/3,
+-export([number_shrinker/4, composed_shrinker/3,
+     union_first_choice_shrinker/3,
 	 union_recursive_shrinker/3]).
 -export([split_shrinker/3, remove_shrinker/3]).
 
@@ -415,6 +416,42 @@ number_shrinker(_X, _Low, _High, {inc,Last,Inc,OverLimit}) ->
     end;
 number_shrinker(_X, _Low, _High, {shrunk,_Pos,_State}) ->
     {[], done}.
+
+-spec composed_shrinker(term(), proper_types:type(), state()) ->
+    {[term()],state()}.
+composed_shrinker(Xs, Types, init) ->
+    Results = [shrink(X, Type, init) || {X,Type} <- lists:zip(Xs, Types)],
+    composed_shrinker2(Results);
+composed_shrinker(Xs, Types, {states, OldStates}) ->
+    Results = [maybe_shrink(X, Type, S) || {X,Type,S} <- lists:zip3(Xs, Types, OldStates)],
+    composed_shrinker2(Results);
+composed_shrinker(_Xs, _Types, {shrunk,_Pos,_State}) ->
+    {[], done}.
+
+composed_shrinker2(Results) ->
+    {ShrinkedList, States} = lists:unzip(Results),
+    Shrinked = cartesian(ShrinkedList),
+    case lists:all(fun(X) -> X =:= done end, States) of
+        true ->
+            {Shrinked, done};
+        false ->
+            {Shrinked, {states,States}}
+    end.
+
+maybe_shrink(_X, _Type, done) ->
+    {[], done};
+maybe_shrink(X, Type, S) ->
+    shrink(X, Type, S).
+
+%% @doc Cartesian product or all possible permutations of n-lists
+%% https://github.com/arcusfelis/lists2.git
+%%
+%% [[1,2,3],[a,b]] => [[1,a],[1,b],[2,a],[2,b],[3,a],[3,b]]
+%% ["abc","def"] => ["ad", "ae", "af", "bd", "be", "bf", "cd", "ce", "cf"]
+cartesian([])       -> [];
+cartesian([H])      -> [[A] || A <- H];
+cartesian([As,Bs])  -> [[A,B] || A <- As, B <- Bs];
+cartesian([H|T])    -> [[A|B] || A <- H, B <- cartesian(T)].
 
 -spec find_target(number(), number(), number()) ->
 	  {number(),fun((number()) -> number()),fun((number()) -> boolean())}.

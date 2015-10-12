@@ -792,6 +792,7 @@ native_type_props_test_() ->
      ?_passes(?FORALL(X, ?LET(L,lof(),lists:min([99999.9|L])),
 		      is_float(X))),
      ?_shrinksTo(0, ?LETSHRINK([X],[my_native_type()],{'tag',X})),
+     ?_shrinksTo({0,0}, proper_types:tuple([proper_types:integer(), proper_types:integer()])),
      ?_passes(weird_types:prop_export_all_works()),
      ?_passes(weird_types:prop_no_auto_import_works()),
 
