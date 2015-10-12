@@ -421,22 +421,45 @@ number_shrinker(_X, _Low, _High, {shrunk,_Pos,_State}) ->
     {[term()],state()}.
 composed_shrinker(Xs, Types, init) ->
     Results = [shrink(X, Type, init) || {X,Type} <- lists:zip(Xs, Types)],
-    composed_shrinker2(Results);
+    composed_shrinker2(Xs, Results);
 composed_shrinker(Xs, Types, {states, OldStates}) ->
     Results = [maybe_shrink(X, Type, S) || {X,Type,S} <- lists:zip3(Xs, Types, OldStates)],
-    composed_shrinker2(Results);
+    composed_shrinker2(Xs, Results);
 composed_shrinker(_Xs, _Types, {shrunk,_Pos,_State}) ->
     {[], done}.
 
-composed_shrinker2(Results) ->
+composed_shrinker2(Xs, Results) ->
     {ShrinkedList, States} = lists:unzip(Results),
-    Shrinked = cartesian(ShrinkedList),
+    case lists:all(fun is_empty_list/1, ShrinkedList) of
+        true ->
+            %% None members were shrunk
+            {[], done};
+        false ->
+            composed_shrinker3(Xs, ShrinkedList, States)
+    end.
+
+composed_shrinker3(Xs, ShrinkedList, States) ->
+    ShrinkedList2 = map_replace_unshrinkable_with_x(Xs, ShrinkedList),
+    Shrinked = cartesian(ShrinkedList2),
     case lists:all(fun(X) -> X =:= done end, States) of
         true ->
             {Shrinked, done};
         false ->
             {Shrinked, {states,States}}
     end.
+
+is_empty_list([]) -> true;
+is_empty_list([_|_]) -> false.
+
+%% Handle partial shrinking case, for example:
+%% `proper_gen:sampleshrink(proper_types:tuple([proper_types:integer(), 0])).'
+map_replace_unshrinkable_with_x(Xs, ShrinkedList) ->
+    [replace_unshrinkable_with_x(X, Shrinked) || {X, Shrinked} <- lists:zip(Xs, ShrinkedList)].
+
+replace_unshrinkable_with_x(X, []) ->
+    [X];
+replace_unshrinkable_with_x(_, [_|_]=Shrinked) ->
+    Shrinked.
 
 maybe_shrink(_X, _Type, done) ->
     {[], done};
