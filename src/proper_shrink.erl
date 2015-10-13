@@ -417,7 +417,7 @@ number_shrinker(_X, _Low, _High, {inc,Last,Inc,OverLimit}) ->
 number_shrinker(_X, _Low, _High, {shrunk,_Pos,_State}) ->
     {[], done}.
 
--spec composed_shrinker(term(), proper_types:type(), state()) ->
+-spec composed_shrinker(term(), [proper_types:type()], state()) ->
     {[term()],state()}.
 composed_shrinker(Xs, Types, init) when length(Xs) =:= length(Types) ->
     Results = [shrink(X, Type, init) || {X,Type} <- lists:zip(Xs, Types)],
