@@ -422,7 +422,7 @@ number_shrinker(_X, _Low, _High, {shrunk,_Pos,_State}) ->
 composed_shrinker(Xs, Types, init) when length(Xs) =:= length(Types) ->
     Results = [shrink(X, Type, init) || {X,Type} <- lists:zip(Xs, Types)],
     composed_shrinker2(Xs, Results);
-composed_shrinker(Xs, Types, init) ->
+composed_shrinker(_Xs, _Types, init) ->
     %% Do not shrink if props are false
     {[], done};
 composed_shrinker(Xs, Types, {states, OldStates}) ->
