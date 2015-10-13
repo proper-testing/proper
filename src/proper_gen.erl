@@ -266,9 +266,15 @@ sampleshrink(RawType, Size) ->
 -spec keep_shrinking(imm_instance(), [imm_instance()], proper_types:type()) ->
 	  [imm_instance(),...].
 keep_shrinking(ImmInstance, Acc, Type) ->
-    case proper_shrink:shrink(ImmInstance, Type, init) of
-	{[], _NewState} ->
+    keep_shrinking(ImmInstance, Acc, Type, init).
+
+keep_shrinking(ImmInstance, Acc, Type, State) ->
+    case proper_shrink:shrink(ImmInstance, Type, State) of
+	{[], done} -> %% no more shrinkers
 	    lists:reverse([ImmInstance|Acc]);
+	{[], NewState} ->
+        %% try next shrinker
+        keep_shrinking(ImmInstance, Acc, Type, NewState);
 	{[Shrunk|_Rest], _NewState} ->
 	    keep_shrinking(Shrunk, [ImmInstance|Acc], Type)
     end.
