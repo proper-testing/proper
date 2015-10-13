@@ -419,9 +419,12 @@ number_shrinker(_X, _Low, _High, {shrunk,_Pos,_State}) ->
 
 -spec composed_shrinker(term(), proper_types:type(), state()) ->
     {[term()],state()}.
-composed_shrinker(Xs, Types, init) ->
+composed_shrinker(Xs, Types, init) when length(Xs) =:= length(Types) ->
     Results = [shrink(X, Type, init) || {X,Type} <- lists:zip(Xs, Types)],
     composed_shrinker2(Xs, Results);
+composed_shrinker(Xs, Types, init) ->
+    %% Do not shrink if props are false
+    {[], done};
 composed_shrinker(Xs, Types, {states, OldStates}) ->
     Results = [maybe_shrink(X, Type, S) || {X,Type,S} <- lists:zip3(Xs, Types, OldStates)],
     composed_shrinker2(Xs, Results);
