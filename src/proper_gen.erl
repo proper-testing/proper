@@ -273,8 +273,8 @@ keep_shrinking(ImmInstance, Acc, Type, State) ->
 	{[], done} -> %% no more shrinkers
 	    lists:reverse([ImmInstance|Acc]);
 	{[], NewState} ->
-        %% try next shrinker
-        keep_shrinking(ImmInstance, Acc, Type, NewState);
+	    %% try next shrinker
+	    keep_shrinking(ImmInstance, Acc, Type, NewState);
 	{[Shrunk|_Rest], _NewState} ->
 	    keep_shrinking(Shrunk, [ImmInstance|Acc], Type)
     end.
