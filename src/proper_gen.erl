@@ -276,7 +276,14 @@ keep_shrinking(ImmInstance, Acc, Type, State) ->
 	    %% try next shrinker
 	    keep_shrinking(ImmInstance, Acc, Type, NewState);
 	{[Shrunk|_Rest], _NewState} ->
-	    keep_shrinking(Shrunk, [ImmInstance|Acc], Type)
+        Acc2 = [ImmInstance|Acc],
+        case lists:member(Shrunk, Acc2) of
+            true ->
+                %% Avoid infinite loops
+                lists:reverse(Acc2);
+            false ->
+                keep_shrinking(Shrunk, Acc2, Type)
+        end
     end.
 
 -spec contains_fun(term()) -> boolean().

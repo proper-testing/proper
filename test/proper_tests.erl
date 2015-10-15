@@ -1168,6 +1168,17 @@ dollar_only_cp_test_() ->
 	     re:run(atom_to_list(K), ["^[$]"], [{capture,none}]) =:= match]).
 
 
+sampleshrink_test_() ->
+    [{"Test type with restrain",
+      [{"Try another way to call shrinking (not sampleshrink)",
+        ?_shrinksTo([a], non_empty(?LET({Len,List},
+                                        {range(0,5), list(a)},
+                                        lists:sublist(List, Len))))},
+       ?_test(proper_gen:sampleshrink(non_empty(?LET({Len,List},
+                                       {range(0,5), list(a)},
+                                       lists:sublist(List, Len)))))]}].
+
+
 %%------------------------------------------------------------------------------
 %% Performance tests
 %%------------------------------------------------------------------------------
