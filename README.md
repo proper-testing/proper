@@ -81,9 +81,9 @@ Quickstart guide
 *   Obtain a copy of PropEr's sources. You can either get a tagged version of
     the tool (look under `Tags` on github) or you can clone the current code
     base:
-
+    ```shell
         git clone git://github.com/manopapad/proper.git
-
+    ```
 *   Compile PropEr: Run `make` if you just want to build PropEr, optionally
     followed by a `make tests` to run its unit tests and a `make dialyzer` call
     to also run dialyzer on PropEr's code base; the latter requires having a
@@ -96,24 +96,25 @@ Quickstart guide
     following methods:
     1.   `ERL_LIBS` environment variable: Add the following line to your shell
          startup file (`~/.bashrc` in the case of the Bash shell):
-
+         ```shell
              export ERL_LIBS=/full/path/to/proper
+         ```
     2.   Erlang resource file: Add the following line to your `~/.erlang` file:
-
+         ```erlang
              code:load_abs("/full/path/to/proper").
-
+         ```
     If using the sfmt RNG be sure to add /full/path/to/proper/deps/sfmt too.
 *   Add the following include line to all source files that contain properties:
 
-      ```erlang
-        -include_lib("proper/include/proper.hrl").
-      ```
+    ```erlang
+    -include_lib("proper/include/proper.hrl").
+    ```
 
 *   Compile those source files, preferably with `debug_info` enabled.
 *   For each property, run:
-
-        proper:quickcheck(your_module:some_property()).
-
+    ```erlang
+    proper:quickcheck(your_module:some_property()).
+    ```
     See also the section common problems below if you want to run
     PropEr from EUnit.
 
@@ -133,17 +134,17 @@ Common problems
 
 ### Using PropEr in conjunction with EUnit
 
-The main issue is that both systems define a `?LET` macro. To avoid a potential
-clash, simply include PropEr's header file before EUnit's. That way, any
-instance of `?LET` will count as a PropEr `?LET`.
+The main issue is that both systems define a **`?LET`** macro. To avoid a
+potential clash, simply include PropEr's header file before EUnit's. That
+way, any instance of **`?LET`** will count as a PropEr **`?LET`**.
 
 Another issue is that [EUnit captures standard output][eunit stdout],
 so normally PropEr output is not visible when `proper:quickcheck()` is
 invoked from EUnit. You can work around this by passing the option
 `{to_file, user}` to `proper:quickcheck/2`. For example:
-
-	   ?assertEqual(true, proper:quickcheck(your_mod:some_prop(), [{to_file, user}])).
-
+```erlang
+?assertEqual(true, proper:quickcheck(your_mod:some_prop(), [{to_file, user}])).
+```
 This will make PropEr properties visible also when invoked from EUnit.
 
 
@@ -157,7 +158,7 @@ run or owned a copy of QuviQ's QuickCheck and the two programs probably bear
 little resemblance under the hood. Here we provide a nonexhaustive list of
 known incompatibilities:
 
-*   `?SUCHTHATMAYBE` behaves differently in PropEr.
+*   **`?SUCHTHATMAYBE`** behaves differently in PropEr.
 *   `proper_gen:pick/1` differs from `eqc_gen:pick/1` in return value format.
 *   PropEr handles `size` differently from QuickCheck.
 *   `proper:module/2` accepts options in the second argument instead of the
