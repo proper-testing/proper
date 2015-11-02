@@ -81,6 +81,7 @@ Quickstart guide
 *   Obtain a copy of PropEr's sources. You can either get a tagged version of
     the tool (look under `Tags` on github) or you can clone the current code
     base:
+
     ```shell
         git clone git://github.com/manopapad/proper.git
     ```
@@ -96,10 +97,12 @@ Quickstart guide
     following methods:
     1.   `ERL_LIBS` environment variable: Add the following line to your shell
          startup file (`~/.bashrc` in the case of the Bash shell):
+
          ```shell
              export ERL_LIBS=/full/path/to/proper
          ```
     2.   Erlang resource file: Add the following line to your `~/.erlang` file:
+
          ```erlang
              code:load_abs("/full/path/to/proper").
          ```
@@ -112,6 +115,7 @@ Quickstart guide
 
 *   Compile those source files, preferably with `debug_info` enabled.
 *   For each property, run:
+
     ```erlang
     proper:quickcheck(your_module:some_property()).
     ```
