@@ -6,8 +6,9 @@ Contact information and license
 PropEr (PROPerty-based testing tool for ERlang) is a QuickCheck-inspired
 open-source property-based testing tool for Erlang, developed by Manolis
 Papadakis, Eirini Arvaniti and Kostis Sagonas. The base PropEr system was
-written mainly by Manolis Papadakis, and the stateful code testing subsystem by
-Eirini Arvaniti.
+written mainly by Manolis Papadakis, and the stateful code testing subsystem
+by Eirini Arvaniti. Kostis Sagonas has been actively maintaining its code
+base since 2012.
 
 You can reach PropEr's developers in the following ways:
 
@@ -104,7 +105,9 @@ Quickstart guide
     If using the sfmt RNG be sure to add /full/path/to/proper/deps/sfmt too.
 *   Add the following include line to all source files that contain properties:
 
+      ```erlang
         -include_lib("proper/include/proper.hrl").
+      ```
 
 *   Compile those source files, preferably with `debug_info` enabled.
 *   For each property, run:
