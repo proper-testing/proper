@@ -48,7 +48,7 @@ prop_pdict() ->
 		{H,S,Res} = run_commands(?MODULE, Cmds),
 		clean_up(),
 		?WHENFAIL(
-		   io:format("History: ~w\nState: ~w\nRes: ~w\n",
+		   io:format("History: ~w~nState: ~w~nRes: ~w~n",
 			     [H, S, Res]),
 		   aggregate(command_names(Cmds), Res =:= ok))
 	    end).

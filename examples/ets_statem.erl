@@ -197,7 +197,7 @@ prop_ets() ->
 		    {H,S,Res} = run_commands(?MODULE, Cmds),
 		    [ets:delete(Tab) || Tab <- S#state.tids],
 		    ?WHENFAIL(
-		       io:format("History: ~p\nState: ~p\nRes: ~p\n", [H,S,Res]),
+		       io:format("History: ~p~nState: ~p~nRes: ~p~n", [H,S,Res]),
 		       collect(Type, Res =:= ok))
 		end)).
 
@@ -209,7 +209,7 @@ prop_parallel_ets() ->
 		    {Seq,P,Res} = run_commands(?MODULE, Cmds),
 		    ets:delete(tab),
 		    ?WHENFAIL(
-		       io:format("Sequential: ~p\nParallel: ~p\nRes: ~p\n",
+		       io:format("Sequential: ~p~nParallel: ~p~nRes: ~p~n",
 				 [Seq,P,Res]),
 		       collect(Type, Res =:= ok))
 		end)).
