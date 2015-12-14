@@ -232,7 +232,7 @@ prop_elevator() ->
 		  {H,S,Res} = proper_fsm:run_commands(?MODULE, Cmds),
 		  ?MODULE:stop(),
 		  ?WHENFAIL(
-		     io:format("H: ~w\nS: ~w\nR: ~w\n", [H,S,Res]),
+		     io:format("H: ~w~nS: ~w~nR: ~w~n", [H,S,Res]),
 		     aggregate(zip(proper_fsm:state_names(H),
 				   command_names(Cmds)),
 			       Res == ok))
