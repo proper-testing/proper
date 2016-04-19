@@ -1,4 +1,4 @@
-%%% Copyright 2015-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2015-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2015-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2015-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Zaiming Shi (modifications and update by Kostis Sagonas)
 
@@ -77,7 +77,7 @@ scan_forms({function, _L, _F, _A, Clauses}, Dict) ->
 scan_forms(_, Dict) ->
     Dict.
 
--spec brutal_scan(abs_form(), imp_dict()) -> imp_dict().
+-spec brutal_scan(abs_form() | [abs_form()], imp_dict()) -> imp_dict().
 brutal_scan({'fun', _L, {function, Name, Arity}}, Dict) ->
     maybe_update_dict({Name, Arity}, Dict);
 brutal_scan({call, _L1, Call, Args}, Dict0) ->
