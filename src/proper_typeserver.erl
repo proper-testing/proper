@@ -1,4 +1,4 @@
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -775,13 +775,13 @@ add_mod_info({attribute,_Line,type,{{record,RecName},Fields,[]}},
     NewModTypes = dict:store({record,RecName,0}, {abs_record,FieldInfo},
 			     ModTypes),
     ModInfo#mod_info{mod_types = NewModTypes};
-add_mod_info({attribute,_Line,record,{RecName,Fields}},
+add_mod_info({attribute,Line,record,{RecName,Fields}},
 	     #mod_info{mod_types = ModTypes} = ModInfo) ->
     case dict:is_key(RecName, ModTypes) of
 	true ->
 	    ModInfo;
-	false ->
-	    TypedRecord = {attribute,0,type,{{record,RecName},Fields,[]}},
+	false ->  % fake an opaque term by using the same Line as annotation
+	    TypedRecord = {attribute,Line,type,{{record,RecName},Fields,[]}},
 	    add_mod_info(TypedRecord, ModInfo)
     end;
 add_mod_info({attribute,_Line,Kind,{Name,TypeForm,VarForms}},
