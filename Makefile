@@ -64,7 +64,7 @@ clean:
 	./clean_temp.sh
 
 distclean: clean
-	rm -f include/compile_flags.hrl
+	rm -f include/compile_flags.hrl .plt/proper_plt
 	$(REBAR) clean
 
 rebuild: distclean include/compile_flags.hrl
