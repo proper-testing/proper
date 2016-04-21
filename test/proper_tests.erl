@@ -25,6 +25,7 @@
 
 -module(proper_tests).
 
+-include("compile_flags.hrl").
 -include("proper.hrl").
 
 -include_lib("eunit/include/eunit.hrl").
@@ -1031,15 +1032,22 @@ options_test_() ->
 		 ?FORALL(_,?SIZED(Size,integer(Size,Size)),false),
 		 [{start_size,12}])].
 
+-ifdef(NO_MODULES_IN_OPAQUES).
+-define(SET,  set).
+-define(DICT, dict).
+-else.
+-define(SET,  sets:set).
+-define(DICT, dict:dict).
+-endif.
+
 adts_test_() ->
-    [{timeout, 20,	% for Kostis' old laptop
-      ?_passes(?FORALL({X,S},{integer(),set()},
-		       sets:is_element(X,sets:add_element(X,S))), [20])},
+    [?_passes(?FORALL({X,S},{integer(),?SET()},
+		      sets:is_element(X,sets:add_element(X,S))), [20]),
      ?_passes(?FORALL({X,Y,D},
-		      {integer(),float(),dict(integer(),float())},
+		      {integer(),float(),?DICT(integer(),float())},
 		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30]),
      ?_fails(?FORALL({X,D},
-	     {boolean(),dict(boolean(),integer())},
+	     {boolean(),?DICT(boolean(),integer())},
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
 parameter_test_() ->
