@@ -978,8 +978,8 @@ unwrap_range(FullADTRef, Call, {type,_,union,Choices}, TestRun) ->
 		    error
 	    end
     end;
-unwrap_range({_Mod,SameName,Arity}, Call, {type,_,SameName,ArgForms},
-	     _TestRun) ->
+unwrap_range({_Mod,SameName,Arity}, Call, {T,_,SameName,ArgForms},
+	     _TestRun) when ?IS_TYPE_TAG(T) ->
     RangeVars = [V || {var,_,V} <- ArgForms, V =/= '_'],
     case length(ArgForms) =:= Arity andalso length(RangeVars) =:= Arity of
 	true  -> {ok, Call, RangeVars};
