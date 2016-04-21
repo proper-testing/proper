@@ -33,11 +33,11 @@
 -endif.
 
 -type key() :: {fun_name(), arity()}.
--type val() :: {?LINE_MOD:line(), mod_name(), boolean()}.
 
 -ifdef(NO_MODULES_IN_OPAQUES).
 -type imp_dict() :: dict().
 -else.
+-type val() :: {?LINE_MOD:line(), mod_name(), boolean()}.
 -type imp_dict() :: dict:dict(key(), val()).
 -endif.
 
