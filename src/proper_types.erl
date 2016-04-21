@@ -505,27 +505,37 @@ weakly({B1,_B2}) -> B1.
 -spec strongly({boolean(),boolean()}) -> boolean().
 strongly({_B1,B2}) -> B2.
 
--spec satisfies(proper_gen:instance(), {constraint_fun(),boolean()})
-	  -> {boolean(),boolean()}.
-satisfies(Instance, {Test,false}) ->
-    {true,Test(Instance)};
-satisfies(Instance, {Test,true}) ->
-    Result = Test(Instance),
-    {Result,Result}.
-
 %% @private
 -spec satisfies_all(proper_gen:instance(), proper_types:type()) ->
 	  {boolean(),boolean()}.
 satisfies_all(Instance, Type) ->
     case find_prop(constraints, Type) of
 	{ok, Constraints} ->
-	    L = [satisfies(Instance, C) || C <- Constraints],
-	    {L1,L2} = lists:unzip(L),
-	    {lists:all(fun(B) -> B end, L1), lists:all(fun(B) -> B end, L2)};
+            satisfies_all_1(Constraints, Instance);
 	error ->
 	    {true,true}
     end.
 
+-spec satisfies_all_1([{constraint_fun(), boolean()}], proper_gen:instance()) ->
+			     {boolean(), boolean()}.
+satisfies_all_1([], _Instance) -> {true, true};
+satisfies_all_1([{Test, Strict} | Constraints], Instance) ->
+    case Test(Instance) of
+	true -> satisfies_all_1(Constraints, Instance);
+	false ->
+	    case Strict of
+		true -> {false, false};
+		false -> {satisfies_all_strict(Constraints, Instance), false}
+	    end
+    end.
+
+-spec satisfies_all_strict([{constraint_fun(), boolean()}], proper_gen:instance()) ->
+				  boolean().
+satisfies_all_strict(Constraints, Instance) ->
+    %% We've already failed another non-strict constraint, so there's no point to
+    %% check further ones.
+    lists:all(fun({Test,true}) -> Test(Instance) end,
+	      [Constraint || {_,true} = Constraint <- Constraints]).
 
 %%------------------------------------------------------------------------------
 %% Type definition functions
