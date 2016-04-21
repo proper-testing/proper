@@ -1,4 +1,4 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,16 +17,25 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module tests whether native types are parsed outside of ?FORALLs.
 
--module(no_out_of_forall_test).
+-module(let_tests).
 -export([]).
 
 -include_lib("proper/include/proper.hrl").
 
-foo() -> ?LET(X, types_test1:exp1(), {42,X}).
+foo_t() ->
+    ?LET(X, types_test1:exp1(), {42,X}).
 
-prop_1() -> ?FORALL(_, foo(), true).
+prop_1() ->
+    ?FORALL(_, foo_t(), true).
+
+-type rng() :: 17..54.
+bar_t() ->
+    ?LET(N, rng(), 3*N).
+
+prop_2() ->
+    ?FORALL(N, bar_t(), N < 124).
