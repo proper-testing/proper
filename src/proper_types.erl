@@ -505,12 +505,20 @@ weakly({B1,_B2}) -> B1.
 -spec strongly({boolean(),boolean()}) -> boolean().
 strongly({_B1,B2}) -> B2.
 
+-spec safe_test(constraint_fun(),proper_gen:instance()) -> boolean().
+safe_test(Test, Instance) ->
+    try Test(Instance) of
+	Result -> Result
+    catch
+	_:_ -> false
+    end.
+
 -spec satisfies(proper_gen:instance(), {constraint_fun(),boolean()})
 	  -> {boolean(),boolean()}.
 satisfies(Instance, {Test,false}) ->
-    {true,Test(Instance)};
+    {true,safe_test(Test, Instance)};
 satisfies(Instance, {Test,true}) ->
-    Result = Test(Instance),
+    Result = safe_test(Test, Instance),
     {Result,Result}.
 
 %% @private

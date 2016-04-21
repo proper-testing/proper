@@ -391,6 +391,8 @@ simple_types_with_data() ->
       none},
      {?SUCHTHATMAYBE(X,non_neg_integer(),X rem 4 =:= 1), [1,2,3,4,5,37,89], 0,
       [1.1,2.2,-12], "non_neg_integer()"},
+     {?SUCHTHAT(L, non_empty(list(non_neg_integer())), hd(L) < 5),
+     [[1], [1,2,3,4], [0,2]], [0], [[], "Fail","something", [5]], none},
      {any(), [1,-12,0,99.9,-42.2,0.0,an_atom,'',<<>>,<<1,2>>,<<1,2,3:5>>,[],
 	      [42,<<>>],{},{tag,12},{tag,[vals,12,12.2],[],<<>>}],
 	     0, [], "any()"},
