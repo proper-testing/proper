@@ -4,13 +4,16 @@
 %%---------------------------------------------------------------------------
 %% Using the code below I get:
 %% 1> timer:tc(fun() ->
-%%      proper:quickcheck(prop_identity(), [5, {max_size, 42}]) end).
+%%      proper:quickcheck(perf_max_size:prop_identity(), [5, {max_size, 42}])
+%%    end).
 %% .....
 %% OK: Passed 5 test(s).
 %% {8170,true}
 %%
 %% 2> timer:tc(fun() ->
-%%      proper:quickcheck(prop_identity(), [5, {max_size, 16#ffffffff}]) end).
+%%      proper:quickcheck(perf_max_size:prop_identity(),
+%%                        [5, {max_size, 16#ffffffff}])
+%%    end).
 %% ....
 %% OK: Passed 5 test(s).
 %% {658751072,true}
@@ -37,5 +40,5 @@ encode(#msg{a = A, b = B}) ->
 
 -spec decode(binary()) -> msg().
 decode(<<A:32, B:4>>) ->
-    #msg{a=A, b=B}.
+    #msg{a = A, b = B}.
 
