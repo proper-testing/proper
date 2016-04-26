@@ -769,8 +769,8 @@ arg_defined({var,I} = V, SymbEnv) when is_integer(I) ->
     lists:member(V, SymbEnv);
 arg_defined(Tuple, SymbEnv) when is_tuple(Tuple) ->
     args_defined(tuple_to_list(Tuple), SymbEnv);
-arg_defined(List, SymbEnv) when is_list(List) ->
-    args_defined(List, SymbEnv);
+arg_defined([Head|Tail], SymbEnv) ->
+    arg_defined(Head, SymbEnv) andalso arg_defined(Tail, SymbEnv);
 arg_defined(_, _) ->
     true.
 
