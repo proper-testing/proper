@@ -858,8 +858,8 @@ true_props_test_() ->
      {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 10, ?_passes(ets_statem:prop_ets())},
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
-     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}],
-     ?_passes(lists_statem:prop_simple()).
+     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
+     ?_passes(lists_statem:prop_simple())].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
