@@ -178,12 +178,6 @@
 
 -define(SRC_FILE_EXT, ".erl").
 
--ifdef(AT_LEAST_19).
--define(anno(L), erl_anno:new(L)).
--else.
--define(anno(L), L).
--endif.
-
 %% Starting with 18.0 we need to handle both 'type' and 'user_type' tags;
 %% prior Erlang/OTP releases had only 'type' as a tag.
 -define(IS_TYPE_TAG(T), (T =:= type orelse T =:= user_type)).
