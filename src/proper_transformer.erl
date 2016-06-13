@@ -388,7 +388,8 @@ rewrite_type(Expr, _ModInfo) ->
 
 -spec native_type_call(mod_name(), abs_expr()) -> abs_expr().
 native_type_call(ModName, Expr) ->
-    AbsModName = {atom,0,ModName},
-    AbsTypeStr = {string,0,lists:flatten(erl_pp:expr(Expr))},
-    FunRef = {remote,0,{atom,0,proper_types},{atom,0,native_type}},
-    {call,0,FunRef,[AbsModName,AbsTypeStr]}.
+    L = ?anno(0),
+    AbsModName = {atom,L,ModName},
+    AbsTypeStr = {string,L,lists:flatten(erl_pp:expr(Expr))},
+    FunRef = {remote,L,{atom,L,proper_types},{atom,L,native_type}},
+    {call,L,FunRef,[AbsModName,AbsTypeStr]}.

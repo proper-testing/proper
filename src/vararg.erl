@@ -1,4 +1,4 @@
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains a helper parse transform that allows the creation
@@ -71,13 +71,15 @@ process(Other) ->
 -spec add_vararg_wrapper(abs_expr(), abs_expr(), abs_expr()) -> abs_expr().
 add_vararg_wrapper(Arity, Handler, Err) ->
     RevClauses = wrapper_clauses(?MAX_ARITY, Handler),
-    CatchAll = {clause,0,[{var,0,'_'}],[],[{call,0,Err,[]}]},
+    L = ?anno(0),
+    CatchAll = {clause,L,[{var,L,'_'}],[],[{call,L,Err,[]}]},
     Clauses = lists:reverse([CatchAll | RevClauses]),
-    {'case',0,Arity,Clauses}.
+    {'case',L,Arity,Clauses}.
 
 -spec wrapper_clauses(arity(), abs_expr()) -> [abs_clause(),...].
 wrapper_clauses(MaxArity, Handler) ->
-    wrapper_clauses(0, MaxArity, Handler, [], [], {nil,0}).
+    L = ?anno(0),
+    wrapper_clauses(0, MaxArity, Handler, [], [], {nil,L}).
 
 -spec wrapper_clauses(arity(), arity(), abs_expr(), [abs_clause()],
 		      [abs_expr()], abs_expr()) -> [abs_clause(),...].
@@ -87,14 +89,16 @@ wrapper_clauses(MaxArity, MaxArity, Handler, Clauses, Args, ArgsList) ->
 wrapper_clauses(N, MaxArity, Handler, Clauses, Args, ArgsList) ->
     NewClause = wrapper_clause(N, Handler, Args, ArgsList),
     NewClauses = [NewClause | Clauses],
-    NewArg = {var,0,list_to_atom("X" ++ integer_to_list(N+1))},
+    L = ?anno(0),
+    NewArg = {var,L,list_to_atom("X" ++ integer_to_list(N+1))},
     NewArgs = [NewArg | Args],
-    NewArgsList = {cons,0,NewArg,ArgsList},
+    NewArgsList = {cons,L,NewArg,ArgsList},
     wrapper_clauses(N+1, MaxArity, Handler, NewClauses, NewArgs, NewArgsList).
 
 -spec wrapper_clause(arity(), abs_expr(), [abs_expr()], abs_expr()) ->
 	  abs_clause().
 wrapper_clause(N, Handler, Args, ArgsList) ->
-    Body = [{call,0,Handler,[ArgsList]}],
-    Fun = {'fun',0,{clauses,[{clause,0,Args,[],Body}]}},
-    {clause,0,[{integer,0,N}],[],[Fun]}.
+    L = ?anno(0),
+    Body = [{call,L,Handler,[ArgsList]}],
+    Fun = {'fun',L,{clauses,[{clause,L,Args,[],Body}]}},
+    {clause,L,[{integer,L,N}],[],[Fun]}.

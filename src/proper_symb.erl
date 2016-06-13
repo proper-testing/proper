@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -244,7 +244,8 @@ pretty_print(VarValues, SymbTerm) ->
 
 -spec parse_fun(mod_name(), fun_name(), [abs_expr()]) -> abs_expr().
 parse_fun(Module, Function, ArgTreeList) ->
-    {call,0,{remote,0,{atom,0,Module},{atom,0,Function}},ArgTreeList}.
+    L = ?anno(0),
+    {call,L,{remote,L,{atom,L,Module},{atom,L,Function}},ArgTreeList}.
 
 -spec parse_term(term()) -> abs_expr().
 parse_term(TreeList) when is_list(TreeList) ->
