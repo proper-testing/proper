@@ -20,7 +20,7 @@
 %%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
-%%% @doc This modules contains PropEr's Unit tests. You need the EUnit
+%%% @doc This module contains PropEr's Unit tests. You need the EUnit
 %%%      application to compile it.
 
 -module(proper_tests).
