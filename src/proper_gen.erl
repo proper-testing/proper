@@ -1,4 +1,4 @@
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -631,8 +631,15 @@ function_body(Args, RetType, {Seed1,Seed2}) ->
 
 -ifdef(USE_SFMT).
 update_seed(Seed) ->
-    sfmt:seed(Seed).
+    _ = sfmt:seed(Seed),
+    ok.
+-else.
+-ifdef(AT_LEAST_19).
+update_seed(Seed) ->
+    _ = rand:seed(exsplus, Seed),
+    ok.
 -else.
 update_seed(Seed) ->
-    put(random_seed, Seed).
+    put(?SEED_NAME, Seed).
+-endif.
 -endif.

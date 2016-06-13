@@ -43,9 +43,16 @@
 -ifdef(USE_SFMT).
 -define(RANDOM_MOD, sfmt).
 -define(SEED_NAME, sfmt_seed).
+
+-else.
+
+-ifdef(AT_LEAST_19).
+-define(RANDOM_MOD, rand).   %% for 19.x use the 'rand' module
+-define(SEED_NAME, rand_seed).
 -else.
 -define(RANDOM_MOD, random).
 -define(SEED_NAME, random_seed).
+-endif.
 -endif.
 
 

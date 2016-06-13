@@ -1,4 +1,4 @@
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains helper arithmetic, list handling and random
@@ -36,7 +36,6 @@
 	 distribute/2, jumble/1, rand_choose/1, freq_choose/1]).
 
 -include("proper_internal.hrl").
-
 
 %%-----------------------------------------------------------------------------
 %% List handling functions
@@ -212,13 +211,19 @@ remove_n(N, {List,Acc}) ->
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
 -spec rand_start(seed()) -> 'ok'.
+-ifdef(AT_LEAST_19).
+rand_start(Seed) ->
+    _ = rand:seed(exsplus, Seed),
+    ok.
+-else.
 rand_start(Seed) ->
     _ = ?RANDOM_MOD:seed(Seed),
     %% TODO: read option for RNG bijections here
     ok.
+-endif.
 
-%% @doc Conditionally seeds the random number generator. This function should be run before
-%% calling any random function from this module.
+%% @doc Conditionally seeds the random number generator. This function should
+%% be run before calling any random function from this module.
 -spec rand_restart(seed()) -> 'ok'.
 rand_restart(Seed) ->
     case get(?SEED_NAME) of
@@ -229,11 +234,17 @@ rand_restart(Seed) ->
     end.
 
 -spec rand_reseed() -> 'ok'.
+-ifdef(AT_LEAST_19).
+rand_reseed() ->
+    _ = rand:seed(exsplus, os:timestamp()),
+    ok.
+-else.
 rand_reseed() ->
     %% TODO: This should use the pid of the process somehow, in case two
     %%       spawned functions call it simultaneously?
     _ = ?RANDOM_MOD:seed(os:timestamp()),
     ok.
+-endif.
 
 -spec rand_stop() -> 'ok'.
 rand_stop() ->
