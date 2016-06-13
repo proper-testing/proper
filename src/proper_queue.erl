@@ -163,8 +163,8 @@ liat(Queue) ->
     queue:liat(Queue).
 
 -spec lait(queue(T)) -> queue(T).
-lait(Queue) ->
-    queue:lait(Queue).
+lait(Queue) ->		%% XXX: deprecated in 19.0
+    queue:liat(Queue).
 
 -spec init(queue(T)) -> queue(T).
 init(Queue) ->
