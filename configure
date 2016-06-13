@@ -1,6 +1,6 @@
 #! /bin/sh
 # --------------------------------------------------------------------
-# Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -43,7 +43,7 @@ DONE
 
 random()
 {
-    echo "Using Erlang's random module"
+    echo "Using Erlang's 'random' ('rand' in 19.0 and later) module"
     grep -q USE_SFMT rebar.config && \
         sed -i "s/debug_info, {d, 'USE_SFMT'}/debug_info/" rebar.config
     grep -q sfmt rebar.config && sed -i '/^{deps/,$d' rebar.config

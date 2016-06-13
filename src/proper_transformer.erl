@@ -1,4 +1,4 @@
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -222,6 +222,8 @@ rewrite_form(Form, _ModInfo) ->
     Form.
 
 -spec rewrite_field_init(abs_rec_field(), mod_info()) -> abs_rec_field().
+rewrite_field_init({typed_record_field,RecField,Type}, ModInfo) ->
+    {typed_record_field,rewrite_field_init(RecField, ModInfo),Type};
 rewrite_field_init({record_field,_Line,_FieldName} = FieldInit, _ModInfo) ->
     FieldInit;
 rewrite_field_init({record_field,Line,FieldName,InitExpr}, ModInfo) ->
@@ -386,7 +388,8 @@ rewrite_type(Expr, _ModInfo) ->
 
 -spec native_type_call(mod_name(), abs_expr()) -> abs_expr().
 native_type_call(ModName, Expr) ->
-    AbsModName = {atom,0,ModName},
-    AbsTypeStr = {string,0,lists:flatten(erl_pp:expr(Expr))},
-    FunRef = {remote,0,{atom,0,proper_types},{atom,0,native_type}},
-    {call,0,FunRef,[AbsModName,AbsTypeStr]}.
+    L = ?anno(0),
+    AbsModName = {atom,L,ModName},
+    AbsTypeStr = {string,L,lists:flatten(erl_pp:expr(Expr))},
+    FunRef = {remote,L,{atom,L,proper_types},{atom,L,native_type}},
+    {call,L,FunRef,[AbsModName,AbsTypeStr]}.

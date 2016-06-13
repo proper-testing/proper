@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Internal header file: This header is included in all PropEr source
@@ -35,6 +35,7 @@
 -compile({parse_transform, strip_types}).
 -endif.
 
+
 %%------------------------------------------------------------------------------
 %% Random generator selection
 %%------------------------------------------------------------------------------
@@ -42,10 +43,29 @@
 -ifdef(USE_SFMT).
 -define(RANDOM_MOD, sfmt).
 -define(SEED_NAME, sfmt_seed).
+
+-else.
+
+-ifdef(AT_LEAST_19).
+-define(RANDOM_MOD, rand).   %% for 19.x use the 'rand' module
+-define(SEED_NAME, rand_seed).
 -else.
 -define(RANDOM_MOD, random).
 -define(SEED_NAME, random_seed).
 -endif.
+-endif.
+
+
+%%------------------------------------------------------------------------------
+%% Line annotations
+%%------------------------------------------------------------------------------
+
+-ifdef(AT_LEAST_19).
+-define(anno(L), erl_anno:new(L)).
+-else.
+-define(anno(L), L).
+-endif.
+
 
 %%------------------------------------------------------------------------------
 %% Macros
@@ -84,9 +104,13 @@
 -type abs_expr()   :: erl_parse:abstract_expr().
 -type abs_clause() :: erl_parse:abstract_clause().
 
-%% TODO: Replace these with the appropriate types from stdlib.
+-ifdef(AT_LEAST_19).
+-type abs_type() :: erl_parse:abstract_type().
+-else.
 -type abs_type() :: term().
--type abs_rec_field() :: term().
+-endif.
+%% TODO: Replace abs_rec_field with its proper type once it is exported.
+-type abs_rec_field() :: term().	% erl_parse:af_field_decl().
 
 -type loose_tuple(T) :: {} | {T} | {T,T} | {T,T,T} | {T,T,T,T} | {T,T,T,T,T}
 		      | {T,T,T,T,T,T} | {T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T}

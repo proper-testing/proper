@@ -29,6 +29,10 @@ main([OutFile]) ->
     CurrVer = parse_version_string(erlang:system_info(version)),
     {ok, Handle} = file:open(OutFile, [write]),
     ToDefine =
+	case CurrVer < [8,0] of
+	    true  -> [];
+	    false -> ["AT_LEAST_19"]
+	end ++
 	%% older than 18.0 => erl_scan:line() type not marked deprecated
 	case CurrVer < [7,0] of
 	    true  -> ["USE_ERL_SCAN_LINE"];

@@ -516,7 +516,7 @@ get_exp_spec({Mod,Fun,Arity} = MFA, State) ->
 -spec make_spec_test(mfa(), fun_repr(), timeout(), false_positive_mfas(), state()) ->
 	  rich_result2(proper:test(),state()).
 make_spec_test({Mod,_Fun,_Arity}=MFA, {Domain,_Range}=FunRepr, SpecTimeout, FalsePositiveMFAs, State) ->
-    case convert(Mod, {type,0,'$fixed_list',Domain}, State) of
+    case convert(Mod, {type,?anno(0),'$fixed_list',Domain}, State) of
 	{ok,FinType,NewState} ->
             Test = ?FORALL(Args, FinType, apply_spec_test(MFA, FunRepr, SpecTimeout, FalsePositiveMFAs, Args)),
             {ok, Test, NewState};
@@ -722,12 +722,13 @@ get_chunks(ObjFile) ->
 
 -spec add_iolist([abs_form()]) -> [abs_form()].
 add_iolist(Forms) ->
+    A = ?anno(0),
     IOListDef =
-	{type,0,maybe_improper_list,
-	 [{type,0,union,[{type,0,byte,[]},{type,0,binary,[]},
-			 {type,0,iolist,[]}]},
-	  {type,0,binary,[]}]},
-    IOListDecl = {attribute,0,type,{iolist,IOListDef,[]}},
+	{type,A,maybe_improper_list,
+	 [{type,A,union,[{type,A,byte,[]},{type,A,binary,[]},
+			 {type,A,iolist,[]}]},
+	  {type,A,binary,[]}]},
+    IOListDecl = {attribute,A,type,{iolist,IOListDef,[]}},
     [IOListDecl | Forms].
 
 -spec get_mod_info(mod_name(), [abs_form()], mod_exp_funs()) -> mod_info().
@@ -814,9 +815,9 @@ add_mod_info(_Form, ModInfo) ->
 
 -spec process_rec_field(abs_rec_field()) -> {field_name(),abs_type()}.
 process_rec_field({record_field,_,{atom,_,FieldName}}) ->
-    {FieldName, {type,0,any,[]}};
+    {FieldName, {type,?anno(0),any,[]}};
 process_rec_field({record_field,_,{atom,_,FieldName},_Initialization}) ->
-    {FieldName, {type,0,any,[]}};
+    {FieldName, {type,?anno(0),any,[]}};
 process_rec_field({typed_record_field,RecField,FieldType}) ->
     {FieldName,_} = process_rec_field(RecField),
     {FieldName, FieldType}.
@@ -892,7 +893,7 @@ add_adt(Mod, {Name,Arity}, #mod_info{mod_types = ModTypes} = ModInfo,
 	    %% TODO: No warning on no acceptable spec.
 	    ModInfo;
 	SymbCalls3 ->
-	    NewADTRepr = {abs_type,{type,0,union,SymbCalls3},VarNames,
+	    NewADTRepr = {abs_type,{type,?anno(0),union,SymbCalls3},VarNames,
 			  {orig_abs,InternalRepr}},
 	    NewModTypes = dict:store(ADTRef, NewADTRepr, ModTypes),
 	    ModInfo#mod_info{mod_types = NewModTypes}
@@ -901,8 +902,9 @@ add_adt(Mod, {Name,Arity}, #mod_info{mod_types = ModTypes} = ModInfo,
 -spec get_symb_call(full_imm_type_ref(), proc_fun_ref()) ->
 	  tagged_result2(abs_type(),[var_name()]).
 get_symb_call({Mod,_TypeName,_Arity} = FullADTRef, {FunName,Domain,Range}) ->
-    BaseCall = {type,0,tuple,[{atom,0,'$call'},{atom,0,Mod},{atom,0,FunName},
-			      {type,0,'$fixed_list',Domain}]},
+    A = ?anno(0),
+    BaseCall = {type,A,tuple,[{atom,A,'$call'},{atom,A,Mod},{atom,A,FunName},
+			      {type,A,'$fixed_list',Domain}]},
     unwrap_range(FullADTRef, BaseCall, Range, false).
 
 -spec unwrap_range(full_imm_type_ref(), abs_type() | next_step(), abs_type(),
@@ -944,10 +946,11 @@ unwrap_range(FullADTRef, Call, {type,_,tuple,FieldForms}, TestRun) ->
 		    {ok, NewCall, []};
 		false ->
 		    AbsPattern = term_to_singleton_type(Pattern),
+		    A = ?anno(0),
 		    NewCall =
-			{type,0,tuple,
-			 [{atom,0,'$call'},{atom,0,?MODULE},{atom,0,match},
-			  {type,0,'$fixed_list',[AbsPattern,Call]}]},
+			{type,A,tuple,
+			 [{atom,A,'$call'},{atom,A,?MODULE},{atom,A,match},
+			  {type,A,'$fixed_list',[AbsPattern,Call]}]},
 		    unwrap_range(FullADTRef, NewCall, TargetElem, TestRun)
 	    end
     end;
@@ -988,7 +991,7 @@ unwrap_range({_Mod,SameName,Arity}, Call, {T,_,SameName,ArgForms},
 unwrap_range({SameMod,SameName,_Arity} = FullADTRef, Call,
 	     {remote_type,_,[{atom,_,SameMod},{atom,_,SameName},ArgForms]},
 	     TestRun) ->
-    unwrap_range(FullADTRef, Call, {type,0,SameName,ArgForms}, TestRun);
+    unwrap_range(FullADTRef, Call, {type,?anno(0),SameName,ArgForms}, TestRun);
 unwrap_range(_FullADTRef, _Call, _Range, _TestRun) ->
     error.
 
@@ -1004,8 +1007,9 @@ unwrap_list(FullADTRef, Call, HeadType, TestRun) ->
 		    _    -> Call
 		end;
 	    false ->
-		{type,0,tuple,[{atom,0,'$call'},{atom,0,erlang},{atom,0,hd},
-			       {type,0,'$fixed_list',[Call]}]}
+		A = ?anno(0),
+		{type,A,tuple,[{atom,A,'$call'},{atom,A,erlang},{atom,A,hd},
+			       {type,A,'$fixed_list',[Call]}]}
 	end,
     unwrap_range(FullADTRef, NewCall, HeadType, TestRun).
 
@@ -1070,7 +1074,7 @@ collect_vars(FullADTRef, {type,_,_Name,ArgForms}, UsedVars) ->
 collect_vars({SameMod,SameName,_Arity} = FullADTRef,
 	     {remote_type,_,[{atom,_,SameMod},{atom,_,SameName},ArgForms]},
 	     UsedVars) ->
-    collect_vars(FullADTRef, {type,0,SameName,ArgForms}, UsedVars);
+    collect_vars(FullADTRef, {type,?anno(0),SameName,ArgForms}, UsedVars);
 collect_vars(FullADTRef, {remote_type,_,[_RemModForm,_NameForm,ArgForms]},
 	     UsedVars) ->
     multi_collect_vars(FullADTRef, ArgForms, UsedVars);
@@ -1217,9 +1221,9 @@ cant_match(_Pattern, {op,_,_Op,_Arg}) ->
     true;
 cant_match(_Pattern, {op,_,_Op,_Arg1,_Arg2}) ->
     true;
-cant_match(Pattern, {type,_,mfa,[]}) ->
-    cant_match(Pattern, {type,0,tuple,[{type,0,atom,[]},{type,0,atom,[]},
-				       {type,0,arity,[]}]});
+cant_match(Pattern, {type,Anno,mfa,[]}) ->
+    MFA_Ts = [{type,Anno,atom,[]}, {type,Anno,atom,[]}, {type,Anno,arity,[]}],
+    cant_match(Pattern, {type,Anno,tuple,MFA_Ts});
 cant_match(Pattern, {type,_,union,Choices}) ->
     lists:all(fun(C) -> cant_match(Pattern,C) end, Choices);
 cant_match(_Pattern, {type,_,tuple,any}) ->
@@ -1261,14 +1265,15 @@ cant_have_head(_Type) ->
 -spec term_to_singleton_type(atom() | integer()
 			     | loose_tuple(atom() | integer())) -> abs_type().
 term_to_singleton_type(Atom) when is_atom(Atom) ->
-    {atom,0,Atom};
+    {atom,?anno(0),Atom};
 term_to_singleton_type(Int) when is_integer(Int), Int >= 0 ->
-    {integer,0,Int};
+    {integer,?anno(0),Int};
 term_to_singleton_type(Int) when is_integer(Int), Int < 0 ->
-    {op,0,'-',{integer,0,-Int}};
+    A = ?anno(0),
+    {op,A,'-',{integer,A,-Int}};
 term_to_singleton_type(Tuple) when is_tuple(Tuple) ->
     Fields = tuple_to_list(Tuple),
-    {type,0,tuple,[term_to_singleton_type(F) || F <- Fields]}.
+    {type,?anno(0),tuple,[term_to_singleton_type(F) || F <- Fields]}.
 
 
 %%------------------------------------------------------------------------------
@@ -1431,7 +1436,7 @@ is_instance(X, Mod, {type,_,record,[{atom,_,Name} = NameForm | RawSubsts]},
 			  error             -> OrigFieldType
 		      end
 		      || {FieldName,OrigFieldType} <- OrigFields],
-	    is_instance(X, Mod, {type,0,tuple,[NameForm|Fields]}, Stack);
+	    is_instance(X, Mod, {type,?anno(0),tuple,[NameForm|Fields]}, Stack);
 	{error,Reason} ->
 	    throw({'$typeserver',Reason})
     end;
@@ -1665,17 +1670,17 @@ convert(Mod, {type,_,'fun',[{type,_,product,Domain},Range]}, State, Stack,
     convert_fun(Mod, length(Domain), Range, State, Stack, VarDict);
 %% TODO: These types should be replaced with accurate types.
 %% TODO: Add support for nonempty_improper_list/2.
-convert(Mod, {type,_,maybe_improper_list,[]}, State, Stack, VarDict) ->
-    convert(Mod, {type,0,list,[]}, State, Stack, VarDict);
-convert(Mod, {type,_,maybe_improper_list,[Cont,_Ter]}, State, Stack, VarDict) ->
-    convert(Mod, {type,0,list,[Cont]}, State, Stack, VarDict);
-convert(Mod, {type,_,nonempty_maybe_improper_list,[]}, State, Stack, VarDict) ->
-    convert(Mod, {type,0,nonempty_list,[]}, State, Stack, VarDict);
-convert(Mod, {type,_,nonempty_maybe_improper_list,[Cont,_Term]}, State, Stack,
+convert(Mod, {type,A,maybe_improper_list,[]}, State, Stack, VarDict) ->
+    convert(Mod, {type,A,list,[]}, State, Stack, VarDict);
+convert(Mod, {type,A,maybe_improper_list,[Cont,_Ter]}, State, Stack, VarDict) ->
+    convert(Mod, {type,A,list,[Cont]}, State, Stack, VarDict);
+convert(Mod, {type,A,nonempty_maybe_improper_list,[]}, State, Stack, VarDict) ->
+    convert(Mod, {type,A,nonempty_list,[]}, State, Stack, VarDict);
+convert(Mod, {type,A,nonempty_maybe_improper_list,[Cont,_Term]}, State, Stack,
 	VarDict) ->
-    convert(Mod, {type,0,nonempty_list,[Cont]}, State, Stack, VarDict);
-convert(Mod, {type,_,iodata,[]}, State, Stack, VarDict) ->
-    RealType = {type,0,union,[{type,0,binary,[]},{type,0,iolist,[]}]},
+    convert(Mod, {type,A,nonempty_list,[Cont]}, State, Stack, VarDict);
+convert(Mod, {type,A,iodata,[]}, State, Stack, VarDict) ->
+    RealType = {type,A,union,[{type,A,binary,[]},{type,A,iolist,[]}]},
     convert(Mod, RealType, State, Stack, VarDict);
 convert(Mod, {T,_,Name,[]}, State, Stack, VarDict) when ?IS_TYPE_TAG(T) ->
     case ordsets:is_element(Name, ?STD_TYPES_0) of
@@ -1937,7 +1942,8 @@ convert_maybe_hard_adt(Mod, Name, ArgForms, State, Stack, VarDict) ->
 	{ok,Mod} ->
 	    convert_custom(Mod, Mod, Name, ArgForms, State, Stack, VarDict);
 	{ok,ADTMod} ->
-	    ADT = {remote_type,0,[{atom,0,ADTMod},{atom,0,Name},ArgForms]},
+	    A = ?anno(0),
+	    ADT = {remote_type,A,[{atom,A,ADTMod},{atom,A,Name},ArgForms]},
 	    convert(Mod, ADT, State, Stack, VarDict);
 	error ->
 	    convert_custom(Mod, Mod, Name, ArgForms, State, Stack, VarDict)
