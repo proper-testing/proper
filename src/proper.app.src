@@ -24,7 +24,7 @@
 
 {application, proper,
  [{description, "A QuickCheck-inspired property-based testing tool for Erlang"},
-  {vsn, "1.1"},
+  {vsn, "1.2"},
   {registered, []},
   {applications, [compiler,kernel,stdlib]},
   {env, []}]}.
