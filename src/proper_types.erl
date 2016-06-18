@@ -289,19 +289,18 @@
 %% TODO: We shouldn't need the fully qualified type name in the range of these
 %%       functions.
 
+-compile({inline, [cook_outer/1]}).
 %% @private
 %% TODO: just cook/1 ?
 -spec cook_outer(raw_type()) -> proper_types:type().
 cook_outer(Type = {'$type',_Props}) ->
     Type;
-cook_outer(RawType) ->
-    if
-	is_tuple(RawType) -> tuple(tuple_to_list(RawType));
-	%% CAUTION: this must handle improper lists
-	is_list(RawType)  -> fixed_list(RawType);
-	%% default case (covers integers, floats, atoms, binaries, ...):
-	true              -> exactly(RawType)
-    end.
+cook_outer(RawType) when is_tuple(RawType) ->
+    tuple(tuple_to_list(RawType));
+cook_outer(RawType) when is_list(RawType) ->
+    fixed_list(RawType); %% CAUTION: this must handle improper lists
+cook_outer(RawType) -> %% default case (integers, floats, atoms, binaries, ...)
+    exactly(RawType).
 
 %% @private
 -spec is_type(term()) -> boolean().
@@ -343,45 +342,50 @@ to_binary(Type) ->
 from_binary(Binary) ->
     binary_to_term(Binary).
 
+-compile({inline, [type_from_list/1]}).
 -spec type_from_list([type_prop()]) -> proper_types:type().
 type_from_list(KeyValueList) ->
-    {'$type',KeyValueList}.
+    {'$type', KeyValueList}.
 
 -spec add_prop(type_prop_name(), type_prop_value(), proper_types:type()) ->
 	  proper_types:type().
 add_prop(PropName, Value, {'$type',Props}) ->
-    {'$type',lists:keystore(PropName, 1, Props, {PropName, Value})}.
+    {'$type', keystore(PropName, Props, Value)}.
 
 -spec add_props([type_prop()], proper_types:type()) -> proper_types:type().
 add_props(PropList, {'$type',OldProps}) ->
-    {'$type', lists:foldl(fun({N,_}=NV,Acc) ->
-                    lists:keystore(N, 1, Acc, NV)
-                end, OldProps, PropList)}.
+    Fun = fun({N,V}, Acc) -> keystore(N, Acc, V) end,
+    {'$type', lists:foldl(Fun, OldProps, PropList)}.
 
 -spec append_to_prop(type_prop_name(), type_prop_value(),
 		     proper_types:type()) -> proper_types:type().
 append_to_prop(PropName, Value, {'$type',Props}) ->
     Val = case lists:keyfind(PropName, 1, Props) of
-        {PropName, V} ->
-            V;
-        _ ->
-            []
-    end,
-    {'$type', lists:keystore(PropName, 1, Props,
-                             {PropName, lists:reverse([Value|Val])})}.
+	      {PropName, V} ->
+		  V;
+	      _ ->
+		  []
+	  end,
+    {'$type', keystore(PropName, Props, lists:reverse([Value|Val]))}.
 
 -spec append_list_to_prop(type_prop_name(), [type_prop_value()],
 			  proper_types:type()) -> proper_types:type().
-append_list_to_prop(PropName, List, {'$type',Props}) ->
-    {PropName, Val} = lists:keyfind(PropName, 1, Props),
-    {'$type', lists:keystore(PropName, 1, Props, {PropName, Val++List})}.
+append_list_to_prop(PropName, Values, {'$type',Props}) ->
+    {PropName, Vals} = lists:keyfind(PropName, 1, Props),
+    {'$type', keystore(PropName, Props, Vals++Values)}.
 
+keystore(Key, [{Key, _}|T], New) -> [{Key, New}|T];
+keystore(Key, [H|T], New) -> [H|keystore(Key, T, New)];
+keystore(Key, [], New) -> [{Key, New}].
+
+-compile({inline, [get_prop/2]}).
 %% @private
 -spec get_prop(type_prop_name(), proper_types:type()) -> type_prop_value().
 get_prop(PropName, {'$type',Props}) ->
     {_PropName, Val} = lists:keyfind(PropName, 1, Props),
     Val.
 
+-compile({inline, [find_prop/2]}).
 %% @private
 -spec find_prop(type_prop_name(), proper_types:type()) ->
 	  {'ok',type_prop_value()} | 'error'.
@@ -393,6 +397,7 @@ find_prop(PropName, {'$type',Props}) ->
             error
     end.
 
+-compile({inline, [new_type/2]}).
 %% @private
 -spec new_type([type_prop()], type_kind()) -> proper_types:type().
 new_type(PropList, Kind) ->
@@ -973,6 +978,7 @@ loose_tuple_is_instance(Type, X) ->
     ElemType = get_prop(env, Type),
     is_tuple(X) andalso list_test(tuple_to_list(X), ElemType).
 
+-compile({inline, [exactly/1]}).
 %% @doc Singleton type consisting only of `E'. `E' must be an evaluated term.
 %% Also written simply as `E'.
 -spec exactly(term()) -> proper_types:type().
