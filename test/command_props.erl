@@ -1,4 +1,4 @@
-%%% Copyright 2010-2014 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2014 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -107,7 +107,7 @@ prop_check_true() ->
 		?MOD:clean_up(),
 		?MOD:set_up(),
 		{{_, State, ok}, Env} = proper_statem:run(?MOD, Seq, []),
-		Res = [proper_statem:execute(C, Env, ?MOD, []) || C <- Par],
+		Res = [proper_statem:execute(C, Env, ?MOD) || C <- Par],
 		V = proper_statem:check(?MOD, State, Env, false, [], Res),
 		equals(V, true)
 	    end).

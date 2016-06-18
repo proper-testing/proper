@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -237,7 +237,7 @@
 -export([index/2, all_insertions/3, insert_all/2]).
 -export([is_valid/4, args_defined/2]).
 -export([get_next/6, mk_first_comb/3]).
--export([execute/4, check/6, run/3, get_initial_state/2]).
+-export([execute/3, check/6, run/3, get_initial_state/2]).
 
 
 %% -----------------------------------------------------------------------------
@@ -251,17 +251,17 @@
 -type symb_var()          :: {'var',pos_integer()}.
 -type symb_call()         :: {'call',mod_name(),fun_name(),[term()]}.
 -type command()           :: {'set',symb_var(),symb_call()}
-			     | {'init',symbolic_state()}.
+			   | {'init',symbolic_state()}.
 -type command_list()      :: [command()].
 -type parallel_testcase() :: {command_list(),[command_list()]}.
 -type parallel_history()  :: [{command(),term()}].
 -type history()           :: [{dynamic_state(),term()}].
 -type statem_result() :: 'ok'
-			 | 'initialization_error'
-			 | {'precondition',  'false' | proper:exception()}
-			 | {'postcondition', 'false' | proper:exception()}
-			 | proper:exception()
-			 | 'no_possible_interleaving'.
+		       | 'initialization_error'
+		       | {'precondition',  'false' | proper:exception()}
+		       | {'postcondition', 'false' | proper:exception()}
+		       | proper:exception()
+		       | 'no_possible_interleaving'.
 -type index()       :: pos_integer().
 -type indices()     :: [index()].
 -type combination() :: [{pos_integer(),indices()}].
@@ -280,10 +280,10 @@
 -spec behaviour_info('callbacks') -> [{fun_name(),arity()}].
 behaviour_info(callbacks) ->
     [{initial_state,0},
-      {command,1},
-      {precondition,2},
-      {postcondition,3},
-      {next_state,3}];
+     {command,1},
+     {precondition,2},
+     {postcondition,3},
+     {next_state,3}];
 behaviour_info(_Attribute) ->
     undefined.
 
@@ -615,7 +615,7 @@ run_parallel_commands(Mod, {_Sequential, _Parallel} = Testcase) ->
 run_parallel_commands(Mod, {Sequential, Parallel}, Env) ->
     case run(Mod, Sequential, Env) of
 	{{Seq_history, State, ok}, SeqEnv} ->
-	    F = fun(T) -> execute(T, SeqEnv, Mod, []) end,
+	    F = fun(T) -> execute(T, SeqEnv, Mod) end,
 	    Parallel_history = pmap(F, Parallel),
 	    case check(Mod, State, SeqEnv, false, [], Parallel_history) of
 		true ->
@@ -628,21 +628,16 @@ run_parallel_commands(Mod, {Sequential, Parallel}, Env) ->
     end.
 
 %% @private
--spec execute(command_list(), proper_symb:var_values(), mod_name(),
-	      parallel_history()) -> parallel_history().
-execute(Cmds, Env, Mod, History) ->
-    case Cmds of
-	[] ->
-	    lists:reverse(History);
-	[{set, {var,V}, {call,M,F,A}} = Cmd|Rest] ->
-	    M2 = proper_symb:eval(Env, M),
-	    F2 = proper_symb:eval(Env, F),
-	    A2 = proper_symb:eval(Env, A),
-	    Res = apply(M2, F2, A2),
-	    Env2 = [{V,Res}|Env],
-	    History2 = [{Cmd,Res}|History],
-	    execute(Rest, Env2, Mod, History2)
-    end.
+-spec execute(command_list(), proper_symb:var_values(), mod_name()) ->
+	 parallel_history().
+execute([], _Env, _Mod) -> [];
+execute([{set, {var,V}, {call,M,F,A}} = Cmd|Rest], Env, Mod) ->
+    M2 = proper_symb:eval(Env, M),
+    F2 = proper_symb:eval(Env, F),
+    A2 = proper_symb:eval(Env, A),
+    Res = apply(M2, F2, A2),
+    Env2 = [{V,Res}|Env],
+    [{Cmd,Res}|execute(Rest, Env2, Mod)].
 
 -spec pmap(fun((command_list()) -> parallel_history()), [command_list()]) ->
          [parallel_history()].
@@ -653,8 +648,7 @@ pmap(F, L) ->
 		 [command_list()]) -> [pid()].
 spawn_jobs(F, L) ->
     Parent = self(),
-    [spawn_link_cp(fun() -> Parent ! {self(),catch {ok,F(X)}} end)
-     || X <- L].
+    [spawn_link_cp(fun() -> Parent ! {self(),catch {ok,F(X)}} end) || X <- L].
 
 -spec await([pid()]) -> [parallel_history()].
 await([]) -> [];
