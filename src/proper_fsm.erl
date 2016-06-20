@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -62,7 +62,7 @@
 %%% The following functions must be exported from the callback module
 %%% implementing the finite state machine:
 %%% <ul>
-%%% <li> `initial_state() ::' {@type state_name()}
+%%% <li> `initial_state() ->' {@type state_name()}
 %%%   <p>Specifies the initial state of the finite state machine. As with
 %%%   `proper_statem:initial_state/0', its result should be deterministic.
 %%%   </p></li>
@@ -94,7 +94,7 @@
 %%%   has similar beaviour to `StateName/1', described above.</p></li>
 %%% <li> `weight(From::'{@type state_name()}`,
 %%%              Target::'{@type state_name()}`,
-%%%              Call::'{@type symb_call()}`) :: integer()'
+%%%              Call::'{@type symbolic_call()}`) -> integer()'
 %%%   <p>This is an optional callback. When it is not defined (or not exported),
 %%%   transitions are chosen with equal probability. When it is defined, it
 %%%   assigns an integer weight to transitions from `From' to `Target'
@@ -103,7 +103,7 @@
 %%% <li> `precondition(From::'{@type state_name()}`,
 %%%                    Target::'{@type state_name()}`,
 %%%                    StateData::'{@type state_data()}`,
-%%%                    Call::'{@type symb_call()}`) :: boolean()'
+%%%                    Call::'{@type symbolic_call()}`) -> boolean()'
 %%%   <p>Similar to `proper_statem:precondition/2'. Specifies the
 %%%   precondition that should hold about `StateData' so that `Call' can be
 %%%   included in the command sequence. In case precondition doesn't hold, a
@@ -116,16 +116,16 @@
 %%% <li> `postcondition(From::'{@type state_name()}`,
 %%%                     Target::'{@type state_name()}`,
 %%%                     StateData::'{@type state_data()}`,
-%%%                     Call::'{@type symb_call()}`,
-%%%                     Res::'{@type result()}`) :: boolean()'
+%%%                     Call::'{@type symbolic_call()}`,
+%%%                     Res::'{@type cmd_result()}`) -> boolean()'
 %%%   <p>Similar to `proper_statem:postcondition/3'. Specifies the
 %%%   postcondition that should hold about the result `Res' of the evaluation
 %%%   of `Call'.</p></li>
 %%% <li> `next_state_data(From::'{@type state_name()}`,
 %%%                       Target::'{@type state_name()}`,
 %%%                       StateData::'{@type state_data()}`,
-%%%                       Res::'{@type result()}`,
-%%%                       Call::'{@type symb_call()}`) ::'
+%%%                       Res::'{@type cmd_result()}`,
+%%%                       Call::'{@type symbolic_call()}`) ->'
 %%%        {@type state_data()}
 %%%   <p>Similar to `proper_statem:next_state/3'. Specifies how the
 %%%   transition from `FromState' to `Target' triggered by `Call' affects the
@@ -148,7 +148,6 @@
 
 -module(proper_fsm).
 
--export([behaviour_info/1]).
 -export([commands/1, commands/2, run_commands/2, run_commands/3,
 	 state_names/1]).
 -export([command/1, precondition/2, next_state/3, postcondition/3]).
@@ -161,22 +160,22 @@
 %% Type declarations
 %% -----------------------------------------------------------------------------
 
--type symb_var()   :: proper_statem:symb_var().
--type symb_call()  :: proper_statem:symb_call().
--type fsm_result() :: proper_statem:statem_result().
+-type symbolic_var() :: proper_statem:symbolic_var().
+-type symbolic_call():: proper_statem:symbolic_call().
+-type fsm_result()   :: proper_statem:statem_result().
 -type state_name()   :: atom() | tuple().
 %% @type state_data()
 -type state_data()   :: term().
 -type fsm_state()    :: {state_name(),state_data()}.
--type transition()   :: {state_name(),symb_call()}.
--type command()      :: {'set',symb_var(),symb_call()}
-			| {'init',fsm_state()}.
+-type transition()   :: {state_name(),symbolic_call()}.
+-type command()      :: {'set',symbolic_var(),symbolic_call()}
+		      | {'init',fsm_state()}.
 -type command_list() :: [command()].
 %% @type cmd_result()
 -type cmd_result()   :: term().
 -type history()      :: [{fsm_state(),cmd_result()}].
--type tmp_command()  ::   {'init',state()}
-		        | {'set',symb_var(),symb_call()}.
+-type tmp_command()  :: {'init',state()}
+		      | {'set',symbolic_var(),symbolic_call()}.
 
 -record(state, {name :: state_name(),
 		data :: state_data(),
@@ -185,21 +184,21 @@
 
 
 %% -----------------------------------------------------------------------------
-%% Proper_fsm behaviour
+%% Proper_fsm behaviour callback functions
 %% ----------------------------------------------------------------------------
 
-%% @doc Specifies the callback functions that should be exported from a module
-%% implementing the `proper_fsm' behaviour.
+-callback initial_state() -> state_name().
 
--spec behaviour_info('callbacks') -> [{fun_name(),arity()}].
-behaviour_info(callbacks) ->
-    [{initial_state,0},
-     {initial_state_data,0},
-     {precondition,4},
-     {postcondition,5},
-     {next_state_data,5}];
-behaviour_info(_Attribute) ->
-    undefined.
+-callback initial_state_data() -> state_data().
+
+-callback precondition(state_name(), state_name(),
+		       state_data(), symbolic_call()) -> boolean().
+
+-callback postcondition(state_name(), state_name(), state_data(),
+			symbolic_call(), cmd_result()) -> boolean().
+
+-callback next_state_data(state_name(), state_name(), state_data(),
+			  cmd_result(), symbolic_call()) -> state_data().
 
 
 %% -----------------------------------------------------------------------------
@@ -280,7 +279,7 @@ command(#state{name = From, data = Data, mod = Mod}) ->
     choose_transition(Mod, From, get_transitions(Mod, From, Data)).
 
 %% @private
--spec precondition(state(), symb_call()) -> boolean().
+-spec precondition(state(), symbolic_call()) -> boolean().
 precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
     Targets = target_states(Mod, From, Data, Call),
     case [To || To <- Targets,
@@ -299,14 +298,14 @@ precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
     end.
 
 %% @private
--spec next_state(state(), symb_var() | cmd_result(), symb_call()) -> state().
+-spec next_state(state(), symbolic_var() | cmd_result(), symbolic_call()) -> state().
 next_state(S = #state{name = From, data = Data, mod = Mod} , Var, Call) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     S#state{name = To,
 	    data = Mod:next_state_data(From, To, Data, Var, Call)}.
 
 %% @private
--spec postcondition(state(), symb_call(), cmd_result()) -> boolean().
+-spec postcondition(state(), symbolic_call(), cmd_result()) -> boolean().
 postcondition(#state{name = From, data = Data, mod = Mod}, Call, Res) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     Mod:postcondition(From, To, Data, Call, Res).
@@ -369,7 +368,7 @@ cook_history(_, To)         -> To.
 is_exported(Mod, Fun) ->
     lists:member(Fun, Mod:module_info(exports)).
 
--spec transition_target(mod_name(), state_name(), state_data(), symb_call()) ->
+-spec transition_target(mod_name(), state_name(), state_data(), symbolic_call()) ->
          state_name().
 transition_target(Mod, From, Data, Call) ->
     Targets = target_states(Mod, From, Data, Call),
@@ -378,12 +377,12 @@ transition_target(Mod, From, Data, Call) ->
     To.
 
 %% @private
--spec target_states(mod_name(), state_name(), state_data(), symb_call()) ->
+-spec target_states(mod_name(), state_name(), state_data(), symbolic_call()) ->
          [state_name()].
 target_states(Mod, From, StateData, Call) ->
     find_target(get_transitions(Mod, From, StateData), Call, []).
 
--spec find_target([transition()], symb_call(), [state_name()]) ->
+-spec find_target([transition()], symbolic_call(), [state_name()]) ->
          [state_name()].
 find_target([], _, Accum) -> Accum;
 find_target(Transitions, Call, Accum) ->
@@ -393,12 +392,12 @@ find_target(Transitions, Call, Accum) ->
 	false -> find_target(Rest, Call, Accum)
     end.
 
--spec is_compatible(symb_call(), symb_call()) -> boolean().
+-spec is_compatible(symbolic_call(), symbolic_call()) -> boolean().
 is_compatible({call,M,F,A1}, {call,M,F,A2})
   when length(A1) =:= length(A2) ->
     true;
 is_compatible(_, _) ->
     false.
 
--spec get_mfa(symb_call()) -> mfa().
+-spec get_mfa(symbolic_call()) -> mfa().
 get_mfa({call,M,F,A}) -> {M,F,length(A)}.
