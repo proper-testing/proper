@@ -1,4 +1,4 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 %%% @doc Simple statem test for ets tables
@@ -25,7 +25,7 @@
 -module(ets_statem).
 -behaviour(proper_statem).
 
--export([initial_state/0, initial_state/1, initial_state/2, command/1,
+-export([initial_state/0, command/1,
 	 precondition/2, postcondition/3, next_state/3]).
 -export([sample_commands/0]).
 
@@ -34,7 +34,7 @@
 -type object()     :: tuple().
 -type table_type() :: 'set' | 'ordered_set' | 'bag' | 'duplicate_bag'.
 
--record(state, {tids   = []  :: [ets:tid()],
+-record(state, {tabs   = []  :: [ets:tab()],
 		stored = []  :: [object()],      %% list of objects stored in
 		                                 %% ets table
 		type   = set :: table_type()}).  %% type of ets table
@@ -45,8 +45,9 @@
 
 %%% Generators
 
-key() -> frequency([{2, elements(?INT_KEYS)},
-		    {1, elements(?FLOAT_KEYS)}]).
+key() ->
+    frequency([{2, elements(?INT_KEYS)},
+	       {1, elements(?FLOAT_KEYS)}]).
 
 value() ->
     frequency([{5, int()},
@@ -61,8 +62,8 @@ object(S) ->
 key(S) ->
     ?LET(Object, object(S), element(1, Object)).
 
-tid(S) ->
-    elements(S#state.tids).
+tab(S) ->
+    elements(S#state.tabs).
 
 
 %%% Abstract state machine for ets table
@@ -74,16 +75,16 @@ initial_state(Type) ->
     #state{type = Type}.
 
 initial_state(Type, parallel) ->
-    #state{tids = [tab], type = Type}.
+    #state{tabs = [tab], type = Type}.
 
-command(#state{tids = [], type = Type}) ->
+command(#state{tabs = [], type = Type}) ->
     {call,ets,new,[tab, [Type]]};
 command(S) ->
-    oneof([{call,ets,insert,[tid(S), object()]},
-	   {call,ets,delete,[tid(S), key()]}] ++
-	  [{call,ets,lookup_element,[tid(S), key(S), range(1, 2)]}
+    oneof([{call,ets,insert,[tab(S), object()]},
+	   {call,ets,delete,[tab(S), key()]}] ++
+	  [{call,ets,lookup_element,[tab(S), key(S), range(1, 2)]}
 	   || S#state.stored =/= []] ++
-	  [{call,ets,update_counter,[tid(S), key(S), int()]}
+	  [{call,ets,update_counter,[tab(S), key(S), int()]}
 	   || S#state.stored =/= [],
 	      S#state.type =:= set orelse  S#state.type =:= ordered_set]).
 
@@ -105,7 +106,7 @@ precondition(_S, {call,_,_,_}) ->
     true.
 
 next_state(S, V, {call,_,new,[_Tab, _Opts]}) ->
-    S#state{tids = [V|S#state.tids]};
+    S#state{tabs = [V|S#state.tabs]};
 next_state(S, _V, {call,_,update_counter,[_Tab, Key, Incr]}) ->
     case S#state.type of
 	set ->
@@ -195,7 +196,7 @@ prop_ets() ->
         ?FORALL(Cmds, commands(?MODULE, initial_state(Type)),
 		begin
 		    {H,S,Res} = run_commands(?MODULE, Cmds),
-		    [ets:delete(Tab) || Tab <- S#state.tids],
+		    [ets:delete(Tab) || Tab <- S#state.tabs],
 		    ?WHENFAIL(
 		       io:format("History: ~p~nState: ~p~nRes: ~p~n", [H,S,Res]),
 		       collect(Type, Res =:= ok))
