@@ -34,11 +34,11 @@
 prop_identity() ->
     ?FORALL(Msg, msg(), Msg =:= decode(encode(Msg))).
 
--spec encode(msg()) -> binary().
+-spec encode(msg()) -> bitstring().
 encode(#msg{a = A, b = B}) ->
     <<A:32, B:4>>.
 
--spec decode(binary()) -> msg().
+-spec decode(bitstring()) -> msg().
 decode(<<A:32, B:4>>) ->
     #msg{a = A, b = B}.
 
