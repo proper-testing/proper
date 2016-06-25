@@ -296,13 +296,29 @@ symb_walk_call(VarValues, Mod, Fun, Args,
     HandleCall(Mod, Fun, HandledArgs).
 
 -spec symb_walk_gen(var_values(), symb_term(), handle_info()) -> handled_term().
+-ifdef(AT_LEAST_17).
 symb_walk_gen(VarValues, SymbTerm,
-	      {_Caller,_HandleCall,HandleTerm} = HandleInfo) ->
+              {_Caller,_HandleCall,HandleTerm} = HandleInfo) ->
     SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleInfo) end,
     Term =
-	if
-	    is_list(SymbTerm)  -> proper_arith:safe_map(SymbWalk, SymbTerm);
-	    is_tuple(SymbTerm) -> proper_arith:tuple_map(SymbWalk, SymbTerm);
-	    true               -> SymbTerm
-	end,
+        if
+            is_list(SymbTerm)  -> proper_arith:safe_map(SymbWalk, SymbTerm);
+            is_tuple(SymbTerm) -> proper_arith:tuple_map(SymbWalk, SymbTerm);
+            is_map(SymbTerm)   -> maps:from_list(
+                                    proper_arith:safe_map(SymbWalk, maps:to_list(SymbTerm))
+                                   );
+            true               -> SymbTerm
+        end,
     HandleTerm(Term).
+-else.
+symb_walk_gen(VarValues, SymbTerm,
+              {_Caller,_HandleCall,HandleTerm} = HandleInfo) ->
+    SymbWalk = fun(X) -> symb_walk(VarValues, X, HandleInfo) end,
+    Term =
+        if
+            is_list(SymbTerm)  -> proper_arith:safe_map(SymbWalk, SymbTerm);
+            is_tuple(SymbTerm) -> proper_arith:tuple_map(SymbWalk, SymbTerm);
+            true               -> SymbTerm
+        end,
+    HandleTerm(Term).
+-endif.
