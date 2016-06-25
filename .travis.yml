@@ -3,6 +3,7 @@ language: erlang
 script: "make all"
 
 otp_release:
+   - 19.0
    - 18.3
    - 18.1
    - 17.4
