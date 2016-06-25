@@ -893,6 +893,12 @@ true_props_test_() ->
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
      {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}].
 
+-ifdef(AT_LEAST_17).
+map_in_nextstate3_test_() ->
+	[?_passes(symb_statem_maps:prop_simple()),
+	{timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())}].
+-endif.
+
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
 		 ?FORALL(L,list(integer()),is_sorted(L,lists:usort(L)))),
