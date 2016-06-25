@@ -1,4 +1,4 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2016      Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,67 +17,66 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
-%%% @author Eirini Arvaniti
+%%% @author Pierre Fenoll (adapted from the code of test/symb_statem.erl)
 
 -module(symb_statem_maps).
 
 -include("compile_flags.hrl").
--ifdef(AT_LEAST_17).
 
+-ifdef(AT_LEAST_17).
 -include_lib("proper/include/proper.hrl").
 
 -export([command/1,
-	initial_state/0,
-	next_state/3,
-	precondition/2,
-	postcondition/3]).
+	 initial_state/0,
+	 next_state/3,
+	 precondition/2,
+	 postcondition/3]).
 
 -export([qux/1]).
 
 -record(state, {qux = #{key => []} :: map()}).
 
 initial_state() ->
-	#state{}.
+    #state{}.
 
 command(_S) ->
-	oneof([{call,?MODULE,qux,[integer()]}]).
+    oneof([{call,?MODULE,qux,[integer()]}]).
 
 precondition(_, _) ->
-	true.
+    true.
 
 next_state(S = #state{qux=Qux}, V, {call,?MODULE,qux,[_Arg]}) ->
-	Values = maps:get(key, Qux),
-	NewValues = {call,maps,get,[key,V]},
-	NewQux = Qux#{key => [{call,erlang,hd,[NewValues]} | Values]},
-	S#state{qux = NewQux}.
+    Values = maps:get(key, Qux),
+    NewValues = {call,maps,get,[key,V]},
+    NewQux = Qux#{key => [{call,erlang,hd,[NewValues]} | Values]},
+    S#state{qux = NewQux}.
 
 postcondition(S=#state{qux=#{key:=Values}}, {call,?MODULE,qux,[_Arg]}, Res)
   when is_map(Res) ->
-	lists:all(fun is_integer/1, Values);
+    lists:all(fun is_integer/1, Values);
 postcondition(_, _, _) ->
-	false.
+    false.
 
 qux(I) when is_integer(I) ->
-	#{key => lists:duplicate(3, I)}.
+    #{key => lists:duplicate(3, I)}.
 
 prop_simple() ->
-	?FORALL(Cmds, commands(?MODULE),
-		begin
+    ?FORALL(Cmds, commands(?MODULE),
+	    begin
 		{H,S,Res} = run_commands(?MODULE, Cmds),
 		?WHENFAIL(
 		   io:format("H: ~w\nState: ~p\n:Res: ~w\n", [H,S,Res]),
 		   Res =:= ok)
-		end).
+	    end).
 
 prop_parallel_simple() ->
-	?FORALL(Cmds, parallel_commands(?MODULE),
-		begin
+    ?FORALL(Cmds, parallel_commands(?MODULE),
+	    begin
 		{S,P,Res} = run_parallel_commands(?MODULE, Cmds),
 		?WHENFAIL(
 		   io:format("Seq: ~w\nParallel: ~p\n:Res: ~w\n", [S,P,Res]),
 		   Res =:= ok)
-		end).
-
+	    end).
 -endif.

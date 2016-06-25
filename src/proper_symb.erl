@@ -306,19 +306,18 @@ symb_walk_gen(VarValues, SymbTerm,
 			  maybe_improper_list(S,S | []).
 -ifdef(AT_LEAST_17).
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_map(SymbTerm) ->
-	maps:from_list(
-	  proper_arith:safe_map(SymbWalk, maps:to_list(SymbTerm)));
+    maps:from_list(proper_arith:safe_map(SymbWalk, maps:to_list(SymbTerm)));
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_list(SymbTerm) ->
-	proper_arith:safe_map(SymbWalk, SymbTerm);
+    proper_arith:safe_map(SymbWalk, SymbTerm);
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_tuple(SymbTerm) ->
-	proper_arith:tuple_map(SymbWalk, SymbTerm);
+    proper_arith:tuple_map(SymbWalk, SymbTerm);
 do_symb_walk_gen(_, SymbTerm) ->
-	SymbTerm.
+    SymbTerm.
 -else.
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_list(SymbTerm) ->
-	proper_arith:safe_map(SymbWalk, SymbTerm);
+    proper_arith:safe_map(SymbWalk, SymbTerm);
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_tuple(SymbTerm) ->
-	proper_arith:tuple_map(SymbWalk, SymbTerm);
+    proper_arith:tuple_map(SymbWalk, SymbTerm);
 do_symb_walk_gen(_, SymbTerm) ->
-	SymbTerm.
+    SymbTerm.
 -endif.

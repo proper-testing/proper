@@ -895,8 +895,8 @@ true_props_test_() ->
 
 -ifdef(AT_LEAST_17).
 map_in_nextstate3_test_() ->
-	[?_passes(symb_statem_maps:prop_simple()),
-	{timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())}].
+    [?_passes(symb_statem_maps:prop_simple()),
+     {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())}].
 -endif.
 
 false_props_test_() ->
