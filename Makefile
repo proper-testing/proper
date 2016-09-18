@@ -49,7 +49,7 @@ dialyzer: .plt/proper_plt compile
 	dialyzer -n -nn --plt $< -Wunmatched_returns ebin $(find .  -path 'deps/*/ebin/*.beam')
 
 .plt/proper_plt: .plt
-	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto
+	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools
 
 check_escripts:
 	./check_escripts.sh make_doc write_compile_flags

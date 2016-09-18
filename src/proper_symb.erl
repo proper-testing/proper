@@ -244,19 +244,21 @@ pretty_print(VarValues, SymbTerm) ->
 
 -spec parse_fun(mod_name(), fun_name(), [abs_expr()]) -> abs_expr().
 parse_fun(Module, Function, ArgTreeList) ->
-    L = ?anno(0),
-    {call,L,{remote,L,{atom,L,Module},{atom,L,Function}},ArgTreeList}.
+    M = erl_syntax:atom(Module),
+    F = erl_syntax:atom(Function),
+    erl_syntax:revert(erl_syntax:application(M, F, ArgTreeList)).
 
 -spec parse_term(term()) -> abs_expr().
 parse_term(TreeList) when is_list(TreeList) ->
     {RestOfList, Acc0} =
 	case proper_arith:cut_improper_tail(TreeList) of
 	    {_ProperHead,_ImproperTail} = X -> X;
-	    ProperList                      -> {ProperList,{nil,0}}
+	    ProperList -> {ProperList, erl_syntax:revert(erl_syntax:nil())}
 	end,
-    lists:foldr(fun(X,Acc) -> {cons,0,X,Acc} end, Acc0, RestOfList);
+    lists:foldr(fun(X,Acc) -> erl_syntax:revert(erl_syntax:cons(X,Acc)) end,
+		Acc0, RestOfList);
 parse_term(TreeTuple) when is_tuple(TreeTuple) ->
-    {tuple,0,tuple_to_list(TreeTuple)};
+    erl_syntax:revert(erl_syntax:tuple(tuple_to_list(TreeTuple)));
 parse_term(Term) ->
     %% TODO: pid, port, reference, function value?
     erl_parse:abstract(Term).
