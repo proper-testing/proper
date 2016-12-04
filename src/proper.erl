@@ -1,4 +1,4 @@
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -1490,7 +1490,7 @@ finalize_input(Instance) ->
 shrink(ImmTestCase, Test, Reason,
        #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
 	     output_fun = Print} = Opts) ->
-    Print("~nShrinking ", []),
+    Print("~n\033[01;34mShrinking \033[00m", []),
     try
 	StrTest = skip_to_next(Test),
 	fix_shrink(ImmTestCase, StrTest, Reason, 0, MaxShrinks, Opts)
@@ -1708,9 +1708,10 @@ report_imm_result(#pass{samples = Samples, printers = Printers,
 			performed = Performed},
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("Failed: All tests passed when a failure was expected."
-		       "~n", []);
-	false -> Print("OK: Passed ~b test(s).~n", [Performed])
+	true ->
+	    Print("\033[1;31mFailed: All tests passed when a failure was expected.\033[0m~n", []);
+	false ->
+	    Print("\033[1;32mOK: Passed ~b test(s).~n\033[0m", [Performed])
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Print) end,
@@ -1720,9 +1721,9 @@ report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
 		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
 	true ->
-	    Print("OK: Failed as expected, after ~b test(s).~n", [Performed]);
+	    Print("\033[1;32mOK: Failed as expected, after ~b test(s).~n\033[0m", [Performed]);
 	false ->
-	    Print("Failed: After ~b test(s).~n", [Performed])
+	    Print("\033[1;31mFailed: After ~b test(s).~n\033[0m", [Performed])
     end,
     report_fail_reason(Reason, "", Print),
     print_imm_testcase(Bound, "", Print),
@@ -1734,8 +1735,8 @@ report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
 report_rerun_result(#pass{reason = Reason},
 		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("Failed: ", []);
-	false -> Print("OK: ", [])
+	true  -> Print("\033[1;31mFailed: \033[0m", []);
+	false -> Print("\033[1;32mOK: \033[0m", [])
     end,
     case Reason of
 	true_prop   -> Print("The input passed the test.~n", []);
@@ -1744,8 +1745,8 @@ report_rerun_result(#pass{reason = Reason},
 report_rerun_result(#fail{reason = Reason, actions = Actions},
 		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
     case ExpectF of
-	true  -> Print("OK: ", []);
-	false -> Print("Failed: ", [])
+	true  -> Print("\033[1;32mOK: \033[0m", []);
+	false -> Print("\033[1;31mFailed: \033[0m", [])
     end,
     Print("The input fails the test.~n", []),
     report_fail_reason(Reason, "", Print),
@@ -1830,7 +1831,7 @@ execute_actions(Actions) ->
 -spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
 		       output_fun()) -> 'ok'.
 report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
-    Print("(~b time(s))~n", [Shrinks]),
+    Print("\033[01;34m(~b time(s))\033[00m~n", [Shrinks]),
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
