@@ -641,7 +641,7 @@ execute([{set, {var,V}, {call,M,F,A}} = Cmd|Rest], Env, Mod) ->
 -spec pmap(fun((command_list()) -> parallel_history()), [command_list()]) ->
          [parallel_history()].
 pmap(F, L) ->
-    await(spawn_jobs(F,L)).
+    await(spawn_jobs(F, L)).
 
 -spec spawn_jobs(fun((command_list()) -> parallel_history()),
 		 [command_list()]) -> [pid()].
