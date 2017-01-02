@@ -568,7 +568,7 @@ check_precondition(Mod, State, Call) ->
     end.
 
 -spec check_postcondition(mod_name(), dynamic_state(), symbolic_call(), term()) ->
-         boolean() | proper:exception().
+         boolean() | {boolean(), string()} | proper:exception().
 check_postcondition(Mod, State, Call, Res) ->
     try Mod:postcondition(State, Call, Res)
     catch
