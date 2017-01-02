@@ -1822,7 +1822,7 @@ print_imm_clean_input({'$conjunction',SubImmCExms}, Prefix, Print) ->
 	end,
     lists:foreach(PrintSubImmCExm, SubImmCExms);
 print_imm_clean_input(Instance, Prefix, Print) ->
-    Print(Prefix ++ "~w~n", [Instance]).
+    Print(Prefix ++ "~s~n", [io_lib_pretty:print(Instance)]).
 
 -spec execute_actions(fail_actions()) -> 'ok'.
 execute_actions(Actions) ->
