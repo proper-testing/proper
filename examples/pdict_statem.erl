@@ -81,15 +81,24 @@ precondition(_, _) ->
     false.
 
 postcondition(Props, {call,erlang,put,[Key,_]}, undefined) ->
-    not proplists:is_defined(Key, Props);
+    Msg = "put should only return undefined if the key is new.",
+    Pred = not proplists:is_defined(Key, Props),
+    {Pred, Msg};
 postcondition(Props, {call,erlang,put,[Key,_]}, Old) ->
-    {Key,Old} =:= proplists:lookup(Key, Props);
+    Msg = "put should return the old value for the key if there is one.",
+    Pred = {Key,Old} =:= proplists:lookup(Key, Props),
+    {Pred, Msg};
 postcondition(Props, {call,erlang,get,[Key]}, Val) ->
-    {Key,Val} =:= proplists:lookup(Key, Props);
+    Msg = "get should return the correct value for the key",
+    Pred = {Key,Val} =:= proplists:lookup(Key, Props),
+    {Pred, Msg};
 postcondition(Props, {call,erlang,erase,[Key]}, Val) ->
-    {Key,Val} =:= proplists:lookup(Key, Props);
+    Msg = "If erase returns a value, it should be the old value for the key",
+    Pred = {Key,Val} =:= proplists:lookup(Key, Props),
+    {Pred, Msg};
 postcondition(_, _, _) ->
-    false.
+    Msg = "Default case",
+    {false, Msg}.
 
 next_state(Props, _Var, {call,erlang,put,[Key,Value]}) ->
     %% correct model

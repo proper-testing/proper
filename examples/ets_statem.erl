@@ -172,13 +172,15 @@ postcondition(S, {call,_,update_counter,[_Tab, Key, Incr]}, Res) ->
 		     lists:keyfind(Key, 1, S#state.stored)
 	     end,
     Value = element(2, Object),
-    Res =:= Value + Incr;
+    Pred = Res =:= Value + Incr,
+    Msg = "update_counter should return the result of updating the counter.",
+    {Pred, Msg};
 postcondition(_S, {call,_,delete,[_Tab, _Key]}, Res) ->
     Res =:= true;
 postcondition(_S, {call,_,insert,[_Tab, _Object]}, Res) ->
     Res =:= true;
 postcondition(S, {call,_,lookup_element,[_Tab, Key, Pos]}, Res) ->
-    case S#state.type of
+    Pred = case S#state.type of
 	ordered_set ->
 	    Res =:= element(Pos, lists:keyfind(Key, 1, S#state.stored));
 	set ->
@@ -186,7 +188,9 @@ postcondition(S, {call,_,lookup_element,[_Tab, Key, Pos]}, Res) ->
 	_ ->
 	    Res =:= [element(Pos, Tuple)
 		     || Tuple <- proplists:lookup_all(Key, S#state.stored)]
-    end.
+    end,
+    Msg = "lookup_element should return the result of looking up the element",
+    {Pred, Msg}.
 
 
 %%% Sample properties

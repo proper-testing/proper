@@ -538,8 +538,13 @@ run_commands(Cmds, Env, Mod, History, State) ->
 				true ->
 				    State2 = proper_symb:eval(Env2, Mod:next_state(State, Res, Call)),
 				    run_commands(Rest, Env2, Mod, History2, State2);
+				{true,_Msg} ->
+				    State2 = proper_symb:eval(Env2, Mod:next_state(State, Res, Call)),
+				    run_commands(Rest, Env2, Mod, History2, State2);
 				false ->
 				    {{lists:reverse(History2), State, {postcondition,false}}, []};
+				{false,Msg} ->
+				    {{lists:reverse(History2), State, {postcondition,false,Msg}}, []};
 				{exception,_,_,_} = Exception ->
 				    {{lists:reverse(History2), State, {postcondition,Exception}}, []}
 			    end;
