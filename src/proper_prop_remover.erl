@@ -112,6 +112,8 @@ safe_expr({'receive',_Line,Clauses,AfterExpr,AfterBody}) ->
     andalso lists:all(fun safe_expr/1, AfterBody);
 safe_expr({'fun',_Line,{clauses,Clauses}}) ->
     lists:all(fun safe_clause/1, Clauses);
+safe_expr({named_fun,_Line,_Name,Clauses}) ->
+    lists:all(fun safe_clause/1, Clauses);
 safe_expr({'query',_Line,ListCompr}) ->
     safe_expr(ListCompr);
 safe_expr({record_field,_Line,Expr,_FieldName}) ->

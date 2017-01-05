@@ -335,6 +335,9 @@ rewrite_expr({'receive',Line,Clauses,AfterExpr,AfterBody}, ModInfo) ->
 rewrite_expr({'fun',Line,{clauses,Clauses}}, ModInfo) ->
     NewClauses = [rewrite_clause(C,ModInfo) || C <- Clauses],
     {'fun',Line,{clauses,NewClauses}};
+rewrite_expr({named_fun,Line,Name,Clauses}, ModInfo) ->
+    NewClauses = [rewrite_clause(C,ModInfo) || C <- Clauses],
+    {named_fun,Line,Name,NewClauses};
 rewrite_expr({'query',Line,ListCompr}, ModInfo) ->
     {'query',Line,rewrite_expr(ListCompr,ModInfo)};
 rewrite_expr({record_field,Line,Expr,FieldName}, ModInfo) ->
