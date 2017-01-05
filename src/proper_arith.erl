@@ -269,39 +269,14 @@ rand_int(Const) ->
 rand_non_neg_int(Const) ->
     trunc(rand_non_neg_float(Const)).
 
--spec bounded_rand_non_neg_int(non_neg_integer(), non_neg_integer()) ->
-				      non_neg_integer().
-bounded_rand_non_neg_int(Const, Lim) when is_integer(Lim), Lim >= 0 ->
-    X = rand_non_neg_int(Const),
-    case X > Lim of
-	true  -> bounded_rand_non_neg_int(Const, Lim);
-	false -> X
-    end.
-
 -spec rand_int(integer(), integer()) -> integer().
 rand_int(Low, High) when is_integer(Low), is_integer(High), Low =< High ->
     Low + ?RANDOM_MOD:uniform(High - Low + 1) - 1.
 
-%% When the range is large, skew the distribution to be more like that of an
-%% unbounded random integer.
+%% TODO: Consider Coefficient (Size/Max_Size) for the random number
 -spec smart_rand_int(non_neg_integer(), integer(), integer()) -> integer().
-smart_rand_int(Const, Low, High) ->
-    case High - Low =< ?SMALL_RANGE_THRESHOLD of
-	true  -> rand_int(Low, High);
-	false -> wide_range_rand_int(Const, Low, High)
-    end.
-
--spec wide_range_rand_int(non_neg_integer(), integer(), integer()) ->
-				 integer().
-wide_range_rand_int(Const, Low, High) when Low >= 0 ->
-    Low + bounded_rand_non_neg_int(Const, High - Low);
-wide_range_rand_int(Const, Low, High) when High =< 0 ->
-    High - bounded_rand_non_neg_int(Const, High - Low);
-wide_range_rand_int(Const, Low, High) ->
-    case ?RANDOM_MOD:uniform(2) of
-	1 -> smart_rand_int(Const, 0, High);
-	2 -> smart_rand_int(Const, Low, 0)
-    end.
+smart_rand_int(_Const, Low, High) ->
+	rand_int(Low, High).
 
 -spec rand_float(non_neg_integer()) -> float().
 rand_float(Const) ->
