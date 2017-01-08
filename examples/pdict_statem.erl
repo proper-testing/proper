@@ -36,8 +36,12 @@
 
 %%% New API in which only get/1 returns an interesting value.
 get(K) -> erlang:get(K).
-put(K,V) -> erlang:put(K,V).
-erase(K) -> erlang:erase(K).
+put(K,V) ->
+    erlang:put(K,V),
+    ok.
+erase(K) ->
+    erlang:erase(K),
+    ok.
 
 %% A simple statem test for the process dictionary; tests the
 %% operations ?MODULE:put/2, ?MODULE:get/1, ?MODULE:erase/1.
@@ -82,39 +86,31 @@ command(Props) ->
 
 precondition(_Props, {call,?MODULE,put,[_Key,_Val]}) ->
     true;
-precondition(Props, {call,?MODULE,get,[Key]}) ->
-    proplists:is_defined(Key, Props);
+precondition(_Props, {call,?MODULE,get,[_Key]}) ->
+    true;
 precondition(Props, {call,?MODULE,erase,[Key]}) ->
     proplists:is_defined(Key, Props);
 precondition(_, _) ->
     false.
 
-postcondition(Props, {call,?MODULE,put,[Key,_]}, Result) ->
-    case proplists:lookup(Key, Props) of
-        none ->
-            Pred = (Result =:= undefined),
-            Msg = io_lib:format("Want put(~p, _) to return undefined, got ~p.", [Key, Result]),
-            {Pred, Msg};
-        {Key, OldVal} ->
-            Pred = (OldVal =:= Result),
-            Msg = io_lib:format("Want put(~p, _) to return old value ~p (props: ~p). Got ~p.", [Key, OldVal, Props, Result]),
-            {Pred, Msg}
-    end;
-postcondition(Props, {call,?MODULE,get,[Key]}, Val) ->
-    Msg = "get should return the correct value for the key",
-    Pred = {Key,Val} =:= proplists:lookup(Key, Props),
+postcondition(_Props, {call,?MODULE,put,[Key,Val]}, Result) ->
+    Want = ok,
+    Pred = (Result =:= Want),
+    Msg = io_lib:format("Want put(~p, ~p) to return ~p, got ~p\n", [Key, Val, Want, Result]),
     {Pred, Msg};
-postcondition(Props, {call,?MODULE,erase,[Key]}, Result) ->
-    case proplists:lookup(Key, Props) of
-        none ->
-            Msg = io_lib:format("Want Result to be undefined, got ~p.", [Result]),
-            Pred = (Result =:= undefined),
-            {Pred, Msg};
-        {Key, ModelVal} ->
-            Pred = (ModelVal =:= Result),
-            Msg = io_lib:format("Want erase(~p) to return old value ~p. Got ~p.", [Key, ModelVal, Result]),
-            {Pred, Msg}
-    end;
+postcondition(Props, {call,?MODULE,get,[Key]}, Result) ->
+    Want = case proplists:lookup(Key, Props) of
+                none -> undefined;
+                {Key, Val} -> Val
+           end,
+    Pred = (Result =:= Want),
+    Msg = io_lib:format("Want get(~p) to return ~p, got ~p\n", [Key, Want, Result]),
+    {Pred, Msg};
+postcondition(_Props, {call,?MODULE,erase,[_Key]}, Result) ->
+    Want = ok,
+    Pred = (Result =:= Want),
+    Msg = io_lib:format("Want Result to be ~p, got ~p\n", [Want, Result]),
+    {Pred, Msg};
 postcondition(_, _, _) ->
     Msg = "Default case",
     {false, Msg}.
