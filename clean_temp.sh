@@ -22,4 +22,4 @@
 # Author:      Manolis Papadakis
 # Description: Cleanup script for temporary files
 
-find . \( -name '*~' -or -name '#*#' -or -name '*.dump' \) -delete
+find . \( -name '*~' -o -name '#*#' -o -name '*.dump' \) -exec rm {} \;
