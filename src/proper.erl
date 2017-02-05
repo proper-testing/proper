@@ -1,4 +1,4 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -356,7 +356,7 @@
 -export([clean_garbage/0, global_state_erase/0]).
 
 -export([get_size/1, global_state_init_size/1,
-	 global_state_init_size_seed/2,report_error/2]).
+	 global_state_init_size_seed/2, report_error/2]).
 -export([pure_check/1, pure_check/2]).
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
 
@@ -1046,7 +1046,7 @@ retry(Test, CExm, Opts) ->
 -spec multi_test(mod_name(), raw_test_kind(), opts()) -> module_result().
 multi_test(Mod, RawTestKind,
 	   #opts{long_result = ReturnLong, output_fun = Print,
-             skip_mfas = SkipMFAs} = Opts) ->
+		 skip_mfas = SkipMFAs} = Opts) ->
     global_state_init(Opts),
     MaybeMFAs =
 	case RawTestKind of
