@@ -1,4 +1,4 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -210,7 +210,7 @@ pick(RawType, Size, Seed) ->
     proper:global_state_init_size_seed(Size, Seed),
     case clean_instance(safe_generate(RawType)) of
 	{ok,Instance} = Result ->
-	    Msg = "WARNING: Some garbage has been left in the process registry "
+	    Msg = "WARNING: Some garbage has been left in the process dictionary "
 		  "and the code server~n"
 		  "to allow for the returned function(s) to run normally.~n"
 		  "Please run proper:global_state_erase() when done.~n",
