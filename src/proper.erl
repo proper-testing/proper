@@ -674,7 +674,7 @@ global_state_erase() ->
 setup_test(#opts{setup_funs = Funs}) ->
 	[Fun() || Fun <- Funs].
 
--spec finalize_test([finalize_fun()]) -> 'ok'.
+-spec finalize_test([finalize_fun()]) -> ['ok'].
 finalize_test(Finalizers) ->
 	[ok = Fun() || Fun <- Finalizers].
 
@@ -1045,7 +1045,7 @@ test(RawTest, Opts) ->
     global_state_init(Opts),
 		Finalizers = setup_test(Opts),
     Result = inner_test(RawTest, Opts),
-		finalize_test(Finalizers),
+		_ = finalize_test(Finalizers),
     global_state_erase(),
     Result.
 
@@ -1069,7 +1069,7 @@ retry(Test, CExm, Opts) ->
     RunResult = rerun(Test, false, CExm),
     report_rerun_result(RunResult, Opts),
     ShortResult = get_rerun_result(RunResult),
-		finalize_test(Finalizers),
+		_ = finalize_test(Finalizers),
     global_state_erase(),
     ShortResult.
 
@@ -1100,7 +1100,7 @@ multi_test(Mod, RawTestKind,
 		Error = {error,Reason},
 		{Error, Error}
 	end,
-    finalize_test(Finalizers),
+    _ = finalize_test(Finalizers),
     global_state_erase(),
     case ReturnLong of
 	true  -> LongResult;
