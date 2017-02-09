@@ -358,7 +358,7 @@
 -export([get_size/1, global_state_init_size/1,
 	 global_state_init_size_seed/2, report_error/2]).
 -export([pure_check/1, pure_check/2]).
--export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2]).
+-export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
 	      false_positive_mfas/0]).
@@ -416,7 +416,8 @@
 -type outer_test() :: test()
 		    | numtests_clause()
 		    | fails_clause()
-		    | on_output_clause().
+		    | on_output_clause()
+				| setup_clause().
 %% TODO: This should be opaque.
 %% TODO: Should the tags be of the form '$...'?
 %% @type test(). A testable property that has not been wrapped with an
@@ -439,6 +440,9 @@
 -type stripped_test() :: boolean()
 		       | {proper_types:type(), dependent_test()}
 		       | [{tag(),test()}].
+-type finalize_fun() :: fun (() -> 'ok').
+-type setup_fun() :: fun(() -> finalize_fun()).
+
 
 -type numtests_clause() :: {'numtests', pos_integer(), outer_test()}.
 -type fails_clause() :: {'fails', outer_test()}.
@@ -451,6 +455,7 @@
 -type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
 -type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
 -type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
+-type setup_clause() :: {'setup', setup_fun(), outer_test()}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
@@ -493,7 +498,8 @@
 	       any_type	        :: {'type', proper_types:type()} | 'undefined',
 	       spec_timeout     = infinity        :: timeout(),
 	       skip_mfas        = []              :: [mfa()],
-	       false_positive_mfas                :: false_positive_mfas()}).
+	       false_positive_mfas                :: false_positive_mfas(),
+				 setup_funs        = []              :: [setup_fun()]}).
 -type opts() :: #opts{}.
 -record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
 	      bound    = []  :: imm_testcase() | counterexample(),
@@ -658,6 +664,14 @@ global_state_erase() ->
     erase('$size'),
     erase('$parameters'),
     ok.
+
+-spec setup_test(opts()) -> [finalize_fun()].
+setup_test(#opts{setup_funs = Funs}) ->
+	[Fun() || Fun <- Funs].
+
+-spec finalize_test([finalize_fun()]) -> 'ok'.
+finalize_test(Finalizers) ->
+	[ok = Fun() || Fun <- Finalizers].
 
 %% @private
 -spec spawn_link_migrate(fun(() -> 'ok')) -> pid().
@@ -880,6 +894,8 @@ peel_test({fails,OuterTest}, Opts) ->
     peel_test(OuterTest, Opts#opts{expect_fail = true});
 peel_test({on_output,Print,OuterTest}, Opts) ->
     peel_test(OuterTest, Opts#opts{output_fun = Print});
+peel_test({setup,Fun,OuterTest}, #opts{setup_funs = Funs} = Opts) ->
+    peel_test(OuterTest, Opts#opts{setup_funs = [Fun|Funs]});
 peel_test(Test, Opts) ->
     {Test, Opts}.
 
@@ -916,6 +932,11 @@ on_output(Print, Test) ->
 -spec forall(proper_types:raw_type(), dependent_test()) -> forall_clause().
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
+
+%% @private
+-spec setup(setup_fun(), outer_test()) -> setup_clause().
+setup(Fun, Test) ->
+	{setup, Fun, Test}.
 
 %% @doc Returns a property that is true only if all of the sub-properties
 %% `SubProps' are true. Each sub-property should be tagged with a distinct atom.
@@ -1017,7 +1038,9 @@ equals(A, B) ->
 -spec test(raw_test(), opts()) -> result().
 test(RawTest, Opts) ->
     global_state_init(Opts),
+		Finalizers = setup_test(Opts),
     Result = inner_test(RawTest, Opts),
+		finalize_test(Finalizers),
     global_state_erase(),
     Result.
 
@@ -1037,9 +1060,11 @@ inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
 -spec retry(test(), counterexample(), opts()) -> short_result().
 retry(Test, CExm, Opts) ->
     global_state_init(Opts),
+		Finalizers = setup_test(Opts),
     RunResult = rerun(Test, false, CExm),
     report_rerun_result(RunResult, Opts),
     ShortResult = get_rerun_result(RunResult),
+		finalize_test(Finalizers),
     global_state_erase(),
     ShortResult.
 
@@ -1048,6 +1073,7 @@ multi_test(Mod, RawTestKind,
 	   #opts{long_result = ReturnLong, output_fun = Print,
 		 skip_mfas = SkipMFAs} = Opts) ->
     global_state_init(Opts),
+		Finalizers = setup_test(Opts),
     MaybeMFAs =
 	case RawTestKind of
 	    test -> {ok, [{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
@@ -1069,6 +1095,7 @@ multi_test(Mod, RawTestKind,
 		Error = {error,Reason},
 		{Error, Error}
 	end,
+    finalize_test(Finalizers),
     global_state_erase(),
     case ReturnLong of
 	true  -> LongResult;
