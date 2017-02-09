@@ -73,6 +73,11 @@
 %%%   than `<Time_limit>' milliseconds to return. The purpose of this wrapper is
 %%%   to test code that may hang if something goes wrong. `?TIMEOUT' cannot
 %%%   contain any more wrappers.</dd>
+%%% <dt>`?SETUP(<Fun, Prop>)'</dt>
+%%% <dd>Adds a setup function to the property which will be called before the
+%%%   first test. The setup function has to return a finalize function that
+%%%   will be called after the last test. It is possible to use multiple ?SETUP
+%%%   macros on the same property.</dd>
 %%% <dt>`conjunction(<SubProps>)'</dt>
 %%% <dd>See the documentation for {@link conjunction/1}.</dd>
 %%% <dt>`equals(<A>, <B>)'</dt>
@@ -361,7 +366,7 @@
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
-	      false_positive_mfas/0]).
+	      false_positive_mfas/0, setup_fun/0, finalize_fun/0]).
 
 -include("proper_internal.hrl").
 
