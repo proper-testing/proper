@@ -1040,31 +1040,39 @@ options_test_() ->
 		 [{start_size,12}])].
 
 setup_prop() ->
-  ?SETUP(fun () -> put(setup_token, true),
-                  fun () -> erase(setup_token),
-                            ok
-                  end
+  ?SETUP(fun () ->
+           put(setup_token, true),
+           fun () ->
+             erase(setup_token),
+             ok
+           end
          end,
          ?FORALL(_, exactly(ok), get(setup_token))).
 
 failing_setup_prop() ->
-  ?SETUP(fun () -> put(setup_token, true),
-                  fun () -> erase(setup_token),
-                            ok
-                  end
+  ?SETUP(fun () ->
+           put(setup_token, true),
+           fun () ->
+             erase(setup_token),
+             ok
+           end
          end,
          ?FORALL(_, exactly(ok), not get(setup_token))).
 
 double_setup_prop() ->
-  ?SETUP(fun () -> put(setup_token2, true),
-                   fun () -> erase(setup_token2),
-                             ok
-                   end
+  ?SETUP(fun () ->
+           put(setup_token2, true),
+           fun () ->
+             erase(setup_token2),
+             ok
+           end
          end,
-  ?SETUP(fun () -> put(setup_token, true),
-                   fun () -> erase(setup_token),
-                            ok
-                   end
+  ?SETUP(fun () ->
+           put(setup_token, true),
+           fun () ->
+             erase(setup_token),
+             ok
+           end
          end,
          ?FORALL(_, exactly(ok), get(setup_token) andalso get(setup_token2)))).
 

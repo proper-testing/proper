@@ -366,7 +366,7 @@
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
-	      false_positive_mfas/0, setup_fun/0, finalize_fun/0]).
+	      false_positive_mfas/0]).
 
 -include("proper_internal.hrl").
 
@@ -1045,7 +1045,7 @@ test(RawTest, Opts) ->
     global_state_init(Opts),
 		Finalizers = setup_test(Opts),
     Result = inner_test(RawTest, Opts),
-		ok = finalize_test(Finalizers),
+    ok = finalize_test(Finalizers),
     global_state_erase(),
     Result.
 
@@ -1069,7 +1069,7 @@ retry(Test, CExm, Opts) ->
     RunResult = rerun(Test, false, CExm),
     report_rerun_result(RunResult, Opts),
     ShortResult = get_rerun_result(RunResult),
-		ok = finalize_test(Finalizers),
+    ok = finalize_test(Finalizers),
     global_state_erase(),
     ShortResult.
 
