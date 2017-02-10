@@ -672,11 +672,11 @@ global_state_erase() ->
 
 -spec setup_test(opts()) -> [finalize_fun()].
 setup_test(#opts{setup_funs = Funs}) ->
-	[Fun() || Fun <- Funs].
+    [Fun() || Fun <- Funs].
 
 -spec finalize_test([finalize_fun()]) -> 'ok'.
 finalize_test(Finalizers) ->
-	lists:foreach(fun (Fun) -> ok = Fun() end, Finalizers).
+    lists:foreach(fun (Fun) -> ok = Fun() end, Finalizers).
 
 %% @private
 -spec spawn_link_migrate(fun(() -> 'ok')) -> pid().
@@ -941,7 +941,7 @@ forall(RawType, DTest) ->
 %% @private
 -spec setup(setup_fun(), outer_test()) -> setup_clause().
 setup(Fun, Test) ->
-	{setup, Fun, Test}.
+    {setup, Fun, Test}.
 
 %% @doc Returns a property that is true only if all of the sub-properties
 %% `SubProps' are true. Each sub-property should be tagged with a distinct atom.
