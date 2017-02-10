@@ -422,7 +422,7 @@
 		    | numtests_clause()
 		    | fails_clause()
 		    | on_output_clause()
-				| setup_clause().
+		    | setup_clause().
 %% TODO: This should be opaque.
 %% TODO: Should the tags be of the form '$...'?
 %% @type test(). A testable property that has not been wrapped with an
@@ -504,7 +504,7 @@
 	       spec_timeout     = infinity        :: timeout(),
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
-				 setup_funs        = []              :: [setup_fun()]}).
+	       setup_funs       = []              :: [setup_fun()]}).
 -type opts() :: #opts{}.
 -record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
 	      bound    = []  :: imm_testcase() | counterexample(),
@@ -1043,7 +1043,7 @@ equals(A, B) ->
 -spec test(raw_test(), opts()) -> result().
 test(RawTest, Opts) ->
     global_state_init(Opts),
-		Finalizers = setup_test(Opts),
+    Finalizers = setup_test(Opts),
     Result = inner_test(RawTest, Opts),
     ok = finalize_test(Finalizers),
     global_state_erase(),
@@ -1065,7 +1065,7 @@ inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
 -spec retry(test(), counterexample(), opts()) -> short_result().
 retry(Test, CExm, Opts) ->
     global_state_init(Opts),
-		Finalizers = setup_test(Opts),
+    Finalizers = setup_test(Opts),
     RunResult = rerun(Test, false, CExm),
     report_rerun_result(RunResult, Opts),
     ShortResult = get_rerun_result(RunResult),
@@ -1078,7 +1078,7 @@ multi_test(Mod, RawTestKind,
 	   #opts{long_result = ReturnLong, output_fun = Print,
 		 skip_mfas = SkipMFAs} = Opts) ->
     global_state_init(Opts),
-		Finalizers = setup_test(Opts),
+    Finalizers = setup_test(Opts),
     MaybeMFAs =
 	case RawTestKind of
 	    test -> {ok, [{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
