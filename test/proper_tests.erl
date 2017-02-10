@@ -1039,6 +1039,65 @@ options_test_() ->
 		 ?FORALL(_,?SIZED(Size,integer(Size,Size)),false),
 		 [{start_size,12}])].
 
+setup_prop() ->
+    ?SETUP(fun () ->
+		   put(setup_token, true),
+		   fun () ->
+			   erase(setup_token),
+			   ok
+		   end
+	   end,
+	   ?FORALL(_, exactly(ok), get(setup_token))).
+
+failing_setup_prop() ->
+    ?SETUP(fun () ->
+		   put(setup_token, true),
+		   fun () ->
+			   erase(setup_token),
+			   ok
+		   end
+	   end,
+	   ?FORALL(_, exactly(ok), not get(setup_token))).
+
+double_setup_prop() ->
+    ?SETUP(fun () ->
+		   put(setup_token2, true),
+		   fun () ->
+			   erase(setup_token2),
+			   ok
+		   end
+	   end,
+	   ?SETUP(fun () ->
+			  put(setup_token, true),
+			  fun () ->
+				  erase(setup_token),
+				  ok
+			  end
+		  end,
+		  ?FORALL(_, exactly(ok), get(setup_token) andalso get(setup_token2)))).
+
+setup_test_() ->
+    [?_passes(setup_prop(), [10]),
+     ?_assert(proper:quickcheck(setup_prop(), 10)
+	      andalso undefined =:= get(setup_token)),
+     ?_fails(failing_setup_prop(), [10]),
+     ?_assert(not proper:quickcheck(failing_setup_prop(), [10, noshrink, quiet])
+	      andalso undefined =:= get(setup_token)),
+     ?_assert(proper:check(setup_prop(), [ok], 10)),
+     ?_assert(proper:check(setup_prop(), [ok], 10)
+	      andalso undefined =:= get(setup_token)),
+     ?_assert(not proper:check(failing_setup_prop(), [ok], 10)),
+     ?_assert(not proper:check(failing_setup_prop(), [ok], 10)
+	      andalso undefined =:= get(setup_token)),
+     ?_passes(double_setup_prop(), [10]),
+     ?_assert(proper:quickcheck(double_setup_prop(), 10)
+	      andalso undefined =:= get(setup_token)
+	      andalso undefined =:= get(setup_token2)),
+     ?_assert(proper:check(double_setup_prop(), [ok], 10)),
+     ?_assert(true = proper:check(double_setup_prop(), [ok], 10)
+	      andalso undefined =:= get(setup_token)
+	      andalso undefined =:= get(setup_token2))].
+
 -ifdef(NO_MODULES_IN_OPAQUES).
 -define(SET,  set).
 -define(DICT, dict).
