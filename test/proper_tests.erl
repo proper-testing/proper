@@ -1107,10 +1107,10 @@ setup_test_() ->
 -endif.
 
 adts_test_() ->
-    [{timeout, 20,	% for Kostis' old laptop
+    [{timeout, 42,	% for Kostis' old laptop
       ?_passes(?FORALL({X,S},{integer(),?SET()},
 		       sets:is_element(X,sets:add_element(X,S))), [20])},
-     {timeout, 40,	% for 18.x (and onwards?)
+     {timeout, 84,	% for 18.x (and onwards?) on slow machines
       ?_passes(?FORALL({X,Y,D},
 		       {integer(),float(),?DICT(integer(),float())},
 		       dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])},
