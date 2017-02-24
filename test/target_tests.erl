@@ -36,10 +36,11 @@ sa_test() ->
 
 prop_sa() ->
   ?STRATEGY(proper_sa,
-		   ?FORALL({I, J}, {?TARGET(proper_sa:integer()), ?TARGET(proper_sa:integer())},
-			   begin
-			     ?MAXIMIZE(-(I+J))
-			   end)).
+	    ?FORALL({I, J}, {?TARGET(proper_sa:integer()), ?TARGET(proper_sa:integer())},
+		    begin
+		      ?MAXIMIZE(-(I+J)),
+		      true
+		    end)).
 
 -spec shrinking_test() -> 'ok'.
 shrinking_test() ->
@@ -49,12 +50,12 @@ shrinking_test() ->
 
 prop_shrinking() ->
   ?STRATEGY(proper_sa,
-		   proper:numtests(1000,
-				   ?FORALL(I, ?TARGET(proper_sa:integer()),
-					   begin
-					     ?MAXIMIZE(I),
-					     check(I)
-					   end))).
+	    proper:numtests(1000,
+			    ?FORALL(I, ?TARGET(proper_sa:integer()),
+				    begin
+				      ?MAXIMIZE(I),
+				      check(I)
+				    end))).
 
 check(I) ->
   I < 1000.
@@ -65,8 +66,7 @@ integer_test() ->
   proper:global_state_init_size(10),
   Gen = proper_types:integer(),
   #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
-  %% apply the generator 100 time and check
-  %% that nothing crashes
+  %% apply the generator 100 times and check that nothing crashes
   appl(TG, 0, 100),
   ok.
 
@@ -76,8 +76,7 @@ list_test() ->
   proper:global_state_init_size(10),
   Gen = proper_types:list(atom),
   #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
-  %% apply the generator 100 time and check
-  %% that nothing crashes
+  %% apply the generator 100 times and check that nothing crashes
   appl(TG, [], 100),
   ok.
 
@@ -87,8 +86,7 @@ combine_test() ->
   proper:global_state_init_size(10),
   Gen = proper_types:list(proper_types:list(proper_types:integer())),
   #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
-  %% apply the generator 100 time and check
-  %% that nothing crashes
+  %% apply the generator 100 times and check that nothing crashes
   appl(TG, [], 100),
   ok.
 
@@ -109,7 +107,7 @@ prop_big_list() ->
              begin
                L = length(List),
                ?MAXIMIZE(-abs(L - 50)),
-               abs(L-50) > 2
+               abs(L - 50) > 2
              end).
 
 
@@ -280,12 +278,10 @@ simple_edge(V) ->
 
 %% improper lists
 il_type() ->
-  ?LET(I, integer(),
-       [I|42]).
+  ?LET(I, integer(), [I|42]).
 
 prop_il() ->
-  ?FORALL_SA(_L, ?TARGET(#{gen => il_type()}),
-             true).
+  ?FORALL_SA(_L, ?TARGET(#{gen => il_type()}), true).
 
 -spec improper_list_test() -> 'ok'.
 improper_list_test() ->
@@ -294,21 +290,21 @@ improper_list_test() ->
   ?assert(proper:quickcheck(prop_il(), ?PROPER_OPTIONS)).
 
 
+prop_reset() ->
+  ?STRATEGY(hill_climbing,
+	    ?FORALL(I, ?TARGET(stepint()),
+		    begin
+		      ?MAXIMIZE(I),
+		      case I < 10 of
+			true -> ok;
+			false -> proper_sa:reset()
+		      end,
+		      I =< 10
+		    end)).
+
 stepint() ->
   #{first => 0,
     next=> fun (Base, _) -> Base + 1 end}.
-
-prop_reset() ->
-  ?STRATEGY(hill_climbing,
-  ?FORALL(I, ?TARGET(stepint()),
-  begin
-    ?MAXIMIZE(I),
-    case I<10 of
-      true -> ok;
-      false -> proper_sa:reset()
-    end,
-    I =< 10
-  end)).
 
 reset_test() ->
   ?assert(proper:quickcheck(prop_reset(), ?PROPER_OPTIONS)).
