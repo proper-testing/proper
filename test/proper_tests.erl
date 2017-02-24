@@ -1107,16 +1107,15 @@ setup_test_() ->
 -endif.
 
 adts_test_() ->
-    [{timeout, 42,	% for Kostis' old laptop
-      ?_passes(?FORALL({X,S},{integer(),?SET()},
+    [{timeout, 20,	% for Kostis' old laptop
+      ?_passes(?FORALL({X,S}, {integer(),?SET()},
 		       sets:is_element(X,sets:add_element(X,S))), [20])},
-     {timeout, 84,	% for 18.x (and onwards?) on slow machines
-      ?_passes(?FORALL({X,Y,D},
-		       {integer(),float(),?DICT(integer(),float())},
+     {timeout, 40,	% for 18.x (and onwards?)
+      ?_passes(?FORALL({X,Y,D}, {integer(),float(),?DICT(integer(),float())},
 		       dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])},
-     ?_fails(?FORALL({X,D},
-	     {boolean(),?DICT(boolean(),integer())},
-	     dict:erase(X, dict:store(X,42,D)) =:= D))].
+     {timeout, 20,      % seems to be needed on slow machines (ARM)
+      ?_fails(?FORALL({X,D}, {boolean(),?DICT(boolean(),integer())},
+	              dict:erase(X, dict:store(X,42,D)) =:= D))}].
 
 parameter_test_() ->
     ?_passes(?FORALL(List, [zero1(),zero2(),zero3(),zero4()],
