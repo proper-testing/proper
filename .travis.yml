@@ -9,8 +9,6 @@ otp_release:
    - 18.1
    - 17.4
    - 17.0
-   - R16B03-1
-   - R16B01
 
 cache:
    directories:
