@@ -1,4 +1,4 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -46,10 +46,36 @@
 -define(SIZED(SizeArg,Gen), proper_types:sized(fun(SizeArg) -> Gen end)).
 -define(LET(X,RawType,Gen), proper_types:bind(RawType,fun(X) -> Gen end,false)).
 -define(SHRINK(Gen,AltGens),
-	proper_types:shrinkwith(?DELAY(Gen),?DELAY(AltGens))).
+        proper_types:shrinkwith(?DELAY(Gen),?DELAY(AltGens))).
 -define(LETSHRINK(Xs,RawType,Gen),
-	proper_types:bind(RawType,fun(Xs) -> Gen end,true)).
+        proper_types:bind(RawType,fun(Xs) -> Gen end,true)).
 -define(SUCHTHAT(X,RawType,Condition),
-	proper_types:add_constraint(RawType,fun(X) -> Condition end,true)).
+        proper_types:add_constraint(RawType,fun(X) -> Condition end,true)).
 -define(SUCHTHATMAYBE(X,RawType,Condition),
-	proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
+        proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
+
+%%------------------------------------------------------------------------------
+%% Target macros
+%%------------------------------------------------------------------------------
+
+%% Define a target
+-define(TARGET(), ?TARGET(#{})).
+-define(TARGET(TMap), proper_target:targeted(make_ref(), fun(X) -> X end, TMap)).
+-define(NAMED_TARGET(TargetArg, Gen), ?NAMED_TARGET(TargetArg, Gen, #{})).
+-define(NAMED_TARGET(TargetArg, Gen, TMap),
+        proper_target:targeted(??TargetArg, fun(TargetArg) -> Gen end, TMap)).
+
+-define(MAXIMIZE(Fitness), proper_target:update_target_uvs(Fitness, inf)).
+-define(MAXIMIZE(Fitness, Target), proper_target:update_target_uvs(Fitness, inf, ??Target)).
+-define(MAXIMIZE_UNTIL(Fitness, Threshold), proper_target:adjust(Fitness, Threshold)).
+-define(MAXIMIZE_UNTIL(Fitness, Target, Threshold),
+        proper_target:adjust(Fitness, Threshold, ??Target)).
+
+-define(STRATEGY(Strat, Prop), ?SETUP(fun (Opts) ->
+                                          proper_target:use_strategy(Strat, Prop, Opts),
+                                          fun () ->
+                                              proper_target:cleanup_strategy()
+                                          end
+                                      end, Prop)).
+-define(FORALL_SA(X, RawType, Prop),
+        ?STRATEGY(proper_sa, proper:forall(RawType,fun(X) -> Prop end))).

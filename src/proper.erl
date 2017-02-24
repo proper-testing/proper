@@ -366,10 +366,9 @@
 -export([forall/2, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
-	      false_positive_mfas/0]).
+	      false_positive_mfas/0, setup_opts/0]).
 
 -include("proper_internal.hrl").
-
 
 %%-----------------------------------------------------------------------------
 %% Macros
@@ -446,7 +445,7 @@
 		       | {proper_types:type(), dependent_test()}
 		       | [{tag(),test()}].
 -type finalize_fun() :: fun (() -> 'ok').
--type setup_fun() :: fun(() -> finalize_fun()).
+-type setup_fun() :: fun(() -> finalize_fun()) | fun ((setup_opts()) -> finalize_fun()).
 
 
 -type numtests_clause() :: {'numtests', pos_integer(), outer_test()}.
@@ -513,6 +512,14 @@
 	      printers = []  :: [stats_printer()]}).
 -type ctx() :: #ctx{}.
 
+-ifdef(AT_LEAST_19).
+-type setup_opts() :: #{numtests := pos_integer(),
+			start_size := size(),
+			max_size := size(),
+			output_fun := output_fun()}.
+-else.
+-type setup_opts() :: term().
+-endif.
 
 %%-----------------------------------------------------------------------------
 %% Result types
@@ -671,8 +678,12 @@ global_state_erase() ->
     ok.
 
 -spec setup_test(opts()) -> [finalize_fun()].
-setup_test(#opts{setup_funs = Funs}) ->
-    [Fun() || Fun <- Funs].
+setup_test(#opts{output_fun = OutputFun, numtests = NumTests, start_size = StartSize,
+max_size = MaxSize, setup_funs = Funs}) ->
+    [case erlang:fun_info(Fun, arity) of
+			{arity, 0} -> Fun();
+			{arity, 1} -> Fun(#{numtests=>NumTests, start_size=>StartSize, max_size=>MaxSize, output_fun=>OutputFun})
+		end || Fun <- Funs].
 
 -spec finalize_test([finalize_fun()]) -> 'ok'.
 finalize_test(Finalizers) ->
@@ -903,7 +914,6 @@ peel_test({setup,Fun,OuterTest}, #opts{setup_funs = Funs} = Opts) ->
     peel_test(OuterTest, Opts#opts{setup_funs = [Fun|Funs]});
 peel_test(Test, Opts) ->
     {Test, Opts}.
-
 
 %%-----------------------------------------------------------------------------
 %% Test declaration functions
