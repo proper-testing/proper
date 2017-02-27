@@ -42,11 +42,6 @@ main([OutFile]) ->
 	case CurrVer < [6,0] of
 	    true  -> ["NO_MODULES_IN_OPAQUES"];
 	    false -> ["AT_LEAST_17"]
-	end ++
-	%% older than R15B => no location information in stacktraces
-	case CurrVer < [5,9] of
-	    true  -> ["OLD_STACKTRACE_FORMAT"];
-	    false -> []
 	end,
     lists:foreach(fun(X) -> io:format(Handle, "-define(~s, 1).~n", [X]) end,
 		  ToDefine),
