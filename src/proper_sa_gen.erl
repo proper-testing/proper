@@ -2,7 +2,7 @@
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
 %%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
-%%%                and  Konstantinos Sagonas <kostis@it.uu.se>
+%%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -379,18 +379,14 @@ is_tuple_type(Type) ->
 tuple_gen_sa(Type) ->
   {ok, InternalTuple} = proper_types:find_prop(internal_types, Type),
   InternalTypes = tuple_to_list(InternalTuple),
-  ElementGens = lists:map(fun replace_generators/1,
-                          InternalTypes),
+  ElementGens = [replace_generators(T) || T <- InternalTypes],
   fun ({}, _) -> {};
       (Base, Temp) ->
       ListRepr = tuple_to_list(Base),
-      NewTupleAsList = lists:map(fun ({Gen, Elem}) ->
-                                     case list_choice(tuple, ?TEMP(Temp)) of
-                                       nothing -> Elem;
-                                       modify -> Gen(Elem, Temp)
-                                     end
-                                 end,
-                                 lists:zip(ElementGens, ListRepr)),
+      NewTupleAsList = [case list_choice(tuple, ?TEMP(Temp)) of
+			  nothing -> Elem;
+                          modify -> Gen(Elem, Temp)
+                        end || {Gen, Elem} <- lists:zip(ElementGens, ListRepr)],
       list_to_tuple(NewTupleAsList)
   end.
 
@@ -535,7 +531,7 @@ match_cook(Base, RawType, Temp) ->
     is_tuple(RawType) ->
       case is_set(RawType) orelse is_dict(RawType) of
         true ->
-          %% we do not take appart erlangs dicts and sets
+          %% we do not take apart Erlang's dicts and sets
           %% io:format("Dict or Set~n"),
           RawType;
         _ ->

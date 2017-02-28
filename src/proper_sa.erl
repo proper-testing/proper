@@ -2,7 +2,7 @@
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
 %%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
-%%%                and  Konstantinos Sagonas <kostis@it.uu.se>
+%%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas LÃ¶scher and Kostis Sagonas
+%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas LÃ¶scher
+%%% @author Andreas Löscher
 
 -module(proper_sa).
 
@@ -515,20 +515,18 @@ list_gen_internal(L=[H|T], Temp, InternalType, GrowthCoefficient) ->
 list_choice(empty, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   C_Add = 0.5 * Temp,
-  Choice = if
-             C < C_Add -> add;
-             true      -> nothing
-           end,
-  Choice;
+  if
+    C < C_Add -> add;
+    true      -> nothing
+  end;
 list_choice(GrowthCoefficient, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   AddCoefficient = 0.6 * GrowthCoefficient,
   DelCoefficient = 0.6 * (1- GrowthCoefficient),
   C_Add =          AddCoefficient * Temp,
   C_Del = C_Add + (DelCoefficient * Temp),
-  Choice = if
-             C < C_Add -> add;
-             C < C_Del -> del;
-             true      -> nothing
-           end,
-  Choice.
+  if
+    C < C_Add -> add;
+    C < C_Del -> del;
+    true      -> nothing
+  end.
