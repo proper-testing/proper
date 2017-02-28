@@ -1,4 +1,4 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -236,11 +236,7 @@
 
 -type type_kind() :: 'type' | 'record'.
 -type type_ref() :: {type_kind(),type_name(),arity()}.
--ifdef(NO_MODULES_IN_OPAQUES).
--type substs_dict() :: dict(). %% dict(field_name(),ret_type())
--else.
 -type substs_dict() :: dict:dict(field_name(),ret_type()).
--endif.
 -type full_type_ref() :: {mod_name(),type_kind(),type_name(),
 			  [ret_type()] | substs_dict()}.
 -type symb_info() :: 'not_symb' | {'orig_abs',abs_type()}.
@@ -267,35 +263,18 @@
 -type pattern() :: loose_tuple(pat_field()).
 -type next_step() :: 'none' | 'take_head' | {'match_with',pattern()}.
 
--ifdef(NO_MODULES_IN_OPAQUES).
-%% @private_type
--type mod_exp_types() :: set(). %% set(imm_type_ref())
--type mod_types() :: dict(). %% dict(type_ref(),type_repr())
-%% @private_type
--type mod_exp_funs() :: set(). %% set(fun_ref())
--type mod_specs() :: dict(). %% dict(fun_ref(),fun_repr())
--else.
 %% @private_type
 -type mod_exp_types() :: sets:set(imm_type_ref()).
 -type mod_types() :: dict:dict(type_ref(),type_repr()).
 %% @private_type
 -type mod_exp_funs() :: sets:set(fun_ref()).
 -type mod_specs() :: dict:dict(fun_ref(),fun_repr()).
--endif.
 
--ifdef(NO_MODULES_IN_OPAQUES).
--record(state,
-	{cached    = dict:new() :: dict(),   %% dict(imm_type(),fin_type())
-	 exp_types = dict:new() :: dict(),   %% dict(mod_name(),mod_exp_types())
-	 types     = dict:new() :: dict(),   %% dict(mod_name(),mod_types())
-	 exp_specs = dict:new() :: dict()}). %% dict(mod_name(),mod_specs())
--else.
 -record(state,
 	{cached    = dict:new() :: dict:dict(imm_type(),fin_type()),
 	 exp_types = dict:new() :: dict:dict(mod_name(),mod_exp_types()),
 	 types     = dict:new() :: dict:dict(mod_name(),mod_types()),
 	 exp_specs = dict:new() :: dict:dict(mod_name(),mod_specs())}).
--endif.
 -type state() :: #state{}.
 
 -record(mod_info,
@@ -307,11 +286,7 @@
 -type mod_info() :: #mod_info{}.
 
 -type stack() :: [full_type_ref() | 'tuple' | 'list' | 'union' | 'fun'].
--ifdef(NO_MODULES_IN_OPAQUES).
--type var_dict() :: dict(). %% dict(var_name(),ret_type())
--else.
 -type var_dict() :: dict:dict(var_name(),ret_type()).
--endif.
 %% @private_type
 -type imm_type() :: {mod_name(),string()}.
 %% @alias
@@ -1089,11 +1064,7 @@ multi_collect_vars({_Mod,_Name,Arity} = FullADTRef, Forms, UsedVars) ->
     CombineVars = fun(L1,L2) -> lists:zipwith(fun erlang:'++'/2, L1, L2) end,
     lists:foldl(CombineVars, UsedVars, MoreUsedVars).
 
--ifdef(NO_MODULES_IN_OPAQUES).
--type var_substs_dict() :: dict().
--else.
 -type var_substs_dict() :: dict:dict(var_name(),abs_type()).
--endif.
 -spec update_vars(abs_type(), var_substs_dict(), boolean()) -> abs_type().
 update_vars({paren_type,Line,[Type]}, VarSubstsDict, UnboundToAny) ->
     {paren_type, Line, [update_vars(Type,VarSubstsDict,UnboundToAny)]};

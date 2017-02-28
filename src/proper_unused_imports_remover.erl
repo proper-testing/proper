@@ -1,4 +1,4 @@
-%%% Copyright 2015-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2015-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2015-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2015-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Zaiming Shi (modifications and update by Kostis Sagonas)
 
@@ -34,12 +34,8 @@
 
 -type key() :: {fun_name(), arity()}.
 
--ifdef(NO_MODULES_IN_OPAQUES).
--type imp_dict() :: dict().
--else.
 -type val() :: {?LINE_MOD:line(), mod_name(), boolean()}.
 -type imp_dict() :: dict:dict(key(), val()).
--endif.
 
 -define(IMP_MODULES,
 	[proper, proper_statem, proper_symb, proper_types, proper_unicode]).

@@ -33,17 +33,7 @@
 
 -export_type([queue/1]).
 
-%% This header is included for the ifdef below.
--include("proper_internal.hrl").
-
--ifdef(NO_MODULES_IN_OPAQUES).
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
--type queue(_T) :: queue().
--else.
 -opaque queue(T) :: queue:queue(T).
--endif.
-
 
 %%------------------------------------------------------------------------------
 %% API functions

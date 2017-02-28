@@ -33,19 +33,10 @@
 
 -export_type([gb_tree/2, iterator/2]).
 
-%% This header is included for the ifdef below.
--include("proper_internal.hrl").
-
--ifdef(NO_MODULES_IN_OPAQUES).
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
--type gb_tree(_K,_V) :: gb_tree().
--else.
 -opaque gb_tree(K,V) :: gb_trees:tree(K,V).
--endif.
+
 %% Based on the documentation alone, this is the best we can do.
 -type iterator(_K,_V) :: term().
-
 
 %%------------------------------------------------------------------------------
 %% API functions
