@@ -52,7 +52,11 @@
 
 -define(RANDOM_PROBABILITY, (?RANDOM_MOD:uniform())).
 
+-define(SA_DATA, proper_sa_data).
+-define(SA_REHEAT_COUNTER, proper_sa_reheat_counter).
+
 %% types
+-type k() :: integer().
 -type temperature() :: float().
 -type temp_fun() :: fun(( %% old temperature
                           temperature(),
@@ -61,13 +65,13 @@
                           %% new energy level
                           proper_target:fitness(),
                           %% k_current
-                          integer(),
+                          k(),
                           %% k_max
-                          integer(),
+                          k(),
                           %% accepted or not
-                          boolean()) -> {temperature(), integer()}).
+                          boolean()) -> {temperature(), k()}).
 -type accept_fun() :: fun((proper_target:fitness(), proper_target:fitness(), temperature()) -> boolean()).
--type output_fun() :: fun((string(),[term()]) -> 'ok').
+-type output_fun() :: fun((string(), [term()]) -> 'ok').
 
 %% records
 -record(sa_target,
@@ -81,15 +85,15 @@
 -record(sa_data,
         {state = dict:new()                          :: dict:dict(proper_target:key(), sa_target()),
          %% max runs
-         k_max = 0                                   :: integer(),
+         k_max = 0                                   :: k(),
          %% run number
-         k_current = 0                               :: integer(),
+         k_current = 0                               :: k(),
          %% acceptance probability
          p = fun (_, _, _) -> false end              :: accept_fun(),
          %% energy level
          last_energy = null                          :: proper_target:fitness() | null,
          %% temperature function
-         temperature = 1.0                           :: float(),
+         temperature = 1.0                           :: temperature(),
          temp_func = fun(_, _, _, _, _) -> 1.0 end   :: temp_fun(),
          %% output function
          output_fun = fun (_,_) -> ok end            :: output_fun()}).
@@ -148,15 +152,15 @@ temperature_function_fast_sa(_OldTemperature,
                              Accepted) ->
   AdjustedK = case Accepted of
                 false ->
-                  case get(proper_sa_reheat_counter) of
+                  case get(?SA_REHEAT_COUNTER) of
                     undefined ->
-                      put(proper_sa_reheat_counter, 1),
+                      put(?SA_REHEAT_COUNTER, 1),
                       K_Current + 1;
                     N when N >= ?REHEAT_THRESHOLD->
-                      put(proper_sa_reheat_counter, 0),
+                      put(?SA_REHEAT_COUNTER, 0),
                       max(1, K_Current - trunc(1.4 * ?REHEAT_THRESHOLD));
                     N ->
-                      put(proper_sa_reheat_counter, N + 1),
+                      put(?SA_REHEAT_COUNTER, N + 1),
                       K_Current + 1
                   end;
                 true -> K_Current + 1
@@ -192,15 +196,15 @@ temperature_function_reheat_sa(_OldTemperature,
   Scaling = 1.0 - (K_Counter / K_Max),
   AdjustedK = case Accepted of
                 false ->
-                  case get(proper_sa_reheat_counter) of
+                  case get(?SA_REHEAT_COUNTER) of
                     undefined ->
-                      put(proper_sa_reheat_counter, 1),
+                      put(?SA_REHEAT_COUNTER, 1),
                       K_Current + 1;
                     N when N >= ?REHEAT_THRESHOLD->
-                      put(proper_sa_reheat_counter, 0),
+                      put(?SA_REHEAT_COUNTER, 0),
                       max(1, K_Current - trunc(Scaling * 5 * ?REHEAT_THRESHOLD));
                     N ->
-                      put(proper_sa_reheat_counter, N + 1),
+                      put(?SA_REHEAT_COUNTER, N + 1),
                       K_Current + 1
                   end;
                 true -> K_Current + 1
@@ -278,13 +282,13 @@ get_acceptance_function(OutputFun) ->
 
 -spec get_last_fitness() -> proper_target:fitness().
 get_last_fitness() ->
-  State = get(proper_sa_data),
+  State = get(?SA_DATA),
   State#sa_data.last_energy.
 
 -spec reset() -> ok.
 reset() ->
-  Data = get(proper_sa_data),
-  put(proper_sa_data,
+  Data = get(?SA_DATA),
+  put(?SA_DATA,
       Data#sa_data{state = reset_all_targets(Data#sa_data.state),
                    last_energy = null,
                    k_max = Data#sa_data.k_max - Data#sa_data.k_current,
@@ -301,20 +305,19 @@ reset_all_targets(Dict, [K|T]) ->
   NewVal = {S#sa_target{last_generated = ResetValue}, N, F},
   reset_all_targets(dict:store(K, NewVal, Dict), T).
 
--spec init_strategy(proper:outer_test(),proper:setup_opts()) -> proper:outer_test().
+-spec init_strategy(proper:outer_test(), proper:setup_opts()) -> proper:outer_test().
 init_strategy(Prop, #{numtests:=Steps, output_fun:=OutputFun}) ->
   OutputFun("-- Simulated Annealing Search Strategy --~n", []),
-  put(proper_sa_data,
-      #sa_data{k_max = Steps,
-               p = get_acceptance_function(OutputFun),
-               temp_func = get_temperature_function(OutputFun)
-              }),
+  SA_Data = #sa_data{k_max = Steps,
+		     p = get_acceptance_function(OutputFun),
+		     temp_func = get_temperature_function(OutputFun)},
+  put(?SA_DATA, SA_Data),
   Prop.
 
 -spec cleanup() -> ok.
 cleanup() ->
-  erase(proper_sa_data),
-  erase(proper_sa_reheat_counter),
+  erase(?SA_DATA),
+  erase(?SA_REHEAT_COUNTER),
   ok.
 
 -spec init_target(proper_target:tmap()) -> proper_target:target().
@@ -335,7 +338,7 @@ create_target(SATarget) ->
 %% generating next element and updating the target state
 next_func(SATarget) ->
   %% retrieving temperature
-  GlobalData = get(proper_sa_data),
+  GlobalData = get(?SA_DATA),
   Temperature = GlobalData#sa_data.temperature,
   %% calculating the max generated size
   NextGenerator = (SATarget#sa_target.next)(SATarget#sa_target.last_generated, Temperature),
@@ -347,14 +350,14 @@ next_func(SATarget) ->
 
 -spec store_target(proper_target:key(), proper_target:target()) -> 'ok'.
 store_target(Key, Target) ->
-  Data = get(proper_sa_data),
+  Data = get(?SA_DATA),
   NewData = Data#sa_data{state = dict:store(Key, Target, (Data#sa_data.state))},
-  put(proper_sa_data, NewData),
+  put(?SA_DATA, NewData),
   ok.
 
 -spec retrieve_target(proper_target:key()) -> proper_target:target() | 'undefined'.
 retrieve_target(Key) ->
-  Dict = (get(proper_sa_data))#sa_data.state,
+  Dict = (get(?SA_DATA))#sa_data.state,
   case dict:is_key(Key, Dict) of
     true ->
       dict:fetch(Key, Dict);
@@ -364,7 +367,7 @@ retrieve_target(Key) ->
 
 -spec update_global_fitness(proper_target:fitness()) -> 'ok'.
 update_global_fitness(Fitness) ->
-  Data = get(proper_sa_data),
+  Data = get(?SA_DATA),
   K_CURRENT = (Data#sa_data.k_current),
   K_MAX = (Data#sa_data.k_max),
   Temperature = Data#sa_data.temperature,
@@ -403,7 +406,7 @@ update_global_fitness(Fitness) ->
                                            false),
                 Data#sa_data{k_current = AdjustedK, temperature = NewTemperature}
             end,
-  put(proper_sa_data, NewData),
+  put(?SA_DATA, NewData),
   ok.
 
 %% update the last generated value with the current generated value
@@ -483,7 +486,7 @@ make_inrange(Val, Offset, L, R) -> make_inrange(Val + Offset, L, R).
 -spec list(proper_types:type()) -> first_next().
 list(Type) ->
   #{first => proper_types:list(Type),
-    next=> list_next(Type)}.
+    next => list_next(Type)}.
 
 list_next(Type) ->
   fun (Base, _T) ->
@@ -501,7 +504,7 @@ list_gen_internal([], Temp, InternalType, GrowthCoefficient) ->
   end;
 list_gen_internal(L=[H|T], Temp, InternalType, GrowthCoefficient) ->
   %% chance to delete current element
-  %% chance to add element infront of current element
+  %% chance to add element in front of current element
   case list_choice(GrowthCoefficient, Temp) of
     add ->
       {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
