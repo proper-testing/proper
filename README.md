@@ -20,7 +20,7 @@ You can reach PropEr's developers in the following ways:
 We welcome user contributions and feedback (comments, suggestions, feature
 requests, bug reports, patches etc.).
 
-Copyright 2010-2016 by Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas.
+Copyright 2010-2017 by Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas.
 
 This program is distributed under the [GPL](http://www.gnu.org/licenses/gpl.html),
 version 3 or later. Please see the COPYING file for details.
