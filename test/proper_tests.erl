@@ -893,11 +893,9 @@ true_props_test_() ->
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
      {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}].
 
--ifdef(AT_LEAST_17).
 map_in_nextstate3_test_() ->
     [?_passes(symb_statem_maps:prop_simple()),
      {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())}].
--endif.
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
@@ -1098,24 +1096,16 @@ setup_test_() ->
 	      andalso undefined =:= get(setup_token)
 	      andalso undefined =:= get(setup_token2))].
 
--ifdef(NO_MODULES_IN_OPAQUES).
--define(SET,  set).
--define(DICT, dict).
--else.
--define(SET,  sets:set).
--define(DICT, dict:dict).
--endif.
-
 adts_test_() ->
     [{timeout, 20,	% for Kostis' old laptop
-      ?_passes(?FORALL({X,S},{integer(),?SET()},
+      ?_passes(?FORALL({X,S},{integer(),sets:set(integer())},
 		       sets:is_element(X,sets:add_element(X,S))), [20])},
      {timeout, 40,	% for 18.x (and onwards?)
       ?_passes(?FORALL({X,Y,D},
-		       {integer(),float(),?DICT(integer(),float())},
+		       {integer(),float(),dict:dict(integer(),float())},
 		       dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])},
      ?_fails(?FORALL({X,D},
-	     {boolean(),?DICT(boolean(),integer())},
+	     {boolean(),dict:dict(boolean(),integer())},
 	     dict:erase(X, dict:store(X,42,D)) =:= D))].
 
 parameter_test_() ->
