@@ -1,4 +1,4 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -306,7 +306,6 @@ symb_walk_gen(VarValues, SymbTerm,
 
 -spec do_symb_walk_gen(fun((T) -> S), maybe_improper_list(T,T | [])) ->
 			  maybe_improper_list(S,S | []).
--ifdef(AT_LEAST_17).
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_map(SymbTerm) ->
     maps:from_list(proper_arith:safe_map(SymbWalk, maps:to_list(SymbTerm)));
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_list(SymbTerm) ->
@@ -315,11 +314,3 @@ do_symb_walk_gen(SymbWalk, SymbTerm) when is_tuple(SymbTerm) ->
     proper_arith:tuple_map(SymbWalk, SymbTerm);
 do_symb_walk_gen(_, SymbTerm) ->
     SymbTerm.
--else.
-do_symb_walk_gen(SymbWalk, SymbTerm) when is_list(SymbTerm) ->
-    proper_arith:safe_map(SymbWalk, SymbTerm);
-do_symb_walk_gen(SymbWalk, SymbTerm) when is_tuple(SymbTerm) ->
-    proper_arith:tuple_map(SymbWalk, SymbTerm);
-do_symb_walk_gen(_, SymbTerm) ->
-    SymbTerm.
--endif.

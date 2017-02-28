@@ -1,4 +1,4 @@
-%%% Copyright 2016      Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2016-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +17,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2016-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Pierre Fenoll (adapted from the code of test/symb_statem.erl)
 
@@ -25,7 +25,6 @@
 
 -include("compile_flags.hrl").
 
--ifdef(AT_LEAST_17).
 -include_lib("proper/include/proper.hrl").
 
 -export([command/1,
@@ -79,4 +78,3 @@ prop_parallel_simple() ->
 		   io:format("Seq: ~w\nParallel: ~p\n:Res: ~w\n", [S,P,Res]),
 		   Res =:= ok)
 	    end).
--endif.
