@@ -35,19 +35,10 @@
 
 -export_type([gb_set/1, iterator/1]).
 
-%% This header is included for the ifdef below.
--include("proper_internal.hrl").
-
--ifdef(NO_MODULES_IN_OPAQUES).
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
--type gb_set(_T) :: gb_set().
--else.
 -opaque gb_set(T) :: gb_sets:set(T).
--endif.
+
 %% Based on the documentation alone, this is the best we can do.
 -type iterator(_T) :: term().
-
 
 %%------------------------------------------------------------------------------
 %% API functions

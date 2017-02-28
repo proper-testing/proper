@@ -34,16 +34,7 @@
 
 -export_type([array/1]).
 
-%% This header is included for the ifdef below.
--include("proper_internal.hrl").
-
--ifdef(NO_MODULES_IN_OPAQUES).
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
--type array(_T) :: array().
--else.
 -opaque array(T) :: array:array(T).
--endif.
 
 -type array_size() :: non_neg_integer().
 -type array_indx() :: non_neg_integer().
@@ -53,7 +44,6 @@
                     | {'default', T} | {'fixed', boolean()}
                     | {'size', array_size()}.
 -type array_opts(T) :: array_opt(T) | [array_opt(T)].
-
 
 %%------------------------------------------------------------------------------
 %% API functions

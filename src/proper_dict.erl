@@ -32,21 +32,7 @@
 
 -export_type([dict/2]).
 
-%% This header is included for the ifdef below.
--include("proper_internal.hrl").
-
-%% This would normally contain the internal representation of the ADT.
-%% This representation won't actually be used, so we could just use a dummy one.
-%% As with specs, unbound type variables are not allowed in '-type' declarations
-%% unless they begin with an underscore.
-
--ifdef(NO_MODULES_IN_OPAQUES).
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
--type dict(_K,_V) :: dict().
--else.
 -opaque dict(K,V) :: dict:dict(K,V).
--endif.
 
 %% Here are some valid symbolic calls that could be automatically produced using
 %% this module's exported functions, for the type dict(atom(),integer()):

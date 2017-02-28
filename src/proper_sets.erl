@@ -34,17 +34,7 @@
 
 -export_type([set/1]).
 
-%% This header is included for the ifdef below.
--include("proper_internal.hrl").
-
--ifdef(NO_MODULES_IN_OPAQUES).
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
--type set(_T) :: set().
--else.
 -opaque set(T) :: sets:set(T).
--endif.
-
 
 %%------------------------------------------------------------------------------
 %% API functions
