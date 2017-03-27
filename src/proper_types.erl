@@ -932,7 +932,8 @@ tuple(RawFields) ->
 	{internal_types, list_to_tuple(Fields)},
 	{get_indices, fun tuple_get_indices/2},
 	{retrieve, fun erlang:element/2},
-	{update, fun tuple_update/3}
+	{update, fun tuple_update/3},
+	{shrinkers, [fun tuple_shrinker/3]}
     ]).
 
 tuple_gen(Type) ->
@@ -949,6 +950,13 @@ tuple_get_indices(Type, _X) ->
 -spec tuple_update(index(), value(), tuple()) -> tuple().
 tuple_update(Index, NewElem, Tuple) ->
     setelement(Index, Tuple, NewElem).
+
+tuple_shrinker(X, Type, S) ->
+    Fields = get_prop(env, Type),
+    Elems = tuple_to_list(X),
+    {Lists, S2} = proper_shrink:composed_shrinker(Elems, Fields, S),
+    Tuples = [list_to_tuple(L) || L <- Lists],
+    {Tuples, S2}.
 
 %% @doc Tuples whose elements are all of type `ElemType'.
 %% Instances shrink towards the 0-size tuple, `{}'.
@@ -1026,7 +1034,8 @@ fixed_list(MaybeImproperRawFields) ->
 	{internal_types, Internal},
 	{get_indices, fun fixed_list_get_indices/2},
 	{retrieve, Retrieve},
-	{update, Update}
+	{update, Update},
+	{shrinkers, [fun fixed_list_shrinker/3]}
     ]).
 
 fixed_list_gen(Type) ->
@@ -1061,6 +1070,24 @@ fixed_list_test(X, ProperFields) ->
     andalso length(X) =:= length(ProperFields)
     andalso lists:all(fun({E,T}) -> is_instance(E, T) end,
 		      lists:zip(X, ProperFields)).
+
+fixed_list_shrinker(X, Type, S) ->
+    {Fields,_Len} = get_prop(env, Type),
+    case Fields of
+        {HeadTypes,TailType} when is_list(HeadTypes) ->
+            {HeadValues,TailValue} = lists:split(length(HeadTypes), X),
+            ProperElems = HeadValues ++ [TailValue],
+            ProperTypes = HeadTypes  ++ [TailType],
+            {Lists, S2} = proper_shrink:composed_shrinker(ProperElems, ProperTypes, S),
+            ImproperLists = lists:map(fun(List) ->
+                                        {Head,[Tail]} = lists:split(length(HeadTypes), List),
+                                        Head ++ Tail
+                                      end, Lists),
+            {ImproperLists, S2};
+        Fields when is_list(Fields) ->
+            {Lists, S2} = proper_shrink:composed_shrinker(X, Fields, S),
+            {Lists, S2}
+    end.
 
 %% TODO: Move these 2 functions to proper_arith?
 -spec improper_list_retrieve(index(), nonempty_improper_list(value(),value()),
