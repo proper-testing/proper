@@ -504,11 +504,11 @@ apply_spec_test({Mod,Fun,_Arity}=MFA, {_Domain,Range}, SpecTimeout, FalsePositiv
     ?TIMEOUT(SpecTimeout,
              begin
                  %% NOTE: only call apply/3 inside try/catch (do not trust ?MODULE:is_instance/3)
-                 Result =
+                 {Result, StackTrace} =
                      try apply(Mod, Fun, Args) of
-                         X -> {ok, X}
+                         X -> {{ok, X}, none}
                      catch
-                         X:Y -> {X, Y}
+                         X:Y -> {{X, Y}, erlang:get_stacktrace()}
                      end,
                  case Result of
                      {ok, Z} ->
@@ -525,10 +525,10 @@ apply_spec_test({Mod,Fun,_Arity}=MFA, {_Domain,Range}, SpecTimeout, FalsePositiv
                              true ->
                                  true;
                              false ->
-                                 error(Exception, erlang:get_stacktrace())
+                                 error(Exception, StackTrace)
                          end;
                      Exception ->
-                         error(Exception, erlang:get_stacktrace())
+                         error(Exception, StackTrace)
                  end
              end).
 
