@@ -262,6 +262,8 @@
 %%% from the MFA or an exception with it's reason.  If needed, the
 %%% user supplied function can call erlang:get_stacktrace/0.  Default
 %%% is undefined.</dd>
+%%% <dt>`nocolors'</dt>
+%%% <dd>Don't use term colors in output.</dd>
 %%% </dl>
 %%%
 %%% == Spec testing ==
@@ -486,7 +488,8 @@
 		  | 'any_to_integer'
 		  | {'spec_timeout',timeout()}
 		  | {'skip_mfas',[mfa()]}
-		  | {'false_positive_mfas',false_positive_mfas()}.
+		  | {'false_positive_mfas',false_positive_mfas()}
+                  | 'nocolors'.
 
 -type user_opts() :: [user_opt()] | user_opt().
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
@@ -503,7 +506,8 @@
 	       spec_timeout     = infinity        :: timeout(),
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
-	       setup_funs       = []              :: [setup_fun()]}).
+	       setup_funs       = []              :: [setup_fun()],
+               nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
 -record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
 	      bound    = []  :: imm_testcase() | counterexample(),
@@ -896,6 +900,7 @@ parse_opt(UserOpt, Opts) ->
 	                     -> Opts#opts{skip_mfas = L};
 	{false_positive_mfas,F} when is_function(F); F =:= undefined
 	                     -> Opts#opts{false_positive_mfas = F};
+        nocolors             -> Opts#opts{nocolors = true};
 	_                    -> throw({unrecognized_option,UserOpt})
     end.
 
@@ -1512,8 +1517,13 @@ finalize_input(Instance) ->
 	  {'ok',imm_testcase()} | error().
 shrink(ImmTestCase, Test, Reason,
        #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
-	     output_fun = Print} = Opts) ->
-    Print("~n\033[01;34mShrinking \033[00m", []),
+	     output_fun = Print, nocolors = NoColors} = Opts) ->
+    case NoColors of
+        true ->
+            Print("~nShrinking ", []);
+        false ->
+            Print("~n\033[01;34mShrinking \033[00m", [])
+    end,
     try
 	StrTest = skip_to_next(Test),
 	fix_shrink(ImmTestCase, StrTest, Reason, 0, MaxShrinks, Opts)
@@ -1521,17 +1531,19 @@ shrink(ImmTestCase, Test, Reason,
 	{Shrinks,MinImmTestCase} ->
 	    case rerun(Test, true, MinImmTestCase) of
 		#fail{actions = MinActions} ->
-		    report_shrinking(Shrinks, MinImmTestCase, MinActions,
-				     Print),
+                    report_shrinking(Shrinks, MinImmTestCase, MinActions,
+                                     Print, NoColors),
 		    {ok, MinImmTestCase};
 		%% The cases below should never occur for deterministic tests.
 		%% When they do happen, we have no choice but to silently
 		%% skip the fail actions.
 		#pass{} ->
-		    report_shrinking(Shrinks, MinImmTestCase, [], Print),
+                    report_shrinking(Shrinks, MinImmTestCase, [], Print,
+                                     NoColors),
 		    {ok, MinImmTestCase};
 		{error,_Reason} ->
-		    report_shrinking(Shrinks, MinImmTestCase, [], Print),
+                    report_shrinking(Shrinks, MinImmTestCase, [], Print,
+                                     NoColors),
 		    {ok, MinImmTestCase}
 	    end
     catch
@@ -1729,24 +1741,34 @@ apply_skip(Args, Prop) ->
 -spec report_imm_result(imm_result(), opts()) -> 'ok'.
 report_imm_result(#pass{samples = Samples, printers = Printers,
 			performed = Performed},
-		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
-    case ExpectF of
-	true ->
-	    Print("\033[1;31mFailed: All tests passed when a failure was expected.\033[0m~n", []);
-	false ->
-	    Print("\033[1;32mOK: Passed ~b test(s).~n\033[0m", [Performed])
+                  #opts{expect_fail = ExpectF, output_fun = Print,
+                        nocolors = NoColors}) ->
+    case {ExpectF, NoColors} of
+        {true, true} ->
+            Print("Failed: All tests passed when a failure was expected.~n", []);
+        {true, false} ->
+            Print("\033[1;31mFailed: All tests passed when a failure was expected.\033[0m~n", []);
+        {false, true} ->
+            Print("OK: Passed ~b test(s).~n", [Performed]);
+        {false, false} ->
+            Print("\033[1;32mOK: Passed ~b test(s).~n\033[0m", [Performed])
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Print) end,
 		  proper_arith:safe_zip(Printers, SortedSamples));
 report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
 			performed = Performed},
-		  #opts{expect_fail = ExpectF, output_fun = Print}) ->
-    case ExpectF of
-	true ->
-	    Print("\033[1;32mOK: Failed as expected, after ~b test(s).~n\033[0m", [Performed]);
-	false ->
-	    Print("\033[1;31mFailed: After ~b test(s).~n\033[0m", [Performed])
+                  #opts{expect_fail = ExpectF, output_fun = Print,
+                        nocolors = NoColors}) ->
+    case {ExpectF, NoColors} of
+        {true, true} ->
+            Print("OK: Failed as expected, after ~b test(s).~n", [Performed]);
+        {true, false} ->
+            Print("\033[1;32mOK: Failed as expected, after ~b test(s).~n\033[0m", [Performed]);
+        {false, true} ->
+            Print("Failed: After ~b test(s).~n", [Performed]);
+        {false, false} ->
+            Print("\033[1;31mFailed: After ~b test(s).~n\033[0m", [Performed])
     end,
     report_fail_reason(Reason, "", Print),
     print_imm_testcase(Bound, "", Print),
@@ -1756,20 +1778,26 @@ report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
 
 -spec report_rerun_result(run_result(), opts()) -> 'ok'.
 report_rerun_result(#pass{reason = Reason},
-		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
-    case ExpectF of
-	true  -> Print("\033[1;31mFailed: \033[0m", []);
-	false -> Print("\033[1;32mOK: \033[0m", [])
+                    #opts{expect_fail = ExpectF, output_fun = Print,
+                        nocolors = NoColors}) ->
+    case {ExpectF, NoColors} of
+        {true, true}  -> Print("Failed: ", []);
+        {true, false}  -> Print("\033[1;31mFailed: \033[0m", []);
+        {false, true} -> Print("OK: ", []);
+        {false, false} -> Print("\033[1;32mOK: \033[0m", [])
     end,
     case Reason of
-	true_prop   -> Print("The input passed the test.~n", []);
+        true_prop   -> Print("The input passed the test.~n", []);
 	didnt_crash -> Print("The input didn't raise an early exception.~n", [])
     end;
 report_rerun_result(#fail{reason = Reason, actions = Actions},
-		    #opts{expect_fail = ExpectF, output_fun = Print}) ->
-    case ExpectF of
-	true  -> Print("\033[1;32mOK: \033[0m", []);
-	false -> Print("\033[1;31mFailed: \033[0m", [])
+                    #opts{expect_fail = ExpectF, output_fun = Print,
+                          nocolors = NoColors}) ->
+    case {ExpectF, NoColors} of
+        {true, true}  -> Print("OK: ", []);
+        {true, false}  -> Print("\033[1;32mOK: \033[0m", []);
+        {false, true} -> Print("Failed: ", []);
+        {false, false} -> Print("\033[1;31mFailed: \033[0m", [])
     end,
     Print("The input fails the test.~n", []),
     report_fail_reason(Reason, "", Print),
@@ -1852,9 +1880,12 @@ execute_actions(Actions) ->
     lists:foreach(fun(A) -> ?FORCE(A) end, Actions).
 
 -spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
-		       output_fun()) -> 'ok'.
-report_shrinking(Shrinks, MinImmTestCase, MinActions, Print) ->
-    Print("\033[01;34m(~b time(s))\033[00m~n", [Shrinks]),
+                       output_fun(), boolean()) -> 'ok'.
+report_shrinking(Shrinks, MinImmTestCase, MinActions, Print, NoColors) ->
+    case NoColors of
+        true -> Print("(~b time(s))~n", [Shrinks]);
+        false -> Print("\033[01;34m(~b time(s))\033[00m~n", [Shrinks])
+    end,
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
