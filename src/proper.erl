@@ -1743,15 +1743,21 @@ report_imm_result(#pass{samples = Samples, printers = Printers,
 			performed = Performed},
                   #opts{expect_fail = ExpectF, output_fun = Print,
                         nocolors = NoColors}) ->
-    case {ExpectF, NoColors} of
-        {true, true} ->
-            Print("Failed: All tests passed when a failure was expected.~n", []);
-        {true, false} ->
-            Print("\033[1;31mFailed: All tests passed when a failure was expected.\033[0m~n", []);
-        {false, true} ->
-            Print("OK: Passed ~b test(s).~n", [Performed]);
-        {false, false} ->
-            Print("\033[1;32mOK: Passed ~b test(s).~n\033[0m", [Performed])
+    case ExpectF of
+        true ->
+            case NoColors of
+                true ->
+                    Print("Failed: All tests passed when a failure was expected.~n", []);
+                false ->
+                    Print("\033[1;31mFailed: All tests passed when a failure was expected.\033[0m~n", [])
+            end;
+        false ->
+            case NoColors of
+                true ->
+                    Print("OK: Passed ~b test(s).~n", [Performed]);
+                false ->
+                    Print("\033[1;32mOK: Passed ~b test(s).~n\033[0m", [Performed])
+            end
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Print) end,
@@ -1760,15 +1766,21 @@ report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
 			performed = Performed},
                   #opts{expect_fail = ExpectF, output_fun = Print,
                         nocolors = NoColors}) ->
-    case {ExpectF, NoColors} of
-        {true, true} ->
-            Print("OK: Failed as expected, after ~b test(s).~n", [Performed]);
-        {true, false} ->
-            Print("\033[1;32mOK: Failed as expected, after ~b test(s).~n\033[0m", [Performed]);
-        {false, true} ->
-            Print("Failed: After ~b test(s).~n", [Performed]);
-        {false, false} ->
-            Print("\033[1;31mFailed: After ~b test(s).~n\033[0m", [Performed])
+    case ExpectF of
+        true ->
+            case NoColors of
+                true ->
+                    Print("OK: Failed as expected, after ~b test(s).~n", [Performed]);
+                false ->
+                    Print("\033[1;32mOK: Failed as expected, after ~b test(s).~n\033[0m", [Performed])
+            end;
+        false ->
+            case NoColors of
+                true ->
+                    Print("Failed: After ~b test(s).~n", [Performed]);
+                false ->
+                    Print("\033[1;31mFailed: After ~b test(s).~n\033[0m", [Performed])
+            end
     end,
     report_fail_reason(Reason, "", Print),
     print_imm_testcase(Bound, "", Print),
@@ -1780,24 +1792,36 @@ report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
 report_rerun_result(#pass{reason = Reason},
                     #opts{expect_fail = ExpectF, output_fun = Print,
                         nocolors = NoColors}) ->
-    case {ExpectF, NoColors} of
-        {true, true}  -> Print("Failed: ", []);
-        {true, false}  -> Print("\033[1;31mFailed: \033[0m", []);
-        {false, true} -> Print("OK: ", []);
-        {false, false} -> Print("\033[1;32mOK: \033[0m", [])
+    case ExpectF of
+        true ->
+            case NoColors of
+                true  -> Print("Failed: ", []);
+                false -> Print("\033[1;31mFailed: \033[0m", [])
+            end;
+        false ->
+            case NoColors of
+                true  -> Print("OK: ", []);
+                false -> Print("\033[1;32mOK: \033[0m", [])
+            end
     end,
     case Reason of
-        true_prop   -> Print("The input passed the test.~n", []);
+	true_prop   -> Print("The input passed the test.~n", []);
 	didnt_crash -> Print("The input didn't raise an early exception.~n", [])
     end;
 report_rerun_result(#fail{reason = Reason, actions = Actions},
                     #opts{expect_fail = ExpectF, output_fun = Print,
                           nocolors = NoColors}) ->
-    case {ExpectF, NoColors} of
-        {true, true}  -> Print("OK: ", []);
-        {true, false}  -> Print("\033[1;32mOK: \033[0m", []);
-        {false, true} -> Print("Failed: ", []);
-        {false, false} -> Print("\033[1;31mFailed: \033[0m", [])
+    case ExpectF of
+        true ->
+            case NoColors of
+                true  -> Print("OK: ", []);
+                false -> Print("\033[1;32mOK: \033[0m", [])
+            end;
+        false ->
+            case NoColors of
+                true  -> Print("Failed: ", []);
+                false -> Print("\033[1;31mFailed: \033[0m", [])
+            end
     end,
     Print("The input fails the test.~n", []),
     report_fail_reason(Reason, "", Print),
