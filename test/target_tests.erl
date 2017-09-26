@@ -1,6 +1,7 @@
+%%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas LÃ¶scher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
 %%%                and  Konstantinos Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -18,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas LÃ¶scher and Kostis Sagonas
+%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas LÃ¶scher
+%%% @author Andreas Löscher
 
 -module(target_tests).
 
@@ -28,6 +29,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(PROPER_OPTIONS, [quiet, {numtests, 1000}]).
+-define(timeout(Timeout, Tests), {timeout, Timeout, Tests}).
 
 -spec sa_test() -> 'ok'.
 sa_test() ->
@@ -36,11 +38,11 @@ sa_test() ->
 
 prop_sa() ->
   ?STRATEGY(proper_sa,
-	    ?FORALL({I, J}, {?TARGET(proper_sa:integer()), ?TARGET(proper_sa:integer())},
-		    begin
-		      ?MAXIMIZE(-(I+J)),
-		      true
-		    end)).
+            ?FORALL({I, J}, {?TARGET(proper_sa:integer()), ?TARGET(proper_sa:integer())},
+                    begin
+                      ?MAXIMIZE(-(I+J)),
+                      true
+                    end)).
 
 -spec shrinking_test() -> 'ok'.
 shrinking_test() ->
@@ -50,12 +52,12 @@ shrinking_test() ->
 
 prop_shrinking() ->
   ?STRATEGY(proper_sa,
-	    proper:numtests(1000,
-			    ?FORALL(I, ?TARGET(proper_sa:integer()),
-				    begin
-				      ?MAXIMIZE(I),
-				      check(I)
-				    end))).
+            proper:numtests(1000,
+                            ?FORALL(I, ?TARGET(proper_sa:integer()),
+                                    begin
+                                      ?MAXIMIZE(I),
+                                      check(I)
+                                    end))).
 
 check(I) ->
   I < 1000.
@@ -64,26 +66,31 @@ check(I) ->
 integer_test() ->
   put(proper_sa_testing, true),
   proper:global_state_init_size(10),
+  proper_sa_gen:init(),
   Gen = proper_types:integer(),
   #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
   %% apply the generator 100 times and check that nothing crashes
   appl(TG, 0, 100),
+  proper_sa_gen:cleanup(),
   ok.
 
 -spec list_test() -> 'ok'.
 list_test() ->
   put(proper_sa_testing, true),
   proper:global_state_init_size(10),
+  proper_sa_gen:init(),
   Gen = proper_types:list(atom),
   #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
   %% apply the generator 100 times and check that nothing crashes
   appl(TG, [], 100),
+  proper_sa_gen:cleanup(),
   ok.
 
 -spec combine_test() -> 'ok'.
 combine_test() ->
   put(proper_sa_testing, true),
   proper:global_state_init_size(10),
+  proper_sa_gen:init(),
   Gen = proper_types:list(proper_types:list(proper_types:integer())),
   #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
   %% apply the generator 100 times and check that nothing crashes
@@ -103,7 +110,7 @@ basic1_test() ->
 
 prop_big_list() ->
   Gen = proper_types:list(atom),
-  ?FORALL_SA(List, ?TARGET(proper_sa_gen:from_proper_generator(Gen)),
+  ?FORALL_SA(List, ?TARGET(#{gen =>Gen}),
              begin
                L = length(List),
                ?MAXIMIZE(-abs(L - 50)),
@@ -240,18 +247,17 @@ edge_test() ->
 
 prop_edge() ->
   Gen = simple_edge([1,2,3,4,5,6,7,8,9]),
-  ?FORALL_SA({L, R}, ?TARGET(proper_sa_gen:from_proper_generator(Gen)), L > R).
-
+  ?FORALL_SA({L, R}, ?TARGET(#{gen => Gen}), L > R).
 
 -spec graph_test() -> 'ok'.
 graph_test() ->
   put(proper_sa_tempfunc, default),
   put(proper_sa_acceptfunc, default),
-  ?assert(proper:quickcheck(prop_graph(), ?PROPER_OPTIONS)).
+  ?timeout(20, ?assert(proper:quickcheck(prop_graph(), ?PROPER_OPTIONS))).
 
 prop_graph() ->
   ?FORALL_SA({V, E},
-             ?TARGET(proper_sa_gen:from_proper_generator(simple_graph())),
+             ?TARGET(#{gen => simple_graph()}),
              begin
                ?MAXIMIZE((length(E) - length(V))),
                true
@@ -292,15 +298,15 @@ improper_list_test() ->
 
 prop_reset() ->
   ?STRATEGY(hill_climbing,
-	    ?FORALL(I, ?TARGET(stepint()),
-		    begin
-		      ?MAXIMIZE(I),
-		      case I < 10 of
-			true -> ok;
-			false -> proper_sa:reset()
-		      end,
-		      I =< 10
-		    end)).
+            ?FORALL(I, ?TARGET(stepint()),
+                    begin
+                      ?MAXIMIZE(I),
+                      case I < 10 of
+                        true -> ok;
+                        false -> proper_sa:reset()
+                      end,
+                      I =< 10
+                    end)).
 
 stepint() ->
   #{first => 0,
@@ -308,3 +314,30 @@ stepint() ->
 
 reset_test() ->
   ?assert(proper:quickcheck(prop_reset(), ?PROPER_OPTIONS)).
+
+%% graph with matching
+graph_duplicated_edges() ->
+  ?LET(Vn, integer(2, 42),
+       begin
+         Vs = lists:seq(1, Vn),
+         {Vs, list(simple_edge(Vs))}
+       end).
+
+matching_graph() ->
+  ?LET({Vs, Es}, graph_duplicated_edges(),
+       {Vs, lists:usort(Es)}).
+
+-spec graph_match_test() -> 'ok'.
+graph_match_test() ->
+  put(proper_sa_tempfunc, default),
+  put(proper_sa_acceptfunc, default),
+  ?timeout(20, ?assertNot(proper:quickcheck(prop_graph_match(), ?PROPER_OPTIONS))).
+
+prop_graph_match() ->
+  ?FORALL_SA({V, E},
+             ?TARGET(#{gen => matching_graph()}),
+             begin
+               UV = length(V) - length(E),
+               ?MAXIMIZE(UV),
+               UV < 42
+             end).

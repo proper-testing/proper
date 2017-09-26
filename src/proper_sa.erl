@@ -37,7 +37,7 @@
          get_shrinker/1
         ]).
 %% lib
--export([reset/0, get_last_fitness/0]).
+-export([reset/0, get_last_fitness/0, get_neighborhood_function/1]).
 %% standard types
 -export([integer/0, integer/2, float/0, float/2, list/1]).
 
@@ -307,6 +307,7 @@ reset_all_targets(Dict, [K|T]) ->
 
 -spec init_strategy(proper:outer_test(), proper:setup_opts()) -> proper:outer_test().
 init_strategy(Prop, #{numtests:=Steps, output_fun:=OutputFun}) ->
+  proper_sa_gen:init(),
   OutputFun("-- Simulated Annealing Search Strategy --~n", []),
   SA_Data = #sa_data{k_max = Steps,
 		     p = get_acceptance_function(OutputFun),
@@ -318,6 +319,7 @@ init_strategy(Prop, #{numtests:=Steps, output_fun:=OutputFun}) ->
 cleanup() ->
   erase(?SA_DATA),
   erase(?SA_REHEAT_COUNTER),
+  proper_sa_gen:cleanup(),
   ok.
 
 -spec init_target(proper_target:tmap()) -> proper_target:target().
@@ -430,6 +432,11 @@ get_shrinker(#{gen := Gen}) -> Gen.
 %%--------------------------------------------------------------------------
 
 -type first_next() :: proper_target:tmap().
+
+-spec get_neighborhood_function(proper_types:type()) -> fun((proper:term(), proper_target:fitness()) -> proper_types:type()).
+get_neighborhood_function(RawGen) ->
+  #{next := Next} = proper_sa_gen:from_proper_generator(RawGen),
+  Next.
 
 -spec integer() -> first_next().
 integer() ->

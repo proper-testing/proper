@@ -25,7 +25,7 @@
 
 -module(proper_sa_gen).
 
--export([from_proper_generator/1, set_temperature_scaling/1, update_caches/1]).
+-export([from_proper_generator/1, set_temperature_scaling/1, update_caches/1, init/0, cleanup/0]).
 
 -include("proper_internal.hrl").
 
@@ -64,9 +64,62 @@ update_caches(reject) ->
 
 -spec from_proper_generator(proper_types:type()) -> proper_target:tmap().
 from_proper_generator(RawGenerator) ->
-  put(proper_sa_gen_cache, #{}),
-  put(proper_sa_gen_cache_backup, #{}),
-  #{first => RawGenerator, next => replace_generators(RawGenerator)}.
+  ensure_initialized(),
+  Next = replace_generators(RawGenerator),
+  #{first => RawGenerator, next => Next}.
+
+ensure_initialized() ->
+  L = [get(proper_sa_gen_cache),
+       get(proper_sa_gen_cache_backup),
+       get(proper_sa_gen_depth_cache),
+       get(rand_seed),
+       get('$any_type'),
+       get('$left'),
+       get('$constraint_tries'),
+       get('$typeserver_pid')],
+  case lists:member(undefined, L) of
+    true ->
+      %% not correctly initialized
+      init(),
+      proper:global_state_init_size(10),
+      ok;
+    _ ->
+      ok
+  end.
+
+-spec init() -> ok.
+init() ->
+  init_pd(proper_sa_gen_cache, #{}),
+  init_pd(proper_sa_gen_cache_backup, #{}),
+  init_pd(proper_sa_gen_depth_cache, #{max => 1}),
+  ok.
+
+-spec cleanup() -> ok.
+cleanup() ->
+  erase(proper_sa_gen_cache),
+  erase(proper_sa_gen_cache_backup),
+  erase(proper_sa_gen_depth_cache),
+  ok.
+
+init_pd(Key, Value) ->
+  case get(Key) of
+    undefined ->
+      put(Key, Value),
+      ok;
+    _ -> ok
+  end.
+
+get_depth() ->
+  DS = get(proper_sa_gen_depth_cache),
+  #{max := Max} = DS,
+  Max.
+
+store_max_depth(Depth) ->
+  DS = get(proper_sa_gen_depth_cache),
+  #{max := Current} = DS,
+  NewMax = max(Depth, Current),
+  put(proper_sa_gen_depth_cache, DS#{max => NewMax}),
+  NewMax.
 
 replace_generators(RawGen) ->
   Gen = proper_types:cook_outer(RawGen),
@@ -143,9 +196,11 @@ apply_temperature_scaling(Generator) ->
   end.
 
 adjust_temperature({Depth, Temperature}) ->
-  {Depth - 1, Temperature};
+  NewDepth = Depth + 1,
+  store_max_depth(NewDepth),
+  {NewDepth, Temperature};
 adjust_temperature(Temp) ->
-  Temp.
+  adjust_temperature({1, Temp}).
 
 -spec set_temperature_scaling(boolean) -> 'ok'.
 set_temperature_scaling(Enabled) ->
@@ -154,16 +209,21 @@ set_temperature_scaling(Enabled) ->
 temperature_scaling(Temp, Depth) ->
   case get(proper_sa_gen_temperature_scaling) of
     false -> 1.0;
-    full ->
-      X = Temp * Depth,
-      X / (1.0 + X);
-    even ->
-      Temp;
+    true ->
+      M = 0.25,
+      MaxD = get_depth(),
+      case MaxD of
+        0 -> Temp;
+        _ -> M + M*1/(1-MaxD) * Temp * (Depth-1)
+      end;
     _ ->
-      X = Temp * Depth,
-      0.1 * X / (1.0 + X)
+      1.0
+      %%put(proper_sa_gen_temperature_scaling, true),
+      %%temperature_scaling(Temp, Depth)
   end.
 
+calculate_temperature(null) ->
+  0;
 calculate_temperature({Depth, Temp}) ->
   temperature_scaling(Temp, Depth);
 calculate_temperature(Temp) ->
@@ -207,7 +267,7 @@ integer_gen_sa({'$type', TypeProps}) ->
       Temp = ?TEMP(TD),
       OffsetLimit = case Min =:= inf orelse Max =:= inf of
                       true ->
-                        trunc(1000 * Temp);
+                        trunc(10 * Temp);
                       false ->
                         trunc(abs(Min - Max) * Temp * 0.1) + 1
                     end,
@@ -221,13 +281,17 @@ is_float_type(Type) ->
 
 float_gen_sa({'$type', TypeProps}) ->
   {env, {Min, Max}} = proplists:lookup(env, TypeProps),
-  fun (Base, _TD) ->
-      %% Temp = ?TEMP(TD),
-      OffsetLimit = case Min =:= inf orelse Max =:= inf of
-                      true ->
-                        10.0;
-                      false ->
-                        abs(Min - Max) * 0.001
+  fun (Base, TD) ->
+      OffsetLimit = case TD of
+                      null ->
+                        0;
+                      _ ->
+                        case Min =:= inf orelse Max =:= inf of
+                          true ->
+                            10.0;
+                          false ->
+                            abs(Min - Max) * 0.001
+                        end
                     end,
       Offset = proper_arith:rand_float(-OffsetLimit, OffsetLimit),
       make_inrange(Base, Offset, Min, Max)
@@ -244,22 +308,20 @@ list_choice(empty, Temp) ->
              C < C_Add -> add;
              true      -> nothing
            end,
-  %% io:format("ChoiceE: ~p ~n", [Choice]),
   Choice;
 list_choice({list, GrowthCoefficient}, Temp) ->
   C = ?RANDOM_MOD:uniform(),
-  AddCoefficient = 0.6 * GrowthCoefficient,
-  DelCoefficient = 0.6 * (1- GrowthCoefficient),
+  AddCoefficient = 0.3 * GrowthCoefficient,
+  DelCoefficient = 0.3 * (1- GrowthCoefficient),
   C_Add =          AddCoefficient * Temp,
   C_Del = C_Add + (DelCoefficient * Temp),
-  C_Mod = C_Del + (0.3 * Temp),
+  C_Mod = C_Del + (0.15 * Temp),
   Choice = if
              C < C_Add -> add;
              C < C_Del -> del;
              C < C_Mod -> modify;
              true      -> nothing
            end,
-  %% io:format("ChoiceL: ~p ~n", [Choice]),
   Choice;
 list_choice(vector, Temp) ->
   C = ?RANDOM_MOD:uniform(),
@@ -268,7 +330,6 @@ list_choice(vector, Temp) ->
              C < C_Mod -> modify;
              true      -> nothing
            end,
-  %% io:format("ChoiceV: ~p ~n", [C]),
   Choice;
 list_choice(tuple, Temp) ->
   list_choice(vector, Temp).
@@ -277,32 +338,33 @@ list_gen_sa(Type) ->
   {ok, InternalType} = proper_types:find_prop(internal_type, Type),
   fun (Base, Temp) ->
       GrowthCoefficient = (?RANDOM_MOD:uniform() * 0.8) + 0.1,
-      list_gen_internal(Base, Temp, InternalType, GrowthCoefficient)
+      ElementType = replace_generators(InternalType),
+      list_gen_internal(Base, Temp, InternalType, ElementType, GrowthCoefficient)
   end.
 
-list_gen_internal([], Temp, InternalType, GrowthCoefficient) ->
+list_gen_internal([], Temp, InternalType, ElementType, GrowthCoefficient) ->
   %% chance to add an element
   case list_choice(empty, ?TEMP(Temp)) of
     add ->
       {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
-      [New | list_gen_internal([], Temp, InternalType, GrowthCoefficient)];
+      [New | list_gen_internal([], Temp, InternalType, ElementType, GrowthCoefficient)];
     nothing -> []
   end;
-list_gen_internal(L=[H|T], Temp, InternalType, GrowthCoefficient) ->
+list_gen_internal(L=[H|T], Temp, InternalType, ElementType, GrowthCoefficient) ->
   %% chance to modify current element
   %% chance to delete current element
   %% chance to add element infront of current element
   case list_choice({list, GrowthCoefficient}, ?TEMP(Temp)) of
     add ->
       {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
-      [New | list_gen_internal(L, Temp, InternalType, GrowthCoefficient)];
+      [New | list_gen_internal(L, Temp, InternalType, ElementType, GrowthCoefficient)];
     del ->
-      list_gen_internal(T, Temp, InternalType, GrowthCoefficient);
+      list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient);
     modify ->
-      ElementType = replace_generators(InternalType),
-      [ElementType(H, Temp) | list_gen_internal(T, Temp, InternalType, GrowthCoefficient)];
+
+      [ElementType(H, ?SLTEMP(Temp)) | list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient)];
     nothing ->
-      [H | list_gen_internal(T, Temp, InternalType, GrowthCoefficient)]
+      [ElementType(H, null) | list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient)]
   end.
 
 %% shrink_list
@@ -319,15 +381,27 @@ is_vector_type(Type) ->
 
 vector_gen_sa(Type) ->
   {ok, InternalType} = proper_types:find_prop(internal_type, Type),
+  {ok, Length} = proper_types:find_prop(env, Type),
   ElementType = replace_generators(InternalType),
-  fun GEN([], _) ->
-      [];
-      GEN([H|T], Temp) ->
-      case list_choice(vector, ?TEMP(Temp)) of
-        modify ->
-          [ElementType(H, Temp) | GEN(T, Temp)];
-        nothing ->
-          [H | GEN(T, Temp)]
+  fun (Base, Tem) ->
+      GenFunc = fun GEN([], _) ->
+                    [];
+                    GEN([ '$new' | T], Temp) ->
+                    [sample_from_type(ElementType, Temp) | GEN(T, Temp)];
+                    GEN([H|T], Temp) ->
+                    case list_choice(vector, ?TEMP(Temp)) of
+                      modify ->
+                        [ElementType(H, Temp) | GEN(T, Temp)];
+                      nothing ->
+                        [ElementType(H, null) | GEN(T, Temp)]
+                    end
+                end,
+      if
+        length(Base) =:= Length -> GenFunc(Base, Tem);
+        length(Base) > Length -> GenFunc(lists:sublist(Base, Length), Tem);
+        length(Base) < Length ->
+          Additional = Length - length(Base),
+          GenFunc(Base ++ lists:duplicate(Additional, '$new'), Tem)
       end
   end.
 
@@ -384,7 +458,7 @@ tuple_gen_sa(Type) ->
       (Base, Temp) ->
       ListRepr = tuple_to_list(Base),
       NewTupleAsList = [case list_choice(tuple, ?TEMP(Temp)) of
-			  nothing -> Elem;
+                          nothing -> Gen(Elem, null);
                           modify -> Gen(Elem, Temp)
                         end || {Gen, Elem} <- lists:zip(ElementGens, ListRepr)],
       list_to_tuple(NewTupleAsList)
@@ -532,8 +606,7 @@ match_cook(Base, RawType, Temp) ->
       case is_set(RawType) orelse is_dict(RawType) of
         true ->
           %% we do not take apart Erlang's dicts and sets
-          %% io:format("Dict or Set~n"),
-          RawType;
+          sample_from_type(RawType, ?TEMP(Temp));
         _ ->
           MC = case is_tuple(Base) of
                  true ->
@@ -554,7 +627,7 @@ match_cook(Base, RawType, Temp) ->
       %% the base is not matching
       per_element_match_cook(no_matching_list_zip(RawType), Temp);
     true ->
-      RawType
+      sample_from_type(RawType, ?TEMP(Temp))
   end.
 
 %% handles improper lists
