@@ -259,7 +259,7 @@ prop_graph() ->
   ?FORALL_SA({V, E},
              ?TARGET(#{gen => simple_graph()}),
              begin
-               ?MAXIMIZE((length(E) - length(V))),
+               ?MAXIMIZE(length(E) - length(V)),
                true
              end).
 
@@ -339,5 +339,10 @@ prop_graph_match() ->
              begin
                UV = length(V) - length(E),
                ?MAXIMIZE(UV),
-               UV < 42
+               CorrectEdges = lists:foldr(fun ({L, R}, AccIn) ->
+                                              AccIn andalso
+                                                lists:member(L, V) andalso
+                                                lists:member(R, V)
+                                          end, true, E),
+               CorrectEdges andalso UV < 42
              end).
