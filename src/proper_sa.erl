@@ -1,7 +1,7 @@
 %%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Lï¿½scher <andreas.loscher@it.uu.se>
 %%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017 Andreas Lï¿½scher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Löscher
+%%% @author Andreas Lï¿½scher
 
 -module(proper_sa).
 
@@ -41,7 +41,7 @@
 %% standard types
 -export([integer/0, integer/2, float/0, float/2, list/1]).
 
--export_type([first_next/0]).
+-export_type([first_next/0, temperature/0]).
 
 -include("proper_internal.hrl").
 
@@ -49,6 +49,7 @@
 -define(DEFAULT_STEPS, 1000).
 -define(MAX_SIZE, 10000).
 -define(REHEAT_THRESHOLD, 5).
+-define(RESTART_THRESHOLD, 100).
 
 -define(RANDOM_PROBABILITY, (?RANDOM_MOD:uniform())).
 
@@ -172,8 +173,25 @@ temperature_function_fast2_sa(_OldTemperature,
                               _NewEnergyLevel,
                               K_Max,
                               K_Current,
-                              _Accepted) ->
-  {1.0 - math:sqrt(K_Current / K_Max), K_Current + 1}.
+                              Accepted) ->
+  K = case Accepted of
+        true -> K_Current + 1;
+        false ->
+          case get(sa_restart_counter) of
+            undefined ->
+              put(sa_restart_counter, 1),
+              K_Current + 1;
+            N when N >= ?RESTART_THRESHOLD ->
+              put(sa_restart_counter, 0),
+              io:format("R"),
+              reset(),
+              1;
+            N ->
+              put(sa_restart_counter, N + 1),
+              K_Current + 1
+          end
+      end,
+  {1.0 - math:sqrt(K / K_Max), K}.
 
 temperature_function_reheat_sa(OldTemperature,
                                OldEnergyLevel,
@@ -310,8 +328,8 @@ init_strategy(Prop, #{numtests:=Steps, output_fun:=OutputFun}) ->
   proper_sa_gen:init(),
   OutputFun("-- Simulated Annealing Search Strategy --~n", []),
   SA_Data = #sa_data{k_max = Steps,
-		     p = get_acceptance_function(OutputFun),
-		     temp_func = get_temperature_function(OutputFun)},
+                     p = get_acceptance_function(OutputFun),
+                     temp_func = get_temperature_function(OutputFun)},
   put(?SA_DATA, SA_Data),
   Prop.
 

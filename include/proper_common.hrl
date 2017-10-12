@@ -67,9 +67,6 @@
 
 -define(MAXIMIZE(Fitness), proper_target:update_target_uvs(Fitness, inf)).
 -define(MAXIMIZE(Fitness, Target), proper_target:update_target_uvs(Fitness, inf, ??Target)).
--define(MAXIMIZE_UNTIL(Fitness, Threshold), proper_target:adjust(Fitness, Threshold)).
--define(MAXIMIZE_UNTIL(Fitness, Target, Threshold),
-        proper_target:adjust(Fitness, Threshold, ??Target)).
 -define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
 -define(MINIMIZE(Fitness, Target), ?MAXIMIZE(-Fitness, Target)).
 
@@ -81,3 +78,4 @@
                                       end, Prop)).
 -define(FORALL_SA(X, RawType, Prop),
         ?STRATEGY(proper_sa, proper:forall(RawType,fun(X) -> Prop end))).
+-define(USERNF(Type, NF), proper_sa_gen:set_user_nf(Type, NF)).

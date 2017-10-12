@@ -1,7 +1,7 @@
 %%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Lï¿½scher <andreas.loscher@it.uu.se>
 %%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,13 +19,14 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017 Andreas Lï¿½scher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Löscher
+%%% @author Andreas Lï¿½scher
 
 -module(proper_sa_gen).
 
--export([from_proper_generator/1, set_temperature_scaling/1, update_caches/1, init/0, cleanup/0]).
+-export([from_proper_generator/1, set_temperature_scaling/1, update_caches/1, init/0, cleanup/0,
+         set_user_nf/2]).
 
 -include("proper_internal.hrl").
 
@@ -35,7 +36,8 @@
 -export([construct_improper/2]).
 -endif.
 
--define(GENERATORS, [{fun is_atom/1, fun dont_change/1},
+-define(GENERATORS, [{fun is_user_defined/1, fun user_defined_gen_sa/1}, %% needs to be first!
+                     {fun is_atom/1, fun dont_change/1},
                      {fun is_list_type/1, fun list_gen_sa/1},
                      {fun is_fixed_list_type/1, fun fixed_list_gen_sa/1},
                      {fun is_integer_type/1, fun integer_gen_sa/1},
@@ -49,7 +51,8 @@
                      {fun is_shrink_list_type/1, fun shrink_list_gen_sa/1},
                      {fun is_union_type/1, fun union_gen_sa/1},
                      {fun is_wrapper_type/1, fun wrapper_gen_sa/1},
-                     {fun is_exactly_type/1, fun exactly_gen_sa/1}]).
+                     {fun is_exactly_type/1, fun exactly_gen_sa/1}
+                    ]).
 
 -define(TEMP(T), calculate_temperature(T)).
 -define(SLTEMP(T), adjust_temperature(T)).
@@ -108,6 +111,16 @@ init_pd(Key, Value) ->
       ok;
     _ -> ok
   end.
+
+-spec set_user_nf(proper_types:type(), fun((term(), proper_sa:temperature()) -> term())) -> proper_types:type().
+set_user_nf(Type, NF) ->
+  {'$type', Props} = Type,
+  NewProps = case proper_types:find_prop(user_nf, Type) of
+               error -> [{user_nf, NF} | Props];
+               {ok, _} ->
+                 lists:keyreplace(user_nf, 1, Props, {user_nf, NF})
+             end,
+  {'$type', NewProps}.
 
 get_depth() ->
   DS = get(proper_sa_gen_depth_cache),
@@ -170,7 +183,10 @@ apply_constraints(UnrestrictedGenerator, Type) ->
       restrict_generation(UnrestrictedGenerator, Base, Temp, Tries, Type, none)
   end.
 
-restrict_generation(_, _, _, 0, _, none) -> throw(cannot_satisfy_constraint);
+restrict_generation(_, _, T, 0, Type, none) ->
+  %% it is possible to run out of tries but there are valid elements
+  %% this is due to an interaction of matching and tuples/lists/...
+  sample_from_type(Type, T);
 restrict_generation(_, _, _, 0, _, {ok, WeakInstance}) -> WeakInstance;
 restrict_generation(Gen, B, T, TriesLeft, Type, WeakInstance) ->
   Instance = Gen(B, T),
@@ -191,6 +207,7 @@ apply_temperature_scaling(Generator) ->
       %%     Generator(Base, Temp)
       case Temp of
         {Depth, Temperature} -> Generator(Base, {Depth + 1, Temperature});
+        null -> Generator(Base, null);
         _ -> Generator(Base, {1, Temp})
       end
   end.
@@ -206,6 +223,7 @@ adjust_temperature(Temp) ->
 set_temperature_scaling(Enabled) ->
   put(proper_sa_gen_temperature_scaling, Enabled).
 
+temperature_scaling(null, _) -> 0.0;
 temperature_scaling(Temp, Depth) ->
   case get(proper_sa_gen_temperature_scaling) of
     false -> 1.0;
@@ -213,7 +231,7 @@ temperature_scaling(Temp, Depth) ->
       M = 0.25,
       MaxD = get_depth(),
       case MaxD of
-        0 -> Temp;
+        1 -> Temp;
         _ -> M + M*1/(1-MaxD) * Temp * (Depth-1)
       end;
     _ ->
@@ -263,7 +281,8 @@ is_integer_type(Type) ->
 
 integer_gen_sa({'$type', TypeProps}) ->
   {env, {Min, Max}} = proplists:lookup(env, TypeProps),
-  fun (Base, TD) ->
+  fun (Base, null) -> make_inrange(Base, 0, Min, Max);
+      (Base, TD) ->
       Temp = ?TEMP(TD),
       OffsetLimit = case Min =:= inf orelse Max =:= inf of
                       true ->
@@ -281,17 +300,13 @@ is_float_type(Type) ->
 
 float_gen_sa({'$type', TypeProps}) ->
   {env, {Min, Max}} = proplists:lookup(env, TypeProps),
-  fun (Base, TD) ->
-      OffsetLimit = case TD of
-                      null ->
-                        0;
-                      _ ->
-                        case Min =:= inf orelse Max =:= inf of
-                          true ->
-                            10.0;
-                          false ->
-                            abs(Min - Max) * 0.001
-                        end
+  fun (Base, null) -> make_inrange(Base, 0, Min, Max);
+      (Base, _) ->
+      OffsetLimit = case Min =:= inf orelse Max =:= inf of
+                      true ->
+                        10.0;
+                      false ->
+                        abs(Min - Max) * 0.001
                     end,
       Offset = proper_arith:rand_float(-OffsetLimit, OffsetLimit),
       make_inrange(Base, Offset, Min, Max)
@@ -325,7 +340,7 @@ list_choice({list, GrowthCoefficient}, Temp) ->
   Choice;
 list_choice(vector, Temp) ->
   C = ?RANDOM_MOD:uniform(),
-  C_Mod = 0.4 * Temp,
+  C_Mod = 0.5 * Temp,
   Choice = if
              C < C_Mod -> modify;
              true      -> nothing
@@ -336,9 +351,9 @@ list_choice(tuple, Temp) ->
 
 list_gen_sa(Type) ->
   {ok, InternalType} = proper_types:find_prop(internal_type, Type),
+  ElementType = replace_generators(InternalType),
   fun (Base, Temp) ->
       GrowthCoefficient = (?RANDOM_MOD:uniform() * 0.8) + 0.1,
-      ElementType = replace_generators(InternalType),
       list_gen_internal(Base, Temp, InternalType, ElementType, GrowthCoefficient)
   end.
 
@@ -350,6 +365,8 @@ list_gen_internal([], Temp, InternalType, ElementType, GrowthCoefficient) ->
       [New | list_gen_internal([], Temp, InternalType, ElementType, GrowthCoefficient)];
     nothing -> []
   end;
+list_gen_internal([H|T], null, InternalType, ElementType, GrowthCoefficient) ->
+  [ElementType(H, null) | list_gen_internal(T, null, InternalType, ElementType, GrowthCoefficient)];
 list_gen_internal(L=[H|T], Temp, InternalType, ElementType, GrowthCoefficient) ->
   %% chance to modify current element
   %% chance to delete current element
@@ -361,10 +378,9 @@ list_gen_internal(L=[H|T], Temp, InternalType, ElementType, GrowthCoefficient) -
     del ->
       list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient);
     modify ->
-
       [ElementType(H, ?SLTEMP(Temp)) | list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient)];
     nothing ->
-      [ElementType(H, null) | list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient)]
+      [H | list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient)]
   end.
 
 %% shrink_list
@@ -393,7 +409,12 @@ vector_gen_sa(Type) ->
                       modify ->
                         [ElementType(H, Temp) | GEN(T, Temp)];
                       nothing ->
-                        [ElementType(H, null) | GEN(T, Temp)]
+                        case Temp of
+                          null ->
+                            [ElementType(H, null) | GEN(T, Temp)];
+                          _ ->
+                            [H | GEN(T, Temp)]
+                        end
                     end
                 end,
       if
@@ -458,13 +479,18 @@ tuple_gen_sa(Type) ->
       (Base, Temp) ->
       ListRepr = tuple_to_list(Base),
       NewTupleAsList = [case list_choice(tuple, ?TEMP(Temp)) of
-                          nothing -> Gen(Elem, null);
+                          nothing ->
+                            case Temp of
+                              null -> Gen(Elem, null);
+                              _ -> Elem
+                            end;
                           modify -> Gen(Elem, Temp)
                         end || {Gen, Elem} <- lists:zip(ElementGens, ListRepr)],
       list_to_tuple(NewTupleAsList)
   end.
 
 %% fixed list
+%% needs to handle improper lists!
 is_fixed_list_type(Type) ->
   has_same_generator(Type, proper_types:fixed_list([])).
 
@@ -476,26 +502,49 @@ fixed_list_gen_sa(Type) ->
                          InternalTypes),
   fun ([], _) -> [];
       (Base, Temp) ->
-      {NewFixedList, _} = safe_mapfoldl(
-                            fun ({_, ElementType}, []) ->
-                                {sample_from_type(ElementType, ?TEMP(Temp)), []};
-                                ({ElementGen, ElementType}, [B|T]) ->
-                                case proper_types:is_instance(B, ElementType) of
-                                  true ->
-                                    {ElementGen(B, ?TEMP(Temp)), T};
-                                  false ->
-                                    {sample_from_type(ElementType, ?TEMP(Temp)), [B|T]}
-                                end;
-                                ({ElementGen, ElementType}, ImproperTail) ->
-                                case proper_types:is_instance(ImproperTail, ElementType) of
-                                  true ->
-                                    {ElementGen(ImproperTail, ?TEMP(Temp)), improper_ending};
-                                  false ->
-                                    {sample_from_type(ElementType, ?TEMP(Temp)), improper_ending}
-                                end
-                            end,
-                            Base,
-                            ElementGens),
+      {NewFixedList, _} =
+        safe_mapfoldl(
+          fun ({_, ElementType}, []) ->
+              {sample_from_type(ElementType, ?TEMP(Temp)), []};
+
+              ({ElementGen, ElementType}, [B|T]) ->
+              case proper_types:is_instance(B, ElementType) of
+                true ->
+                  NewElement = case list_choice(tuple, ?TEMP(Temp)) of
+                                 nothing ->
+                                   case Temp of
+                                     null ->
+                                       ElementGen(B, null);
+                                     _ -> B
+                                   end;
+                                 modify ->
+                                   ElementGen(B, ?TEMP(Temp))
+                               end,
+                  {NewElement, T};
+                false ->
+                  {sample_from_type(ElementType, ?TEMP(Temp)), [B|T]}
+              end;
+
+              ({ElementGen, ElementType}, ImproperTail) ->
+              case proper_types:is_instance(ImproperTail, ElementType) of
+                true ->
+                  NewElement = case list_choice(tuple, ?TEMP(Temp)) of
+                                 nothing ->
+                                   case Temp of
+                                     null ->
+                                       ElementGen(ImproperTail, null);
+                                     _ -> ImproperTail
+                                   end;
+                                 modify ->
+                                   ElementGen(ImproperTail, ?TEMP(Temp))
+                               end,
+                  {NewElement, improper_ending};
+                false ->
+                  {sample_from_type(ElementType, ?TEMP(Temp)), improper_ending}
+              end
+          end,
+          Base,
+          ElementGens),
       NewFixedList
   end.
 
@@ -598,7 +647,8 @@ match_cook(Base, Type = {'$type', _}, Temp) ->
       sample_from_type(Type, ?TEMP(Temp));
     _ ->
       Gen = replace_generators(Type),
-      Gen(Base, ?SLTEMP(Temp))
+      BaseNormalized = Gen(Base, null),
+      Gen(BaseNormalized, ?SLTEMP(Temp))
   end;
 match_cook(Base, RawType, Temp) ->
   if
@@ -761,6 +811,16 @@ wrapper_gen_sa(Type) ->
               save_sized_generation(Base, Temp, Next, Type)
           end
       end
+  end.
+
+is_user_defined(Type) ->
+  error =/= proper_types:find_prop(user_nf, Type).
+
+user_defined_gen_sa(Type) ->
+  NF = proper_types:get_prop(user_nf, Type),
+  fun (Base, T) ->
+      NewRaw = NF(Base, T),
+      match_cook(Base, NewRaw, T)
   end.
 
 %% utility
