@@ -1,7 +1,7 @@
 %%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Lï¿½scher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
 %%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,10 +19,38 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Lï¿½scher and Kostis Sagonas
+%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Lï¿½scher
+%%% @author Andreas Löscher
 
+%%% @doc This module provides simulated annealing (SA) as search strategy for
+%%% targeted property-based testing. SA is a local search meta-heuristic that
+%%% can be used to address discrete and continuous optimization problems.
+%%%
+%%% SA starts with a random initial input. It the produces a random input in the
+%%% the neighborhood os the prvious one and compares the fitnessof both. If the
+%%% new input has a higher fitness than the previous one, it is accepted as new
+%%% input. SA can also accepts worse inputs with a certain probbability.
+%%% (<a target="_blank" href="https://en.wikipedia.org/wiki/Simulated_annealing">more information</a>)
+%%%
+%%% == Targeted Generators ==
+%%%
+%%% Targeted generators can be specified in two different ways either by specifying a generator
+%%% for the initial solution and a neighbohood function to produce the following ones:
+%%% ```?TARGET(#{first => <Generator>, next => <Fun>})'''
+%%% or by letting PropEr construct all of this automatically from a generator:
+%%% ```?TARGET(#{gen => <Generator>})'''
+%%%
+%%% The neighborhood function `Fun' should be of type
+%%% ```fun((proper:term(), proper_target:fitness()) -> proper_types:type()).'''
+%%%
+%%% == Configuration ==
+%%%
+%%% SA can be configured in various ways by writing options in the process dictionary.
+%%%
+%% <dt>
+%%  </d
+%% </dt>
 -module(proper_sa).
 
 -behaviour(proper_target).
@@ -298,11 +326,13 @@ get_acceptance_function(OutputFun) ->
       fun acceptance_function_standard/3
   end.
 
+%% @doc returns the fitness of the last accepted solution
 -spec get_last_fitness() -> proper_target:fitness().
 get_last_fitness() ->
   State = get(?SA_DATA),
   State#sa_data.last_energy.
 
+%% @doc restart the search starting from a random input
 -spec reset() -> ok.
 reset() ->
   Data = get(?SA_DATA),
@@ -323,6 +353,7 @@ reset_all_targets(Dict, [K|T]) ->
   NewVal = {S#sa_target{last_generated = ResetValue}, N, F},
   reset_all_targets(dict:store(K, NewVal, Dict), T).
 
+%% @private
 -spec init_strategy(proper:outer_test(), proper:setup_opts()) -> proper:outer_test().
 init_strategy(Prop, #{numtests:=Steps, output_fun:=OutputFun}) ->
   proper_sa_gen:init(),
@@ -333,6 +364,7 @@ init_strategy(Prop, #{numtests:=Steps, output_fun:=OutputFun}) ->
   put(?SA_DATA, SA_Data),
   Prop.
 
+%% @private
 -spec cleanup() -> ok.
 cleanup() ->
   erase(?SA_DATA),
@@ -340,6 +372,7 @@ cleanup() ->
   proper_sa_gen:cleanup(),
   ok.
 
+%% @private
 -spec init_target(proper_target:tmap()) -> proper_target:target().
 init_target(TMap) when map_size(TMap) =:= 0 ->
   init_target(?MODULE:integer());
@@ -367,7 +400,7 @@ next_func(SATarget) ->
   %% return according to interface
   {SATarget#sa_target{current_generated = Generated}, Generated}.
 
-
+%% @private
 -spec store_target(proper_target:key(), proper_target:target()) -> 'ok'.
 store_target(Key, Target) ->
   Data = get(?SA_DATA),
@@ -375,6 +408,7 @@ store_target(Key, Target) ->
   put(?SA_DATA, NewData),
   ok.
 
+%% @private
 -spec retrieve_target(proper_target:key()) -> proper_target:target() | 'undefined'.
 retrieve_target(Key) ->
   Dict = (get(?SA_DATA))#sa_data.state,
@@ -385,6 +419,7 @@ retrieve_target(Key) ->
       undefined
   end.
 
+%% @private
 -spec update_global_fitness(proper_target:fitness()) -> 'ok'.
 update_global_fitness(Fitness) ->
   Data = get(?SA_DATA),
@@ -441,6 +476,7 @@ update_all_targets(Dict, [K|T]) ->
   NewVal = {S#sa_target{last_generated = S#sa_target.current_generated}, N, F},
   update_all_targets(dict:store(K, NewVal, Dict), T).
 
+%% @private
 -spec get_shrinker(proper_target:tmap()) -> proper_types:type().
 get_shrinker(#{first := First}) -> First;
 get_shrinker(#{gen := Gen}) -> Gen.
@@ -451,18 +487,21 @@ get_shrinker(#{gen := Gen}) -> Gen.
 
 -type first_next() :: proper_target:tmap().
 
+%% @doc constructs a neighborhood function `Fun(Base, Temp)' from `Type'
 -spec get_neighborhood_function(proper_types:type()) -> fun((proper:term(), proper_target:fitness()) -> proper_types:type()).
-get_neighborhood_function(RawGen) ->
-  #{next := Next} = proper_sa_gen:from_proper_generator(RawGen),
+get_neighborhood_function(Type) ->
+  #{next := Next} = proper_sa_gen:from_proper_generator(Type),
   Next.
 
+%% @doc equivalent to `integer(inf, inf)'
 -spec integer() -> first_next().
 integer() ->
   ?MODULE:integer(inf, inf).
 
+%% @doc "first" generator and "next" function for integers between `Low' and `High', bounds included.
 -spec integer(proper_types:extint(), proper_types:extint()) -> first_next().
-integer(L, R) ->
-  #{first => proper_types:integer(L, R), next => integer_next(L, R)}.
+integer(Low, High) ->
+  #{first => proper_types:integer(Low, High), next => integer_next(Low, High)}.
 
 integer_next(L, R) ->
   fun (OldInstance, Temperature) ->
@@ -476,13 +515,15 @@ integer_next(L, R) ->
       ?LET(X, proper_types:integer(LL, LR), make_inrange(OldInstance, X, L, R))
   end.
 
+%% @doc equivalent to `float(inf, inf)'
 -spec float() -> first_next().
 float() ->
   ?MODULE:float(inf, inf).
 
+%% @doc "first" generator and "next" function for floats between `Low' and `High', bounds included.
 -spec float(proper_types:extnum(), proper_types:extnum()) -> first_next().
-float(L, R) ->
-  #{first => proper_types:float(L, R), next => float_next(L, R)}.
+float(Low, High) ->
+  #{first => proper_types:float(Low, High), next => float_next(Low, High)}.
 
 float_next(L, R) ->
   fun (OldInstance, Temperature) ->
@@ -506,12 +547,11 @@ make_inrange(Val, Offset, L, R) when R =/= inf, Val + Offset > R ->
   make_inrange(Val - Offset, L, R);
 make_inrange(Val, Offset, L, R) -> make_inrange(Val + Offset, L, R).
 
-
-%% list
+%% @doc "first" generator and "next" function for lists containing elements of type `ElemType'
 -spec list(proper_types:type()) -> first_next().
-list(Type) ->
-  #{first => proper_types:list(Type),
-    next => list_next(Type)}.
+list(ElemType) ->
+  #{first => proper_types:list(ElemType),
+    next => list_next(ElemType)}.
 
 list_next(Type) ->
   fun (Base, _T) ->
