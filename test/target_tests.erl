@@ -257,11 +257,7 @@ graph_test() ->
 
 prop_graph() ->
   ?FORALL_SA({V, E},
-             ?TARGET(#{gen => simple_graph()}),
-             begin
-               ?MAXIMIZE(length(E) - length(V)),
-               true
-             end).
+             ?TARGET(#{gen => simple_graph()}), true).
 
 %% simple generator for a graph
 simple_graph() ->
@@ -331,9 +327,19 @@ matching_graph() ->
 graph_match_test() ->
   put(proper_sa_tempfunc, default),
   put(proper_sa_acceptfunc, default),
-  ?timeout(20, ?assertNot(proper:quickcheck(prop_graph_match(), ?PROPER_OPTIONS))).
+  ?timeout(20, [?assert(proper:quickcheck(prop_graph_match_corr(), ?PROPER_OPTIONS)),
+                ?assertNot(proper:quickcheck(prop_graph_match_perf(), ?PROPER_OPTIONS))]).
 
-prop_graph_match() ->
+prop_graph_match_corr() ->
+  ?FORALL_SA({V, E},
+             ?TARGET(#{gen => matching_graph()}),
+             begin
+               UV = length(V) - length(E),
+               ?MAXIMIZE(UV),
+               UV < 42
+             end).
+
+prop_graph_match_perf() ->
   ?FORALL_SA({V, E},
              ?TARGET(#{gen => matching_graph()}),
              begin
@@ -344,5 +350,5 @@ prop_graph_match() ->
                                                 lists:member(L, V) andalso
                                                 lists:member(R, V)
                                           end, true, E),
-               CorrectEdges andalso UV < 42
+               CorrectEdges
              end).
