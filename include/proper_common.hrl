@@ -70,6 +70,8 @@
 -define(MAXIMIZE_UNTIL(Fitness, Threshold), proper_target:adjust(Fitness, Threshold)).
 -define(MAXIMIZE_UNTIL(Fitness, Target, Threshold),
         proper_target:adjust(Fitness, Threshold, ??Target)).
+-define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
+-define(MINIMIZE(Fitness, Target), ?MAXIMIZE(-Fitness, Target)).
 
 -define(STRATEGY(Strat, Prop), ?SETUP(fun (Opts) ->
                                           proper_target:use_strategy(Strat, Prop, Opts),
