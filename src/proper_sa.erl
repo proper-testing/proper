@@ -121,6 +121,7 @@
          p = fun (_, _, _) -> false end              :: accept_fun(),
          %% energy level
          last_energy = null                          :: proper_target:fitness() | null,
+         last_update = 0                             :: integer(),
          %% temperature function
          temperature = 1.0                           :: temperature(),
          temp_func = fun(_, _, _, _, _) -> 1.0 end   :: temp_fun(),
@@ -326,11 +327,11 @@ get_acceptance_function(OutputFun) ->
       fun acceptance_function_standard/3
   end.
 
-%% @doc returns the fitness of the last accepted solution
--spec get_last_fitness() -> proper_target:fitness().
+%% @doc returns the fitness of the last accepted solution and how many tests old the fitness is
+-spec get_last_fitness() -> {integer(), proper_target:fitness()}.
 get_last_fitness() ->
   State = get(?SA_DATA),
-  State#sa_data.last_energy.
+  {State#sa_data.last_update, State#sa_data.last_energy}.
 
 %% @doc restart the search starting from a random input
 -spec reset() -> ok.
@@ -339,6 +340,7 @@ reset() ->
   put(?SA_DATA,
       Data#sa_data{state = reset_all_targets(Data#sa_data.state),
                    last_energy = null,
+                   last_update = 0,
                    k_max = Data#sa_data.k_max - Data#sa_data.k_current,
                    k_current = 0}).
 
@@ -445,7 +447,8 @@ update_global_fitness(Fitness) ->
                                            K_CURRENT,
                                            true),
                 Data#sa_data{state = NewState,
-                             last_energy=Fitness,
+                             last_energy = Fitness,
+                             last_update = 0,
                              k_current = AdjustedK,
                              temperature = NewTemperature};
               false ->
@@ -459,7 +462,9 @@ update_global_fitness(Fitness) ->
                                            K_MAX,
                                            K_CURRENT,
                                            false),
-                Data#sa_data{k_current = AdjustedK, temperature = NewTemperature}
+                Data#sa_data{last_update = Data#sa_data.last_update +1,
+                             k_current = AdjustedK,
+                             temperature = NewTemperature}
             end,
   put(?SA_DATA, NewData),
   ok.
