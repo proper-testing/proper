@@ -23,45 +23,40 @@
 %%% @version {@version}
 %%% @author Andreas Löscher
 
--module(target_tests).
+-module(exists_tests).
 
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(PROPER_OPTIONS, [quiet, {numtests, 1000}]).
+-define(PROPER_OPTIONS, [quiet, {search_steps, 1000}, noshrink]).
+-define(PROPER_OPTIONS_SHRINKING, [quiet, {search_steps, 1000}]).
 -define(timeout(Timeout, Tests), {timeout, Timeout, Tests}).
 
--spec sa_test() -> 'ok'.
-sa_test() ->
-  true = proper:quickcheck(prop_sa(), ?PROPER_OPTIONS),
+%% Macros Test
+prop_exists() ->
+  ?FORALL(X, integer(),
+          ?EXISTS(I, proper_sa:integer(),
+                  begin
+                    ?MAXIMIZE(I),
+                    I > X
+                  end)).
+
+prop_not_exists() ->
+  ?NOT_EXISTS(I, proper_sa:integer(),
+              begin
+                ?MAXIMIZE(I),
+                I >= 10
+              end).
+
+exists_test() ->
+  ?assert(proper:quickcheck(prop_exists(), ?PROPER_OPTIONS)).
+
+not_exists_test() ->
+  false = proper:quickcheck(prop_not_exists(), ?PROPER_OPTIONS),
+  [10] = proper:counterexample(),
   ok.
 
-prop_sa() ->
-  ?STRATEGY(proper_sa,
-            ?FORALL({I, J}, {?TARGET(proper_sa:integer()), ?TARGET(proper_sa:integer())},
-                    begin
-                      ?MAXIMIZE(-(I+J)),
-                      true
-                    end)).
-
--spec shrinking_test() -> 'ok'.
-shrinking_test() ->
-  false = proper:quickcheck(prop_shrinking(), ?PROPER_OPTIONS),
-  [1000] = proper:counterexample(),
-  ok.
-
-prop_shrinking() ->
-  ?STRATEGY(proper_sa,
-            proper:numtests(1000,
-                            ?FORALL(I, ?TARGET(proper_sa:integer()),
-                                    begin
-                                      ?MAXIMIZE(I),
-                                      check(I)
-                                    end))).
-
-check(I) ->
-  I < 1000.
-
+%% Generator
 -spec integer_test() -> 'ok'.
 integer_test() ->
   put(proper_sa_testing, true),
@@ -100,39 +95,21 @@ combine_test() ->
 appl(_, A, 0) -> A;
 appl(TG, A, X) -> appl(TG, TG(A, 0.5), X - 1).
 
-
--spec basic1_test() -> 'ok'.
-basic1_test() ->
+-spec biglist_test() -> 'ok'.
+biglist_test() ->
   put(proper_sa_testing, true),
   false = proper:quickcheck(prop_big_list(), ?PROPER_OPTIONS),
   [L] = proper:counterexample(),
-  ?assertMatch(48,length(L)).
+  ?assertMatch(49,length(L)).
 
 prop_big_list() ->
   Gen = proper_types:list(atom),
-  ?FORALL_SA(List, ?TARGET(#{gen =>Gen}),
-             begin
-               L = length(List),
-               ?MAXIMIZE(-abs(L - 50)),
-               abs(L - 50) > 2
-             end).
-
-
--spec basic2_test() -> 'ok'.
-basic2_test() ->
-  put(proper_sa_testing, true),
-  false = proper:quickcheck(prop_use_ngenerator(), ?PROPER_OPTIONS),
-  [L] = proper:counterexample(),
-  ?assertMatch(48,length(L)).
-
-prop_use_ngenerator() ->
-  ?FORALL_SA(List, ?TARGET(#{gen => proper_types:list(atom)}),
-             begin
-               L = length(List),
-               ?MAXIMIZE(-abs(L - 50)),
-               abs(L - 50) > 2
-             end).
-
+  ?NOT_EXISTS(List, #{gen =>Gen},
+              begin
+                L = length(List),
+                ?MINIMIZE(abs(L - 50)),
+                abs(L - 50) < 2
+              end).
 
 -spec let_test() -> 'ok'.
 let_test() ->
@@ -140,15 +117,14 @@ let_test() ->
   ?assert(proper:quickcheck(prop_let(), ?PROPER_OPTIONS)).
 
 prop_let() ->
-  ?FORALL_SA(V, ?TARGET(#{gen => even_int()}),
-             begin
-               ?MAXIMIZE(-V),
-               V rem 2 =:= 0
-             end).
+  ?NOT_EXISTS(V, #{gen => even_int()},
+              begin
+                ?MINIMIZE(V),
+                V rem 2 =/= 0
+              end).
 
 even_int() ->
   ?LET(I, integer(), I*2).
-
 
 -spec suchthat_test() -> 'ok'.
 suchthat_test() ->
@@ -156,15 +132,14 @@ suchthat_test() ->
   ?assert(proper:quickcheck(prop_suchthat(), ?PROPER_OPTIONS)).
 
 prop_suchthat() ->
-  ?FORALL_SA(V, ?TARGET(#{gen => suchthat_gen()}),
-             begin
-               ?MAXIMIZE(V),
-               V rem 2 =:= 0
-             end).
+  ?NOT_EXISTS(V, #{gen => suchthat_gen()},
+              begin
+                ?MAXIMIZE(V),
+                V rem 2 =/= 0
+              end).
 
 suchthat_gen() ->
   ?SUCHTHAT(I, integer(), I rem 2 =:= 0).
-
 
 -spec union_test() -> 'ok'.
 union_test() ->
@@ -173,8 +148,7 @@ union_test() ->
 
 prop_union() ->
   L = [a, b, c],
-  ?FORALL_SA(X, ?TARGET(#{gen => proper_types:union(L)}), lists:member(X, L)).
-
+  ?NOT_EXISTS(X, #{gen => proper_types:union(L)}, not lists:member(X, L)).
 
 -spec weighted_union_test() -> 'ok'.
 weighted_union_test() ->
@@ -183,8 +157,7 @@ weighted_union_test() ->
 
 prop_weighted_union() ->
   Gen = proper_types:weighted_union([{1, a}, {2, b}, {3, c}]),
-  ?FORALL_SA(X, ?TARGET(#{gen => Gen}), lists:member(X, [a, b, c])).
-
+  ?NOT_EXISTS(X, #{gen => Gen}, not lists:member(X, [a, b, c])).
 
 -spec tuple_test() -> 'ok'.
 tuple_test() ->
@@ -192,14 +165,13 @@ tuple_test() ->
   ?assert(proper:quickcheck(prop_tuple(), ?PROPER_OPTIONS)).
 
 prop_tuple() ->
-  ?FORALL_SA({L, R}, ?TARGET(#{gen => tuple_type_res()}), L > R).
+  ?NOT_EXISTS({L, R}, #{gen => tuple_type_res()}, L =< R).
 
 tuple_type_res() ->
   ?SUCHTHAT({V1, V2}, tuple_type(), V1 > V2).
 
 tuple_type() ->
   proper_types:tuple([integer(), integer()]).
-
 
 -spec let_union_test() -> 'ok'.
 let_union_test() ->
@@ -208,7 +180,7 @@ let_union_test() ->
 
 prop_union_let() ->
   C = lists:seq(0,1),
-  ?FORALL_SA(_E, ?TARGET(#{gen => union_let_type(C)}), true).
+  ?NOT_EXISTS(_E, #{gen => union_let_type(C)}, false).
 
 union_let_type(C) ->
   ?LET(E, union(C), E).
@@ -220,8 +192,7 @@ lazy_test() ->
 
 prop_lazy() ->
   Gen = ?LAZY(?LET(I, integer(), I * 2)),
-  ?FORALL_SA(I, ?TARGET(#{gen => Gen}), I rem 2 =:= 0).
-
+  ?NOT_EXISTS(I, #{gen => Gen}, I rem 2 =/= 0).
 
 -spec sized_test() -> 'ok'.
 sized_test() ->
@@ -231,15 +202,14 @@ sized_test() ->
   ?assert(42 =< length(C)).
 
 prop_sized() ->
-  ?FORALL_SA(L, ?TARGET(#{gen => sized_type()}),
-             begin
-               ?MAXIMIZE(lists:sum(L)),
-               length(L) < 42
-             end).
+  ?NOT_EXISTS(L, #{gen => sized_type()},
+              begin
+                ?MAXIMIZE(lists:sum(L)),
+                length(L) >= 42
+              end).
 
 sized_type() ->
   ?SIZED(S, lists:seq(0, S)).
-
 
 -spec edge_test() -> 'ok'.
 edge_test() ->
@@ -247,7 +217,7 @@ edge_test() ->
 
 prop_edge() ->
   Gen = simple_edge([1,2,3,4,5,6,7,8,9]),
-  ?FORALL_SA({L, R}, ?TARGET(#{gen => Gen}), L > R).
+  ?NOT_EXISTS({L, R}, #{gen => Gen}, L =< R).
 
 -spec graph_test() -> 'ok'.
 graph_test() ->
@@ -256,7 +226,7 @@ graph_test() ->
   ?timeout(10, ?assert(proper:quickcheck(prop_graph(), ?PROPER_OPTIONS))).
 
 prop_graph() ->
-  ?FORALL_SA(_, ?TARGET(#{gen => simple_graph()}), true).
+  ?NOT_EXISTS(_, #{gen => simple_graph()}, false).
 
 %% simple generator for a graph
 simple_graph() ->
@@ -282,7 +252,7 @@ il_type() ->
   ?LET(I, integer(), [I|42]).
 
 prop_il() ->
-  ?FORALL_SA(_L, ?TARGET(#{gen => il_type()}), true).
+  ?NOT_EXISTS(_L, #{gen => il_type()}, false).
 
 -spec improper_list_test() -> 'ok'.
 improper_list_test() ->
@@ -292,16 +262,17 @@ improper_list_test() ->
 
 
 prop_reset() ->
-  ?STRATEGY(hill_climbing,
-            ?FORALL(I, ?TARGET(stepint()),
-                    begin
-                      ?MAXIMIZE(I),
-                      case I < 10 of
-                        true -> ok;
-                        false -> proper_sa:reset()
-                      end,
-                      I =< 10
-                    end)).
+  ?NOT_EXISTS(I, stepint(),
+              begin
+                ?MAXIMIZE(I),
+                case I < 10 of
+                  true -> ok;
+                  false -> proper_sa:reset()
+                end,
+                %% I will be 10 when resetting
+                %% and then 0 in the next run
+                I > 10
+              end).
 
 stepint() ->
   #{first => 0,
@@ -327,27 +298,82 @@ graph_match_test() ->
   put(proper_sa_tempfunc, default),
   put(proper_sa_acceptfunc, default),
   ?timeout(20, [?assert(proper:quickcheck(prop_graph_match_corr(), ?PROPER_OPTIONS)),
-                ?assertNot(proper:quickcheck(prop_graph_match_perf(), ?PROPER_OPTIONS))]).
+                ?assert(proper:quickcheck(prop_graph_match_perf(), ?PROPER_OPTIONS))]).
 
 prop_graph_match_perf() ->
-  ?FORALL_SA({V, E},
-             ?TARGET(#{gen => matching_graph()}),
-             begin
-               UV = length(V) - length(E),
-               ?MAXIMIZE(UV),
-               UV < 42
-             end).
+  ?EXISTS({V, E}, #{gen => matching_graph()},
+          begin
+            UV = length(V) - length(E),
+            ?MAXIMIZE(UV),
+            UV =:= 42
+          end).
 
 prop_graph_match_corr() ->
-  ?FORALL_SA({V, E},
-             ?TARGET(#{gen => matching_graph()}),
-             begin
-               UV = length(V) - length(E),
-               ?MAXIMIZE(UV),
-               CorrectEdges = lists:foldr(fun ({L, R}, AccIn) ->
-                                              AccIn andalso
-                                                lists:member(L, V) andalso
-                                                lists:member(R, V)
-                                          end, true, E),
-               CorrectEdges
-             end).
+  ?NOT_EXISTS({V, E},
+              #{gen => matching_graph()},
+              begin
+                UV = length(V) - length(E),
+                ?MAXIMIZE(UV),
+                CorrectEdges = lists:foldr(fun ({L, R}, AccIn) ->
+                                               AccIn andalso
+                                                 lists:member(L, V) andalso
+                                                 lists:member(R, V)
+                                           end, true, E),
+                not CorrectEdges
+              end).
+
+-spec whenfail_test() -> 'ok'.
+whenfail_test() ->
+  put(test_token, false),
+  false = proper:quickcheck(prop_whenfail(), ?PROPER_OPTIONS),
+  ?assert(get(test_token)).
+
+prop_whenfail() ->
+  ?EXISTS(_, #{gen =>integer()},
+          ?WHENFAIL(put(test_token, true), false)).
+
+-spec shrink1_test() -> 'ok'.
+shrink1_test() ->
+  false = proper:quickcheck(prop_shrink1(), ?PROPER_OPTIONS_SHRINKING),
+  ?assertMatch([1050], proper:counterexample()).
+
+prop_shrink1() ->
+  ?FORALL(I, integer(1000, 1100),
+          ?EXISTS(J, #{gen => integer(1000,1050)},
+                  begin
+                    ?MAXIMIZE(J),
+                    J>I
+                  end)).
+
+-spec shrink2_test() -> 'ok'.
+shrink2_test() ->
+  false = proper:quickcheck(prop_shrink2(), ?PROPER_OPTIONS_SHRINKING),
+  ?assertMatch([0,1], proper:counterexample()).
+
+prop_shrink2() ->
+  ?FORALL(I, integer(0, 100),
+          ?NOT_EXISTS(J, #{gen => integer(-50, 50)},
+                      begin
+                        ?MAXIMIZE(J),
+                        J>I
+                      end)).
+
+-spec shrink3_test() -> 'ok'.
+shrink3_test() ->
+  false = proper:quickcheck(prop_shrink3(), ?PROPER_OPTIONS_SHRINKING),
+  ?assertMatch(undefined, proper:counterexample()).
+
+prop_shrink3() ->
+  ?EXISTS(_, #{gen =>integer()}, false).
+
+-spec shrink4_test() -> 'ok'.
+shrink4_test() ->
+  false = proper:quickcheck(prop_shrink4(), ?PROPER_OPTIONS_SHRINKING),
+  ?assertMatch([0], proper:counterexample()).
+
+prop_shrink4() ->
+  ?NOT_EXISTS(I, #{gen =>integer(0, 20)},
+              begin
+                ?MINIMIZE(I),
+                I < 10
+              end).

@@ -63,13 +63,14 @@
 
 -module(proper_target).
 
--export([targeted/3, update_target_uvs/2, update_target_uvs/3, use_strategy/3, cleanup_strategy/0]).
+-export([targeted/2, update_target_uvs/2, use_strategy/2,
+         strategy/0, init_strategy/1, cleanup_strategy/0, get_shrinker/1]).
 
 -include_lib("proper_common.hrl").
 
 -export_type([key/0, fitness/0, tmap/0]).
 -export_type([target_state/0, next_func/0, fitness_func/0,
-              target/0, options/0]).
+              target/0]).
 
 %% -----------------------------------------------------------------------------
 %% Type declarations
@@ -86,14 +87,13 @@
 -type fitness_func() :: fun ((target_state(), fitness()) -> target_state()).
 
 -type target()    :: {target_state(), next_func(), fitness_func()}.
--type options()   :: [{atom(), term()}].
 -type strategy()  :: module().
 
 %% -----------------------------------------------------------------------------
 %% proper_target callback functions for defining strategies
 %% ----------------------------------------------------------------------------
 %% strategy global initializer
--callback init_strategy(proper:outer_test(), proper:setup_opts()) -> proper:outer_test().
+-callback init_strategy(proper:setup_opts()) -> ok.
 %%
 -callback cleanup() -> 'ok'.
 %% target (one variable) initializer
@@ -107,28 +107,22 @@
 -callback update_global_fitness(fitness()) -> 'ok'.
 
 %% @private
--spec targeted(key(), proper_types:type(), tmap()) -> proper_types:type().
-targeted(Key, Gen, TMap) ->
-  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(Key, Gen, TMap))),
-          [shrink_gen(TMap)]).
+-spec targeted(key(), tmap()) -> proper_types:type().
+targeted(Key, TMap) ->
+  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(Key, TMap))),
+          [get_shrinker(TMap)]).
 
 %% @private
-targeted_gen(Key, Gen, TMap) ->
+targeted_gen(Key, TMap) ->
   {State, NextFunc, _FitnessFunc} = get_target(Key, TMap),
   {NewState, NextValue} = NextFunc(State),
   update_target(Key, NewState),
-  Gen(NextValue).
+  NextValue.
 
 %% @private
 -spec update_target_uvs(fitness(), threshold()) -> boolean().
 update_target_uvs(Fitness, Threshold) ->
   set_fitness(Fitness),
-  check_threshold(Threshold, Fitness).
-
-%% @private
--spec update_target_uvs(fitness(), threshold(), key()) -> boolean().
-update_target_uvs(Fitness, Threshold, Key) ->
-  set_fitness(Fitness, Key),
   check_threshold(Threshold, Fitness).
 
 %% @private
@@ -139,24 +133,17 @@ check_threshold(Threshold, Fitness) ->
   end.
 
 %% @private
-set_fitness(Fitness, Key) ->
-  {State, _NextFunc, FitnessFunc} = get_target(Key, []),
-  NewState = FitnessFunc(State, Fitness),
-  update_target(Key, NewState).
-
-%% @private
 set_fitness(Fitness) ->
   update_global(Fitness).
 
-%% target_strategy
-
-%% access to the current strategy
--define(STRATEGY, get(target_strategy)).
+-spec strategy() -> strategy().
+strategy() ->
+  get('$strategy').
 
 %% store the used strategy into the process dictionary
 %% @private
--spec use_strategy(strategy(), any(), proper:setup_opts()) -> proper:outer_test().
-use_strategy(Strat, Prop, Opts) ->
+-spec use_strategy(strategy(), proper:setup_opts()) -> proper:outer_test().
+use_strategy(Strat, Opts) ->
   Strategy = case Strat of
                simulated_annealing ->
                  proper_sa;
@@ -167,17 +154,33 @@ use_strategy(Strat, Prop, Opts) ->
                  Strat
              end,
   put(target_strategy, Strategy),
-  Strategy:init_strategy(Prop, Opts).
+  Strategy:init_strategy(Opts).
+
+-spec init_strategy(strategy()) -> ok.
+init_strategy(Strat) ->
+  Strategy = case Strat of
+               simulated_annealing ->
+                 proper_sa;
+               hill_climbing ->
+                 put(target_sa_acceptfunc, hillclimbing),
+                 proper_sa;
+               _ ->
+                 Strat
+             end,
+  put('$strategy', Strategy),
+  Steps = get('$search_steps'),
+  OutputFun = fun(_,_) -> ok end,
+  Strategy:init_strategy(#{numtests=>Steps, output_fun=>OutputFun}).
 
 %% @private
 -spec cleanup_strategy() -> ok.
 cleanup_strategy() ->
-  (?STRATEGY):cleanup().
+  (strategy()):cleanup().
 
 %% @private
--spec get_target(key(), options()) -> target().
+-spec get_target(key(), tmap()) -> target().
 get_target(Key, Opts) ->
-  Strategy = ?STRATEGY,
+  Strategy = strategy(),
   case Strategy:retrieve_target(Key) of
     undefined ->
       FreshTarget = Strategy:init_target(Opts),
@@ -190,15 +193,18 @@ get_target(Key, Opts) ->
 %% @private
 -spec update_target(key(), target_state()) -> 'ok'.
 update_target(Key, State) ->
-  {_, N, F} = (?STRATEGY):retrieve_target(Key),
-  (?STRATEGY):store_target(Key, {State, N, F}).
+  Strategy = strategy(),
+  {_, N, F} = Strategy:retrieve_target(Key),
+  Strategy:store_target(Key, {State, N, F}).
 
 %% @private
 -spec update_global(fitness()) -> 'ok'.
 update_global(Fitness) ->
-  (?STRATEGY):update_global_fitness(Fitness).
+  Strategy = strategy(),
+  Strategy:update_global_fitness(Fitness).
 
 %% @private
--spec shrink_gen(options()) -> proper_types:type().
-shrink_gen(Opts) ->
-  (?STRATEGY):get_shrinker(Opts).
+-spec get_shrinker(tmap()) -> proper_types:type().
+get_shrinker(Opts) ->
+  Strategy = strategy(),
+  Strategy:get_shrinker(Opts).

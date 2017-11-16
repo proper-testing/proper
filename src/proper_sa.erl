@@ -56,7 +56,7 @@
 -behaviour(proper_target).
 
 %% callbacks
--export([init_strategy/2,
+-export([init_strategy/1,
          init_target/1,
          cleanup/0,
          store_target/2,
@@ -356,15 +356,14 @@ reset_all_targets(Dict, [K|T]) ->
   reset_all_targets(dict:store(K, NewVal, Dict), T).
 
 %% @private
--spec init_strategy(proper:outer_test(), proper:setup_opts()) -> proper:outer_test().
-init_strategy(Prop, #{numtests:=Steps, output_fun:=OutputFun}) ->
+-spec init_strategy(proper:setup_opts()) -> proper:outer_test().
+init_strategy(#{numtests:=Steps, output_fun:=OutputFun}) ->
   proper_sa_gen:init(),
   OutputFun("-- Simulated Annealing Search Strategy --~n", []),
   SA_Data = #sa_data{k_max = Steps,
                      p = get_acceptance_function(OutputFun),
                      temp_func = get_temperature_function(OutputFun)},
-  put(?SA_DATA, SA_Data),
-  Prop.
+  put(?SA_DATA, SA_Data), ok.
 
 %% @private
 -spec cleanup() -> ok.
