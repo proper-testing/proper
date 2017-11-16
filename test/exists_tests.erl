@@ -52,7 +52,7 @@ exists_test() ->
   ?assert(proper:quickcheck(prop_exists(), ?PROPER_OPTIONS)).
 
 not_exists_test() ->
-  false = proper:quickcheck(prop_not_exists(), ?PROPER_OPTIONS),
+  false = proper:quickcheck(prop_not_exists(), ?PROPER_OPTIONS_SHRINKING),
   [10] = proper:counterexample(),
   ok.
 
@@ -98,7 +98,7 @@ appl(TG, A, X) -> appl(TG, TG(A, 0.5), X - 1).
 -spec biglist_test() -> 'ok'.
 biglist_test() ->
   put(proper_sa_testing, true),
-  false = proper:quickcheck(prop_big_list(), ?PROPER_OPTIONS),
+  false = proper:quickcheck(prop_big_list(), ?PROPER_OPTIONS_SHRINKING),
   [L] = proper:counterexample(),
   ?assertMatch(49,length(L)).
 
@@ -219,11 +219,9 @@ prop_edge() ->
   Gen = simple_edge([1,2,3,4,5,6,7,8,9]),
   ?NOT_EXISTS({L, R}, #{gen => Gen}, L =< R).
 
--spec graph_test() -> 'ok'.
-graph_test() ->
-  put(proper_sa_tempfunc, default),
-  put(proper_sa_acceptfunc, default),
-  ?timeout(10, ?assert(proper:quickcheck(prop_graph(), ?PROPER_OPTIONS))).
+-spec graph_test_() -> 'ok'.
+graph_test_() ->
+  ?timeout(10, ?_assert(proper:quickcheck(prop_graph(), ?PROPER_OPTIONS))).
 
 prop_graph() ->
   ?NOT_EXISTS(_, #{gen => simple_graph()}, false).
@@ -293,12 +291,10 @@ matching_graph() ->
   ?LET({Vs, Es}, graph_duplicated_edges(),
        {Vs, lists:usort(Es)}).
 
--spec graph_match_test() -> 'ok'.
-graph_match_test() ->
-  put(proper_sa_tempfunc, default),
-  put(proper_sa_acceptfunc, default),
-  ?timeout(20, [?assert(proper:quickcheck(prop_graph_match_corr(), ?PROPER_OPTIONS)),
-                ?assert(proper:quickcheck(prop_graph_match_perf(), ?PROPER_OPTIONS))]).
+-spec graph_match_test_() -> 'ok'.
+graph_match_test_() ->
+  ?timeout(20, [?_assert(proper:quickcheck(prop_graph_match_corr(), ?PROPER_OPTIONS)),
+                ?_assert(proper:quickcheck(prop_graph_match_perf(), ?PROPER_OPTIONS))]).
 
 prop_graph_match_perf() ->
   ?EXISTS({V, E}, #{gen => matching_graph()},
@@ -329,8 +325,8 @@ whenfail_test() ->
   ?assert(get(test_token)).
 
 prop_whenfail() ->
-  ?EXISTS(_, #{gen =>integer()},
-          ?WHENFAIL(put(test_token, true), false)).
+  ?NOT_EXISTS(_, #{gen =>integer()},
+              ?WHENFAIL(put(test_token, true), true)).
 
 -spec shrink1_test() -> 'ok'.
 shrink1_test() ->
