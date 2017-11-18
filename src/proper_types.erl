@@ -139,7 +139,7 @@
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
-	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0,
+	 loose_tuple/1, exactly/1, fixed_list/1, function/2, map/2, any/0,
 	 shrink_list/1, safe_union/1, safe_weighted_union/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
@@ -1096,6 +1096,15 @@ function(Arity, RawRetType) when is_integer(Arity), Arity >= 0, Arity =< 255 ->
 function(RawArgTypes, RawRetType) ->
     function(length(RawArgTypes), RawRetType).
 
+%% @doc A map whose keys are defined by the generator `K' and values
+%% by the generator `V'.
+-spec map(K, V) -> proper_types:type() when
+      K :: raw_type(),
+      V :: raw_type().
+map(K, V) ->
+    ?LET(L, list({K, V}), maps:from_list(L)).
+
+
 function_gen(Type) ->
     {Arity, RetType} = get_prop(env, Type),
     proper_gen:function_gen(Arity, RetType).
@@ -1114,7 +1123,7 @@ function_is_instance(Type, X) ->
 -spec any() -> proper_types:type().
 any() ->
     AllTypes = [integer(),float(),atom(),bitstring(),?LAZY(loose_tuple(any())),
-		?LAZY(list(any()))],
+		?LAZY(list(any())), ?LAZY(map(any(), any()))],
     ?SUBTYPE(union(AllTypes), [
 	{generator, fun proper_gen:any_gen/1}
     ]).
