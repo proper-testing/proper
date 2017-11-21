@@ -1098,9 +1098,7 @@ function(RawArgTypes, RawRetType) ->
 
 %% @doc A map whose keys are defined by the generator `K' and values
 %% by the generator `V'.
--spec map(K, V) -> proper_types:type() when
-      K :: raw_type(),
-      V :: raw_type().
+-spec map(K::raw_type(), V::raw_type()) -> proper_types:type().
 map(K, V) ->
     ?LET(L, list({K, V}), maps:from_list(L)).
 
