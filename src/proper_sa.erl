@@ -48,9 +48,7 @@
 %%%
 %%% SA can be configured in various ways by writing options in the process dictionary.
 %%%
-%% <dt>
-%%  </d
-%% </dt>
+
 -module(proper_sa).
 
 -behaviour(proper_target).
@@ -74,8 +72,6 @@
 -include("proper_internal.hrl").
 
 %% macros and configuration parameters
--define(DEFAULT_STEPS, 1000).
--define(MAX_SIZE, 10000).
 -define(REHEAT_THRESHOLD, 5).
 -define(RESTART_THRESHOLD, 100).
 
@@ -266,65 +262,33 @@ temperature_function_standard_sa(_OldTemperature,
                                  _Accepted) ->
   {1.0 - (K_Current / K_Max), K_Current + 1}.
 
-get_temperature_function(OutputFun) ->
-  OutputFun("Temperature Function: \t", []),
+get_temperature_function(_) ->
   case get(proper_sa_tempfunc) of
-    default ->
-      OutputFun("default~n", []),
-      fun temperature_function_standard_sa/6;
-    fast ->
-      OutputFun("fast~n", []),
-      fun temperature_function_fast_sa/6;
-    very_fast ->
-      OutputFun("very fast~n", []),
-      fun temperature_function_fast2_sa/6;
-    reheat ->
-      OutputFun("decreasing reheating~n", []),
-      fun temperature_function_reheat_sa/6;
+    default -> fun temperature_function_standard_sa/6;
+    fast -> fun temperature_function_fast_sa/6;
+    very_fast -> fun temperature_function_fast2_sa/6;
+    reheat -> fun temperature_function_reheat_sa/6;
     Fun when is_function(Fun) ->
       case proplists:lookup(arity, erlang:fun_info(Fun)) of
-        {arity, 6} ->
-          OutputFun("configured ~p~n", [Fun]),
-          Fun;
-        _ ->
-          OutputFun("wrong arity of configured temperature function; using default instead~n", []),
-          fun temperature_function_standard_sa/6
+        {arity, 6} -> Fun;
+        _ -> fun temperature_function_standard_sa/6
       end;
-    undefined ->
-      OutputFun("default~n", []),
-      fun temperature_function_standard_sa/6;
-    _ ->
-      OutputFun("undefined configured temperature function; using default instead~n", []),
-      fun temperature_function_standard_sa/6
+    undefined -> fun temperature_function_standard_sa/6;
+    _ -> fun temperature_function_standard_sa/6
   end.
 
-get_acceptance_function(OutputFun) ->
-  OutputFun("Acceptance Function: \t", []),
+get_acceptance_function(_) ->
   case get(proper_sa_acceptfunc) of
-    default ->
-      OutputFun("default~n", []),
-      fun acceptance_function_standard/3;
-    hillclimbing ->
-      OutputFun("hillclimbing~n", []),
-      fun acceptance_function_hillclimbing/3;
-    normalized ->
-      OutputFun("normalized~n", []),
-      fun acceptance_function_normalized/3;
+    default -> fun acceptance_function_standard/3;
+    hillclimbing -> fun acceptance_function_hillclimbing/3;
+    normalized -> fun acceptance_function_normalized/3;
     Fun when is_function(Fun) ->
       case proplists:lookup(arity, erlang:fun_info(Fun)) of
-        {arity, 3} ->
-          OutputFun("configured ~p~n", [Fun]),
-          Fun;
-        _ ->
-          OutputFun("wrong arity of configured acceptance function; using default instead~n", []),
-          fun acceptance_function_standard/3
+        {arity, 3} -> Fun;
+        _ -> fun acceptance_function_standard/3
       end;
-    undefined ->
-      OutputFun("default~n", []),
-      fun acceptance_function_standard/3;
-    _ ->
-      OutputFun("undefined configured acceptance function; using default instead~n", []),
-      fun acceptance_function_standard/3
+    undefined -> fun acceptance_function_standard/3;
+    _ -> fun acceptance_function_standard/3
   end.
 
 %% @doc returns the fitness of the last accepted solution and how many tests old the fitness is
@@ -356,10 +320,9 @@ reset_all_targets(Dict, [K|T]) ->
   reset_all_targets(dict:store(K, NewVal, Dict), T).
 
 %% @private
--spec init_strategy(proper:setup_opts()) -> proper:outer_test().
+-spec init_strategy(proper:setup_opts()) -> 'ok'.
 init_strategy(#{numtests:=Steps, output_fun:=OutputFun}) ->
   proper_sa_gen:init(),
-  OutputFun("-- Simulated Annealing Search Strategy --~n", []),
   SA_Data = #sa_data{k_max = Steps,
                      p = get_acceptance_function(OutputFun),
                      temp_func = get_temperature_function(OutputFun)},

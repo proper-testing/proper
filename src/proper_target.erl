@@ -93,7 +93,7 @@
 %% proper_target callback functions for defining strategies
 %% ----------------------------------------------------------------------------
 %% strategy global initializer
--callback init_strategy(proper:setup_opts()) -> ok.
+-callback init_strategy(proper:opts()) -> 'ok'.
 %%
 -callback cleanup() -> 'ok'.
 %% target (one variable) initializer
@@ -175,6 +175,7 @@ init_strategy(Strat) ->
 %% @private
 -spec cleanup_strategy() -> ok.
 cleanup_strategy() ->
+  erase('$strategy'),
   (strategy()):cleanup().
 
 %% @private

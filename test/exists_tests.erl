@@ -274,7 +274,7 @@ prop_reset() ->
 
 stepint() ->
   #{first => 0,
-    next=> fun (Base, _) -> Base + 1 end}.
+    next => fun (Base, _) -> Base + 1 end}.
 
 reset_test() ->
   ?assert(proper:quickcheck(prop_reset(), ?PROPER_OPTIONS)).
@@ -325,7 +325,7 @@ whenfail_test() ->
   ?assert(get(test_token)).
 
 prop_whenfail() ->
-  ?NOT_EXISTS(_, #{gen =>integer()},
+  ?NOT_EXISTS(_, #{gen => integer()},
               ?WHENFAIL(put(test_token, true), true)).
 
 -spec shrink1_test() -> 'ok'.
@@ -335,23 +335,23 @@ shrink1_test() ->
 
 prop_shrink1() ->
   ?FORALL(I, integer(1000, 1100),
-          ?EXISTS(J, #{gen => integer(1000,1050)},
+          ?EXISTS(J, #{gen => integer(1000, 1050)},
                   begin
                     ?MAXIMIZE(J),
-                    J>I
+                    J > I
                   end)).
 
 -spec shrink2_test() -> 'ok'.
 shrink2_test() ->
   false = proper:quickcheck(prop_shrink2(), ?PROPER_OPTIONS_SHRINKING),
-  ?assertMatch([0,1], proper:counterexample()).
+  ?assertMatch([0, 1], proper:counterexample()).
 
 prop_shrink2() ->
   ?FORALL(I, integer(0, 100),
           ?NOT_EXISTS(J, #{gen => integer(-50, 50)},
                       begin
                         ?MAXIMIZE(J),
-                        J>I
+                        J > I
                       end)).
 
 -spec shrink3_test() -> 'ok'.
@@ -360,7 +360,7 @@ shrink3_test() ->
   ?assertMatch(undefined, proper:counterexample()).
 
 prop_shrink3() ->
-  ?EXISTS(_, #{gen =>integer()}, false).
+  ?EXISTS(_, #{gen => integer()}, false).
 
 -spec shrink4_test() -> 'ok'.
 shrink4_test() ->
@@ -368,7 +368,7 @@ shrink4_test() ->
   ?assertMatch([0], proper:counterexample()).
 
 prop_shrink4() ->
-  ?NOT_EXISTS(I, #{gen =>integer(0, 20)},
+  ?NOT_EXISTS(I, #{gen => integer(0, 20)},
               begin
                 ?MINIMIZE(I),
                 I < 10
