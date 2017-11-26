@@ -31,6 +31,10 @@ main([OutFile]) ->
 	false ->
 	    {ok, Handle} = file:open(OutFile, [write]),
 	    ToDefine =
+		case CurrVer < [9,0] of
+		    true  -> [];
+		    false -> ["AT_LEAST_20"]
+		end ++
 		case CurrVer < [8,0] of
 		    true  -> [];
 		    false -> ["AT_LEAST_19"]

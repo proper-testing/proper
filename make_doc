@@ -316,9 +316,15 @@ continue_after_header(CommLine, RevForms, [Form|Rest], TopFileName) ->
 	    continue_after_header(CommLine, [Form|RevForms], Rest, TopFileName)
     end.
 
+-ifdef(AT_LEAST_20).
+-define(CONTAINS_TEST(Str, Tag), string:find(Str, Tag) =/= nomatch).
+-else.
+-define(CONTAINS_TEST(Str, Tag), string:str(Str, Tag) =/= 0).
+-endif.
+
 -spec contains_tag([string()], string()) -> boolean().
 contains_tag(Text, Tag) ->
-    StrContainsTag = fun(Str) -> string:str(Str,Tag) =/= 0 end,
+    StrContainsTag = fun(Str) -> ?CONTAINS_TEST(Str, Tag) end,
     lists:any(StrContainsTag, Text).
 
 -spec replace(abs_form() | abs_type() | abs_rec_field() | abs_clause(),
