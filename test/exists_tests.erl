@@ -32,6 +32,32 @@
 -define(PROPER_OPTIONS_SHRINKING, [quiet, {search_steps, 1000}]).
 -define(timeout(Timeout, Tests), {timeout, Timeout, Tests}).
 
+%% Backwards Compatibility Test
+prop_strategy() ->
+  ?STRATEGY(proper_sa,
+            ?FORALL(X, ?TARGET(proper_sa:integer()),
+                    begin
+                      ?MAXIMIZE(X),
+                      X < 10
+                    end)).
+
+prop_forall_sa() ->
+  ?FORALL_SA(X, ?TARGET(proper_sa:integer()),
+          begin
+            ?MAXIMIZE(X),
+            X < 10
+          end).
+
+strategy_test() ->
+    false = proper:quickcheck(prop_strategy(), ?PROPER_OPTIONS_SHRINKING),
+    [10] = proper:counterexample(),
+    ok.
+
+forall_sa_test() ->
+    false = proper:quickcheck(prop_forall_sa(), ?PROPER_OPTIONS_SHRINKING),
+    [10] = proper:counterexample(),
+    ok.
+
 %% Macros Test
 prop_exists() ->
   ?FORALL(X, integer(),

@@ -112,15 +112,9 @@ init_pd(Key, Value) ->
     _ -> ok
   end.
 
--spec set_user_nf(proper_types:type(), fun((term(), proper_sa:temperature()) -> term())) -> proper_types:type().
+-spec set_user_nf(proper_types:type(), proper_sa:nf()) -> proper_types:type().
 set_user_nf(Type, NF) ->
-  {'$type', Props} = Type,
-  NewProps = case proper_types:find_prop(user_nf, Type) of
-               error -> [{user_nf, NF} | Props];
-               {ok, _} ->
-                 lists:keyreplace(user_nf, 1, Props, {user_nf, NF})
-             end,
-  {'$type', NewProps}.
+  proper_types:add_prop(user_nf, NF, Type).
 
 get_depth() ->
   DS = get(proper_sa_gen_depth_cache),

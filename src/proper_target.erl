@@ -93,7 +93,7 @@
 %% proper_target callback functions for defining strategies
 %% ----------------------------------------------------------------------------
 %% strategy global initializer
--callback init_strategy(proper:opts()) -> 'ok'.
+-callback init_strategy(proper:setup_opts()) -> 'ok'.
 %%
 -callback cleanup() -> 'ok'.
 %% target (one variable) initializer
@@ -141,6 +141,7 @@ strategy() ->
   get('$strategy').
 
 %% store the used strategy into the process dictionary
+%% used only to provide backwards compatibility
 %% @private
 -spec use_strategy(strategy(), proper:setup_opts()) -> proper:outer_test().
 use_strategy(Strat, Opts) ->
@@ -153,7 +154,7 @@ use_strategy(Strat, Opts) ->
                _ ->
                  Strat
              end,
-  put(target_strategy, Strategy),
+  put('$strategy', Strategy),
   Strategy:init_strategy(Opts).
 
 -spec init_strategy(strategy()) -> ok.
@@ -175,8 +176,8 @@ init_strategy(Strat) ->
 %% @private
 -spec cleanup_strategy() -> ok.
 cleanup_strategy() ->
-  erase('$strategy'),
-  (strategy()):cleanup().
+  (strategy()):cleanup(),
+  erase('$strategy'), ok.
 
 %% @private
 -spec get_target(key(), tmap()) -> target().

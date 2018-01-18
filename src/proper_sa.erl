@@ -67,7 +67,7 @@
 %% standard types
 -export([integer/0, integer/2, float/0, float/2, list/1]).
 
--export_type([first_next/0, temperature/0]).
+-export_type([first_next/0, temperature/0, nf/0]).
 
 -include("proper_internal.hrl").
 
@@ -81,6 +81,7 @@
 -define(SA_REHEAT_COUNTER, proper_sa_reheat_counter).
 
 %% types
+-type nf() :: fun((term(), proper_sa:temperature()) -> term()).
 -type k() :: integer().
 -type temperature() :: float().
 -type temp_fun() :: fun(( %% old temperature
@@ -455,7 +456,7 @@ get_shrinker(#{gen := Gen}) -> Gen.
 -type first_next() :: proper_target:tmap().
 
 %% @doc constructs a neighborhood function `Fun(Base, Temp)' from `Type'
--spec get_neighborhood_function(proper_types:type()) -> fun((proper:term(), proper_target:fitness()) -> proper_types:type()).
+-spec get_neighborhood_function(proper_types:type()) -> nf().
 get_neighborhood_function(Type) ->
   #{next := Next} = proper_sa_gen:from_proper_generator(Type),
   Next.

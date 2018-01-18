@@ -370,7 +370,7 @@
 -export([forall/2, exists/3, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
-	      false_positive_mfas/0, setup_opts/0]).
+	      false_positive_mfas/0, setup_opts/0, opts/0]).
 
 -include("proper_internal.hrl").
 
@@ -1217,10 +1217,10 @@ perform(NumTests, Test, Opts) ->
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
     case Passed of
 	0 -> {error, cant_satisfy};
-	_ -> #pass{samples = Samples, printers = Printers, performed = Passed}
+	_ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
     end;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
-    #pass{samples = Samples, printers = Printers, performed = ToPass};
+    #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#opts{output_fun = Print} = Opts) ->
     case run(Test, Opts) of
@@ -1257,11 +1257,8 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 perform_search(NumSteps, Target, DTest, Ctx, Opts, Not) ->
     perform_search(0, NumSteps, ?MAX_TRIES_FACTOR * NumSteps, Target, DTest, Ctx, Opts, Not).
 
-perform_search(Steps, _NumSteps, 0, _Target, _Ctx, _DTest, _Opts, _Not) ->
-    case Steps of
-	0 -> {error, cant_satisfy};
-	_ -> #pass{performed = Steps}
-    end;
+perform_search(_Steps, _NumSteps, 0, _Target, _Ctx, _DTest, _Opts, _Not) ->
+  {error, cant_satisfy};
 perform_search(NumSteps, NumSteps, _TriesLeft, _Target, _DTest, Ctx, _Opts, true) ->
     create_pass_result(Ctx, true_prop);
 perform_search(NumSteps, NumSteps, _TriesLeft, _Target, _DTest, Ctx, _Opts, false) ->
@@ -1427,10 +1424,10 @@ run({implies,true,Prop}, Ctx, Opts) ->
 run({implies,false,_Prop}, _Ctx, _Opts) ->
     {error, rejected};
 run({sample,NewSample,NewPrinter,Prop}, #ctx{samples = Samples,
-					     printers = Printers} = Ctx, _Opts) ->
+					     printers = Printers} = Ctx, Opts) ->
     NewCtx = Ctx#ctx{samples = [NewSample | Samples],
 		     printers = [NewPrinter | Printers]},
-    run(Prop, NewCtx);
+    run(Prop, NewCtx, Opts);
 run({whenfail,NewAction,Prop}, #ctx{actions = Actions} = Ctx, Opts)->
     NewCtx = Ctx#ctx{actions = [NewAction | Actions]},
     force(Prop, NewCtx, Opts);

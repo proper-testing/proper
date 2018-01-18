@@ -66,3 +66,17 @@
 -define(MAXIMIZE(Fitness), proper_target:update_target_uvs(Fitness, inf)).
 -define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
 -define(USERNF(Type, NF), proper_sa_gen:set_user_nf(Type, NF)).
+
+%%------------------------------------------------------------------------------
+%% Macros for backwards compatibility
+%%------------------------------------------------------------------------------
+
+-define(TARGET(TMap), proper_target:targeted(make_ref(), TMap)).
+-define(STRATEGY(Strat, Prop), ?SETUP(fun (Opts) ->
+                                          proper_target:use_strategy(Strat, Opts),
+                                          fun () ->
+                                              proper_target:cleanup_strategy()
+                                          end
+                                      end, Prop)).
+-define(FORALL_SA(X, RawType, Prop),
+        ?STRATEGY(proper_sa, proper:forall(RawType,fun(X) -> Prop end))).
