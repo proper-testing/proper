@@ -319,7 +319,7 @@ matching_graph() ->
 
 -spec graph_match_test_() -> 'ok'.
 graph_match_test_() ->
-  ?timeout(20, [?_assert(proper:quickcheck(prop_graph_match_corr(), ?PROPER_OPTIONS)),
+  ?timeout(60, [?_assert(proper:quickcheck(prop_graph_match_corr(), ?PROPER_OPTIONS)),
                 ?_assert(proper:quickcheck(prop_graph_match_perf(), ?PROPER_OPTIONS))]).
 
 prop_graph_match_perf() ->
