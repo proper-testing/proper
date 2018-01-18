@@ -2,7 +2,7 @@
 %%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
-%%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
+%%%                 and Andreas Lï¿½scher <andreas.loscher@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Lï¿½scher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -66,19 +66,19 @@
 %%%   of such actions is not affected by the verbosity setting of the main
 %%%   application.</dd>
 %%% <dt>`?EXISTS(<Xs>, <Xs_nf_type>, <Prop>)'</dt>
-%%% <dd> The `?EXISTS` macro uses the targeted PBT component of proper to try
-%%%   to find one instance of `<Xs>` that makes the `<Prop>` true. If such a `<Xs>`
+%%% <dd> The `?EXISTS' macro uses the targeted PBT component of proper to try
+%%%   to find one instance of `<Xs>' that makes the `<Prop>' true. If such a `<Xs>'
 %%%   is found the property passes. Note that  there is no counterexample if no
-%%%   such `<Xs>` could be found. `<Xs_nf_type>` needs to be a map of either
-%%%   `#{first => Generator, next => NF}` or `#{gen => Generator}`. In the first
-%%%   case `Generator` is a random generator and `NF` a neighbohood function as
+%%%   such `<Xs>' could be found. `<Xs_nf_type>' needs to be a map of either
+%%%   `#{first => Generator, next => NF}' or `#{gen => Generator}'. In the first
+%%%   case `Generator' is a random generator and `NF' a neighbohood function as
 %%%   described in the documentation of the  {@link proper_sa} module. In the
-%%%   second case a automatically constructed `NF` is used instead of a
-%%%   hand-written `NF`.</dd>
+%%%   second case a automatically constructed `NF' is used instead of a
+%%%   hand-written `NF'.</dd>
 %%% <dt>`?NOT_EXISTS(<Xs>, <Xs_nf_type>, <Prop>)'</dt>
-%%% <dd> The `?NOT_EXISTS` macro is similar to the `?EXISTS` macro with the 
-%%%   difference that if an `<Xs>` is found that makes `<Prop>` true, the
-%%%   property fails and this `<Xs>` is a counterexample to the property.</dd>
+%%% <dd> The `?NOT_EXISTS' macro is similar to the `?EXISTS' macro with the
+%%%   difference that if an `<Xs>' is found that makes `<Prop>' true, the
+%%%   property fails and this `<Xs>' is a counterexample to the property.</dd>
 %%% <dt>`?TRAPEXIT(<Prop>)'</dt>
 %%% <dd>If the code inside `<Prop>' spawns and links to a process that dies
 %%%   abnormally, PropEr will catch the exit signal and treat it as a test
