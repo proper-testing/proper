@@ -44,10 +44,6 @@
 %%% The neighborhood function `Fun' should be of type
 %%% ```fun((proper:term(), proper_target:fitness()) -> proper_types:type()).'''
 %%%
-%%% == Configuration ==
-%%%
-%%% SA can be configured in various ways by writing options in the process dictionary.
-%%%
 
 -module(proper_sa).
 
