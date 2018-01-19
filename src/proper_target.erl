@@ -31,10 +31,22 @@
 %%% utility-values from the system under test that the search strategy
 %%% then tries to maximize.
 %%%
-%%% The typical structure of a property using TPBT looks as follows:
-%%% ```prop_target() ->
-%%%      ?TARGET_STRATEGY(SearchStrategy,
-%%%      ?FORALL(Input, ?TARGET(Params),
+%%% To use TPBT the two test specification macros `?EXISTS' and `?NOT_EXISTS'
+%%% are used. The typical structure for a targeted property looks as follows:
+%%%
+%%% ```prop_target() ->                 % Try to check that
+%%%      ?EXISTS(Input, Params,         % some input exists
+%%%              begin                  % that fullfills the property.
+%%%                UV = SUT:run(Input), % Do so by running SUT with Input
+%%%                ?MAXIMIZE(UV),       % and maximize its Utility Value
+%%%                UV < Threshold       % up to some Threshold.
+%%%              end)).'''
+%%%
+%%% With the (depricated) `?STRATEGY' macro the property looks as follows:
+%%%
+%%% ```prop_target() ->                 % Try to check a property
+%%%      ?STRATEGY(SearchStrategy,      % using some SearchStrategy
+%%%      ?FORALL(Input, ?TARGET(Params),% and some Parameters
 %%%              begin                  % for the input generation.
 %%%                UV = SUT:run(Input), % Do so by running SUT with Input
 %%%                ?MAXIMIZE(UV),       % and maximize its Utility Value
@@ -44,21 +56,21 @@
 %%% == Macros ==
 %%%
 %%% <dl>
-%%%   <dt>`?TARGET_STRATEGY(<Strategy>, <Prop>)'</dt>
+%%%   <dt>`?MAXIMIZE(UV)'</dt>
+%%%   <dd>This tells the search strategy to maximize the value `UV'.</dd>
+%%%   <dt>`?MINIMIZE(UV)'</dt>
+%%%   <dd>equivalent to `?MAXIMIZE(-UV)'</dd>
+%%%   <dt>`?STRATEGY(<Strategy>, <Prop>)' (deprecated)</dt>
 %%%   <dd>This macro defines that `<Strategy>' should be used as search strategy
 %%%       to produce input for `<Prop>'. The currently available search strategies
 %%%       are `simulated_annealing' and `hill_climbing'. Alternatively a users can
 %%%       define their own strategy. In this case the module name containing the
 %%%       implementation should be given as argument.</dd>
-%%%   <dt>`?TARGET(<Options>)'</dt>
+%%%   <dt>`?TARGET(<Options>)' (deprecated)</dt>
 %%%   <dd>This macro specifies a targeted generator that is under the control of the search strategy.
 %%%       The `<Options>' are specific to the search strategy.</dd>
-%%%   <dt>`?FORALL_SA(<Xs>, <targeted_gen>, <Prop>)'</dt>
+%%%   <dt>`?FORALL_SA(<Xs>, <targeted_gen>, <Prop>)' (deprecated)</dt>
 %%%   <dd>equivalent to `?TARGET_STRATEGY(simulated_annealing, ?FORALL(<Xs>, <targeted_gen>, <Prop>))'</dd>
-%%%   <dt>`?MAXIMIZE(UV)'</dt>
-%%%   <dd>This tells the search strategy to maximize the value `UV'.</dd>
-%%%   <dt>`?MINIMIZE(UV)'</dt>
-%%%   <dd>equivalent to `?MAXIMIZE(-UV)'</dd>
 %%% </dl>
 
 -module(proper_target).

@@ -23,27 +23,28 @@
 %%% @version {@version}
 %%% @author Andreas Löscher
 
-%%% @doc This module provides simulated annealing (SA) as search strategy for
-%%% targeted property-based testing. SA is a local search meta-heuristic that
-%%% can be used to address discrete and continuous optimization problems.
-%%%
-%%% SA starts with a random initial input. It the produces a random input in the
-%%% the neighborhood os the prvious one and compares the fitnessof both. If the
-%%% new input has a higher fitness than the previous one, it is accepted as new
-%%% input. SA can also accepts worse inputs with a certain probbability.
+%%% @doc This module provides simulated annealing (SA) as search strategy
+%%% for targeted property-based testing. SA is a local search meta-heuristic
+%%% that can be used to address discrete and continuous optimization problems.
+
+%%% SA starts with a random initial input. It then produces a random input in
+%%% the neighborhood of the previous one and compares the fitnessof both. If
+%%% the new input has a higher fitness than the previous one, it is accepted
+%%% as new best input. SA can also accepts worse inputs with a certain
+%%% probbability.
 %%% (<a target="_blank" href="https://en.wikipedia.org/wiki/Simulated_annealing">more information</a>)
 %%%
 %%% == Targeted Generators ==
 %%%
-%%% Targeted generators can be specified in two different ways either by specifying a generator
-%%% for the initial solution and a neighbohood function to produce the following ones:
+%%% Targeted generators can be specified in two different ways either by
+%%% specifying a generator for the initial input and a neighbohood function
+%%% to produce the following ones:
 %%% ```?TARGET(#{first => <Generator>, next => <Fun>})'''
 %%% or by letting PropEr construct all of this automatically from a generator:
 %%% ```?TARGET(#{gen => <Generator>})'''
 %%%
 %%% The neighborhood function `Fun' should be of type
 %%% ```fun((proper:term(), proper_target:fitness()) -> proper_types:type()).'''
-%%%
 
 -module(proper_sa).
 
