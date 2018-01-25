@@ -384,7 +384,7 @@
 -export([forall/2, exists/3, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
-	      false_positive_mfas/0, setup_opts/0, opts/0]).
+	      false_positive_mfas/0, setup_opts/0]).
 
 -include("proper_internal.hrl").
 
