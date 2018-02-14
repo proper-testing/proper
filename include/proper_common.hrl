@@ -1,6 +1,9 @@
+%%% coding: latin-1
+%%% -*- erlang-indent-level: 2 -*-
 %%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
-%%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
+%%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
+%%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -17,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Common parts of user and internal header files
@@ -28,6 +31,8 @@
 %%------------------------------------------------------------------------------
 
 -define(FORALL(X,RawType,Prop), proper:forall(RawType,fun(X) -> Prop end)).
+-define(EXISTS(X,TMap,Prop), proper:exists(TMap, fun(X) -> Prop end, false)).
+-define(NOT_EXISTS(X,TMap,Prop), proper:exists(TMap, fun(X) -> Prop end, true)).
 -define(IMPLIES(Pre,Prop), proper:implies(Pre,?DELAY(Prop))).
 -define(WHENFAIL(Action,Prop), proper:whenfail(?DELAY(Action),?DELAY(Prop))).
 -define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).
@@ -58,23 +63,17 @@
 %% Target macros
 %%------------------------------------------------------------------------------
 
-%% Define a target
--define(TARGET(), ?TARGET(#{})).
--define(TARGET(TMap), proper_target:targeted(make_ref(), fun(X) -> X end, TMap)).
--define(NAMED_TARGET(TargetArg, Gen), ?NAMED_TARGET(TargetArg, Gen, #{})).
--define(NAMED_TARGET(TargetArg, Gen, TMap),
-        proper_target:targeted(??TargetArg, fun(TargetArg) -> Gen end, TMap)).
-
 -define(MAXIMIZE(Fitness), proper_target:update_target_uvs(Fitness, inf)).
--define(MAXIMIZE(Fitness, Target), proper_target:update_target_uvs(Fitness, inf, ??Target)).
--define(MAXIMIZE_UNTIL(Fitness, Threshold), proper_target:adjust(Fitness, Threshold)).
--define(MAXIMIZE_UNTIL(Fitness, Target, Threshold),
-        proper_target:adjust(Fitness, Threshold, ??Target)).
 -define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
--define(MINIMIZE(Fitness, Target), ?MAXIMIZE(-Fitness, Target)).
+-define(USERNF(Type, NF), proper_sa_gen:set_user_nf(Type, NF)).
 
+%%------------------------------------------------------------------------------
+%% Macros for backwards compatibility
+%%------------------------------------------------------------------------------
+
+-define(TARGET(TMap), proper_target:targeted(make_ref(), TMap)).
 -define(STRATEGY(Strat, Prop), ?SETUP(fun (Opts) ->
-                                          proper_target:use_strategy(Strat, Prop, Opts),
+                                          proper_target:use_strategy(Strat, Opts),
                                           fun () ->
                                               proper_target:cleanup_strategy()
                                           end

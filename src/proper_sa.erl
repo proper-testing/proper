@@ -23,12 +23,35 @@
 %%% @version {@version}
 %%% @author Andreas Löscher
 
+%%% @doc This module provides simulated annealing (SA) as search strategy
+%%% for targeted property-based testing. SA is a local search meta-heuristic
+%%% that can be used to address discrete and continuous optimization problems.
+
+%%% SA starts with a random initial input. It then produces a random input in
+%%% the neighborhood of the previous one and compares the fitnessof both. If
+%%% the new input has a higher fitness than the previous one, it is accepted
+%%% as new best input. SA can also accepts worse inputs with a certain
+%%% probbability.
+%%% (<a target="_blank" href="https://en.wikipedia.org/wiki/Simulated_annealing">more information</a>)
+%%%
+%%% == Targeted Generators ==
+%%%
+%%% Targeted generators can be specified in two different ways either by
+%%% specifying a generator for the initial input and a neighbohood function
+%%% to produce the following ones:
+%%% ```?TARGET(#{first => <Generator>, next => <Fun>})'''
+%%% or by letting PropEr construct all of this automatically from a generator:
+%%% ```?TARGET(#{gen => <Generator>})'''
+%%%
+%%% The neighborhood function `Fun' should be of type
+%%% ```fun((proper:term(), proper_target:fitness()) -> proper_types:type()).'''
+
 -module(proper_sa).
 
 -behaviour(proper_target).
 
 %% callbacks
--export([init_strategy/2,
+-export([init_strategy/1,
          init_target/1,
          cleanup/0,
          store_target/2,
@@ -37,18 +60,17 @@
          get_shrinker/1
         ]).
 %% lib
--export([reset/0, get_last_fitness/0]).
+-export([reset/0, get_last_fitness/0, get_neighborhood_function/1]).
 %% standard types
 -export([integer/0, integer/2, float/0, float/2, list/1]).
 
--export_type([first_next/0]).
+-export_type([first_next/0, temperature/0, nf/0]).
 
 -include("proper_internal.hrl").
 
 %% macros and configuration parameters
--define(DEFAULT_STEPS, 1000).
--define(MAX_SIZE, 10000).
 -define(REHEAT_THRESHOLD, 5).
+-define(RESTART_THRESHOLD, 100).
 
 -define(RANDOM_PROBABILITY, (?RANDOM_MOD:uniform())).
 
@@ -56,6 +78,7 @@
 -define(SA_REHEAT_COUNTER, proper_sa_reheat_counter).
 
 %% types
+-type nf() :: fun((term(), proper_sa:temperature()) -> term()).
 -type k() :: integer().
 -type temperature() :: float().
 -type temp_fun() :: fun(( %% old temperature
@@ -92,11 +115,12 @@
          p = fun (_, _, _) -> false end              :: accept_fun(),
          %% energy level
          last_energy = null                          :: proper_target:fitness() | null,
+         last_update = 0                             :: integer(),
          %% temperature function
          temperature = 1.0                           :: temperature(),
          temp_func = fun(_, _, _, _, _) -> 1.0 end   :: temp_fun(),
          %% output function
-         output_fun = fun (_,_) -> ok end            :: output_fun()}).
+         output_fun = fun (_, _) -> ok end            :: output_fun()}).
 
 print_accepted(State, Utility, Temperature) ->
   case get(target_print_accepted) of
@@ -172,8 +196,25 @@ temperature_function_fast2_sa(_OldTemperature,
                               _NewEnergyLevel,
                               K_Max,
                               K_Current,
-                              _Accepted) ->
-  {1.0 - math:sqrt(K_Current / K_Max), K_Current + 1}.
+                              Accepted) ->
+  K = case Accepted of
+        true -> K_Current + 1;
+        false ->
+          case get(sa_restart_counter) of
+            undefined ->
+              put(sa_restart_counter, 1),
+              K_Current + 1;
+            N when N >= ?RESTART_THRESHOLD ->
+              put(sa_restart_counter, 0),
+              io:format("R"),
+              reset(),
+              1;
+            N ->
+              put(sa_restart_counter, N + 1),
+              K_Current + 1
+          end
+      end,
+  {1.0 - math:sqrt(K / K_Max), K}.
 
 temperature_function_reheat_sa(OldTemperature,
                                OldEnergyLevel,
@@ -219,78 +260,49 @@ temperature_function_standard_sa(_OldTemperature,
                                  _Accepted) ->
   {1.0 - (K_Current / K_Max), K_Current + 1}.
 
-get_temperature_function(OutputFun) ->
-  OutputFun("Temperature Function: \t", []),
+get_temperature_function(_) ->
   case get(proper_sa_tempfunc) of
-    default ->
-      OutputFun("default~n", []),
-      fun temperature_function_standard_sa/6;
-    fast ->
-      OutputFun("fast~n", []),
-      fun temperature_function_fast_sa/6;
-    very_fast ->
-      OutputFun("very fast~n", []),
-      fun temperature_function_fast2_sa/6;
-    reheat ->
-      OutputFun("decreasing reheating~n", []),
-      fun temperature_function_reheat_sa/6;
+    default -> fun temperature_function_standard_sa/6;
+    fast -> fun temperature_function_fast_sa/6;
+    very_fast -> fun temperature_function_fast2_sa/6;
+    reheat -> fun temperature_function_reheat_sa/6;
     Fun when is_function(Fun) ->
       case proplists:lookup(arity, erlang:fun_info(Fun)) of
-        {arity, 6} ->
-          OutputFun("configured ~p~n", [Fun]),
-          Fun;
-        _ ->
-          OutputFun("wrong arity of configured temperature function; using default instead~n", []),
-          fun temperature_function_standard_sa/6
+        {arity, 6} -> Fun;
+        _ -> fun temperature_function_standard_sa/6
       end;
-    undefined ->
-      OutputFun("default~n", []),
-      fun temperature_function_standard_sa/6;
-    _ ->
-      OutputFun("undefined configured temperature function; using default instead~n", []),
-      fun temperature_function_standard_sa/6
+    undefined -> fun temperature_function_standard_sa/6;
+    _ -> fun temperature_function_standard_sa/6
   end.
 
-get_acceptance_function(OutputFun) ->
-  OutputFun("Acceptance Function: \t", []),
+get_acceptance_function(_) ->
   case get(proper_sa_acceptfunc) of
-    default ->
-      OutputFun("default~n", []),
-      fun acceptance_function_standard/3;
-    hillclimbing ->
-      OutputFun("hillclimbing~n", []),
-      fun acceptance_function_hillclimbing/3;
-    normalized ->
-      OutputFun("normalized~n", []),
-      fun acceptance_function_normalized/3;
+    default -> fun acceptance_function_standard/3;
+    hillclimbing -> fun acceptance_function_hillclimbing/3;
+    normalized -> fun acceptance_function_normalized/3;
     Fun when is_function(Fun) ->
       case proplists:lookup(arity, erlang:fun_info(Fun)) of
-        {arity, 3} ->
-          OutputFun("configured ~p~n", [Fun]),
-          Fun;
-        _ ->
-          OutputFun("wrong arity of configured acceptance function; using default instead~n", []),
-          fun acceptance_function_standard/3
+        {arity, 3} -> Fun;
+        _ -> fun acceptance_function_standard/3
       end;
-    undefined ->
-      OutputFun("default~n", []),
-      fun acceptance_function_standard/3;
-    _ ->
-      OutputFun("undefined configured acceptance function; using default instead~n", []),
-      fun acceptance_function_standard/3
+    undefined -> fun acceptance_function_standard/3;
+    _ -> fun acceptance_function_standard/3
   end.
 
--spec get_last_fitness() -> proper_target:fitness().
+%% @doc returns the fitness of the last accepted solution and how many tests old the fitness is
+-spec get_last_fitness() -> {integer(), proper_target:fitness()}.
 get_last_fitness() ->
   State = get(?SA_DATA),
-  State#sa_data.last_energy.
+  {State#sa_data.last_update, State#sa_data.last_energy}.
 
+%% @doc restart the search starting from a random input
 -spec reset() -> ok.
 reset() ->
   Data = get(?SA_DATA),
   put(?SA_DATA,
       Data#sa_data{state = reset_all_targets(Data#sa_data.state),
                    last_energy = null,
+                   last_update = 0,
                    k_max = Data#sa_data.k_max - Data#sa_data.k_current,
                    k_current = 0}).
 
@@ -305,21 +317,24 @@ reset_all_targets(Dict, [K|T]) ->
   NewVal = {S#sa_target{last_generated = ResetValue}, N, F},
   reset_all_targets(dict:store(K, NewVal, Dict), T).
 
--spec init_strategy(proper:outer_test(), proper:setup_opts()) -> proper:outer_test().
-init_strategy(Prop, #{numtests:=Steps, output_fun:=OutputFun}) ->
-  OutputFun("-- Simulated Annealing Search Strategy --~n", []),
+%% @private
+-spec init_strategy(proper:setup_opts()) -> 'ok'.
+init_strategy(#{numtests:=Steps, output_fun:=OutputFun}) ->
+  proper_sa_gen:init(),
   SA_Data = #sa_data{k_max = Steps,
-		     p = get_acceptance_function(OutputFun),
-		     temp_func = get_temperature_function(OutputFun)},
-  put(?SA_DATA, SA_Data),
-  Prop.
+                     p = get_acceptance_function(OutputFun),
+                     temp_func = get_temperature_function(OutputFun)},
+  put(?SA_DATA, SA_Data), ok.
 
+%% @private
 -spec cleanup() -> ok.
 cleanup() ->
   erase(?SA_DATA),
   erase(?SA_REHEAT_COUNTER),
+  proper_sa_gen:cleanup(),
   ok.
 
+%% @private
 -spec init_target(proper_target:tmap()) -> proper_target:target().
 init_target(TMap) when map_size(TMap) =:= 0 ->
   init_target(?MODULE:integer());
@@ -347,7 +362,7 @@ next_func(SATarget) ->
   %% return according to interface
   {SATarget#sa_target{current_generated = Generated}, Generated}.
 
-
+%% @private
 -spec store_target(proper_target:key(), proper_target:target()) -> 'ok'.
 store_target(Key, Target) ->
   Data = get(?SA_DATA),
@@ -355,6 +370,7 @@ store_target(Key, Target) ->
   put(?SA_DATA, NewData),
   ok.
 
+%% @private
 -spec retrieve_target(proper_target:key()) -> proper_target:target() | 'undefined'.
 retrieve_target(Key) ->
   Dict = (get(?SA_DATA))#sa_data.state,
@@ -365,6 +381,7 @@ retrieve_target(Key) ->
       undefined
   end.
 
+%% @private
 -spec update_global_fitness(proper_target:fitness()) -> 'ok'.
 update_global_fitness(Fitness) ->
   Data = get(?SA_DATA),
@@ -390,7 +407,8 @@ update_global_fitness(Fitness) ->
                                            K_CURRENT,
                                            true),
                 Data#sa_data{state = NewState,
-                             last_energy=Fitness,
+                             last_energy = Fitness,
+                             last_update = 0,
                              k_current = AdjustedK,
                              temperature = NewTemperature};
               false ->
@@ -404,7 +422,9 @@ update_global_fitness(Fitness) ->
                                            K_MAX,
                                            K_CURRENT,
                                            false),
-                Data#sa_data{k_current = AdjustedK, temperature = NewTemperature}
+                Data#sa_data{last_update = Data#sa_data.last_update +1,
+                             k_current = AdjustedK,
+                             temperature = NewTemperature}
             end,
   put(?SA_DATA, NewData),
   ok.
@@ -421,6 +441,7 @@ update_all_targets(Dict, [K|T]) ->
   NewVal = {S#sa_target{last_generated = S#sa_target.current_generated}, N, F},
   update_all_targets(dict:store(K, NewVal, Dict), T).
 
+%% @private
 -spec get_shrinker(proper_target:tmap()) -> proper_types:type().
 get_shrinker(#{first := First}) -> First;
 get_shrinker(#{gen := Gen}) -> Gen.
@@ -431,13 +452,21 @@ get_shrinker(#{gen := Gen}) -> Gen.
 
 -type first_next() :: proper_target:tmap().
 
+%% @doc constructs a neighborhood function `Fun(Base, Temp)' from `Type'
+-spec get_neighborhood_function(proper_types:type()) -> nf().
+get_neighborhood_function(Type) ->
+  #{next := Next} = proper_sa_gen:from_proper_generator(Type),
+  Next.
+
+%% @doc equivalent to `integer(inf, inf)'
 -spec integer() -> first_next().
 integer() ->
   ?MODULE:integer(inf, inf).
 
+%% @doc "first" generator and "next" function for integers between `Low' and `High', bounds included.
 -spec integer(proper_types:extint(), proper_types:extint()) -> first_next().
-integer(L, R) ->
-  #{first => proper_types:integer(L, R), next => integer_next(L, R)}.
+integer(Low, High) ->
+  #{first => proper_types:integer(Low, High), next => integer_next(Low, High)}.
 
 integer_next(L, R) ->
   fun (OldInstance, Temperature) ->
@@ -451,13 +480,15 @@ integer_next(L, R) ->
       ?LET(X, proper_types:integer(LL, LR), make_inrange(OldInstance, X, L, R))
   end.
 
+%% @doc equivalent to `float(inf, inf)'
 -spec float() -> first_next().
 float() ->
   ?MODULE:float(inf, inf).
 
+%% @doc "first" generator and "next" function for floats between `Low' and `High', bounds included.
 -spec float(proper_types:extnum(), proper_types:extnum()) -> first_next().
-float(L, R) ->
-  #{first => proper_types:float(L, R), next => float_next(L, R)}.
+float(Low, High) ->
+  #{first => proper_types:float(Low, High), next => float_next(Low, High)}.
 
 float_next(L, R) ->
   fun (OldInstance, Temperature) ->
@@ -481,12 +512,11 @@ make_inrange(Val, Offset, L, R) when R =/= inf, Val + Offset > R ->
   make_inrange(Val - Offset, L, R);
 make_inrange(Val, Offset, L, R) -> make_inrange(Val + Offset, L, R).
 
-
-%% list
+%% @doc "first" generator and "next" function for lists containing elements of type `ElemType'
 -spec list(proper_types:type()) -> first_next().
-list(Type) ->
-  #{first => proper_types:list(Type),
-    next => list_next(Type)}.
+list(ElemType) ->
+  #{first => proper_types:list(ElemType),
+    next => list_next(ElemType)}.
 
 list_next(Type) ->
   fun (Base, _T) ->

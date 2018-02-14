@@ -1104,9 +1104,10 @@ adts_test_() ->
       ?_passes(?FORALL({X,Y,D},
 		       {integer(),float(),dict:dict(integer(),float())},
 		       dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])},
-     ?_fails(?FORALL({X,D},
-	     {boolean(),dict:dict(boolean(),integer())},
-	     dict:erase(X, dict:store(X,42,D)) =:= D))].
+     {timeout, 20,
+      ?_fails(?FORALL({X,D},
+	      {boolean(),dict:dict(boolean(),integer())},
+	      dict:erase(X, dict:store(X,42,D)) =:= D))}].
 
 parameter_test_() ->
     ?_passes(?FORALL(List, [zero1(),zero2(),zero3(),zero4()],
