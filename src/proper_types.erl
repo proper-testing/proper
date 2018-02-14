@@ -151,7 +151,7 @@
 -export([resize/2, non_empty/1, noshrink/1]).
 
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, to_binary/1,
-	 from_binary/1, get_prop/2, find_prop/2, safe_is_instance/2,
+	 from_binary/1, add_prop/3, get_prop/2, find_prop/2, safe_is_instance/2,
 	 is_instance/2, unwrap/1, weakly/1, strongly/1, satisfies_all/2,
 	 new_type/2, subtype/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
@@ -231,7 +231,7 @@
 			| 'noshrink' | 'internal_type' | 'internal_types'
 			| 'get_length' | 'split' | 'join' | 'get_indices'
 			| 'remove' | 'retrieve' | 'update' | 'constraints'
-			| 'parameters' | 'env' | 'subenv'.
+			| 'parameters' | 'env' | 'subenv' | 'user_nf'.
 
 -type type_prop_value() :: term().
 -type type_prop() ::
@@ -279,7 +279,8 @@
       %% boolean field that specifies whether the condition is strict.
     | {'parameters', [{atom(),value()}]}
     | {'env', term()}
-    | {'subenv', term()}.
+    | {'subenv', term()}
+    | {'user_nf', proper_sa:nf()}.
 
 
 %%------------------------------------------------------------------------------
@@ -327,7 +328,7 @@ is_raw_type(_) -> false.
 -spec is_raw_type_list(maybe_improper_list()) -> boolean().
 %% CAUTION: this must handle improper lists
 is_raw_type_list([H|T]) -> is_raw_type(H) orelse is_raw_type_list(T);
-is_raw_type_list([])    -> false; 
+is_raw_type_list([])    -> false;
 is_raw_type_list(T)     -> is_raw_type(T).
 
 %% @private

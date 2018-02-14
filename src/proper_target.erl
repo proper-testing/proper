@@ -1,7 +1,7 @@
 %%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Lï¿½scher <andreas.loscher@it.uu.se>
 %%%                and  Konstantinos Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,19 +19,74 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017 Andreas Lï¿½scher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Löscher
+%%% @author Andreas Lï¿½scher
+
+%%% @doc This module defines the top-level behaviour for targeted
+%%% property-based testing (TPBT). Using TPBT the input generation
+%%% is no longer random, but guided by a search strategy to increase
+%%% the probability of finding failing input. For this to work the user
+%%% has to specify a search strategy and also needs to extract
+%%% utility-values from the system under test that the search strategy
+%%% then tries to maximize.
+%%%
+%%% To use TPBT the two test specification macros `?EXISTS' and `?NOT_EXISTS'
+%%% are used. The typical structure for a targeted property looks as follows:
+%%%
+%%% ```prop_target() ->                 % Try to check that
+%%%      ?EXISTS(Input, Params,         % some input exists
+%%%              begin                  % that fullfills the property.
+%%%                UV = SUT:run(Input), % Do so by running SUT with Input
+%%%                ?MAXIMIZE(UV),       % and maximize its Utility Value
+%%%                UV < Threshold       % up to some Threshold.
+%%%              end)).'''
+%%%
+%%% With the (depricated) `?STRATEGY' macro the property looks as follows:
+%%%
+%%% ```prop_target() ->                 % Try to check a property
+%%%      ?STRATEGY(SearchStrategy,      % using some SearchStrategy
+%%%      ?FORALL(Input, ?TARGET(Params),% and some Parameters
+%%%              begin                  % for the input generation.
+%%%                UV = SUT:run(Input), % Do so by running SUT with Input
+%%%                ?MAXIMIZE(UV),       % and maximize its Utility Value
+%%%                UV < Threshold       % up to some Threshold.
+%%%              end)).'''
+%%%
+%%% == Macros ==
+%%%
+%%% <dl>
+%%%   <dt>`?MAXIMIZE(UV)'</dt>
+%%%   <dd>This tells the search strategy to maximize the value `UV'.</dd>
+%%%   <dt>`?MINIMIZE(UV)'</dt>
+%%%   <dd>equivalent to `?MAXIMIZE(-UV)'</dd>
+%%%   <dt>`?STRATEGY(<Strategy>, <Prop>)' (deprecated)</dt>
+%%%   <dd>This macro defines that `<Strategy>' should be used as search strategy
+%%%       to produce input for `<Prop>'. The currently available search strategies
+%%%       are `simulated_annealing' and `hill_climbing'. Alternatively a users can
+%%%       define their own strategy. In this case the module name containing the
+%%%       implementation should be given as argument.</dd>
+%%%   <dt>`?TARGET(<Options>)' (deprecated)</dt>
+%%%   <dd>This macro specifies a targeted generator that is under the control of the
+%%%       search strategy. The `<Options>' are specific to the search strategy.</dd>
+%%%   <dt>`?FORALL_SA(<Xs>, <targeted_gen>, <Prop>)' (deprecated)</dt>
+%%%   <dd>equivalent to `?TARGET_STRATEGY(simulated_annealing, ?FORALL(<Xs>, <targeted_gen>, <Prop>))'</dd>
+%%% </dl>
 
 -module(proper_target).
 
--export([targeted/3, update_target_uvs/2, update_target_uvs/3, use_strategy/3, cleanup_strategy/0]).
+-export([targeted/2, update_target_uvs/2, use_strategy/2,
+         strategy/0, init_strategy/1, cleanup_strategy/0, get_shrinker/1]).
 
 -include_lib("proper_common.hrl").
 
 -export_type([key/0, fitness/0, tmap/0]).
 -export_type([target_state/0, next_func/0, fitness_func/0,
-              target/0, options/0]).
+              target/0]).
+
+%% -----------------------------------------------------------------------------
+%% Type declarations
+%% -----------------------------------------------------------------------------
 
 -type key()     :: nonempty_string() | reference().
 -type fitness() :: number().
@@ -44,44 +99,42 @@
 -type fitness_func() :: fun ((target_state(), fitness()) -> target_state()).
 
 -type target()    :: {target_state(), next_func(), fitness_func()}.
--type options()   :: [{atom(), term()}].
 -type strategy()  :: module().
 
-
-%% behaviour for strategies
+%% -----------------------------------------------------------------------------
+%% proper_target callback functions for defining strategies
+%% ----------------------------------------------------------------------------
 %% strategy global initializer
--callback init_strategy(proper:outer_test(), proper:setup_opts()) -> proper:outer_test().
+-callback init_strategy(proper:setup_opts()) -> 'ok'.
+%%
 -callback cleanup() -> 'ok'.
 %% target (one variable) initializer
 -callback init_target(tmap()) -> target().
-%% %% generator for shrinking
+%% generator for shrinking
 -callback get_shrinker(tmap()) -> proper_types:type().
 %% store, and retrieve state
 -callback store_target(key(), target_state()) -> 'ok'.
 -callback retrieve_target(key()) -> target() | 'undefined'.
-%% global update
+%% update the strategy with the fitness
 -callback update_global_fitness(fitness()) -> 'ok'.
 
--spec targeted(key(), proper_types:type(), tmap()) -> proper_types:type().
-targeted(Key, Gen, TMap) ->
-  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(Key, Gen, TMap))),
-          [shrink_gen(TMap)]).
+%% @private
+-spec targeted(key(), tmap()) -> proper_types:type().
+targeted(Key, TMap) ->
+  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(Key, TMap))),
+          [get_shrinker(TMap)]).
 
 %% @private
-targeted_gen(Key, Gen, TMap) ->
+targeted_gen(Key, TMap) ->
   {State, NextFunc, _FitnessFunc} = get_target(Key, TMap),
   {NewState, NextValue} = NextFunc(State),
   update_target(Key, NewState),
-  Gen(NextValue).
+  NextValue.
 
+%% @private
 -spec update_target_uvs(fitness(), threshold()) -> boolean().
 update_target_uvs(Fitness, Threshold) ->
   set_fitness(Fitness),
-  check_threshold(Threshold, Fitness).
-
--spec update_target_uvs(fitness(), threshold(), key()) -> boolean().
-update_target_uvs(Fitness, Threshold, Key) ->
-  set_fitness(Fitness, Key),
   check_threshold(Threshold, Fitness).
 
 %% @private
@@ -92,43 +145,51 @@ check_threshold(Threshold, Fitness) ->
   end.
 
 %% @private
-set_fitness(Fitness, Key) ->
-  {State, _NextFunc, FitnessFunc} = get_target(Key, []),
-  NewState = FitnessFunc(State, Fitness),
-  update_target(Key, NewState).
-
-%% @private
 set_fitness(Fitness) ->
   update_global(Fitness).
 
-%% target_strategy
+-spec strategy() -> strategy().
+strategy() ->
+  get('$strategy').
 
-%% access to the current strategy
--define(STRATEGY, get(target_strategy)).
+strategy(Strat) ->
+  case Strat of
+    simulated_annealing ->
+      proper_sa;
+    hill_climbing ->
+      put(target_sa_acceptfunc, hillclimbing),
+      proper_sa;
+    _ ->
+      Strat
+  end.
 
 %% store the used strategy into the process dictionary
--spec use_strategy(strategy(), any(), proper:setup_opts()) -> proper:outer_test().
-use_strategy(Strat, Prop, Opts) ->
-  Strategy = case Strat of
-               simulated_annealing ->
-                 proper_sa;
-               hill_climbing ->
-                 put(target_sa_acceptfunc, hillclimbing),
-                 proper_sa;
-               _ ->
-                 Strat
-             end,
-  put(target_strategy, Strategy),
-  Strategy:init_strategy(Prop, Opts).
+%% used only to provide backwards compatibility
+%% @private
+-spec use_strategy(strategy(), proper:setup_opts()) -> proper:outer_test().
+use_strategy(Strat, Opts) ->
+  Strategy = strategy(Strat),
+  put('$strategy', Strategy),
+  Strategy:init_strategy(Opts).
 
+-spec init_strategy(strategy()) -> ok.
+init_strategy(Strat) ->
+  Strategy = strategy(Strat),
+  put('$strategy', Strategy),
+  Steps = get('$search_steps'),
+  OutputFun = fun(_, _) -> ok end,
+  Strategy:init_strategy(#{numtests=>Steps, output_fun=>OutputFun}).
+
+%% @private
 -spec cleanup_strategy() -> ok.
 cleanup_strategy() ->
-  (?STRATEGY):cleanup().
+  (strategy()):cleanup(),
+  erase('$strategy'), ok.
 
-
--spec get_target(key(), options()) -> target().
+%% @private
+-spec get_target(key(), tmap()) -> target().
 get_target(Key, Opts) ->
-  Strategy = ?STRATEGY,
+  Strategy = strategy(),
   case Strategy:retrieve_target(Key) of
     undefined ->
       FreshTarget = Strategy:init_target(Opts),
@@ -138,15 +199,21 @@ get_target(Key, Opts) ->
       StoredTarget
   end.
 
+%% @private
 -spec update_target(key(), target_state()) -> 'ok'.
 update_target(Key, State) ->
-  {_, N, F} = (?STRATEGY):retrieve_target(Key),
-  (?STRATEGY):store_target(Key, {State, N, F}).
+  Strategy = strategy(),
+  {_, N, F} = Strategy:retrieve_target(Key),
+  Strategy:store_target(Key, {State, N, F}).
 
+%% @private
 -spec update_global(fitness()) -> 'ok'.
 update_global(Fitness) ->
-  (?STRATEGY):update_global_fitness(Fitness).
+  Strategy = strategy(),
+  Strategy:update_global_fitness(Fitness).
 
--spec shrink_gen(options()) -> proper_types:type().
-shrink_gen(Opts) ->
-  (?STRATEGY):get_shrinker(Opts).
+%% @private
+-spec get_shrinker(tmap()) -> proper_types:type().
+get_shrinker(Opts) ->
+  Strategy = strategy(),
+  Strategy:get_shrinker(Opts).
