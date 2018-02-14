@@ -1281,7 +1281,7 @@ perform_search(Steps, NumSteps, TriesLeft, Target, DTest,
                #ctx{bound = Bound} = Ctx, #opts{output_fun = Print} = Opts, Not) ->
     %% Search Step
     case proper_gen:safe_generate(Target) of
-	{ok,ImmInstance} ->
+	{ok, ImmInstance} ->
 	    Instance = proper_gen:clean_instance(ImmInstance),
 	    NewBound = [ImmInstance | Bound],
 	    case force(Instance, DTest, Ctx#ctx{bound = NewBound}, Opts) of
@@ -1305,9 +1305,9 @@ perform_search(Steps, NumSteps, TriesLeft, Target, DTest,
 		{error, _} = Error ->
 		    Error;
 		Other ->
-		    {error, {unexpected,Other}}
+		    {error, {unexpected, Other}}
 	    end;
-	{error,_Reason} = Error ->
+	{error, _Reason} = Error ->
 	    Error
     end.
 
@@ -1316,7 +1316,7 @@ perform_search(Steps, NumSteps, TriesLeft, Target, DTest,
 add_samples(MoreSamples, none) ->
     MoreSamples;
 add_samples(MoreSamples, Samples) ->
-    [M ++ S || {M,S} <- proper_arith:safe_zip(MoreSamples,Samples)].
+    [M ++ S || {M, S} <- proper_arith:safe_zip(MoreSamples, Samples)].
 
 
 %%-----------------------------------------------------------------------------
@@ -1327,7 +1327,7 @@ add_samples(MoreSamples, Samples) ->
 run(Test, Opts) ->
     run(Test, #ctx{}, Opts).
 
--spec rerun(test(),boolean(),imm_testcase() | counterexample()) -> run_result().
+-spec rerun(test(), boolean(), imm_testcase() | counterexample()) -> run_result().
 rerun(Test, IsImm, ToTry) ->
     Mode = case IsImm of
 	       true  -> try_shrunk;
@@ -1363,7 +1363,7 @@ run({exists, TMap, Prop, Not}, #ctx{mode = new} = Ctx,
     SR;
 run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk, bound = []}, Opts) ->
     run({exists, TMap, Prop, Not}, #ctx{mode = new, bound = []}, Opts#opts{output_fun = fun (_, _) -> ok end});
-run({exists,_TMap,_Prop, _Not}, #ctx{bound = []} = Ctx, _Opts) ->
+run({exists, _TMap, _Prop, _Not}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
 run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk,
 				    bound = [ImmInstance | Rest]} = Ctx, Opts) ->
@@ -1379,29 +1379,29 @@ run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk,
 	false ->
 	    %% TODO: could try to fix the instances here
 	    {error, wrong_type};
-	{error,_Reason} = Error ->
+	{error, _Reason} = Error ->
 	    Error
     end;
-run({exists,_TMap,Prop, Not}, #ctx{mode = try_cexm,
+run({exists, _TMap, Prop, Not}, #ctx{mode = try_cexm,
 				    bound = [Instance | Rest]} = Ctx, Opts) ->
     case {force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts), Not} of
 	{#fail{}, true} -> create_pass_result(Ctx, true_prop);
 	{#pass{}, true} -> create_fail_result(Ctx, false_prop);
 	{R, _} -> R
     end;
-run({forall,RawType,Prop}, #ctx{mode = new, bound = Bound} = Ctx, Opts) ->
+run({forall, RawType, Prop}, #ctx{mode = new, bound = Bound} = Ctx, Opts) ->
     case proper_gen:safe_generate(RawType) of
-	{ok,ImmInstance} ->
+	{ok, ImmInstance} ->
 	    Instance = proper_gen:clean_instance(ImmInstance),
 	    NewCtx = Ctx#ctx{bound = [ImmInstance | Bound]},
 	    force(Instance, Prop, NewCtx, Opts);
 	{error,_Reason} = Error ->
 	    Error
     end;
-run({forall,_RawType,_Prop}, #ctx{bound = []} = Ctx, _Opts) ->
+run({forall, _RawType, _Prop}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
-run({forall,RawType,Prop}, #ctx{mode = try_shrunk,
-				bound = [ImmInstance | Rest]} = Ctx, Opts) ->
+run({forall, RawType, Prop}, #ctx{mode = try_shrunk,
+				  bound = [ImmInstance | Rest]} = Ctx, Opts) ->
     case proper_types:safe_is_instance(ImmInstance, RawType) of
 	true ->
 	    Instance = proper_gen:clean_instance(ImmInstance),
@@ -1410,57 +1410,57 @@ run({forall,RawType,Prop}, #ctx{mode = try_shrunk,
 	false ->
 	    %% TODO: could try to fix the instances here
 	    {error, wrong_type};
-	{error,_Reason} = Error ->
+	{error, _Reason} = Error ->
 	    Error
     end;
-run({forall,_RawType,Prop}, #ctx{mode = try_cexm,
-				 bound = [Instance | Rest]} = Ctx, Opts) ->
+run({forall, _RawType, Prop}, #ctx{mode = try_cexm,
+				   bound = [Instance | Rest]} = Ctx, Opts) ->
     force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts);
-run({conjunction,SubProps}, #ctx{mode = new} = Ctx, Opts) ->
+run({conjunction, SubProps}, #ctx{mode = new} = Ctx, Opts) ->
     run_all(SubProps, [], Ctx, Opts);
-run({conjunction,SubProps}, #ctx{mode = try_shrunk, bound = Bound} = Ctx, Opts) ->
+run({conjunction, SubProps}, #ctx{mode = try_shrunk, bound = Bound} = Ctx, Opts) ->
     case Bound of
 	[] ->
 	    create_pass_result(Ctx, didnt_crash);
-	[{'$conjunction',SubImmTCs}] ->
+	[{'$conjunction', SubImmTCs}] ->
 	    run_all(SubProps, SubImmTCs, Ctx#ctx{bound = []}, Opts);
 	_ ->
 	    {error, too_many_instances}
     end;
-run({conjunction,SubProps}, #ctx{mode = try_cexm, bound = Bound} = Ctx, Opts) ->
+run({conjunction, SubProps}, #ctx{mode = try_cexm, bound = Bound} = Ctx, Opts) ->
     RealBound = case Bound of [] -> [[]]; _ -> Bound end,
     case RealBound of
 	[SubTCs] -> run_all(SubProps, SubTCs, Ctx#ctx{bound = []}, Opts);
 	_        -> {error, too_many_instances}
     end;
-run({implies,true,Prop}, Ctx, Opts) ->
+run({implies, true, Prop}, Ctx, Opts) ->
     force(Prop, Ctx, Opts);
-run({implies,false,_Prop}, _Ctx, _Opts) ->
+run({implies, false, _Prop}, _Ctx, _Opts) ->
     {error, rejected};
-run({sample,NewSample,NewPrinter,Prop}, #ctx{samples = Samples,
-					     printers = Printers} = Ctx, Opts) ->
+run({sample, NewSample, NewPrinter, Prop}, #ctx{samples = Samples,
+					        printers = Printers} = Ctx, Opts) ->
     NewCtx = Ctx#ctx{samples = [NewSample | Samples],
 		     printers = [NewPrinter | Printers]},
     run(Prop, NewCtx, Opts);
-run({whenfail,NewAction,Prop}, #ctx{actions = Actions} = Ctx, Opts)->
+run({whenfail, NewAction, Prop}, #ctx{actions = Actions} = Ctx, Opts)->
     NewCtx = Ctx#ctx{actions = [NewAction | Actions]},
     force(Prop, NewCtx, Opts);
-run({trapexit,Prop}, Ctx, Opts) ->
+run({trapexit, Prop}, Ctx, Opts) ->
     OldFlag = process_flag(trap_exit, true),
     Self = self(),
-    Child = spawn_link_migrate(fun() -> child(Self,Prop,Ctx, Opts) end),
+    Child = spawn_link_migrate(fun() -> child(Self, Prop, Ctx, Opts) end),
     Result =
 	receive
 	    {result, RecvResult} ->
 		RecvResult;
 	    {'EXIT', Child, ExcReason} ->
-		create_fail_result(Ctx, {trapped,ExcReason})
+		create_fail_result(Ctx, {trapped, ExcReason})
 	end,
     true = process_flag(trap_exit, OldFlag),
     Result;
-run({timeout,Limit,Prop}, Ctx, Opts) ->
+run({timeout, Limit, Prop}, Ctx, Opts) ->
     Self = self(),
-    Child = spawn_link_migrate(fun() -> child(Self,Prop,Ctx, Opts) end),
+    Child = spawn_link_migrate(fun() -> child(Self, Prop, Ctx, Opts) end),
     receive
 	{result, RecvResult} -> RecvResult
     after Limit ->

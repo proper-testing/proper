@@ -1,7 +1,7 @@
 %%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Lï¿½scher <andreas.loscher@it.uu.se>
 %%%                and  Konstantinos Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017 Andreas Lï¿½scher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Löscher
+%%% @author Andreas Lï¿½scher
 
 %%% @doc This module defines the top-level behaviour for targeted
 %%% property-based testing (TPBT). Using TPBT the input generation
@@ -67,8 +67,8 @@
 %%%       define their own strategy. In this case the module name containing the
 %%%       implementation should be given as argument.</dd>
 %%%   <dt>`?TARGET(<Options>)' (deprecated)</dt>
-%%%   <dd>This macro specifies a targeted generator that is under the control of the search strategy.
-%%%       The `<Options>' are specific to the search strategy.</dd>
+%%%   <dd>This macro specifies a targeted generator that is under the control of the
+%%%       search strategy. The `<Options>' are specific to the search strategy.</dd>
 %%%   <dt>`?FORALL_SA(<Xs>, <targeted_gen>, <Prop>)' (deprecated)</dt>
 %%%   <dd>equivalent to `?TARGET_STRATEGY(simulated_annealing, ?FORALL(<Xs>, <targeted_gen>, <Prop>))'</dd>
 %%% </dl>
@@ -152,37 +152,32 @@ set_fitness(Fitness) ->
 strategy() ->
   get('$strategy').
 
+strategy(Strat) ->
+  case Strat of
+    simulated_annealing ->
+      proper_sa;
+    hill_climbing ->
+      put(target_sa_acceptfunc, hillclimbing),
+      proper_sa;
+    _ ->
+      Strat
+  end.
+
 %% store the used strategy into the process dictionary
 %% used only to provide backwards compatibility
 %% @private
 -spec use_strategy(strategy(), proper:setup_opts()) -> proper:outer_test().
 use_strategy(Strat, Opts) ->
-  Strategy = case Strat of
-               simulated_annealing ->
-                 proper_sa;
-               hill_climbing ->
-                 put(target_sa_acceptfunc, hillclimbing),
-                 proper_sa;
-               _ ->
-                 Strat
-             end,
+  Strategy = strategy(Strat),
   put('$strategy', Strategy),
   Strategy:init_strategy(Opts).
 
 -spec init_strategy(strategy()) -> ok.
 init_strategy(Strat) ->
-  Strategy = case Strat of
-               simulated_annealing ->
-                 proper_sa;
-               hill_climbing ->
-                 put(target_sa_acceptfunc, hillclimbing),
-                 proper_sa;
-               _ ->
-                 Strat
-             end,
+  Strategy = strategy(Strat),
   put('$strategy', Strategy),
   Steps = get('$search_steps'),
-  OutputFun = fun(_,_) -> ok end,
+  OutputFun = fun(_, _) -> ok end,
   Strategy:init_strategy(#{numtests=>Steps, output_fun=>OutputFun}).
 
 %% @private

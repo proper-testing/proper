@@ -1,7 +1,7 @@
 %%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Lï¿½scher <andreas.loscher@it.uu.se>
 %%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017 Andreas Lï¿½scher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Löscher
+%%% @author Andreas Lï¿½scher
 
 %%% @doc This module provides simulated annealing (SA) as search strategy
 %%% for targeted property-based testing. SA is a local search meta-heuristic
@@ -120,7 +120,7 @@
          temperature = 1.0                           :: temperature(),
          temp_func = fun(_, _, _, _, _) -> 1.0 end   :: temp_fun(),
          %% output function
-         output_fun = fun (_,_) -> ok end            :: output_fun()}).
+         output_fun = fun (_, _) -> ok end            :: output_fun()}).
 
 print_accepted(State, Utility, Temperature) ->
   case get(target_print_accepted) of
