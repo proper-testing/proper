@@ -1,7 +1,7 @@
 %%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Lï¿½scher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
 %%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Lï¿½scher and Kostis Sagonas
+%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Lï¿½scher
+%%% @author Andreas Löscher
 
 %%% @doc This module provides simulated annealing (SA) as search strategy
 %%% for targeted property-based testing. SA is a local search meta-heuristic
