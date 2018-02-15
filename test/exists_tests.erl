@@ -1,7 +1,7 @@
 %%% coding: latin-1
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2018, Andreas Löscher <andreas.loscher@it.uu.se>
 %%%                and  Konstantinos Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -49,14 +49,14 @@ prop_forall_sa() ->
           end).
 
 strategy_test() ->
-    false = proper:quickcheck(prop_strategy(), ?PROPER_OPTIONS_SHRINKING),
-    [10] = proper:counterexample(),
-    ok.
+  false = proper:quickcheck(prop_strategy(), ?PROPER_OPTIONS_SHRINKING),
+  [10] = proper:counterexample(),
+  ok.
 
 forall_sa_test() ->
-    false = proper:quickcheck(prop_forall_sa(), ?PROPER_OPTIONS_SHRINKING),
-    [10] = proper:counterexample(),
-    ok.
+  false = proper:quickcheck(prop_forall_sa(), ?PROPER_OPTIONS_SHRINKING),
+  [10] = proper:counterexample(),
+  ok.
 
 %% Macros Test
 prop_exists() ->
@@ -284,7 +284,6 @@ improper_list_test() ->
   put(proper_sa_acceptfunc, default),
   ?assert(proper:quickcheck(prop_il(), ?PROPER_OPTIONS)).
 
-
 prop_reset() ->
   ?NOT_EXISTS(I, stepint(),
               begin
@@ -319,8 +318,9 @@ matching_graph() ->
 
 -spec graph_match_test_() -> 'ok'.
 graph_match_test_() ->
-  ?timeout(60, [?_assert(proper:quickcheck(prop_graph_match_corr(), ?PROPER_OPTIONS)),
-                ?_assert(proper:quickcheck(prop_graph_match_perf(), ?PROPER_OPTIONS))]).
+  Opts = ?PROPER_OPTIONS,
+  ?timeout(100, [?_assert(proper:quickcheck(prop_graph_match_corr(), Opts)),
+		 ?_assert(proper:quickcheck(prop_graph_match_perf(), Opts))]).
 
 prop_graph_match_perf() ->
   ?EXISTS({V, E}, #{gen => matching_graph()},
