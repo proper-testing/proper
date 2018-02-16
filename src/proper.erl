@@ -1546,7 +1546,9 @@ apply_args(Args, Prop, Ctx, Opts) ->
 		    {error, type_mismatch};
 		false ->
 		    Trace = clean_stacktrace(RawTrace),
-		    create_fail_result(Ctx, {exception,error,ErrReason,Trace})
+		    Exception = {exception,error,ErrReason,Trace},
+		    report_fail_reason(Exception, "", fun io:format/2),
+		    create_fail_result(Ctx, Exception)
 	    end;
 	throw:'$arity_limit' ->
 	    {error, arity_limit};
@@ -1556,7 +1558,9 @@ apply_args(Args, Prop, Ctx, Opts) ->
 	    {error, {typeserver,SubReason}};
 	ExcKind:ExcReason ->
 	    Trace = erlang:get_stacktrace(),
-	    create_fail_result(Ctx, {exception,ExcKind,ExcReason,Trace})
+	    Exception = {exception,ExcKind,ExcReason,Trace},
+	    report_fail_reason(Exception, "", fun io:format/2),
+	    create_fail_result(Ctx, Exception)
     end.
 
 -spec create_pass_result(ctx(), pass_reason()) ->
