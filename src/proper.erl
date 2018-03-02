@@ -715,14 +715,15 @@ setup_test(#opts{output_fun = OutputFun,
 		 start_size = StartSize,
 		 max_size = MaxSize,
 		 setup_funs = Funs}) ->
+    SetupOpts = #{numtests => NumTests,
+		  search_steps => SearchSteps,
+		  search_strategy => Strategy,
+		  start_size => StartSize,
+		  max_size => MaxSize,
+		  output_fun => OutputFun},
     [case erlang:fun_info(Fun, arity) of
 			{arity, 0} -> Fun();
-			{arity, 1} -> Fun(#{numtests=>NumTests,
-					    search_steps=>SearchSteps,
-					    search_strategy=>Strategy,
-					    start_size=>StartSize,
-					    max_size=>MaxSize,
-					    output_fun=>OutputFun})
+			{arity, 1} -> Fun(SetupOpts)
 		end || Fun <- Funs].
 
 -spec finalize_test([finalize_fun()]) -> 'ok'.
