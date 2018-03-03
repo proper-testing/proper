@@ -1,4 +1,7 @@
-[![Build Status](https://travis-ci.org/manopapad/proper.svg?branch=master)](https://travis-ci.org/manopapad/proper)
+[![Travis][travis badge]][travis]
+[![Erlang Versions][erlang version badge]][travis]
+[![License][license badge]][license]
+
 
 Contact information and license
 -------------------------------
@@ -20,10 +23,10 @@ You can reach PropEr's developers in the following ways:
 We welcome user contributions and feedback (comments, suggestions, feature
 requests, bug reports, patches etc.).
 
-Copyright 2010-2017 by Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas.
+Copyright 2010-2018 by Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas.
 
 This program is distributed under the [GPL](http://www.gnu.org/licenses/gpl.html),
-version 3 or later. Please see the COPYING file for details.
+version 3 or later. Please see the [COPYING][licence] file for details.
 
 
 Introduction
@@ -168,4 +171,16 @@ known incompatibilities:
 *   `proper:module/2` accepts options in the second argument instead of the
     first; this is for consistency with other `module/2` functions in Erlang/OTP.
 
+All the above are from circa 2010. Most likely, there exist many more
+incompatibilities between the two tools by now.
+
+
+<!-- Links -->
 [eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
+[license]: ./COPYING
+[travis]: https://travis-ci.org/manopapad/proper
+
+<!-- Badges -->
+[erlang versions badge]: https://img.shields.io/badge/erlang-17%20to%2020.2-blue.svg?style=flat-square
+[license badge]: https://img.shields.io/github/license/manopapad/proper.svg?style=flat-square
+[travis badge]: https://img.shields.io/travis/manopapad/proper/master.svg?style=flat-square
