@@ -181,6 +181,6 @@ incompatibilities between the two tools by now.
 [travis]: https://travis-ci.org/manopapad/proper
 
 <!-- Badges -->
-[erlang versions badge]: https://img.shields.io/badge/erlang-17%20to%2020.2-blue.svg?style=flat-square
+[erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2020.2-blue.svg?style=flat-square
 [license badge]: https://img.shields.io/github/license/manopapad/proper.svg?style=flat-square
 [travis badge]: https://img.shields.io/travis/manopapad/proper/master.svg?style=flat-square
