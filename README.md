@@ -1,5 +1,5 @@
 [![Travis][travis badge]][travis]
-[![Erlang Versions][erlang version badge]][travis]
+[![Erlang Versions][erlang versions badge]][travis]
 [![License][license badge]][license]
 
 
