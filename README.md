@@ -1,5 +1,5 @@
 [![Travis][travis badge]][travis]
-[![Erlang Versions][erlang versions badge]][travis]
+[![Erlang Versions][erlang versions badge]][erlang]
 [![License][license badge]][license]
 
 
@@ -179,8 +179,9 @@ incompatibilities between the two tools by now.
 [eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
 [license]: ./COPYING
 [travis]: https://travis-ci.org/manopapad/proper
+[erlang]: http://www.erlang.org
 
 <!-- Badges -->
-[erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2020.2-blue.svg?style=flat-square
+[erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2020.3-blue.svg?style=flat-square
 [license badge]: https://img.shields.io/github/license/manopapad/proper.svg?style=flat-square
 [travis badge]: https://img.shields.io/travis/manopapad/proper/master.svg?style=flat-square
