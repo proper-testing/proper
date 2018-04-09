@@ -218,7 +218,7 @@
 
 -module(proper_statem).
 
--export([commands/1, commands/2, commands/4, parallel_commands/1, parallel_commands/2,
+-export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
 	 more_commands/2]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).

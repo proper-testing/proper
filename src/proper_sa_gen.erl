@@ -61,7 +61,7 @@
 -define(TEMP(T), calculate_temperature(T)).
 -define(SLTEMP(T), adjust_temperature(T)).
 
--type matcher() :: fun((term(), proper_types:type(), proper_sa:temperature()) -> term()).
+-type matcher() :: fun((term(), proper_types:raw_type(), proper_sa:temperature()) -> term()).
 
 -spec update_caches('accept' | 'reject') -> 'ok'.
 update_caches(accept) ->
@@ -652,52 +652,58 @@ get_matcher(Type) ->
     error -> fun structural_match/3
   end.
 
--spec match(term(), proper_types:type(), proper_sa:temperature()) -> term().
-match(Base, Type = {'$type', _}, Temp) ->
-  Matcher = get_matcher(Type),
-  Matcher(Base, Type, Temp);
+-spec match(term(), proper_types:raw_type(), proper_sa:temperature()) -> term().
 match(Base, Type, Temp) ->
-  %% if we only have values left, we use structural matching
-  structural_match(Base, Type, Temp).
+  case proper_type:is_type(Type) of
+    true ->
+      Matcher = get_matcher(Type),
+      Matcher(Base, Type, Temp);
+    false ->
+      %% if we only have values left, we use structural matching
+      structural_match(Base, Type, Temp)
+  end.
 
--spec structural_match(term(), proper_types:type(), proper_sa:temperature()) -> term().
-structural_match(Base, Type = {'$type', _}, Temp) ->
-  case Base of
-    no_matching ->
-      sample_from_type(Type, ?TEMP(Temp));
-    _ ->
-      Gen = replace_generators(Type),
-      BaseNormalized = Gen(Base, null),
-      Gen(BaseNormalized, ?SLTEMP(Temp))
-  end;
+-spec structural_match(term(), proper_types:raw_type(), proper_sa:temperature()) -> term().
 structural_match(Base, RawType, Temp) ->
-  if
-    is_tuple(RawType) ->
-      case is_set(RawType) orelse is_dict(RawType) of
-        true ->
-          %% we do not take apart Erlang's dicts and sets
+  case proper_types:is_type(RawType) of
+    true ->
+      case Base of
+        no_matching ->
           sample_from_type(RawType, ?TEMP(Temp));
         _ ->
-          MC = case is_tuple(Base) of
-                 true ->
-                   structural_match(tuple_to_list(Base), tuple_to_list(RawType), Temp);
-                 false ->
-                   structural_match(no_matching, tuple_to_list(RawType), Temp)
-               end,
-          list_to_tuple(MC)
+          Gen = replace_generators(RawType),
+          BaseNormalized = Gen(Base, null),
+          Gen(BaseNormalized, ?SLTEMP(Temp))
       end;
-    is_list(RawType) andalso is_list(Base) ->
-      case safe_zip(Base, RawType) of
-        {ok, ZippedBasesWithTypes} ->
-          per_element_match_cook(ZippedBasesWithTypes, Temp);
-        impossible ->
+    false ->
+      if
+        is_tuple(RawType) ->
+          case is_set(RawType) orelse is_dict(RawType) of
+            true ->
+              %% we do not take apart Erlang's dicts and sets
+              sample_from_type(RawType, ?TEMP(Temp));
+            _ ->
+              MC = case is_tuple(Base) of
+                     true ->
+                       structural_match(tuple_to_list(Base), tuple_to_list(RawType), Temp);
+                     false ->
+                       structural_match(no_matching, tuple_to_list(RawType), Temp)
+                   end,
+              list_to_tuple(MC)
+          end;
+        is_list(RawType) andalso is_list(Base) ->
+          case safe_zip(Base, RawType) of
+            {ok, ZippedBasesWithTypes} ->
+              per_element_match_cook(ZippedBasesWithTypes, Temp);
+            impossible ->
+              sample_from_type(RawType, ?TEMP(Temp))
+          end;
+        is_list(RawType) ->
+          %% the base is not matching
+          per_element_match_cook(no_matching_list_zip(RawType), Temp);
+        true ->
           sample_from_type(RawType, ?TEMP(Temp))
-      end;
-    is_list(RawType) ->
-      %% the base is not matching
-      per_element_match_cook(no_matching_list_zip(RawType), Temp);
-    true ->
-      sample_from_type(RawType, ?TEMP(Temp))
+      end
   end.
 
 %% handles improper lists
