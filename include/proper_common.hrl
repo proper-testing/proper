@@ -31,8 +31,10 @@
 %%------------------------------------------------------------------------------
 
 -define(FORALL(X,RawType,Prop), proper:forall(RawType,fun(X) -> Prop end)).
--define(EXISTS(X,TMap,Prop), proper:exists(TMap, fun(X) -> Prop end, false)).
--define(NOT_EXISTS(X,TMap,Prop), proper:exists(TMap, fun(X) -> Prop end, true)).
+-define(EXISTS(X,RawType,Prop), proper:exists(RawType, fun(X) -> Prop end, false)).
+-define(NOT_EXISTS(X,RawType,Prop), proper:exists(RawType, fun(X) -> Prop end, true)).
+-define(FORALL_TARGETED(X, RawType, Prop),
+        proper:exists(RawType, fun(X) -> not Prop end, true)).
 -define(IMPLIES(Pre,Prop), proper:implies(Pre,?DELAY(Prop))).
 -define(WHENFAIL(Action,Prop), proper:whenfail(?DELAY(Action),?DELAY(Prop))).
 -define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).
@@ -66,6 +68,7 @@
 -define(MAXIMIZE(Fitness), proper_target:update_target_uvs(Fitness, inf)).
 -define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
 -define(USERNF(Type, NF), proper_sa_gen:set_user_nf(Type, NF)).
+-define(USERMATCHER(Type, Matcher), proper_sa_gen:set_matcher(Type, Matcher)).
 
 %%------------------------------------------------------------------------------
 %% Macros for backwards compatibility
