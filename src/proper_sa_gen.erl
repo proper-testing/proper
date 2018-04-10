@@ -654,7 +654,7 @@ get_matcher(Type) ->
 
 -spec match(term(), proper_types:raw_type(), proper_sa:temperature()) -> term().
 match(Base, Type, Temp) ->
-  case proper_type:is_type(Type) of
+  case proper_types:is_type(Type) of
     true ->
       Matcher = get_matcher(Type),
       Matcher(Base, Type, Temp);
