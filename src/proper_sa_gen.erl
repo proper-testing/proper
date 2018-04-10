@@ -648,7 +648,7 @@ let_gen_sa(Type) ->
 
 get_matcher(Type) ->
   case proper_types:find_prop(matcher, Type) of
-    {ok, MatchFun} -> MatchFun;
+    {ok, MatchFun} -> fun (B,I,T) -> MatchFun(B, I, ?TEMP(T)) end;
     error -> fun structural_match/3
   end.
 

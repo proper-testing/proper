@@ -407,3 +407,18 @@ prop_shrink4() ->
                 ?MINIMIZE(I),
                 I < 10
               end).
+
+matching_type() ->
+        ?LET(I, integer(), I).
+
+prop_match() ->
+  ?FORALL_TARGETED(I, ?USERMATCHER(matching_type(), fun proper_sa_gen:match/3),
+                   begin
+                     ?MAXIMIZE(I),
+                     I < 10
+                   end).
+
+-spec match_test() -> 'ok'.
+match_test() ->
+  false = proper:quickcheck(prop_match(), ?PROPER_OPTIONS_SHRINKING),
+  ok.
