@@ -327,13 +327,13 @@ matching_graph() ->
 -spec graph_match1_test_() -> 'ok'.
 graph_match1_test_() ->
   Opts = ?PROPER_OPTIONS,
-  ?timeout(1000, ?_assert(proper:quickcheck(prop_graph_match_corr(), Opts))).
+  ?timeout(60, ?_assert(proper:quickcheck(prop_graph_match_corr(), Opts))).
 
 
 -spec graph_match2_test_() -> 'ok'.
 graph_match2_test_() ->
   Opts = ?PROPER_OPTIONS,
-  ?timeout(1000, ?_assert(proper:quickcheck(prop_graph_match_perf(), Opts))).
+  ?timeout(60, ?_assert(proper:quickcheck(prop_graph_match_perf(), Opts))).
 
 prop_graph_match_perf() ->
   ?EXISTS({V, E}, matching_graph(),
