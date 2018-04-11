@@ -2,7 +2,7 @@
 %%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
-%%%                 and Andreas Lï¿½scher <andreas.loscher@it.uu.se>
+%%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Lï¿½scher
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -1000,9 +1000,9 @@ setup(Fun, Test) ->
     {setup, Fun, Test}.
 
 %% @private
--spec exists(proper_target:tmap(), dependent_test(), boolean()) -> exists_clause().
-exists(TMap, DTest, Not) ->
-    {exists, TMap, DTest, Not}.
+-spec exists(proper_types:raw_type(), dependent_test(), boolean()) -> exists_clause().
+exists(RawType, DTest, Not) ->
+    {exists, #{gen => RawType}, DTest, Not}.
 
 %% @doc Returns a property that is true only if all of the sub-properties
 %% `SubProps' are true. Each sub-property should be tagged with a distinct atom.
@@ -1295,10 +1295,13 @@ perform_search(Steps, NumSteps, TriesLeft, Target, DTest,
 			false ->
 			    create_pass_result(Ctx, true_prop)
 		    end;
-		#fail{} ->
+		#fail{reason=false_prop} ->
 		    Print(".", []),
 		    grow_size(Opts),
 		    perform_search(Steps + 1, NumSteps, TriesLeft - 1, Target, DTest, Ctx, Opts, Not);
+		#fail{} = FailResult -> %% TODO check that fails in the EXIST macros trigger a bug
+		    Print("!", []),
+		    FailResult#fail{performed = Steps + 1};
 		{error, rejected} ->
 		    Print("x", []),
 		    grow_size(Opts),
@@ -1360,7 +1363,7 @@ run({exists, TMap, Prop, Not}, #ctx{mode = new} = Ctx,
     SR = perform_search(Steps, Target, Prop, Ctx, Opts, Not),
     put('$size', BackupSize),
     Print("]", []),
-    %% proper_target:cleanup_strategy(),
+    %% proper_target:cleanup_strategy(), TODO: why does this not work?
     SR;
 run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk, bound = []}, Opts) ->
     run({exists, TMap, Prop, Not}, #ctx{mode = new, bound = []}, Opts#opts{output_fun = fun (_, _) -> ok end});

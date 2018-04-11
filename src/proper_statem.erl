@@ -328,6 +328,7 @@ commands(Mod, InitialState) ->
 	    [{init,InitialState}|CmdTail]),
        is_valid(Mod, InitialState, Cmds, [])).
 
+%% @private
 -spec commands(size(), mod_name(), symbolic_state(), pos_integer()) ->
          proper_types:type().
 commands(Size, Mod, State, Count) ->

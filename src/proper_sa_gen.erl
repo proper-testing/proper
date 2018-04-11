@@ -26,7 +26,11 @@
 -module(proper_sa_gen).
 
 -export([from_proper_generator/1, set_temperature_scaling/1, update_caches/1, init/0, cleanup/0,
-         set_user_nf/2]).
+         set_user_nf/2, set_matcher/2]).
+
+-export([match/3, structural_match/3]).
+
+-export_type([matcher/0]).
 
 -include("proper_internal.hrl").
 
@@ -56,6 +60,8 @@
 
 -define(TEMP(T), calculate_temperature(T)).
 -define(SLTEMP(T), adjust_temperature(T)).
+
+-type matcher() :: fun((term(), proper_types:raw_type(), proper_sa:temperature()) -> term()).
 
 -spec update_caches('accept' | 'reject') -> 'ok'.
 update_caches(accept) ->
@@ -115,6 +121,10 @@ init_pd(Key, Value) ->
 -spec set_user_nf(proper_types:type(), proper_sa:nf()) -> proper_types:type().
 set_user_nf(Type, NF) ->
   proper_types:add_prop(user_nf, NF, Type).
+
+-spec set_matcher(proper_types:type(), matcher()) -> proper_types:type().
+set_matcher(Type, Matcher) ->
+  proper_types:add_prop(matcher, Matcher, Type).
 
 get_depth() ->
   DS = get(proper_sa_gen_depth_cache),
@@ -244,7 +254,7 @@ calculate_temperature(Temp) ->
 %% sample
 sample_from_type(Type, Temp) ->
   Gen = replace_generators(Type),
-  {ok, Generated} = proper_gen:clean_instance(proper_gen:safe_generate(Type)),
+  {ok, Generated} = proper_gen:safe_generate(Type),
   Gen(Generated, Temp).
 
 %% exactly
@@ -355,7 +365,7 @@ list_gen_internal([], Temp, InternalType, ElementType, GrowthCoefficient) ->
   %% chance to add an element
   case list_choice(empty, ?TEMP(Temp)) of
     add ->
-      {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
+      {ok, New} = proper_gen:safe_generate(InternalType),
       [New | list_gen_internal([], Temp, InternalType, ElementType, GrowthCoefficient)];
     nothing -> []
   end;
@@ -367,7 +377,7 @@ list_gen_internal(L=[H|T], Temp, InternalType, ElementType, GrowthCoefficient) -
   %% chance to add element infront of current element
   case list_choice({list, GrowthCoefficient}, ?TEMP(Temp)) of
     add ->
-      {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
+      {ok, New} = proper_gen:safe_generate(InternalType),
       [New | list_gen_internal(L, Temp, InternalType, ElementType, GrowthCoefficient)];
     del ->
       list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient);
@@ -563,7 +573,7 @@ union_gen_sa(Type) ->
           %% generate new
           Index = trunc(?RANDOM_MOD:uniform() * length(Env)) + 1,
           ET = lists:nth(Index, Env),
-          {ok, Value} = proper_gen:clean_instance(proper_gen:safe_generate(ET)),
+          {ok, Value} = proper_gen:safe_generate(ET),
           Value;
         PossibleGens  ->
           C = ?RANDOM_MOD:uniform(),
@@ -577,7 +587,7 @@ union_gen_sa(Type) ->
               %% change choice
               Index = trunc(?RANDOM_MOD:uniform() * length(Env)) + 1,
               ET = lists:nth(Index, Env),
-              {ok, Value} = proper_gen:clean_instance(proper_gen:safe_generate(ET)),
+              {ok, Value} = proper_gen:safe_generate(ET),
               Value;
             true ->
               %% modify amongst the possible
@@ -596,82 +606,85 @@ is_let_type({'$type', Props}) ->
 is_let_type(_) ->
   false.
 
-get_cached_let(Type, Combined) ->
-  Key = erlang:phash2({let_type, Type, Combined}),
-  case get(proper_sa_gen_cache) of
-    Map when is_map(Map) ->
-      case maps:find(Key, Map) of
-        error -> not_found;
-        Ret -> Ret
-      end;
-    _ -> not_found
-  end.
-
-set_cache_let(Type, Combined, Base) ->
-  Key = erlang:phash2({let_type, Type, Combined}),
-  M = get(proper_sa_gen_cache),
-  put(proper_sa_gen_cache, maps:put(Key, Base, M)).
-
-del_cache_let(Type, Combined) ->
-  Key = erlang:phash2({let_type, Type, Combined}),
-  M = get(proper_sa_gen_cache),
-  put(proper_sa_gen_cache, maps:remove(Key, M)).
-
 let_gen_sa(Type) ->
   {ok, Combine} = proper_types:find_prop(combine, Type),
   {ok, PartsType} = proper_types:find_prop(parts_type, Type),
+  Matcher = get_matcher(Type),
   PartsGen = replace_generators(PartsType),
   fun (Base, Temp) ->
-      LetOuter = case get_cached_let(Type, Base) of
-                   {ok, Stored} ->
-                     del_cache_let(Type, Base),
-                     PartsGen(Stored, ?SLTEMP(Temp));
-                   not_found ->
-                     sample_from_type(PartsType, ?SLTEMP(Temp))
+      LetOuter = case extract_outer_safe(Base) of
+                   {ok, Outer} -> PartsGen(Outer, ?SLTEMP(Temp));
+                   fail -> sample_from_type(PartsType, ?SLTEMP(Temp))
                  end,
-      RawCombined = Combine(LetOuter),
-      NewValue = match_cook(Base, RawCombined, Temp),
-      set_cache_let(Type, NewValue, LetOuter),
-      NewValue
+      CleanOuter = proper_gen:clean_instance(LetOuter),
+      RawCombined = Combine(CleanOuter),
+      NewValue = Matcher(Base, RawCombined, Temp),
+      {'$used', LetOuter, NewValue}
   end.
 
-match_cook(Base, Type = {'$type', _}, Temp) ->
-  case Base of
-    no_matching ->
-      sample_from_type(Type, ?TEMP(Temp));
-    _ ->
-      Gen = replace_generators(Type),
-      BaseNormalized = Gen(Base, null),
-      Gen(BaseNormalized, ?SLTEMP(Temp))
-  end;
-match_cook(Base, RawType, Temp) ->
-  if
-    is_tuple(RawType) ->
-      case is_set(RawType) orelse is_dict(RawType) of
-        true ->
-          %% we do not take apart Erlang's dicts and sets
+extract_outer_safe({'$used', Extracted, _}) -> {ok, Extracted};
+extract_outer_safe(_) -> fail.
+
+get_matcher(Type) ->
+  case proper_types:find_prop(matcher, Type) of
+    {ok, MatchFun} -> fun (B,I,T) -> MatchFun(B, I, ?TEMP(T)) end;
+    error -> fun structural_match/3
+  end.
+
+-spec match(term(), proper_types:raw_type(), proper_sa:temperature()) -> term().
+match(Base, Type, Temp) ->
+  case proper_types:is_type(Type) of
+    true ->
+      Matcher = get_matcher(Type),
+      Matcher(Base, Type, Temp);
+    false ->
+      %% if we only have values left, we use structural matching
+      structural_match(Base, Type, Temp)
+  end.
+
+-spec structural_match(term(), proper_types:raw_type(), proper_sa:temperature()) -> term().
+structural_match(UncleanBase, UncleanRawType, Temp) ->
+  Base = proper_gen:clean_instance(UncleanBase),
+  RawType = proper_gen:clean_instance(UncleanRawType),
+  case proper_types:is_type(RawType) of
+    true ->
+      case Base of
+        no_matching ->
           sample_from_type(RawType, ?TEMP(Temp));
         _ ->
-          MC = case is_tuple(Base) of
-                 true ->
-                   match_cook(tuple_to_list(Base), tuple_to_list(RawType), Temp);
-                 false ->
-                   match_cook(no_matching, tuple_to_list(RawType), Temp)
-               end,
-          list_to_tuple(MC)
+          Gen = replace_generators(RawType),
+          BaseNormalized = Gen(Base, null),
+          Gen(BaseNormalized, ?SLTEMP(Temp))
       end;
-    is_list(RawType) andalso is_list(Base) ->
-      case safe_zip(Base, RawType) of
-        {ok, ZippedBasesWithTypes} ->
-          per_element_match_cook(ZippedBasesWithTypes, Temp);
-        impossible ->
+    false ->
+      if
+        is_tuple(RawType) ->
+          case is_set(RawType) orelse is_dict(RawType) of
+            true ->
+              %% we do not take apart Erlang's dicts and sets
+              sample_from_type(RawType, ?TEMP(Temp));
+            _ ->
+              MC = case is_tuple(Base) of
+                     true ->
+                       structural_match(tuple_to_list(Base), tuple_to_list(RawType), Temp);
+                     false ->
+                       structural_match(no_matching, tuple_to_list(RawType), Temp)
+                   end,
+              list_to_tuple(MC)
+          end;
+        is_list(RawType) andalso is_list(Base) ->
+          case safe_zip(Base, RawType) of
+            {ok, ZippedBasesWithTypes} ->
+              per_element_match_cook(ZippedBasesWithTypes, Temp);
+            impossible ->
+              sample_from_type(RawType, ?TEMP(Temp))
+          end;
+        is_list(RawType) ->
+          %% the base is not matching
+          per_element_match_cook(no_matching_list_zip(RawType), Temp);
+        true ->
           sample_from_type(RawType, ?TEMP(Temp))
-      end;
-    is_list(RawType) ->
-      %% the base is not matching
-      per_element_match_cook(no_matching_list_zip(RawType), Temp);
-    true ->
-      sample_from_type(RawType, ?TEMP(Temp))
+      end
   end.
 
 %% handles improper lists
@@ -680,7 +693,7 @@ no_matching_list_zip([H|T]) ->[{no_matching, H} | no_matching_list_zip(T)];
 no_matching_list_zip(ImproperTail) -> {no_matching, ImproperTail}.
 
 per_element_match_cook(ZippedBasesWithTypes, Temp) ->
-  safe_map(fun ({B, RT}) -> match_cook(B, RT, Temp) end, ZippedBasesWithTypes).
+  safe_map(fun ({B, RT}) -> structural_match(B, RT, Temp) end, ZippedBasesWithTypes).
 
 safe_map(_Fun, []) -> [];
 safe_map(Fun, [H|T]) ->
@@ -771,7 +784,7 @@ save_sized_generation(Base, Temp, Next, First) ->
     Next(Base, Temp)
   catch
     error:function_clause ->
-      {ok, E} = proper_gen:clean_instance(proper_gen:safe_generate(First)),
+      {ok, E} = proper_gen:safe_generate(First),
       E
   end.
 
@@ -814,7 +827,9 @@ user_defined_gen_sa(Type) ->
   NF = proper_types:get_prop(user_nf, Type),
   fun (Base, T) ->
       NewRaw = NF(Base, T),
-      match_cook(Base, NewRaw, T)
+      {ok, Generated} = proper_gen:safe_generate(NewRaw),
+      %% match(Base, NewRaw, T)
+      Generated
   end.
 
 %% utility

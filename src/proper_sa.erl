@@ -61,10 +61,8 @@
         ]).
 %% lib
 -export([reset/0, get_last_fitness/0, get_neighborhood_function/1]).
-%% standard types
--export([integer/0, integer/2, float/0, float/2, list/1]).
 
--export_type([first_next/0, temperature/0, nf/0]).
+-export_type([temperature/0, nf/0]).
 
 -include("proper_internal.hrl").
 
@@ -313,7 +311,7 @@ reset_all_targets(Dict,  []) ->
   Dict;
 reset_all_targets(Dict, [K|T]) ->
   {S, N, F} = dict:fetch(K, Dict),
-  {ok, ResetValue} = proper_gen:clean_instance(proper_gen:safe_generate(S#sa_target.first)),
+  {ok, ResetValue} = proper_gen:safe_generate(S#sa_target.first),
   NewVal = {S#sa_target{last_generated = ResetValue}, N, F},
   reset_all_targets(dict:store(K, NewVal, Dict), T).
 
@@ -336,15 +334,13 @@ cleanup() ->
 
 %% @private
 -spec init_target(proper_target:tmap()) -> proper_target:target().
-init_target(TMap) when map_size(TMap) =:= 0 ->
-  init_target(?MODULE:integer());
 init_target(#{gen := Gen}) ->
   init_target(proper_sa_gen:from_proper_generator(Gen));
 init_target(#{first := First, next := Next}) ->
   create_target(#sa_target{first = First, next = Next}).
 
 create_target(SATarget) ->
-  {ok, InitialValue} = proper_gen:clean_instance(proper_gen:safe_generate(SATarget#sa_target.first)),
+  {ok, InitialValue} = proper_gen:safe_generate(SATarget#sa_target.first),
   {SATarget#sa_target{last_generated = InitialValue},
    fun next_func/1,
    %% dummy local fitness function
@@ -358,7 +354,7 @@ next_func(SATarget) ->
   %% calculating the max generated size
   NextGenerator = (SATarget#sa_target.next)(SATarget#sa_target.last_generated, Temperature),
   %% generate the next element
-  {ok, Generated} = proper_gen:clean_instance(proper_gen:safe_generate(NextGenerator)),
+  {ok, Generated} = proper_gen:safe_generate(NextGenerator),
   %% return according to interface
   {SATarget#sa_target{current_generated = Generated}, Generated}.
 
@@ -446,120 +442,8 @@ update_all_targets(Dict, [K|T]) ->
 get_shrinker(#{first := First}) -> First;
 get_shrinker(#{gen := Gen}) -> Gen.
 
-%%--------------------------------------------------------------------------
-%% library
-%%--------------------------------------------------------------------------
-
--type first_next() :: proper_target:tmap().
-
 %% @doc constructs a neighborhood function `Fun(Base, Temp)' from `Type'
 -spec get_neighborhood_function(proper_types:type()) -> nf().
 get_neighborhood_function(Type) ->
   #{next := Next} = proper_sa_gen:from_proper_generator(Type),
   Next.
-
-%% @doc equivalent to `integer(inf, inf)'
--spec integer() -> first_next().
-integer() ->
-  ?MODULE:integer(inf, inf).
-
-%% @doc "first" generator and "next" function for integers between `Low' and `High', bounds included.
--spec integer(proper_types:extint(), proper_types:extint()) -> first_next().
-integer(Low, High) ->
-  #{first => proper_types:integer(Low, High), next => integer_next(Low, High)}.
-
-integer_next(L, R) ->
-  fun (OldInstance, Temperature) ->
-      {LL, LR} = case L =:= inf orelse R =:= inf of
-                   true ->
-                     {inf, inf};
-                   false ->
-                     Limit = trunc(abs(L - R) * Temperature * 0.1) + 1,
-                     {-Limit, Limit}
-                 end,
-      ?LET(X, proper_types:integer(LL, LR), make_inrange(OldInstance, X, L, R))
-  end.
-
-%% @doc equivalent to `float(inf, inf)'
--spec float() -> first_next().
-float() ->
-  ?MODULE:float(inf, inf).
-
-%% @doc "first" generator and "next" function for floats between `Low' and `High', bounds included.
--spec float(proper_types:extnum(), proper_types:extnum()) -> first_next().
-float(Low, High) ->
-  #{first => proper_types:float(Low, High), next => float_next(Low, High)}.
-
-float_next(L, R) ->
-  fun (OldInstance, Temperature) ->
-      {LL, LR} = case L =:= inf orelse R =:= inf of
-                   true ->
-                     {inf, inf};
-                   false ->
-                     Limit = abs(L - R) * Temperature * 0.1,
-                     {-Limit, Limit}
-                 end,
-      ?LET(X, proper_types:float(LL, LR), make_inrange(OldInstance, X, L, R))
-  end.
-
-make_inrange(Val, L, R) when (R =:= inf orelse Val =< R) andalso (L =:= inf orelse Val >= L) -> Val;
-make_inrange(Val, L, _R) when Val < L -> L;
-make_inrange(Val, _L, R) when Val > R -> R.
-
-make_inrange(Val, Offset, L, R) when L =/= inf, Val + Offset < L ->
-  make_inrange(Val - Offset, L, R);
-make_inrange(Val, Offset, L, R) when R =/= inf, Val + Offset > R ->
-  make_inrange(Val - Offset, L, R);
-make_inrange(Val, Offset, L, R) -> make_inrange(Val + Offset, L, R).
-
-%% @doc "first" generator and "next" function for lists containing elements of type `ElemType'
--spec list(proper_types:type()) -> first_next().
-list(ElemType) ->
-  #{first => proper_types:list(ElemType),
-    next => list_next(ElemType)}.
-
-list_next(Type) ->
-  fun (Base, _T) ->
-      GrowthCoefficient = (?RANDOM_MOD:uniform() * 0.8) + 0.1,
-      list_gen_internal(Base, 0.5, Type, GrowthCoefficient)
-  end.
-
-list_gen_internal([], Temp, InternalType, GrowthCoefficient) ->
-  %% chance to add an element
-  case list_choice(empty, Temp) of
-    add ->
-      {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
-      [New | list_gen_internal([], Temp, InternalType, GrowthCoefficient)];
-    nothing -> []
-  end;
-list_gen_internal(L=[H|T], Temp, InternalType, GrowthCoefficient) ->
-  %% chance to delete current element
-  %% chance to add element in front of current element
-  case list_choice(GrowthCoefficient, Temp) of
-    add ->
-      {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
-      [New | list_gen_internal(L, Temp, InternalType, GrowthCoefficient)];
-    del ->
-      list_gen_internal(T, Temp, InternalType, GrowthCoefficient);
-    nothing ->
-      [H | list_gen_internal(T, Temp, InternalType, GrowthCoefficient)]
-  end.
-
-list_choice(empty, Temp) ->
-  C = ?RANDOM_MOD:uniform(),
-  C_Add = 0.5 * Temp,
-  if
-    C < C_Add -> add;
-    true      -> nothing
-  end;
-list_choice(GrowthCoefficient, Temp) ->
-  C = ?RANDOM_MOD:uniform(),
-  AddCoefficient = 0.6 * GrowthCoefficient,
-  DelCoefficient = 0.6 * (1- GrowthCoefficient),
-  C_Add =          AddCoefficient * Temp,
-  C_Del = C_Add + (DelCoefficient * Temp),
-  if
-    C < C_Add -> add;
-    C < C_Del -> del;
-    true      -> nothing
-  end.
