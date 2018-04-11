@@ -254,7 +254,7 @@ calculate_temperature(Temp) ->
 %% sample
 sample_from_type(Type, Temp) ->
   Gen = replace_generators(Type),
-  {ok, Generated} = proper_gen:clean_instance(proper_gen:safe_generate(Type)),
+  {ok, Generated} = proper_gen:safe_generate(Type),
   Gen(Generated, Temp).
 
 %% exactly
@@ -365,7 +365,7 @@ list_gen_internal([], Temp, InternalType, ElementType, GrowthCoefficient) ->
   %% chance to add an element
   case list_choice(empty, ?TEMP(Temp)) of
     add ->
-      {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
+      {ok, New} = proper_gen:safe_generate(InternalType),
       [New | list_gen_internal([], Temp, InternalType, ElementType, GrowthCoefficient)];
     nothing -> []
   end;
@@ -377,7 +377,7 @@ list_gen_internal(L=[H|T], Temp, InternalType, ElementType, GrowthCoefficient) -
   %% chance to add element infront of current element
   case list_choice({list, GrowthCoefficient}, ?TEMP(Temp)) of
     add ->
-      {ok, New} = proper_gen:clean_instance(proper_gen:safe_generate(InternalType)),
+      {ok, New} = proper_gen:safe_generate(InternalType),
       [New | list_gen_internal(L, Temp, InternalType, ElementType, GrowthCoefficient)];
     del ->
       list_gen_internal(T, Temp, InternalType, ElementType, GrowthCoefficient);
@@ -573,7 +573,7 @@ union_gen_sa(Type) ->
           %% generate new
           Index = trunc(?RANDOM_MOD:uniform() * length(Env)) + 1,
           ET = lists:nth(Index, Env),
-          {ok, Value} = proper_gen:clean_instance(proper_gen:safe_generate(ET)),
+          {ok, Value} = proper_gen:safe_generate(ET),
           Value;
         PossibleGens  ->
           C = ?RANDOM_MOD:uniform(),
@@ -587,7 +587,7 @@ union_gen_sa(Type) ->
               %% change choice
               Index = trunc(?RANDOM_MOD:uniform() * length(Env)) + 1,
               ET = lists:nth(Index, Env),
-              {ok, Value} = proper_gen:clean_instance(proper_gen:safe_generate(ET)),
+              {ok, Value} = proper_gen:safe_generate(ET),
               Value;
             true ->
               %% modify amongst the possible
@@ -606,45 +606,24 @@ is_let_type({'$type', Props}) ->
 is_let_type(_) ->
   false.
 
-get_cached_let(Type, Combined) ->
-  Key = erlang:phash2({let_type, Type, Combined}),
-  case get(proper_sa_gen_cache) of
-    Map when is_map(Map) ->
-      case maps:find(Key, Map) of
-        error -> not_found;
-        Ret -> Ret
-      end;
-    _ -> not_found
-  end.
-
-set_cache_let(Type, Combined, Base) ->
-  Key = erlang:phash2({let_type, Type, Combined}),
-  M = get(proper_sa_gen_cache),
-  put(proper_sa_gen_cache, maps:put(Key, Base, M)).
-
-del_cache_let(Type, Combined) ->
-  Key = erlang:phash2({let_type, Type, Combined}),
-  M = get(proper_sa_gen_cache),
-  put(proper_sa_gen_cache, maps:remove(Key, M)).
-
 let_gen_sa(Type) ->
   {ok, Combine} = proper_types:find_prop(combine, Type),
   {ok, PartsType} = proper_types:find_prop(parts_type, Type),
   Matcher = get_matcher(Type),
   PartsGen = replace_generators(PartsType),
   fun (Base, Temp) ->
-      LetOuter = case get_cached_let(Type, Base) of
-                   {ok, Stored} ->
-                     del_cache_let(Type, Base),
-                     PartsGen(Stored, ?SLTEMP(Temp));
-                   not_found ->
-                     sample_from_type(PartsType, ?SLTEMP(Temp))
+      LetOuter = case extract_outer_safe(Base) of
+                   {ok, Outer} -> PartsGen(Outer, ?SLTEMP(Temp));
+                   fail -> sample_from_type(PartsType, ?SLTEMP(Temp))
                  end,
-      RawCombined = Combine(LetOuter),
+      CleanOuter = proper_gen:clean_instance(LetOuter),
+      RawCombined = Combine(CleanOuter),
       NewValue = Matcher(Base, RawCombined, Temp),
-      set_cache_let(Type, NewValue, LetOuter),
-      NewValue
+      {'$used', LetOuter, NewValue}
   end.
+
+extract_outer_safe({'$used', Extracted, _}) -> {ok, Extracted};
+extract_outer_safe(_) -> fail.
 
 get_matcher(Type) ->
   case proper_types:find_prop(matcher, Type) of
@@ -664,7 +643,9 @@ match(Base, Type, Temp) ->
   end.
 
 -spec structural_match(term(), proper_types:raw_type(), proper_sa:temperature()) -> term().
-structural_match(Base, RawType, Temp) ->
+structural_match(UncleanBase, UncleanRawType, Temp) ->
+  Base = proper_gen:clean_instance(UncleanBase),
+  RawType = proper_gen:clean_instance(UncleanRawType),
   case proper_types:is_type(RawType) of
     true ->
       case Base of
@@ -803,7 +784,7 @@ save_sized_generation(Base, Temp, Next, First) ->
     Next(Base, Temp)
   catch
     error:function_clause ->
-      {ok, E} = proper_gen:clean_instance(proper_gen:safe_generate(First)),
+      {ok, E} = proper_gen:safe_generate(First),
       E
   end.
 
@@ -846,7 +827,7 @@ user_defined_gen_sa(Type) ->
   NF = proper_types:get_prop(user_nf, Type),
   fun (Base, T) ->
       NewRaw = NF(Base, T),
-      {ok, Generated} = proper_gen:clean_instance(proper_gen:safe_generate(NewRaw)),
+      {ok, Generated} = proper_gen:safe_generate(NewRaw),
       %% match(Base, NewRaw, T)
       Generated
   end.
