@@ -414,7 +414,7 @@ prop_shrink4() ->
               end).
 
 matching_type() ->
-        ?LET(I, integer(), I).
+  ?LET(I, integer(), I).
 
 prop_match() ->
   ?FORALL_TARGETED(I, ?USERMATCHER(matching_type(), fun proper_sa_gen:match/3),
