@@ -35,14 +35,14 @@
 %% Backwards Compatibility Test
 prop_strategy() ->
   ?STRATEGY(proper_sa,
-            ?FORALL(X, ?TARGET(proper_sa:integer()),
+            ?FORALL(X, ?TARGET(#{gen => integer()}),
                     begin
                       ?MAXIMIZE(X),
                       X < 10
                     end)).
 
 prop_forall_sa() ->
-  ?FORALL_SA(X, ?TARGET(proper_sa:integer()),
+  ?FORALL_SA(X, ?TARGET(#{gen => integer()}),
              begin
                ?MAXIMIZE(X),
                X < 10
@@ -324,11 +324,16 @@ matching_graph() ->
   ?LET({Vs, Es}, graph_duplicated_edges(),
        {Vs, lists:usort(Es)}).
 
--spec graph_match_test_() -> 'ok'.
-graph_match_test_() ->
+-spec graph_match1_test_() -> 'ok'.
+graph_match1_test_() ->
   Opts = ?PROPER_OPTIONS,
-  ?timeout(100, [?_assert(proper:quickcheck(prop_graph_match_corr(), Opts)),
-                 ?_assert(proper:quickcheck(prop_graph_match_perf(), Opts))]).
+  ?timeout(1000, ?_assert(proper:quickcheck(prop_graph_match_corr(), Opts))).
+
+
+-spec graph_match2_test_() -> 'ok'.
+graph_match2_test_() ->
+  Opts = ?PROPER_OPTIONS,
+  ?timeout(1000, ?_assert(proper:quickcheck(prop_graph_match_perf(), Opts))).
 
 prop_graph_match_perf() ->
   ?EXISTS({V, E}, matching_graph(),
@@ -421,4 +426,24 @@ prop_match() ->
 -spec match_test() -> 'ok'.
 match_test() ->
   false = proper:quickcheck(prop_match(), ?PROPER_OPTIONS_SHRINKING),
-  ok.
+  ?assertMatch([10], proper:counterexample()).
+
+let_integer() ->
+  ?LET(I, integer(), I+1).
+
+let_list_type() ->
+  ?LET(L, vector(10, let_integer()), L ++ [0]).
+
+prop_match_and_shrink() ->
+  ?FORALL_TARGETED(L, let_list_type(),
+                   begin
+                     I = lists:sum(L),
+                     ?MAXIMIZE(I),
+                     I < 100
+                   end).
+
+-spec match_and_shrink_test() -> 'ok'.
+match_and_shrink_test() ->
+  false = proper:quickcheck(prop_match_and_shrink(), ?PROPER_OPTIONS_SHRINKING),
+  [L] = proper:counterexample(),
+  ?assertEqual(100, lists:sum(L)).
