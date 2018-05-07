@@ -1,10 +1,12 @@
-%%---------------------------------------------------------------------
-%% From Matthias Kretschmer
-%%
-%% I encountered the problem that I cannot have improper lists in my
-%% symbolic state. As I like to use a dictionary which might include
-%% improper lists, I made this little fix (#102).
-%%---------------------------------------------------------------------
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% From Matthias Kretschmer
+%%%
+%%% I encountered the problem that I cannot have improper lists in my
+%%% symbolic state. As I like to use a dictionary which might include
+%%% improper lists, I made this little fix (#102).
+%%%---------------------------------------------------------------------
 -module(improper_lists_statem).
 -export([command/1, initial_state/0, next_state/3,
 	 precondition/2, postcondition/3, foo/1]).

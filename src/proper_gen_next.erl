@@ -1,8 +1,8 @@
-%%% coding: latin-1
+%%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017-2018, Andreas Löscher <andreas.loscher@it.uu.se>
-%%%                     and  Kostis Sagonas <kostis@it.uu.se>
+%%% Copyright (c) 2017, Andreas LÃ¶scher <andreas.loscher@it.uu.se>
+%%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,18 +19,18 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017-2018 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017 Andreas LÃ¶scher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Löscher
+%%% @author Andreas LÃ¶scher
 
--module(proper_sa_gen).
+-module(proper_gen_next).
 
 -export([from_proper_generator/1, set_temperature_scaling/1, update_caches/1, init/0, cleanup/0,
-         set_user_nf/2, set_matcher/2]).
+         set_user_nf/2, set_matcher/2, get_neighborhood_function/1]).
 
--export([match/3, structural_match/3]).
+-export([match/3, structural_match/3, extract_outer_safe/1]).
 
--export_type([matcher/0]).
+-export_type([matcher/0, temperature/0, nf/0]).
 
 -include("proper_internal.hrl").
 
@@ -61,14 +61,16 @@
 -define(TEMP(T), calculate_temperature(T)).
 -define(SLTEMP(T), adjust_temperature(T)).
 
--type matcher() :: fun((term(), proper_types:raw_type(), proper_sa:temperature()) -> term()).
+-type temperature() :: float().
+-type nf() :: fun((term(), temperature()) -> term()).
+-type matcher() :: fun((term(), proper_types:raw_type(), temperature()) -> term()).
 
 -spec update_caches('accept' | 'reject') -> 'ok'.
 update_caches(accept) ->
-  put(proper_sa_gen_cache_backup, get(proper_sa_gen_cache)),
+  put(proper_gen_next_cache_backup, get(proper_gen_next_cache)),
   ok;
 update_caches(reject) ->
-  put(proper_sa_gen_cache, get(proper_sa_gen_cache_backup)),
+  put(proper_gen_next_cache, get(proper_gen_next_cache_backup)),
   ok.
 
 -spec from_proper_generator(proper_types:type()) -> proper_target:tmap().
@@ -78,9 +80,9 @@ from_proper_generator(RawGenerator) ->
   #{first => RawGenerator, next => Next}.
 
 ensure_initialized() ->
-  L = [get(proper_sa_gen_cache),
-       get(proper_sa_gen_cache_backup),
-       get(proper_sa_gen_depth_cache),
+  L = [get(proper_gen_next_cache),
+       get(proper_gen_next_cache_backup),
+       get(proper_gen_next_depth_cache),
        get(rand_seed),
        get('$any_type'),
        get('$left'),
@@ -98,16 +100,16 @@ ensure_initialized() ->
 
 -spec init() -> ok.
 init() ->
-  init_pd(proper_sa_gen_cache, #{}),
-  init_pd(proper_sa_gen_cache_backup, #{}),
-  init_pd(proper_sa_gen_depth_cache, #{max => 1}),
+  init_pd(proper_gen_next_cache, #{}),
+  init_pd(proper_gen_next_cache_backup, #{}),
+  init_pd(proper_gen_next_depth_cache, #{max => 1}),
   ok.
 
 -spec cleanup() -> ok.
 cleanup() ->
-  erase(proper_sa_gen_cache),
-  erase(proper_sa_gen_cache_backup),
-  erase(proper_sa_gen_depth_cache),
+  erase(proper_gen_next_cache),
+  erase(proper_gen_next_cache_backup),
+  erase(proper_gen_next_depth_cache),
   ok.
 
 init_pd(Key, Value) ->
@@ -118,7 +120,7 @@ init_pd(Key, Value) ->
     _ -> ok
   end.
 
--spec set_user_nf(proper_types:type(), proper_sa:nf()) -> proper_types:type().
+-spec set_user_nf(proper_types:type(), nf()) -> proper_types:type().
 set_user_nf(Type, NF) ->
   proper_types:add_prop(user_nf, NF, Type).
 
@@ -127,15 +129,15 @@ set_matcher(Type, Matcher) ->
   proper_types:add_prop(matcher, Matcher, Type).
 
 get_depth() ->
-  DS = get(proper_sa_gen_depth_cache),
+  DS = get(proper_gen_next_depth_cache),
   #{max := Max} = DS,
   Max.
 
 store_max_depth(Depth) ->
-  DS = get(proper_sa_gen_depth_cache),
+  DS = get(proper_gen_next_depth_cache),
   #{max := Current} = DS,
   NewMax = max(Depth, Current),
-  put(proper_sa_gen_depth_cache, DS#{max => NewMax}),
+  put(proper_gen_next_depth_cache, DS#{max => NewMax}),
   NewMax.
 
 replace_generators(RawGen) ->
@@ -225,11 +227,11 @@ adjust_temperature(Temp) ->
 
 -spec set_temperature_scaling(boolean) -> 'ok'.
 set_temperature_scaling(Enabled) ->
-  put(proper_sa_gen_temperature_scaling, Enabled).
+  put(proper_gen_next_temperature_scaling, Enabled).
 
 temperature_scaling(null, _) -> 0.0;
 temperature_scaling(Temp, Depth) ->
-  case get(proper_sa_gen_temperature_scaling) of
+  case get(proper_gen_next_temperature_scaling) of
     false -> 1.0;
     true ->
       M = 0.25,
@@ -240,7 +242,7 @@ temperature_scaling(Temp, Depth) ->
       end;
     _ ->
       1.0
-      %%put(proper_sa_gen_temperature_scaling, true),
+      %%put(proper_gen_next_temperature_scaling, true),
       %%temperature_scaling(Temp, Depth)
   end.
 
@@ -323,10 +325,11 @@ is_list_type(Type) ->
 list_choice(empty, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   C_Add = 0.5 * Temp,
-  if
-    C < C_Add -> add;
-    true      -> nothing
-  end;
+  Choice = if
+             C < C_Add -> add;
+             true      -> nothing
+           end,
+  Choice;
 list_choice({list, GrowthCoefficient}, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   AddCoefficient = 0.3 * GrowthCoefficient,
@@ -334,19 +337,21 @@ list_choice({list, GrowthCoefficient}, Temp) ->
   C_Add =          AddCoefficient * Temp,
   C_Del = C_Add + (DelCoefficient * Temp),
   C_Mod = C_Del + (0.15 * Temp),
-  if
-    C < C_Add -> add;
-    C < C_Del -> del;
-    C < C_Mod -> modify;
-    true      -> nothing
-  end;
+  Choice = if
+             C < C_Add -> add;
+             C < C_Del -> del;
+             C < C_Mod -> modify;
+             true      -> nothing
+           end,
+  Choice;
 list_choice(vector, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   C_Mod = 0.5 * Temp,
-  if
-    C < C_Mod -> modify;
-    true      -> nothing
-  end;
+  Choice = if
+             C < C_Mod -> modify;
+             true      -> nothing
+           end,
+  Choice;
 list_choice(tuple, Temp) ->
   list_choice(vector, Temp).
 
@@ -619,6 +624,7 @@ let_gen_sa(Type) ->
       {'$used', LetOuter, NewValue}
   end.
 
+-spec extract_outer_safe(proper_gen:imm_instance()) -> {ok, proper_gen:imm_instance()} | fail.
 extract_outer_safe({'$used', Extracted, _}) -> {ok, Extracted};
 extract_outer_safe(_) -> fail.
 
@@ -628,7 +634,7 @@ get_matcher(Type) ->
     error -> fun structural_match/3
   end.
 
--spec match(term(), proper_types:raw_type(), proper_sa:temperature()) -> term().
+-spec match(term(), proper_types:raw_type(), temperature()) -> term().
 match(Base, Type, Temp) ->
   case proper_types:is_type(Type) of
     true ->
@@ -639,7 +645,7 @@ match(Base, Type, Temp) ->
       structural_match(Base, Type, Temp)
   end.
 
--spec structural_match(term(), proper_types:raw_type(), proper_sa:temperature()) -> term().
+-spec structural_match(term(), proper_types:raw_type(), temperature()) -> term().
 structural_match(UncleanBase, UncleanRawType, Temp) ->
   Base = proper_gen:clean_instance(UncleanBase),
   RawType = proper_gen:clean_instance(UncleanRawType),
@@ -746,7 +752,7 @@ is_wrapper_type(Type) ->
 
 get_cached_size(Type) ->
   Key = erlang:phash2({sized_type, Type}),
-  case get(proper_sa_gen_cache) of
+  case get(proper_gen_next_cache) of
     Map when is_map(Map) ->
       case maps:find(Key, Map) of
         error -> not_found;
@@ -757,8 +763,8 @@ get_cached_size(Type) ->
 
 set_cache_size(Type, Size) ->
   Key = erlang:phash2({sized_type, Type}),
-  M = get(proper_sa_gen_cache),
-  put(proper_sa_gen_cache, maps:put(Key, Size, M)).
+  M = get(proper_gen_next_cache),
+  put(proper_gen_next_cache, maps:put(Key, Size, M)).
 
 get_size(Type, Temp) ->
   Size = case get_cached_size(Type) of
@@ -832,3 +838,9 @@ user_defined_gen_sa(Type) ->
 %% utility
 dont_change(X) ->
   fun (_, _) -> X end.
+
+%% @doc constructs a neighborhood function `Fun(Base, Temp)' from `Type'
+-spec get_neighborhood_function(proper_types:type()) -> proper_gen_next:nf().
+get_neighborhood_function(Type) ->
+  #{next := Next} = from_proper_generator(Type),
+  Next.

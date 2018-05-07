@@ -1,4 +1,7 @@
-%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -248,9 +251,8 @@
 -type rec_arg() :: {boolean() | {'list',boolean(),rec_fun()},full_type_ref()}.
 -type rec_args() :: [rec_arg()].
 -type ret_type() :: {'simple',fin_type()} | {'rec',rec_fun(),rec_args()}.
--type rec_arg_lens() :: [arity(),...].
--type rec_funs()     :: [rec_fun(),...].
--type rec_fun_info() :: {pos_integer(),pos_integer(),rec_arg_lens(),rec_funs()}.
+-type rec_fun_info() :: {pos_integer(),pos_integer(),[arity(),...],
+			 [rec_fun(),...]}.
 
 -type imm_type_ref() :: {type_name(),arity()}.
 -type hard_adt_repr() :: {abs_type(),[var_name()]} | 'already_declared'.
@@ -2307,11 +2309,11 @@ soft_clean_rec_args_tr([Arg | Rest], Acc, RecFunInfo, ToList, FoundListInst,
     soft_clean_rec_args_tr(Rest, [Arg | Acc], RecFunInfo, ToList, FoundListInst,
 			   Pos+1).
 
--spec get_group(pos_integer(), rec_arg_lens()) -> pos_integer().
+-spec get_group(pos_integer(), [non_neg_integer()]) -> pos_integer().
 get_group(Pos, AllMembers) ->
     get_group_tr(Pos, AllMembers, 1).
 
--spec get_group_tr(pos_integer(), rec_arg_lens(), pos_integer()) ->
+-spec get_group_tr(pos_integer(), [non_neg_integer()], pos_integer()) ->
 	  pos_integer().
 get_group_tr(Pos, [Members | Rest], GroupNum) ->
     case Pos =< Members of
