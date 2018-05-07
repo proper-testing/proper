@@ -3,7 +3,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -30,10 +30,14 @@
 -spec main([file:filename(),...]) -> 'ok'.
 main([OutFile]) ->
     CurrVer = parse_version_string(erlang:system_info(version)),
-    case CurrVer < [6,0] of
-	false ->
+    case CurrVer >= [6,0] of
+	true ->
 	    {ok, Handle} = file:open(OutFile, [write]),
 	    ToDefine =
+		case CurrVer < [10,0] of
+		    true  -> [];
+		    false -> ["AT_LEAST_21"]
+		end ++
 		case CurrVer < [9,0] of
 		    true  -> [];
 		    false -> ["AT_LEAST_20"]
@@ -50,7 +54,7 @@ main([OutFile]) ->
 	    Fun = fun(X) -> io:format(Handle, "-define(~s, 1).~n", [X]) end,
 	    lists:foreach(Fun, ToDefine),
 	    ok = file:close(Handle);
- 	true  ->
+ 	false  ->
 	    halt(1) %% we do not support releases prior to 17
     end.
 

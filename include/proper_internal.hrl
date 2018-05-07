@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Internal header file: This header is included in all PropEr source
@@ -60,6 +60,19 @@
 -define(anno(L), L).
 -endif.
 
+
+%%------------------------------------------------------------------------------
+%% Stacktrace access
+%%------------------------------------------------------------------------------
+
+-ifdef(AT_LEAST_21).
+-define(STACKTRACE(ErrorType, Error, ErrorStackTrace),
+        ErrorType:Error:ErrorStackTrace ->).
+-else.
+-define(STACKTRACE(ErrorType, Error, ErrorStackTrace),
+        ErrorType:Error ->
+            ErrorStackTrace = erlang:get_stacktrace(),).
+-endif.
 
 %%------------------------------------------------------------------------------
 %% Macros
