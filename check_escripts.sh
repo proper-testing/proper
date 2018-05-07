@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# -*- coding: utf-8 -*-
+# --------------------------------------------------------------------
 # Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>

@@ -1,4 +1,6 @@
 #! /bin/sh
+
+# -*- coding: utf-8 -*-
 # --------------------------------------------------------------------
 # Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>

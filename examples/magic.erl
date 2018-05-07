@@ -1,3 +1,27 @@
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
+%%%
+%%% This file is part of PropEr.
+%%%
+%%% PropEr is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% PropEr is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
+
+%%% @copyright 2017 Andreas Löscher
+%%% @version {@version}
+%%% @author Andreas Löscher
+
 -module(magic).
 -export([spells/0, cast_spell/2, cast_spells/2]).
 -export([run_random/1, run_generated/1, run_handwritten/1, count_spells/1]).
