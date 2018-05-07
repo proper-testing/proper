@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
 %%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
@@ -21,7 +21,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -724,9 +724,9 @@ setup_test(#opts{output_fun = OutputFun,
 		  max_size => MaxSize,
 		  output_fun => OutputFun},
     [case erlang:fun_info(Fun, arity) of
-			{arity, 0} -> Fun();
-			{arity, 1} -> Fun(SetupOpts)
-		end || Fun <- Funs].
+	{arity, 0} -> Fun();
+	{arity, 1} -> Fun(SetupOpts)
+     end || Fun <- Funs].
 
 -spec finalize_test([finalize_fun()]) -> 'ok'.
 finalize_test(Finalizers) ->
@@ -1411,8 +1411,7 @@ run({forall, RawType, Prop}, #ctx{mode = try_shrunk,
     case proper_types:safe_is_instance(ImmInstance, RawType) of
 	true ->
 	    Instance = proper_gen:clean_instance(ImmInstance),
-	    Result = force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts),
-    Result;
+	    force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts);
 	false ->
 	    %% TODO: could try to fix the instances here
 	    {error, wrong_type};

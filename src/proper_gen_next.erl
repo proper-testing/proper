@@ -1,8 +1,8 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
-%%%                and  Kostis Sagonas <kostis@it.uu.se>
+%%% Copyright (c) 2017-2018, Andreas Löscher <andreas.loscher@it.uu.se>
+%%%                     and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017-2018 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
 %%% @author Andreas Löscher
 
@@ -325,11 +325,10 @@ is_list_type(Type) ->
 list_choice(empty, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   C_Add = 0.5 * Temp,
-  Choice = if
-             C < C_Add -> add;
-             true      -> nothing
-           end,
-  Choice;
+  if
+    C < C_Add -> add;
+    true      -> nothing
+  end;
 list_choice({list, GrowthCoefficient}, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   AddCoefficient = 0.3 * GrowthCoefficient,
@@ -337,21 +336,19 @@ list_choice({list, GrowthCoefficient}, Temp) ->
   C_Add =          AddCoefficient * Temp,
   C_Del = C_Add + (DelCoefficient * Temp),
   C_Mod = C_Del + (0.15 * Temp),
-  Choice = if
-             C < C_Add -> add;
-             C < C_Del -> del;
-             C < C_Mod -> modify;
-             true      -> nothing
-           end,
-  Choice;
+  if
+    C < C_Add -> add;
+    C < C_Del -> del;
+    C < C_Mod -> modify;
+    true      -> nothing
+  end;
 list_choice(vector, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   C_Mod = 0.5 * Temp,
-  Choice = if
-             C < C_Mod -> modify;
-             true      -> nothing
-           end,
-  Choice;
+  if
+    C < C_Mod -> modify;
+    true      -> nothing
+  end;
 list_choice(tuple, Temp) ->
   list_choice(vector, Temp).
 
