@@ -512,7 +512,8 @@ apply_spec_test({Mod,Fun,_Arity}=MFA, {_Domain,Range}, SpecTimeout, FalsePositiv
                      try apply(Mod, Fun, Args) of
                          X -> {{ok, X}, none}
                      catch
-                         X:Y -> {{X, Y}, erlang:get_stacktrace()}
+                         ?STACKTRACE(X, Y, Trace) %, is in macro
+                         {{X, Y}, Trace}
                      end,
                  case Result of
                      {ok, Z} ->
