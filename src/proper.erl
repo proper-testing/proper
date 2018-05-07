@@ -1542,8 +1542,7 @@ apply_args(Args, Prop, Ctx, Opts) ->
     try apply(Prop, Args) of
 	InnerProp -> run(InnerProp, Ctx, Opts)
     catch
-	error:ErrReason ->
-	    RawTrace = erlang:get_stacktrace(),
+	?STACKTRACE(error, ErrReason, RawTrace) %, is in macro
 	    case ErrReason =:= function_clause
 		 andalso threw_exception(Prop, RawTrace) of
 		true ->
@@ -1558,8 +1557,7 @@ apply_args(Args, Prop, Ctx, Opts) ->
 	    {error, cant_generate};
 	throw:{'$typeserver',SubReason} ->
 	    {error, {typeserver,SubReason}};
-	ExcKind:ExcReason ->
-	    Trace = erlang:get_stacktrace(),
+	?STACKTRACE(ExcKind, ExcReason, Trace) %, is in macro
 	    create_fail_result(Ctx, {exception,ExcKind,ExcReason,Trace})
     end.
 
