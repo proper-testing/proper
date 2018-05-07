@@ -1,7 +1,7 @@
-%%% coding: latin-1
+%%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2018, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2018, Andreas LÃ¶scher <andreas.loscher@it.uu.se>
 %%%                and  Konstantinos Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017 Andreas LÃ¶scher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Löscher
+%%% @author Andreas LÃ¶scher
 
 -module(exists_tests).
 
@@ -99,33 +99,33 @@ forall_targeted_test() ->
 integer_test() ->
   put(proper_sa_testing, true),
   proper:global_state_init_size(10),
-  proper_sa_gen:init(),
+  proper_gen_next:init(),
   Gen = proper_types:integer(),
-  #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
+  #{next := TG} = proper_gen_next:from_proper_generator(Gen),
   %% apply the generator 100 times and check that nothing crashes
   appl(TG, 0, 100),
-  proper_sa_gen:cleanup(),
+  proper_gen_next:cleanup(),
   ok.
 
 -spec list_test() -> 'ok'.
 list_test() ->
   put(proper_sa_testing, true),
   proper:global_state_init_size(10),
-  proper_sa_gen:init(),
+  proper_gen_next:init(),
   Gen = proper_types:list(atom),
-  #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
+  #{next := TG} = proper_gen_next:from_proper_generator(Gen),
   %% apply the generator 100 times and check that nothing crashes
   appl(TG, [], 100),
-  proper_sa_gen:cleanup(),
+  proper_gen_next:cleanup(),
   ok.
 
 -spec combine_test() -> 'ok'.
 combine_test() ->
   put(proper_sa_testing, true),
   proper:global_state_init_size(10),
-  proper_sa_gen:init(),
+  proper_gen_next:init(),
   Gen = proper_types:list(proper_types:list(proper_types:integer())),
-  #{next := TG} = proper_sa_gen:from_proper_generator(Gen),
+  #{next := TG} = proper_gen_next:from_proper_generator(Gen),
   %% apply the generator 100 times and check that nothing crashes
   appl(TG, [], 100),
   ok.
@@ -417,7 +417,7 @@ matching_type() ->
   ?LET(I, integer(), I).
 
 prop_match() ->
-  ?FORALL_TARGETED(I, ?USERMATCHER(matching_type(), fun proper_sa_gen:match/3),
+  ?FORALL_TARGETED(I, ?USERMATCHER(matching_type(), fun proper_gen_next:match/3),
                    begin
                      ?MAXIMIZE(I),
                      I < 10

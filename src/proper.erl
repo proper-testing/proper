@@ -1,8 +1,10 @@
-%%% coding: latin-1
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
 %%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
-%%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
+%%%                 and Andreas LÃ¶scher <andreas.loscher@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,7 +21,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas LÃ¶scher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -722,8 +724,8 @@ setup_test(#opts{output_fun = OutputFun,
 		  max_size => MaxSize,
 		  output_fun => OutputFun},
     [case erlang:fun_info(Fun, arity) of
-	 {arity, 0} -> Fun();
-	 {arity, 1} -> Fun(SetupOpts)
+	{arity, 0} -> Fun();
+	{arity, 1} -> Fun(SetupOpts)
      end || Fun <- Funs].
 
 -spec finalize_test([finalize_fun()]) -> 'ok'.

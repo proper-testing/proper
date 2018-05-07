@@ -1,3 +1,6 @@
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
 %%% Copyright 2014 Motiejus Jakstys <desired.mta@gmail.com>
 %%%
 %%% This file is part of PropEr.

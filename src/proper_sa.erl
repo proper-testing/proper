@@ -1,7 +1,7 @@
-%%% coding: latin-1
+%%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas LÃ¶scher <andreas.loscher@it.uu.se>
 %%%                and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017 Andreas LÃ¶scher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas Löscher
+%%% @author Andreas LÃ¶scher
 
 %%% @doc This module provides simulated annealing (SA) as search strategy
 %%% for targeted property-based testing. SA is a local search meta-heuristic
@@ -60,9 +60,7 @@
          get_shrinker/1
         ]).
 %% lib
--export([reset/0, get_last_fitness/0, get_neighborhood_function/1]).
-
--export_type([temperature/0, nf/0]).
+-export([reset/0, get_last_fitness/0]).
 
 -include("proper_internal.hrl").
 
@@ -76,11 +74,9 @@
 -define(SA_REHEAT_COUNTER, proper_sa_reheat_counter).
 
 %% types
--type nf() :: fun((term(), proper_sa:temperature()) -> term()).
 -type k() :: integer().
--type temperature() :: float().
 -type temp_fun() :: fun(( %% old temperature
-                          temperature(),
+                          proper_gen_next:temperature(),
                           %% old energy level
                           proper_target:fitness(),
                           %% new energy level
@@ -90,8 +86,8 @@
                           %% k_max
                           k(),
                           %% accepted or not
-                          boolean()) -> {temperature(), k()}).
--type accept_fun() :: fun((proper_target:fitness(), proper_target:fitness(), temperature()) -> boolean()).
+                          boolean()) -> {proper_gen_next:temperature(), k()}).
+-type accept_fun() :: fun((proper_target:fitness(), proper_target:fitness(), proper_gen_next:temperature()) -> boolean()).
 -type output_fun() :: fun((string(), [term()]) -> 'ok').
 
 %% records
@@ -115,7 +111,7 @@
          last_energy = null                          :: proper_target:fitness() | null,
          last_update = 0                             :: integer(),
          %% temperature function
-         temperature = 1.0                           :: temperature(),
+         temperature = 1.0                           :: proper_gen_next:temperature(),
          temp_func = fun(_, _, _, _, _) -> 1.0 end   :: temp_fun(),
          %% output function
          output_fun = fun (_, _) -> ok end            :: output_fun()}).
@@ -318,7 +314,7 @@ reset_all_targets(Dict, [K|T]) ->
 %% @private
 -spec init_strategy(proper:setup_opts()) -> 'ok'.
 init_strategy(#{numtests:=Steps, output_fun:=OutputFun}) ->
-  proper_sa_gen:init(),
+  proper_gen_next:init(),
   SA_Data = #sa_data{k_max = Steps,
                      p = get_acceptance_function(OutputFun),
                      temp_func = get_temperature_function(OutputFun)},
@@ -329,13 +325,13 @@ init_strategy(#{numtests:=Steps, output_fun:=OutputFun}) ->
 cleanup() ->
   erase(?SA_DATA),
   erase(?SA_REHEAT_COUNTER),
-  proper_sa_gen:cleanup(),
+  proper_gen_next:cleanup(),
   ok.
 
 %% @private
 -spec init_target(proper_target:tmap()) -> proper_target:target().
 init_target(#{gen := Gen}) ->
-  init_target(proper_sa_gen:from_proper_generator(Gen));
+  init_target(proper_gen_next:from_proper_generator(Gen));
 init_target(#{first := First, next := Next}) ->
   create_target(#sa_target{first = First, next = Next}).
 
@@ -391,7 +387,7 @@ update_global_fitness(Fitness) ->
                                Temperature) of
               true ->
                 %% accept new state
-                proper_sa_gen:update_caches(accept),
+                proper_gen_next:update_caches(accept),
                 print_accepted(Data, Fitness, Temperature),
                 NewState = update_all_targets(Data#sa_data.state),
                 %% calculate new temperature
@@ -410,7 +406,7 @@ update_global_fitness(Fitness) ->
               false ->
                 %% reject new state
                 %% calculate new temperature
-                proper_sa_gen:update_caches(reject),
+                proper_gen_next:update_caches(reject),
                 {NewTemperature, AdjustedK} =
                   (Data#sa_data.temp_func)(Temperature,
                                            Data#sa_data.last_energy,
@@ -441,9 +437,3 @@ update_all_targets(Dict, [K|T]) ->
 -spec get_shrinker(proper_target:tmap()) -> proper_types:type().
 get_shrinker(#{first := First}) -> First;
 get_shrinker(#{gen := Gen}) -> Gen.
-
-%% @doc constructs a neighborhood function `Fun(Base, Temp)' from `Type'
--spec get_neighborhood_function(proper_types:type()) -> nf().
-get_neighborhood_function(Type) ->
-  #{next := Next} = proper_sa_gen:from_proper_generator(Type),
-  Next.

@@ -1,9 +1,10 @@
-%%% coding: latin-1
+%%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
 %%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
-%%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
+%%%                 and Andreas LÃ¶scher <andreas.loscher@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -20,7 +21,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas LÃ¶scher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Common parts of user and internal header files
@@ -67,8 +68,8 @@
 
 -define(MAXIMIZE(Fitness), proper_target:update_target_uvs(Fitness, inf)).
 -define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
--define(USERNF(Type, NF), proper_sa_gen:set_user_nf(Type, NF)).
--define(USERMATCHER(Type, Matcher), proper_sa_gen:set_matcher(Type, Matcher)).
+-define(USERNF(Type, NF), proper_gen_next:set_user_nf(Type, NF)).
+-define(USERMATCHER(Type, Matcher), proper_gen_next:set_matcher(Type, Matcher)).
 
 %%------------------------------------------------------------------------------
 %% Macros for backwards compatibility

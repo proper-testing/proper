@@ -1,3 +1,6 @@
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
 %%% Copyright 2015-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
@@ -123,4 +126,3 @@ add_new_attribute({Line, Mod, Fun}, [{_, Line, _, {Mod, FunL}} | Attributes]) ->
     [{attribute, Line, import, {Mod, [Fun | FunL]}} | Attributes];
 add_new_attribute({Line, Mod, Fun}, Attributes) ->
     [{attribute, Line, import, {Mod, [Fun]}} | Attributes].
-

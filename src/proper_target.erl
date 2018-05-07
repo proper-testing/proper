@@ -1,7 +1,7 @@
-%%% coding: latin-1
+%%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas L�scher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
 %%%                and  Konstantinos Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,9 +19,9 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas L�scher and Kostis Sagonas
+%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
-%%% @author Andreas L�scher
+%%% @author Andreas Löscher
 
 %%% @doc This module defines the top-level behaviour for targeted
 %%% property-based testing (TPBT). Using TPBT the input generation

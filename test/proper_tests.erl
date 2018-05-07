@@ -1,3 +1,6 @@
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
 %%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
@@ -1096,18 +1099,21 @@ setup_test_() ->
 	      andalso undefined =:= get(setup_token)
 	      andalso undefined =:= get(setup_token2))].
 
-adts_test_() ->
-    [{timeout, 20,	% for Kostis' old laptop
+adts1_test_() ->
+    {timeout, 60,	% for Kostis' old laptop
       ?_passes(?FORALL({X,S},{integer(),sets:set(integer())},
-		       sets:is_element(X,sets:add_element(X,S))), [20])},
-     {timeout, 40,	% for 18.x (and onwards?)
-      ?_passes(?FORALL({X,Y,D},
-		       {integer(),float(),dict:dict(integer(),float())},
-		       dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])},
-     {timeout, 20,
+		       sets:is_element(X,sets:add_element(X,S))), [20])}.
+
+%% adts2_test_() -> {timeout, 60,	% for 18.x (and onwards?)
+%%       ?_passes(?FORALL({X,Y,D},
+%% 		       {integer(),float(),dict:dict(integer(),float())},
+%% 		       dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])}.
+
+adts3_test_() ->
+     {timeout, 60,
       ?_fails(?FORALL({X,D},
 	      {boolean(),dict:dict(boolean(),integer())},
-	      dict:erase(X, dict:store(X,42,D)) =:= D))}].
+	      dict:erase(X, dict:store(X,42,D)) =:= D))}.
 
 parameter_test_() ->
     ?_passes(?FORALL(List, [zero1(),zero2(),zero3(),zero4()],
