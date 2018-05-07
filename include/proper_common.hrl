@@ -68,8 +68,8 @@
 
 -define(MAXIMIZE(Fitness), proper_target:update_target_uvs(Fitness, inf)).
 -define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
--define(USERNF(Type, NF), proper_sa_gen:set_user_nf(Type, NF)).
--define(USERMATCHER(Type, Matcher), proper_sa_gen:set_matcher(Type, Matcher)).
+-define(USERNF(Type, NF), proper_gen_next:set_user_nf(Type, NF)).
+-define(USERMATCHER(Type, Matcher), proper_gen_next:set_matcher(Type, Matcher)).
 
 %%------------------------------------------------------------------------------
 %% Macros for backwards compatibility
