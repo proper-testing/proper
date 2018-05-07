@@ -113,7 +113,7 @@ process(Filename) ->
     Comments = erl_comment_scan:file(Filename),
     {NewForms,NewComments} = process_forms(Forms, Comments),
     Code = pretty_print(NewForms, NewComments),
-    {ok,IODev} = file:open(Filename, [write]),
+    {ok,IODev} = file:open(Filename, [write, {encoding, utf8}]),
     ok = io:put_chars(IODev, Code),
     ok = file:close(IODev),
     ok.
