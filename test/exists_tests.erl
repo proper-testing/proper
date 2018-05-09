@@ -447,3 +447,21 @@ match_and_shrink_test() ->
   false = proper:quickcheck(prop_match_and_shrink(), ?PROPER_OPTIONS_SHRINKING),
   [L] = proper:counterexample(),
   ?assertEqual(100, lists:sum(L)).
+
+let_nf() ->
+  fun (PrevList, _) ->
+      ?LET(I, exactly(ok), PrevList ++ [I])
+  end.
+
+prop_let_nf() ->
+  ?FORALL_TARGETED(L, ?USERNF(list(ok), let_nf()),
+  begin
+    ?MAXIMIZE(length(L)),
+    length(L) < 20
+  end).
+
+-spec let_in_nf_test() -> 'ok'.
+let_in_nf_test() ->
+  false = proper:quickcheck(prop_let_nf(), ?PROPER_OPTIONS_SHRINKING),
+  [L] = proper:counterexample(),
+  ?assertEqual(20, length(L)).

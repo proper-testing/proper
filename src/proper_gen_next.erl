@@ -826,7 +826,7 @@ is_user_defined(Type) ->
 user_defined_gen_sa(Type) ->
   NF = proper_types:get_prop(user_nf, Type),
   fun (Base, T) ->
-      NewRaw = NF(Base, T),
+      NewRaw = NF(proper_gen:clean_instance(Base), T),
       {ok, Generated} = proper_gen:safe_generate(NewRaw),
       %% match(Base, NewRaw, T)
       Generated
