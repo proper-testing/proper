@@ -15,10 +15,10 @@ base since 2012.
 
 You can reach PropEr's developers in the following ways:
 
-*   on the web: at [the project's home page](http://proper.softlab.ntua.gr) or
-    [the project's github page](https://github.com/manopapad/proper)
-*   by email: take the project's home page URL, remove the `http://` prefix and
-    replace the first dot with a @
+*   on the web: at [the project's home page](http:///proper-testing.github.io)
+    or [the project's github page](https://github.com/proper-testing/proper)
+*   by email: take the tool's name (all lowercase), add a @ followed by
+    softlab dot ntua dot gr
 
 We welcome user contributions and feedback (comments, suggestions, feature
 requests, bug reports, patches, etc.).
@@ -86,7 +86,7 @@ Quickstart guide
     base:
 
     ```shell
-        git clone git://github.com/manopapad/proper.git
+        git clone git://github.com/proper-testing/proper.git
     ```
 *   Compile PropEr: Run `make` if you just want to build PropEr, optionally
     followed by a `make tests` to run its unit tests and a `make dialyzer` call
@@ -178,10 +178,10 @@ incompatibilities between the two tools by now.
 <!-- Links -->
 [eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
 [license]: ./COPYING
-[travis]: https://travis-ci.org/manopapad/proper
+[travis]: https://travis-ci.org/proper-testing/proper
 [erlang]: http://www.erlang.org
 
 <!-- Badges -->
 [erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2020.3-blue.svg?style=flat-square
-[license badge]: https://img.shields.io/github/license/manopapad/proper.svg?style=flat-square
-[travis badge]: https://img.shields.io/travis/manopapad/proper/master.svg?style=flat-square
+[license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
+[travis badge]: https://img.shields.io/travis/proper-testing/proper/master.svg?style=flat-square
