@@ -15,8 +15,3 @@ otp_release:
 cache:
    directories:
    - .plt
-
-install:
-    pip install --user codecov
-after_success:
-    codecov
