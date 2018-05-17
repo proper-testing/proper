@@ -12,6 +12,20 @@ otp_release:
    - 17.4
    - 17.0
 
+# coverage tests
+matrix:
+  include:
+    - language: erlang
+      otp_release: 20.3
+      before_script:
+            - printf "\n{cover_enabled, true}.\n{cover_export_enabled, true}.\n{cover_print_enabled, true}." >> rebar.config
+      after_success:
+            - git clone git://github.com/idubrov/covertool.git
+            - cd covertool && make compile && cd ..
+            - ./covertool/covertool -cover .eunit/cover.coverdata
+            - rm -rf covertool/
+            - bash <(curl -s https://codecov.io/bash)
+
 cache:
    directories:
    - .plt
