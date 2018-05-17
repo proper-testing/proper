@@ -31,23 +31,13 @@
 %%% utility-values from the system under test that the search strategy
 %%% then tries to maximize.
 %%%
-%%% To use TPBT the two test specification macros `?EXISTS' and `?NOT_EXISTS'
-%%% are used. The typical structure for a targeted property looks as follows:
+%%% To use TPBT the test specification macros `?FORALL_TARGETED`, `?EXISTS',
+%%% and `?NOT_EXISTS' are used. The typical structure for a targeted
+%%% property looks as follows:
 %%%
 %%% ```prop_target() ->                 % Try to check that
 %%%      ?EXISTS(Input, Params,         % some input exists
 %%%              begin                  % that fullfills the property.
-%%%                UV = SUT:run(Input), % Do so by running SUT with Input
-%%%                ?MAXIMIZE(UV),       % and maximize its Utility Value
-%%%                UV < Threshold       % up to some Threshold.
-%%%              end)).'''
-%%%
-%%% With the (depricated) `?STRATEGY' macro the property looks as follows:
-%%%
-%%% ```prop_target() ->                 % Try to check a property
-%%%      ?STRATEGY(SearchStrategy,      % using some SearchStrategy
-%%%      ?FORALL(Input, ?TARGET(Params),% and some Parameters
-%%%              begin                  % for the input generation.
 %%%                UV = SUT:run(Input), % Do so by running SUT with Input
 %%%                ?MAXIMIZE(UV),       % and maximize its Utility Value
 %%%                UV < Threshold       % up to some Threshold.
@@ -60,17 +50,13 @@
 %%%   <dd>This tells the search strategy to maximize the value `UV'.</dd>
 %%%   <dt>`?MINIMIZE(UV)'</dt>
 %%%   <dd>equivalent to `?MAXIMIZE(-UV)'</dd>
-%%%   <dt>`?STRATEGY(<Strategy>, <Prop>)' (deprecated)</dt>
-%%%   <dd>This macro defines that `<Strategy>' should be used as search strategy
-%%%       to produce input for `<Prop>'. The currently available search strategies
-%%%       are `simulated_annealing' and `hill_climbing'. Alternatively a users can
-%%%       define their own strategy. In this case the module name containing the
-%%%       implementation should be given as argument.</dd>
-%%%   <dt>`?TARGET(<Options>)' (deprecated)</dt>
-%%%   <dd>This macro specifies a targeted generator that is under the control of the
-%%%       search strategy. The `<Options>' are specific to the search strategy.</dd>
-%%%   <dt>`?FORALL_SA(<Xs>, <targeted_gen>, <Prop>)' (deprecated)</dt>
-%%%   <dd>equivalent to `?TARGET_STRATEGY(simulated_annealing, ?FORALL(<Xs>, <targeted_gen>, <Prop>))'</dd>
+%%%   <dt>`?USERNF(Gen, Nf)'</dt>
+%%%   <dd>This uses the neighborhood function `Nf' instead of PropEr's
+%%%     constructed neighborhood function for this generator. The neighborhood
+%%%     function `Fun' should be of type `proper_gen_next:nf()'</dd>
+%%%   <dt>`?USERMATCHER(Gen, Matcher)'</dt>
+%%%   <dd>This overwrites the structural matching of PropEr with the user provided
+%%%     `Matcher' function. the matcher should be of type `proper_gen_next:matcher()'</dd>
 %%% </dl>
 
 -module(proper_target).
@@ -104,11 +90,12 @@
 %% -----------------------------------------------------------------------------
 %% proper_target callback functions for defining strategies
 %% ----------------------------------------------------------------------------
+
 %% strategy global initializer
 -callback init_strategy(proper:setup_opts()) -> 'ok'.
-%%
+%% cleanup function
 -callback cleanup() -> 'ok'.
-%% target (one variable) initializer
+%% target initializer
 -callback init_target(tmap()) -> target().
 %% generator for shrinking
 -callback get_shrinker(tmap()) -> proper_types:type().
