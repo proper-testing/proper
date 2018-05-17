@@ -28,7 +28,6 @@
 
 -module(proper_tests).
 
--include("compile_flags.hrl").
 -include("proper.hrl").
 
 -include_lib("eunit/include/eunit.hrl").
