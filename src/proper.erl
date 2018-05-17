@@ -53,6 +53,9 @@
 %%%   `<Prop>'. When a `?FORALL' wrapper is encountered, a random instance of
 %%%   `<Xs_type>' is produced and each variable in `<Xs>' is replaced inside
 %%%   `<Prop>' by its corresponding instance.</dd>
+%%% <dt>`?FORALL_TARGETED(<Xs>, <Xs_type>, <Prop>)'</dt>
+%%% <dd>This is the targeted version of the `?FORALL' macro that uses the
+%%%   targeted PBT component of PropEr.</dd>
 %%% <dt>`?IMPLIES(<Precondition>, <Prop>)'</dt>
 %%% <dd>This wrapper only makes sense when in the scope of at least one
 %%%   `?FORALL'. The `<Precondition>' field must be a boolean expression or a
@@ -67,17 +70,12 @@
 %%%   In case this test fails, `<Action>' will be executed. Note that the output
 %%%   of such actions is not affected by the verbosity setting of the main
 %%%   application.</dd>
-%%% <dt>`?EXISTS(<Xs>, <Xs_nf_type>, <Prop>)'</dt>
-%%% <dd> The `?EXISTS' macro uses the targeted PBT component of proper to try
+%%% <dt>`?EXISTS(<Xs>, <Xs_type>, <Prop>)'</dt>
+%%% <dd> The `?EXISTS' macro uses the targeted PBT component of PropEr to try
 %%%   to find one instance of `<Xs>' that makes the `<Prop>' true. If such a `<Xs>'
-%%%   is found the property passes. Note that  there is no counterexample if no
-%%%   such `<Xs>' could be found. `<Xs_nf_type>' needs to be a map of either
-%%%   `#{first => Generator, next => NF}' or `#{gen => Generator}'. In the first
-%%%   case `Generator' is a random generator and `NF' a neighbohood function as
-%%%   described in the documentation of the  {@link proper_sa} module. In the
-%%%   second case a automatically constructed `NF' is used instead of a
-%%%   hand-written `NF'.</dd>
-%%% <dt>`?NOT_EXISTS(<Xs>, <Xs_nf_type>, <Prop>)'</dt>
+%%%   is found the property passes. Note that there is no counterexample if no
+%%%   such `<Xs>' could be found.</dd>
+%%% <dt>`?NOT_EXISTS(<Xs>, <Xs_type>, <Prop>)'</dt>
 %%% <dd> The `?NOT_EXISTS' macro is similar to the `?EXISTS' macro with the
 %%%   difference that if an `<Xs>' is found that makes `<Prop>' true, the
 %%%   property fails and this `<Xs>' is a counterexample to the property.</dd>
@@ -487,6 +485,8 @@
 
 -type false_positive_mfas() :: fun((mfa(),Args::[term()],{fail,Result::term()} | {error | exit | throw,Reason::term()}) -> boolean()) | 'undefined'.
 
+%%
+
 %%-----------------------------------------------------------------------------
 %% Options and Context types
 %%-----------------------------------------------------------------------------
@@ -550,6 +550,7 @@
 -else.
 -type setup_opts() :: term().
 -endif.
+%%
 
 %%-----------------------------------------------------------------------------
 %% Result types

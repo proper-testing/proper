@@ -15,7 +15,7 @@ base since 2012.
 
 You can reach PropEr's developers in the following ways:
 
-*   on the web: at [the project's home page](http:///proper-testing.github.io)
+*   on the web: at [the project's home page](http://proper-testing.github.io)
     or [the project's github page](https://github.com/proper-testing/proper)
 *   by email: take the tool's name (all lowercase), add a @ followed by
     softlab dot ntua dot gr
