@@ -33,7 +33,7 @@
 	 safe_any/2, safe_zip/2, tuple_map/2, cut_improper_tail/1,
 	 head_length/1, find_first/2, filter/2, partition/2, remove/2, insert/3,
 	 unflatten/2]).
--export([rand_start/1, rand_restart/1, rand_reseed/0, rand_stop/0,
+-export([rand_restart/1, rand_reseed/0, rand_stop/0,
 	 rand_int/1, rand_int/2, smart_rand_int/3, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
 	 distribute/2, jumble/1, rand_choose/1, freq_choose/1]).
@@ -221,47 +221,26 @@ remove_n(N, {List,Acc}) ->
 %% Random functions
 %%-----------------------------------------------------------------------------
 
-%% @doc Seeds the random number generator. This function should be run before
-%% calling any random function from this module.
--spec rand_start(seed()) -> 'ok'.
--ifdef(AT_LEAST_19).
-rand_start(Seed) ->
-    _ = rand:seed(exsplus, Seed),
-    ok.
--else.
-rand_start(Seed) ->
-    _ = ?RANDOM_MOD:seed(Seed),
-    %% TODO: read option for RNG bijections here
-    ok.
--endif.
-
 %% @doc Conditionally seeds the random number generator. This function should
 %% be run before calling any random function from this module.
 -spec rand_restart(seed()) -> 'ok'.
 rand_restart(Seed) ->
     case get(?SEED_NAME) of
-        undefined ->
-            rand_start(Seed);
-        _ ->
-            ok
+        %% TODO: read option for RNG bijections here
+        undefined -> ?RNG_SET_SEED(Seed), ok;
+        _ -> ok
     end.
 
 -spec rand_reseed() -> 'ok'.
--ifdef(AT_LEAST_19).
+%% TODO: This should use the pid of the process somehow, in case two
+%%       spawned functions call it simultaneously?
 rand_reseed() ->
-    _ = rand:seed(exsplus, os:timestamp()),
+    _ = ?RNG_SET_SEED(os:timestamp()),
     ok.
--else.
-rand_reseed() ->
-    %% TODO: This should use the pid of the process somehow, in case two
-    %%       spawned functions call it simultaneously?
-    _ = ?RANDOM_MOD:seed(os:timestamp()),
-    ok.
--endif.
 
 -spec rand_stop() -> 'ok'.
 rand_stop() ->
-    erase(?SEED_NAME),
+    _ = erase(?SEED_NAME),
     ok.
 
 -spec rand_int(non_neg_integer()) -> integer().

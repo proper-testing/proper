@@ -632,17 +632,9 @@ function_body(Args, RetType, {Seed1,Seed2}) ->
 	    proper_symb:internal_eval(Ret)
     end.
 
--ifdef(USE_SFMT).
 update_seed(Seed) ->
-    _ = sfmt:seed(Seed),
+    _ = case ?RANDOM_MOD of
+            random -> put(?SEED_NAME, Seed);
+            _ -> ?RNG_SET_SEED(Seed)
+        end,
     ok.
--else.
--ifdef(AT_LEAST_19).
-update_seed(Seed) ->
-    _ = rand:seed(exsplus, Seed),
-    ok.
--else.
-update_seed(Seed) ->
-    put(?SEED_NAME, Seed).
--endif.
--endif.

@@ -36,18 +36,24 @@
 -ifdef(USE_SFMT).
 -define(RANDOM_MOD, sfmt).
 -define(SEED_NAME, sfmt_seed).
+-define(RNG_SET_SEED(Seed), ?RANDOM_MOD:seed(Seed)).
 
 -else.
 
 -ifdef(AT_LEAST_19).
--define(RANDOM_MOD, rand).   %% for 19.x use the 'rand' module
+%% for 19.x use the 'rand' module
+-define(RANDOM_MOD, rand).
 -define(SEED_NAME, rand_seed).
+-define(RNG_SET_SEED(Seed), ?RANDOM_MOD:seed(exsplus,Seed)).
 -else.
 -define(RANDOM_MOD, random).
 -define(SEED_NAME, random_seed).
+-define(RNG_SET_SEED(Seed), ?RANDOM_MOD:seed(Seed)).
 -endif.
 -endif.
 
+-define(RNG_UNIFORM(), ?RANDOM_MOD:uniform()).
+-define(RNG_UNIFORM(UpperBound), ?RANDOM_MOD:uniform(UpperBound)).
 
 %%------------------------------------------------------------------------------
 %% Line annotations
