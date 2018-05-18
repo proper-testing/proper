@@ -626,15 +626,8 @@ function_body(Args, RetType, {Seed1,Seed2}) ->
 	    RetType;
 	_ ->
 	    SavedSeed = get(?SEED_NAME),
-	    update_seed({Seed1,Seed2,erlang:phash2(Args,?SEED_RANGE)}),
+	    ?RNG_SET_SEED({Seed1, Seed2, erlang:phash2(Args,?SEED_RANGE)}),
 	    Ret = clean_instance(generate(RetType)),
 	    put(?SEED_NAME, SavedSeed),
 	    proper_symb:internal_eval(Ret)
     end.
-
-update_seed(Seed) ->
-    _ = case ?RANDOM_MOD of
-            random -> put(?SEED_NAME, Seed);
-            _ -> ?RNG_SET_SEED(Seed)
-        end,
-    ok.
