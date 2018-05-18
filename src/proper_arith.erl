@@ -225,11 +225,10 @@ remove_n(N, {List,Acc}) ->
 %% be run before calling any random function from this module.
 -spec rand_restart(seed()) -> 'ok'.
 rand_restart(Seed) ->
-    case get(?SEED_NAME) of
-        %% TODO: read option for RNG bijections here
-        undefined -> ?RNG_SET_SEED(Seed), ok;
-        _ -> ok
-    end.
+    _ = undefined == get(?SEED_NAME)
+    %% TODO: read option for RNG bijections here
+        andalso ?RNG_SET_SEED(Seed),
+    ok.
 
 -spec rand_reseed() -> 'ok'.
 %% TODO: This should use the pid of the process somehow, in case two

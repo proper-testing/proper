@@ -626,7 +626,7 @@ function_body(Args, RetType, {Seed1,Seed2}) ->
 	    RetType;
 	_ ->
 	    SavedSeed = get(?SEED_NAME),
-	    ?RNG_SET_SEED({Seed1, Seed2, erlang:phash2(Args,?SEED_RANGE)}),
+	    _ = ?RNG_SET_SEED({Seed1, Seed2, erlang:phash2(Args,?SEED_RANGE)}),
 	    Ret = clean_instance(generate(RetType)),
 	    put(?SEED_NAME, SavedSeed),
 	    proper_symb:internal_eval(Ret)
