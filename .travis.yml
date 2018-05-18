@@ -1,16 +1,16 @@
 sudo: false
 language: erlang
-script: "make all"
+script: REBAR=~/rebar3 make all
 
 otp_release:
-   - 20.3
-   - 20.0
-   - 19.3
-   - 19.0
-   - 18.3
-   - 18.1
-   - 17.4
-   - 17.0
+- 20.3
+- 20.0
+- 19.3
+- 19.0
+- 18.3
+- 18.1
+- 17.4
+- 17.0
 
 # coverage tests
 matrix:
@@ -44,3 +44,6 @@ matrix:
 cache:
    directories:
    - .plt
+
+install:
+- curl -#fSLo ~/rebar3 https://s3.amazonaws.com/rebar3/rebar3 && chmod +x ~/rebar3

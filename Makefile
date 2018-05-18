@@ -20,7 +20,7 @@
 # Author(s):   Manolis Papadakis, Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
+.PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest cover
 
 ifneq (,$(findstring Windows,$(OS)))
     SEP := $(strip \)
@@ -28,7 +28,8 @@ else
     SEP := $(strip /)
 endif
 
-REBAR := .$(SEP)rebar
+REBAR  ?= .$(SEP)rebar
+REBAR3 ?= rebar3
 
 default: fast
 
@@ -56,6 +57,10 @@ tests: compile
 
 doc: compile
 	./make_doc
+
+cover:
+#	Show compilation warnings then run tests then display coverage info
+	$(REBAR3) do compile, cover --reset, eunit --cover, cover --verbose
 
 clean:
 	./clean_temp.sh
