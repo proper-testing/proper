@@ -321,14 +321,14 @@ is_list_type(Type) ->
   has_same_generator(Type, proper_types:list(proper_types:atom())).
 
 list_choice(empty, Temp) ->
-  C = ?RANDOM_MOD:uniform(),
+  C = ?RNG_UNIFORM(),
   C_Add = 0.5 * Temp,
   if
     C < C_Add -> add;
     true      -> nothing
   end;
 list_choice({list, GrowthCoefficient}, Temp) ->
-  C = ?RANDOM_MOD:uniform(),
+  C = ?RNG_UNIFORM(),
   AddCoefficient = 0.3 * GrowthCoefficient,
   DelCoefficient = 0.3 * (1- GrowthCoefficient),
   C_Add =          AddCoefficient * Temp,
@@ -341,7 +341,7 @@ list_choice({list, GrowthCoefficient}, Temp) ->
     true      -> nothing
   end;
 list_choice(vector, Temp) ->
-  C = ?RANDOM_MOD:uniform(),
+  C = ?RNG_UNIFORM(),
   C_Mod = 0.5 * Temp,
   if
     C < C_Mod -> modify;
@@ -354,7 +354,7 @@ list_gen_sa(Type) ->
   {ok, InternalType} = proper_types:find_prop(internal_type, Type),
   ElementType = replace_generators(InternalType),
   fun (Base, Temp) ->
-      GrowthCoefficient = (?RANDOM_MOD:uniform() * 0.8) + 0.1,
+      GrowthCoefficient = (?RNG_UNIFORM() * 0.8) + 0.1,
       list_gen_internal(Base, Temp, InternalType, ElementType, GrowthCoefficient)
   end.
 
@@ -568,12 +568,12 @@ union_gen_sa(Type) ->
                        end, [], Env) of
         [] ->
           %% generate new
-          Index = trunc(?RANDOM_MOD:uniform() * length(Env)) + 1,
+          Index = trunc(?RNG_UNIFORM() * length(Env)) + 1,
           ET = lists:nth(Index, Env),
           {ok, Value} = proper_gen:safe_generate(ET),
           Value;
         PossibleGens  ->
-          C = ?RANDOM_MOD:uniform(),
+          C = ?RNG_UNIFORM(),
           C_Kep =         0.3 * ?TEMP(Temp),
           C_Chg = C_Kep + 0.3 * ?TEMP(Temp),
           if
@@ -582,13 +582,13 @@ union_gen_sa(Type) ->
               Base;
             C < C_Chg ->
               %% change choice
-              Index = trunc(?RANDOM_MOD:uniform() * length(Env)) + 1,
+              Index = trunc(?RNG_UNIFORM() * length(Env)) + 1,
               ET = lists:nth(Index, Env),
               {ok, Value} = proper_gen:safe_generate(ET),
               Value;
             true ->
               %% modify amongst the possible
-              Index = trunc(?RANDOM_MOD:uniform() * length(PossibleGens)) + 1,
+              Index = trunc(?RNG_UNIFORM() * length(PossibleGens)) + 1,
               ElementGen = lists:nth(Index, PossibleGens),
               SAGen = replace_generators(ElementGen),
               SAGen(Base, Temp)
@@ -766,11 +766,11 @@ get_size(Type, Temp) ->
            not_found ->
              %% use random initial size
              %% proper:get_size(Type);
-             trunc(?RANDOM_MOD:uniform() * 21 + 1);
+             trunc(?RNG_UNIFORM() * 21 + 1);
            {ok, Base} ->
              %% alternate base size (max size is not accessible from the generator)
              OffsetLimit = trunc(21 * Temp + 1),
-             Offset = trunc(?RANDOM_MOD:uniform() * OffsetLimit + 1),
+             Offset = trunc(?RNG_UNIFORM() * OffsetLimit + 1),
              make_inrange(Base, Offset, 1, 42)
          end,
   set_cache_size(Type, Size),

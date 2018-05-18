@@ -56,8 +56,6 @@
 -define(REHEAT_THRESHOLD, 5).
 -define(RESTART_THRESHOLD, 100).
 
--define(RANDOM_PROBABILITY, (?RANDOM_MOD:uniform())).
-
 -define(SA_DATA, proper_sa_data).
 -define(SA_REHEAT_COUNTER, proper_sa_reheat_counter).
 
@@ -119,7 +117,7 @@ acceptance_function_standard(EnergyCurrent, EnergyNew, Temperature) ->
           error:badarith -> 0.0
         end,
       %% if random probability is less, accept
-      ?RANDOM_PROBABILITY < AcceptanceProbability
+      ?RNG_UNIFORM() < AcceptanceProbability
   end.
 
 acceptance_function_hillclimbing(EnergyCurrent, EnergyNew, _Temperature) ->

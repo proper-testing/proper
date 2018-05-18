@@ -261,7 +261,7 @@ bounded_rand_non_neg_int(Const, Lim) when is_integer(Lim), Lim >= 0 ->
 
 -spec rand_int(integer(), integer()) -> integer().
 rand_int(Low, High) when is_integer(Low), is_integer(High), Low =< High ->
-    Low + ?RANDOM_MOD:uniform(High - Low + 1) - 1.
+    Low + ?RNG_UNIFORM(High - Low + 1) - 1.
 
 %% When the range is large, skew the distribution to be more like that of an
 %% unbounded random integer.
@@ -279,7 +279,7 @@ wide_range_rand_int(Const, Low, High) when Low >= 0 ->
 wide_range_rand_int(Const, Low, High) when High =< 0 ->
     High - bounded_rand_non_neg_int(Const, High - Low);
 wide_range_rand_int(Const, Low, High) ->
-    case ?RANDOM_MOD:uniform(2) of
+    case ?RNG_UNIFORM(2) of
 	1 -> smart_rand_int(Const, 0, High);
 	2 -> smart_rand_int(Const, Low, 0)
     end.
@@ -287,21 +287,21 @@ wide_range_rand_int(Const, Low, High) ->
 -spec rand_float(non_neg_integer()) -> float().
 rand_float(Const) ->
     X = rand_non_neg_float(Const),
-    case ?RANDOM_MOD:uniform(2) of
+    case ?RNG_UNIFORM(2) of
 	1 -> X;
 	2 -> -X
     end.
 
 -spec rand_non_neg_float(non_neg_integer()) -> float().
 rand_non_neg_float(Const) when is_integer(Const), Const >= 0 ->
-    case ?RANDOM_MOD:uniform() of
+    case ?RNG_UNIFORM() of
 	1.0 -> rand_non_neg_float(Const);
 	X   -> Const * zero_one_to_zero_inf(X)
     end.
 
 -spec rand_float(float(), float()) -> float().
 rand_float(Low, High) when is_float(Low), is_float(High), Low =< High ->
-    Low + ?RANDOM_MOD:uniform() * (High - Low).
+    Low + ?RNG_UNIFORM() * (High - Low).
 
 -spec zero_one_to_zero_inf(float()) -> float().
 %% This function must return only non-negative values and map 0.0 to 0.0, but
@@ -329,7 +329,7 @@ distribute_tr(CreditsLeft, PeopleLeft, AccList) ->
 -spec jumble([T]) -> [T].
 %% @doc Produces a random permutation of a list.
 jumble(List) ->
-    [X || {_, X} <- lists:sort([{?RANDOM_MOD:uniform(), X} || X <- List])].
+    [X || {_, X} <- lists:sort([{?RNG_UNIFORM(), X} || X <- List])].
 
 -spec rand_choose([T,...]) -> {position(),T}.
 rand_choose(Choices) when Choices =/= [] ->
