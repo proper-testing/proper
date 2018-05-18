@@ -96,7 +96,11 @@ Quickstart guide
     a `make all` call; in that case, you are going to need the `syntax_tools`
     application and a recent version of `EDoc`).
     Optionally, sfmt-erlang can be selected as an alternative random number
-    generator using `./configure --use-sfmt` before running `make`.
+    generator using `./configure --use-sfmt` before running `make`, or with rebar3:
+    ```erlang
+    {deps, [sfmt]}. %% Once sfmt-erlang supports rebar3 compilation.
+    {overrides, [{override, proper, [{erl_opts, [{d, 'USE_SFMT'}]}]}]}.
+    ```
 *   Add PropEr's base directory to your Erlang library path, using one of the
     following methods:
     1.   `ERL_LIBS` environment variable: Add the following line to your shell

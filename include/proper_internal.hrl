@@ -33,27 +33,40 @@
 %% Random generator selection
 %%------------------------------------------------------------------------------
 
+-ifndef(USE_SFMT).
+- ifndef(USE_EXSPLUS).
+-  ifndef(USE_RANDOM).
+-   ifdef(AT_LEAST_19).
+%% for 19.x use 'rand' module
+-    define(USE_EXSPLUS, true).
+-   else.
+%% for 18.x and older use 'random' module
+-    define(USE_RANDOM, true).
+-   endif.
+-  endif.
+- endif.
+-endif.
+
 -ifdef(USE_SFMT).
--define(RANDOM_MOD, sfmt).
 -define(SEED_NAME, sfmt_seed).
--define(RNG_SET_SEED(Seed), ?RANDOM_MOD:seed(Seed)).
+-define(RNG_SET_SEED(Seed), sfmt:seed(Seed)).
+-define(RNG_UNIFORM(), sfmt:uniform()).
+-define(RNG_UNIFORM(UpperBound), sfmt:uniform(UpperBound)).
+-endif.
 
--else.
-
--ifdef(AT_LEAST_19).
-%% for 19.x use the 'rand' module
--define(RANDOM_MOD, rand).
+-ifdef(USE_EXSPLUS).
 -define(SEED_NAME, rand_seed).
--define(RNG_SET_SEED(Seed), ?RANDOM_MOD:seed(exsplus,Seed)).
--else.
--define(RANDOM_MOD, random).
--define(SEED_NAME, random_seed).
--define(RNG_SET_SEED(Seed), ?RANDOM_MOD:seed(Seed)).
--endif.
+-define(RNG_SET_SEED(Seed), rand:seed(exsplus,Seed)).
+-define(RNG_UNIFORM(), rand:uniform()).
+-define(RNG_UNIFORM(UpperBound), rand:uniform(UpperBound)).
 -endif.
 
--define(RNG_UNIFORM(), ?RANDOM_MOD:uniform()).
--define(RNG_UNIFORM(UpperBound), ?RANDOM_MOD:uniform(UpperBound)).
+-ifdef(USE_RANDOM).
+-define(SEED_NAME, random_seed).
+-define(RNG_SET_SEED(Seed), random:seed(Seed)).
+-define(RNG_UNIFORM(), random:uniform()).
+-define(RNG_UNIFORM(UpperBound), random:uniform(UpperBound)).
+-endif.
 
 %%------------------------------------------------------------------------------
 %% Line annotations

@@ -1,6 +1,12 @@
 sudo: false
 language: erlang
-script: REBAR=~/rebar3 make all
+script:
+- ~/rebar3 compile
+- REBAR=~/rebar3 make all
+- rm -rf _build
+- ./configure --use-sfmt
+- make fast && cd deps/sfmt && make && cd -
+- make all
 
 otp_release:
 - 20.3
