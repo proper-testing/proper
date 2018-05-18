@@ -18,7 +18,19 @@ matrix:
     - language: erlang
       otp_release: 20.3
       before_script:
-            - printf "\n{cover_enabled, true}.\n{cover_export_enabled, true}.\n{cover_print_enabled, true}." >> rebar.config
+            - >
+                printf "\n{cover_enabled, true}.\n{cover_export_enabled, true}.
+                \n{cover_skip_modules, [
+                proper_array,
+                proper_gb_sets,
+                proper_gb_trees,
+                proper_orddict,
+                proper_ordsets,
+                proper_prop_remover,
+                proper_queue,
+                proper_transformer,
+                proper_unused_imports_remover,
+                vararg]}." >> rebar.config
       after_success:
             - git clone git://github.com/idubrov/covertool.git
             - cd covertool && make compile && cd ..
