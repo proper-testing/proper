@@ -2,15 +2,41 @@ sudo: false
 language: erlang
 script: "make all"
 
-otp_release:
-   - 20.3
-   - 20.0
-   - 19.3
-   - 19.0
-   - 18.3
-   - 18.1
-   - 17.4
-   - 17.0
+# otp_release:
+#    - 20.3
+#    - 20.0
+#    - 19.3
+#    - 19.0
+#    - 18.3
+#    - 18.1
+#    - 17.4
+#    - 17.0
+
+# coverage tests
+matrix:
+  include:
+    - language: erlang
+      otp_release: 20.3
+      before_script:
+            - >
+                printf "\n{cover_enabled, true}.\n{cover_export_enabled, true}.
+                \n{cover_skip_modules, [
+                proper_array,
+                proper_gb_sets,
+                proper_gb_trees,
+                proper_orddict,
+                proper_ordsets,
+                proper_prop_remover,
+                proper_queue,
+                proper_transformer,
+                proper_unused_imports_remover,
+                vararg]}." >> rebar.config
+      after_success:
+            - git clone git://github.com/idubrov/covertool.git
+            - cd covertool && make compile && cd ..
+            - ./covertool/covertool -cover .eunit/cover.coverdata
+            - rm -rf covertool/
+            - bash <(curl -s https://codecov.io/bash)
 
 cache:
    directories:
