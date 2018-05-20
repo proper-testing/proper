@@ -22,12 +22,14 @@ matrix:
                 printf "\n{cover_enabled, true}.\n{cover_export_enabled, true}.
                 \n{cover_skip_modules, [
                 proper_array,
+                proper_dict,
                 proper_gb_sets,
                 proper_gb_trees,
                 proper_orddict,
                 proper_ordsets,
                 proper_prop_remover,
                 proper_queue,
+                proper_sets,
                 proper_transformer,
                 proper_unused_imports_remover,
                 vararg]}." >> rebar.config
