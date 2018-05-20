@@ -2,6 +2,7 @@ sudo: false
 language: erlang
 script:
 - ~/rebar3 compile
+- ls -lha . _build _build/default/lib/*/ebin
 - REBAR=~/rebar3 make all
 - rm -rf _build
 - ./configure --use-sfmt
