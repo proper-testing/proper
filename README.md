@@ -1,4 +1,5 @@
 [![Travis][travis badge]][travis]
+[![CodeCov][codecov badge]][codecov]
 [![Erlang Versions][erlang versions badge]][erlang]
 [![License][license badge]][license]
 
@@ -185,3 +186,4 @@ incompatibilities between the two tools by now.
 [erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2020.3-blue.svg?style=flat-square
 [license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
 [travis badge]: https://img.shields.io/travis/proper-testing/proper/master.svg?style=flat-square
+[codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
