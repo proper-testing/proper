@@ -176,14 +176,15 @@ All the above are from circa 2010. Most likely, there exist many more
 incompatibilities between the two tools by now.
 
 
-<!-- Links -->
+<!-- Links (alphabetically) -->
+[codecov]: https://codecov.io/gh/proper-testing/proper
+[erlang]: http://www.erlang.org
 [eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
 [license]: ./COPYING
 [travis]: https://travis-ci.org/proper-testing/proper
-[erlang]: http://www.erlang.org
 
-<!-- Badges -->
+<!-- Badges (alphabetically) -->
+[codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
 [erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2020.3-blue.svg?style=flat-square
 [license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
 [travis badge]: https://img.shields.io/travis/proper-testing/proper/master.svg?style=flat-square
-[codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
