@@ -1,4 +1,4 @@
-# Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -42,7 +42,7 @@ include/compile_flags.hrl: write_compile_flags
 get-deps:
 	$(REBAR) get-deps
 
-compile:
+compile: include/compile_flags.hrl
 	$(REBAR) compile
 
 dialyzer: .plt/proper_plt compile
@@ -57,19 +57,20 @@ check_escripts:
 tests: compile
 	$(REBAR) eunit
 
-doc:
+doc: compile
 	./make_doc
 
 clean:
 	./clean_temp.sh
 
 distclean: clean
-	rm -f include/compile_flags.hrl .plt/proper_plt
+	$(RM) -r .eunit .rebar
+	$(RM) include/compile_flags.hrl .plt/proper_plt
 	$(REBAR) clean
 
 rebuild: distclean include/compile_flags.hrl
 	$(REBAR) compile
 
 retest: compile
-	rm -rf .eunit
+	$(RM) -r .eunit
 	$(REBAR) eunit
