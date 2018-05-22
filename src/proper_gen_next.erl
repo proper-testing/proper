@@ -83,7 +83,7 @@ ensure_initialized() ->
   L = [get(proper_gen_next_cache),
        get(proper_gen_next_cache_backup),
        get(proper_gen_next_depth_cache),
-       get(rand_seed),
+       get(rng_seed),
        get('$any_type'),
        get('$left'),
        get('$constraint_tries'),

@@ -1,13 +1,14 @@
 sudo: false
 language: erlang
 script:
-- ~/rebar3 compile
-- ls -lha . _build _build/default/lib/*/ebin
-- REBAR=~/rebar3 make all
-- rm -rf _build
-- ./configure --use-sfmt
-- make fast && cd deps/sfmt && make && cd -
-- make all
+- |
+  ~/rebar3 compile
+  REBAR=~/rebar3 make all
+- |
+  rm -rf _build
+  ./configure --use-sfmt
+  make fast && cd deps/sfmt && make && cd -
+  make all
 
 otp_release:
 - 20.3
@@ -49,8 +50,8 @@ matrix:
             - bash <(curl -s https://codecov.io/bash)
 
 cache:
-   directories:
-   - .plt
+  directories:
+  - .plt
 
 install:
 - curl -#fSLo ~/rebar3 https://s3.amazonaws.com/rebar3/rebar3 && chmod +x ~/rebar3
