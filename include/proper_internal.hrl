@@ -62,7 +62,7 @@
 -define(RNG, random).
 -endif.
 
--define(SEED_NAME, rng_seed).
+-define(SEED_NAME, list_to_atom(atom_to_list(?RNG)++"_seed")).
 -ifndef(USE_EXSPLUS).
 -define(RNG_SET_SEED(Seed), ?RNG:seed(Seed)).
 -endif.

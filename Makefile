@@ -40,7 +40,7 @@ all: fast dialyzer doc tests
 get-deps:
 	$(REBAR) get-deps
 
-compile: include/compile_flags.hrl
+compile:
 	$(REBAR) compile
 
 dialyzer: .plt/proper_plt compile

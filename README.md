@@ -98,8 +98,8 @@ Quickstart guide
     Optionally, sfmt-erlang can be selected as an alternative random number
     generator using `./configure --use-sfmt` before running `make`, or with rebar3:
     ```erlang
-    {deps, [sfmt]}. %% Once sfmt-erlang supports rebar3 compilation.
-    {overrides, [{override, proper, [{erl_opts, [{d, 'USE_SFMT'}]}]}]}.
+    {deps, [proper,sfmt]}.
+    {overrides, [{override, proper, [{erl_opts, [{d, 'RNG', sfmt}]}]}]}.
     ```
 *   Add PropEr's base directory to your Erlang library path, using one of the
     following methods:
