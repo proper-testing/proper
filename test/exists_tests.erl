@@ -94,6 +94,42 @@ forall_targeted_test() ->
   [10] = proper:counterexample(),
   ok.
 
+%% configuration tests
+not_exists_const_temp_test() ->
+  put(proper_sa_tempfunc, fun (_, _, _, K, _, _) -> {1.0, K} end),
+  false = proper:quickcheck(prop_not_exists(), ?PROPER_OPTIONS_SHRINKING),
+  erase(proper_sa_tempfunc),
+  [10] = proper:counterexample(),
+  ok.
+
+hillclimbing_test() ->
+  false = proper:quickcheck(prop_not_exists(), [{search_strategy, hill_climbing} | ?PROPER_OPTIONS_SHRINKING]),
+  [10] = proper:counterexample(),
+  ok.
+
+hillclimbing2_test() ->
+  put(proper_sa_acceptfunc, hillclimbing),
+  false = proper:quickcheck(prop_not_exists(), ?PROPER_OPTIONS_SHRINKING),
+  [10] = proper:counterexample(),
+  erase(proper_sa_acceptfunc),
+  ok.
+
+hillclimbing3_test() ->
+  put(proper_sa_acceptfunc, fun (Old, New, _) -> New > Old end),
+  false = proper:quickcheck(prop_not_exists(), ?PROPER_OPTIONS_SHRINKING),
+  [10] = proper:counterexample(),
+  erase(proper_sa_acceptfunc),
+  ok.
+
+default_accept_function_test() ->
+  put(proper_sa_acceptfunc, wrong_value),
+  false = proper:quickcheck(prop_not_exists(), ?PROPER_OPTIONS_SHRINKING),
+  [10] = proper:counterexample(),
+  erase(proper_sa_acceptfunc),
+  ok.
+
+
+
 %% Generator
 -spec integer_test() -> 'ok'.
 integer_test() ->

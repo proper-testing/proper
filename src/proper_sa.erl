@@ -104,13 +104,6 @@
          %% output function
          output_fun = fun (_, _) -> ok end            :: output_fun()}).
 
-print_accepted(State, Utility, Temperature) ->
-  case get(target_print_accepted) of
-    Printer when is_function(Printer) -> Printer(State, Utility);
-    true -> io:format("Accepted at Fitness ~p and Temperature ~p ~n", [Utility, Temperature]);
-    _ -> ok
-  end.
-
 acceptance_function_standard(EnergyCurrent, EnergyNew, Temperature) ->
   case EnergyNew > EnergyCurrent of
     true ->
@@ -129,110 +122,9 @@ acceptance_function_standard(EnergyCurrent, EnergyNew, Temperature) ->
       ?RANDOM_PROBABILITY < AcceptanceProbability
   end.
 
-acceptance_function_normalized(EnergyCurrent, EnergyNew, Temperature) ->
-  case EnergyNew > EnergyCurrent of
-    true ->
-      %% always accept better results
-      true;
-    false ->
-      %% probabilistic acceptance (always between 0.0 and 0.5)
-      AcceptanceProbability =
-        try
-          1 / (1 + math:exp( (1 -  (EnergyNew/EnergyCurrent)) / Temperature))
-        catch
-          error:badarith -> 0.0
-        end,
-      %% if random probability is less, accept
-      ?RANDOM_PROBABILITY < AcceptanceProbability
-  end.
-
 acceptance_function_hillclimbing(EnergyCurrent, EnergyNew, _Temperature) ->
   %% Hill-Climbing
   EnergyNew > EnergyCurrent.
-
-temperature_function_fast_sa(_OldTemperature,
-                             _OldEnergyLevel,
-                             _NewEnergyLevel,
-                             _K_Max,
-                             K_Current,
-                             Accepted) ->
-  AdjustedK = case Accepted of
-                false ->
-                  case get(?SA_REHEAT_COUNTER) of
-                    undefined ->
-                      put(?SA_REHEAT_COUNTER, 1),
-                      K_Current + 1;
-                    N when N >= ?REHEAT_THRESHOLD->
-                      put(?SA_REHEAT_COUNTER, 0),
-                      max(1, K_Current - trunc(1.4 * ?REHEAT_THRESHOLD));
-                    N ->
-                      put(?SA_REHEAT_COUNTER, N + 1),
-                      K_Current + 1
-                  end;
-                true -> K_Current + 1
-              end,
-  {1 / max((AdjustedK / 4.0), 1.0), AdjustedK}.
-
-temperature_function_fast2_sa(_OldTemperature,
-                              _OldEnergyLevel,
-                              _NewEnergyLevel,
-                              K_Max,
-                              K_Current,
-                              Accepted) ->
-  K = case Accepted of
-        true -> K_Current + 1;
-        false ->
-          case get(sa_restart_counter) of
-            undefined ->
-              put(sa_restart_counter, 1),
-              K_Current + 1;
-            N when N >= ?RESTART_THRESHOLD ->
-              put(sa_restart_counter, 0),
-              io:format("R"),
-              reset(),
-              1;
-            N ->
-              put(sa_restart_counter, N + 1),
-              K_Current + 1
-          end
-      end,
-  {1.0 - math:sqrt(K / K_Max), K}.
-
-temperature_function_reheat_sa(OldTemperature,
-                               OldEnergyLevel,
-                               NewEnergyLevel,
-                               K_Max,
-                               K_Current,
-                               Accepted) when is_integer(K_Current) ->
-  temperature_function_reheat_sa(OldTemperature,
-                                 OldEnergyLevel,
-                                 NewEnergyLevel,
-                                 K_Max,
-                                 {K_Current, K_Current},
-                                 Accepted);
-temperature_function_reheat_sa(_OldTemperature,
-                               _OldEnergyLevel,
-                               _NewEnergyLevel,
-                               K_Max,
-                               {K_Current, K_Counter},
-                               Accepted) ->
-  Scaling = 1.0 - (K_Counter / K_Max),
-  AdjustedK = case Accepted of
-                false ->
-                  case get(?SA_REHEAT_COUNTER) of
-                    undefined ->
-                      put(?SA_REHEAT_COUNTER, 1),
-                      K_Current + 1;
-                    N when N >= ?REHEAT_THRESHOLD->
-                      put(?SA_REHEAT_COUNTER, 0),
-                      max(1, K_Current - trunc(Scaling * 5 * ?REHEAT_THRESHOLD));
-                    N ->
-                      put(?SA_REHEAT_COUNTER, N + 1),
-                      K_Current + 1
-                  end;
-                true -> K_Current + 1
-              end,
-  {1 / max((AdjustedK / 4.0), 1.0), {AdjustedK, K_Counter + 1}}.
 
 temperature_function_standard_sa(_OldTemperature,
                                  _OldEnergyLevel,
@@ -245,9 +137,6 @@ temperature_function_standard_sa(_OldTemperature,
 get_temperature_function(_) ->
   case get(proper_sa_tempfunc) of
     default -> fun temperature_function_standard_sa/6;
-    fast -> fun temperature_function_fast_sa/6;
-    very_fast -> fun temperature_function_fast2_sa/6;
-    reheat -> fun temperature_function_reheat_sa/6;
     Fun when is_function(Fun) ->
       case proplists:lookup(arity, erlang:fun_info(Fun)) of
         {arity, 6} -> Fun;
@@ -261,7 +150,6 @@ get_acceptance_function(_) ->
   case get(proper_sa_acceptfunc) of
     default -> fun acceptance_function_standard/3;
     hillclimbing -> fun acceptance_function_hillclimbing/3;
-    normalized -> fun acceptance_function_normalized/3;
     Fun when is_function(Fun) ->
       case proplists:lookup(arity, erlang:fun_info(Fun)) of
         {arity, 3} -> Fun;
@@ -327,8 +215,8 @@ create_target(SATarget) ->
   {ok, InitialValue} = proper_gen:safe_generate(SATarget#sa_target.first),
   {SATarget#sa_target{last_generated = InitialValue},
    fun next_func/1,
-   %% dummy local fitness function
-   fun (S, _) -> S end}.
+   %% no local fitness function
+   none}.
 
 %% generating next element and updating the target state
 next_func(SATarget) ->
@@ -376,7 +264,6 @@ update_global_fitness(Fitness) ->
               true ->
                 %% accept new state
                 proper_gen_next:update_caches(accept),
-                print_accepted(Data, Fitness, Temperature),
                 NewState = update_all_targets(Data#sa_data.state),
                 %% calculate new temperature
                 {NewTemperature, AdjustedK} =
@@ -423,5 +310,4 @@ update_all_targets(Dict, [K|T]) ->
 
 %% @private
 -spec get_shrinker(proper_target:tmap()) -> proper_types:type().
-get_shrinker(#{first := First}) -> First;
 get_shrinker(#{gen := Gen}) -> Gen.

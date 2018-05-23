@@ -242,8 +242,6 @@ temperature_scaling(Temp, Depth) ->
       end;
     _ ->
       1.0
-      %%put(proper_gen_next_temperature_scaling, true),
-      %%temperature_scaling(Temp, Depth)
   end.
 
 calculate_temperature(null) ->

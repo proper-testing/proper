@@ -82,7 +82,7 @@
 
 -type target_state() :: term().
 -type next_func()    :: fun ((target_state()) -> {target_state(), any()}).
--type fitness_func() :: fun ((target_state(), fitness()) -> target_state()).
+-type fitness_func() :: fun ((target_state(), fitness()) -> target_state()) | none.
 
 -type target()    :: {target_state(), next_func(), fitness_func()}.
 -type strategy()  :: module().
