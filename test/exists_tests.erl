@@ -501,3 +501,10 @@ let_in_nf_test() ->
   false = proper:quickcheck(prop_let_nf(), ?PROPER_OPTIONS_SHRINKING),
   [L] = proper:counterexample(),
   ?assertEqual(20, length(L)).
+
+prop_not_exists_crash() ->
+  ?NOT_EXISTS(_, integer(), error(crash)).
+
+-spec count_crash_in_not_exists_as_failure_test() -> 'ok'.
+count_crash_in_not_exists_as_failure_test() ->
+  ?assertEqual(false, proper:quickcheck(prop_let_nf(), ?PROPER_OPTIONS)).
