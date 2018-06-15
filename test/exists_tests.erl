@@ -507,4 +507,4 @@ prop_not_exists_crash() ->
 
 -spec count_crash_in_not_exists_as_failure_test() -> 'ok'.
 count_crash_in_not_exists_as_failure_test() ->
-  ?assertEqual(false, proper:quickcheck(prop_let_nf(), ?PROPER_OPTIONS)).
+  ?assertEqual(false, proper:quickcheck(prop_not_exists_crash(), ?PROPER_OPTIONS)).
