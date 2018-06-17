@@ -36,13 +36,10 @@ fast: get-deps compile
 
 all: fast dialyzer doc tests
 
-include/compile_flags.hrl: write_compile_flags
-	./write_compile_flags $@
-
 get-deps:
 	$(REBAR) get-deps
 
-compile: include/compile_flags.hrl
+compile:
 	$(REBAR) compile
 
 dialyzer: .plt/proper_plt compile
@@ -52,7 +49,7 @@ dialyzer: .plt/proper_plt compile
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools
 
 check_escripts:
-	./check_escripts.sh make_doc write_compile_flags
+	./check_escripts.sh make_doc
 
 tests: compile
 	$(REBAR) eunit
@@ -65,10 +62,10 @@ clean:
 
 distclean: clean
 	$(RM) -r .eunit .rebar
-	$(RM) include/compile_flags.hrl .plt/proper_plt
+	$(RM) .plt/proper_plt
 	$(REBAR) clean
 
-rebuild: distclean include/compile_flags.hrl
+rebuild: distclean
 	$(REBAR) compile
 
 retest: compile
