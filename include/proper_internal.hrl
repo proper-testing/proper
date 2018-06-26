@@ -26,7 +26,6 @@
 %%% @doc Internal header file: This header is included in all PropEr source
 %%%      files.
 
--include("compile_flags.hrl").
 -include("proper_common.hrl").
 
 

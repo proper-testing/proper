@@ -26,8 +26,6 @@
 
 -module(symb_statem_maps).
 
--include("compile_flags.hrl").
-
 -include_lib("proper/include/proper.hrl").
 
 -export([command/1,
