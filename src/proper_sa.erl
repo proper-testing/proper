@@ -253,10 +253,10 @@ retrieve_target(Key) ->
 -spec update_global_fitness(proper_target:fitness()) -> 'ok'.
 update_global_fitness(Fitness) ->
   case get(?SA_DATA) of
-    Data = #sa_data{} ->
-      K_CURRENT = (Data#sa_data.k_current),
-      K_MAX = (Data#sa_data.k_max),
-      Temperature = Data#sa_data.temperature,
+    Data = #sa_data{k_current = K_CURRENT,
+                    k_max = K_MAX,
+                    temperature = Temperature,
+                    temp_func = TempFunc} ->
       NewData = case (Data#sa_data.last_energy =:= null)
 		  orelse (Data#sa_data.p)(Data#sa_data.last_energy,
 					  Fitness,
@@ -267,12 +267,12 @@ update_global_fitness(Fitness) ->
                     NewState = update_all_targets(Data#sa_data.state),
                     %% calculate new temperature
                     {NewTemperature, AdjustedK} =
-                      (Data#sa_data.temp_func)(Temperature,
-                                               Data#sa_data.last_energy,
-                                               Fitness,
-                                               K_MAX,
-                                               K_CURRENT,
-                                               true),
+                      TempFunc(Temperature,
+                               Data#sa_data.last_energy,
+                               Fitness,
+                               K_MAX,
+                               K_CURRENT,
+                               true),
                     Data#sa_data{state = NewState,
                                  last_energy = Fitness,
                                  last_update = 0,
@@ -280,23 +280,23 @@ update_global_fitness(Fitness) ->
                                  temperature = NewTemperature};
                   false ->
                     %% reject new state
-                    %% calculate new temperature
                     proper_gen_next:update_caches(reject),
+                    %% calculate new temperature
                     {NewTemperature, AdjustedK} =
-                      (Data#sa_data.temp_func)(Temperature,
-                                               Data#sa_data.last_energy,
-                                               Fitness,
-                                               K_MAX,
-                                               K_CURRENT,
-                                               false),
-                    Data#sa_data{last_update = Data#sa_data.last_update +1,
+                      TempFunc(Temperature,
+                               Data#sa_data.last_energy,
+                               Fitness,
+                               K_MAX,
+                               K_CURRENT,
+                               false),
+                    Data#sa_data{last_update = Data#sa_data.last_update + 1,
                                  k_current = AdjustedK,
                                  temperature = NewTemperature}
 		end,
       put(?SA_DATA, NewData),
       ok;
     _ ->
-      %% no search strategy or shrining
+      %% no search strategy or shrinking
       ok
   end.
 
