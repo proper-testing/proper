@@ -1366,7 +1366,7 @@ run({exists, TMap, Prop, Not}, #ctx{mode = new} = Ctx,
     SR = perform_search(Steps, Target, Prop, Ctx, Opts, Not),
     put('$size', BackupSize),
     Print("]", []),
-    %% proper_target:cleanup_strategy(), TODO: why does this not work?
+    proper_target:cleanup_strategy(),
     SR;
 run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk, bound = []}, Opts) ->
     run({exists, TMap, Prop, Not}, #ctx{mode = new, bound = []}, Opts#opts{output_fun = fun (_, _) -> ok end});

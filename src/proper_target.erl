@@ -137,7 +137,7 @@ set_fitness(Fitness) ->
 
 -spec strategy() -> strategy().
 strategy() ->
-  get('$strategy').
+  get('$search_strategy').
 
 strategy(Strat) ->
   case Strat of
@@ -156,13 +156,13 @@ strategy(Strat) ->
 -spec use_strategy(strategy(), proper:setup_opts()) -> proper:outer_test().
 use_strategy(Strat, Opts) ->
   Strategy = strategy(Strat),
-  put('$strategy', Strategy),
+  put('$search_strategy', Strategy),
   Strategy:init_strategy(Opts).
 
 -spec init_strategy(strategy()) -> ok.
 init_strategy(Strat) ->
   Strategy = strategy(Strat),
-  put('$strategy', Strategy),
+  put('$search_strategy', Strategy),
   Steps = get('$search_steps'),
   OutputFun = fun(_, _) -> ok end,
   Strategy:init_strategy(#{numtests=>Steps, output_fun=>OutputFun}).
@@ -171,7 +171,7 @@ init_strategy(Strat) ->
 -spec cleanup_strategy() -> ok.
 cleanup_strategy() ->
   (strategy()):cleanup(),
-  erase('$strategy'), ok.
+  ok.
 
 %% @private
 -spec get_target(key(), tmap()) -> target().
