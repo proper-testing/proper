@@ -131,7 +131,7 @@ Where to go from here
 ---------------------
 
 To get started on using PropEr, see the tutorials and testing tips provided on
-[PropEr's home page](http://proper.softlab.ntua.gr). On the same site you can
+[PropEr's home page](http://proper-testing.github.io). On the same site you can
 find a copy of PropEr's API documentation (you can also build this from source
 if you prefer, by running `make doc`), as well as links to more resources on
 property-based testing.
