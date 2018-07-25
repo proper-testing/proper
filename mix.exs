@@ -3,7 +3,7 @@ defmodule Proper.Mixfile do
 
   def project do
     [app: :proper,
-     version: "1.2.0",
+     version: "1.3.0",
      description: description(),
      package: package(),
      deps: deps()]
