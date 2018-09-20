@@ -62,7 +62,7 @@
 -define(SLTEMP(T), adjust_temperature(T)).
 
 -type temperature() :: float().
--type nf() :: fun((term(), temperature()) -> term()).
+-type nf() :: fun((pos_integer(), temperature()) -> term()).
 -type matcher() :: fun((term(), proper_types:raw_type(), temperature()) -> term()).
 
 -spec update_caches('accept' | 'reject') -> 'ok'.

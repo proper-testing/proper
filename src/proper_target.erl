@@ -53,7 +53,8 @@
 %%%   <dt>`?USERNF(Gen, Nf)'</dt>
 %%%   <dd>This uses the neighborhood function `Nf' instead of PropEr's
 %%%     constructed neighborhood function for this generator. The neighborhood
-%%%     function `Fun' should be of type `proper_gen_next:nf()'</dd>
+%%%     function `Fun' should be of type 
+%%%    `fun(term(), {Depth :: pos_integer(), Temperature::float()} -> term()'</dd>
 %%%   <dt>`?USERMATCHER(Gen, Matcher)'</dt>
 %%%   <dd>This overwrites the structural matching of PropEr with the user provided
 %%%     `Matcher' function. the matcher should be of type `proper_gen_next:matcher()'</dd>
