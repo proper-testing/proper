@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,39 +20,42 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
 -module(post_false).
--compile(export_all).
+
+-export([foo/0, bar/0]).
+-export([command/1, initial_state/0, next_state/3,
+	 precondition/2, postcondition/3]).
 
 -include_lib("proper/include/proper.hrl").
 
 -record(state, {step = 0 :: non_neg_integer()}).
 
 initial_state() ->
-    #state{}.
+  #state{}.
 
 command(_S) ->
-    oneof([{call,?MODULE,foo,[]},
-	   {call,?MODULE,bar,[]}]).
+  oneof([{call,?MODULE,foo,[]},
+	 {call,?MODULE,bar,[]}]).
 
 precondition(_, _) ->
-    true.
+  true.
 
 next_state(#state{step = Step}, _, _) ->
-    #state{step = Step + 1}.
+  #state{step = Step + 1}.
 
 postcondition(#state{step = Step}, _, _) ->
-    Step < 5.
+  Step < 5.
 
 foo() -> ok.
 bar() -> 42.
 
 prop_simple() ->
-    ?FORALL(Cmds, commands(?MODULE),
-	    begin
-		{_H,_S,Res} = run_commands(?MODULE, Cmds),
-		equals(Res, ok)
-	    end).
+  ?FORALL(Cmds, commands(?MODULE),
+	  begin
+	    {_H,_S,Res} = run_commands(?MODULE, Cmds),
+	    equals(Res, ok)
+	  end).

@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,16 +20,16 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
 -module(ets_counter).
 
-%% -export([ets_inc/2]).
-%% -export([command/1, precondition/2, postcondition/3,
-%% 	 initial_state/0, next_state/3]).
--compile(export_all).
+-export([ets_inc/2]).
+-export([command/1, clean_up/0, set_up/0,
+	 precondition/2, postcondition/3,
+	 initial_state/0, next_state/3]).
 
 -include_lib("proper/include/proper.hrl").
 
