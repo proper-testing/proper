@@ -2,7 +2,8 @@
 [![CodeCov][codecov badge]][codecov]
 [![Erlang Versions][erlang versions badge]][erlang]
 [![License][license badge]][license]
-
+[![Latest Release][release badge]][release]
+[![Last Commit][commit badge]][commit]
 
 Contact information and license
 -------------------------------
@@ -178,13 +179,17 @@ incompatibilities between the two tools by now.
 
 <!-- Links (alphabetically) -->
 [codecov]: https://codecov.io/gh/proper-testing/proper
+[commit]: https://github.com/proper-testing/proper/commit/HEAD
 [erlang]: http://www.erlang.org
 [eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
 [license]: ./COPYING
+[release]: https://github.com/proper-testing/proper/releases/latest
 [travis]: https://travis-ci.org/proper-testing/proper
 
 <!-- Badges (alphabetically) -->
 [codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
+[commit badge]: https://img.shields.io/github/last-commit/proper-testing/proper.svg?style=flat-square
 [erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2021.0-blue.svg?style=flat-square
 [license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
+[release badge]: https://img.shields.io/github/release/proper-testing/proper.svg?style=flat-square
 [travis badge]: https://img.shields.io/travis/proper-testing/proper/master.svg?style=flat-square
