@@ -982,7 +982,7 @@ false_props_test_() ->
      ?_fails(error_statem:prop_simple())].
 
 error_props_test_() ->
-    [?_errorsOut(cant_generate,
+    [?_errorsOut({cant_generate,_},
 		 ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X =< 0), true)),
      ?_errorsOut(cant_satisfy,
 		 ?FORALL(X, pos_integer(), ?IMPLIES(X =< 0, true))),
@@ -992,8 +992,8 @@ error_props_test_() ->
 		   ?FORALL(X, integer(), ?IMPLIES(X > 5, X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
 		   ?FORALL(X, pos_integer(), X < 0)),
-     ?_errorsOut(cant_generate, prec_false:prop_simple()),
-     ?_errorsOut(cant_generate, nogen_statem:prop_simple()),
+     ?_errorsOut({cant_generate,_}, prec_false:prop_simple()),
+     ?_errorsOut({cant_generate,_}, nogen_statem:prop_simple()),
      ?_errorsOut(non_boolean_result, ?FORALL(_, integer(), not_a_boolean)),
      ?_errorsOut(non_boolean_result,
 		 ?FORALL(_, ?SHRINK(42,[0]),
@@ -1032,7 +1032,7 @@ options_test_() ->
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
      ?_fails(?FORALL(_,integer(),false), [fails]),
-     ?_assertRun({error,cant_generate},
+     ?_assertRun({error,{cant_generate,_}},
 		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X > 0),true),
 		 [{constraint_tries,0}], true),
      ?_failsWith([12],
