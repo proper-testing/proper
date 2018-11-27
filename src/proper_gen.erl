@@ -68,7 +68,9 @@
 		      | {'$to_part', imm_instance()}.
 -type instance() :: term().
 %% A value produced by the random instance generator.
--type error_reason() :: 'arity_limit' | {'cant_generate',proper_types:type()} | {'typeserver',term()}.
+-type error_reason() :: 'arity_limit'
+                      | {'cant_generate',mfa()}
+                      | {'typeserver',term()}.
 
 %% @private_type
 -type sized_generator() :: fun((size()) -> imm_instance()).
@@ -115,7 +117,7 @@ safe_generate(RawType) ->
 	ImmInstance -> {ok, ImmInstance}
     catch
 	throw:'$arity_limit'            -> {error, arity_limit};
-	throw:{'$cant_generate',Type}   -> {error, {cant_generate,Type}};
+	throw:{'$cant_generate',MFA}    -> {error, {cant_generate,MFA}};
 	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
     end.
 
@@ -163,7 +165,11 @@ remove_parameters(Type) ->
 -spec generate(proper_types:type(), non_neg_integer(),
 	       'none' | {'ok',imm_instance()}) -> imm_instance().
 generate(Type, 0, none) ->
-    throw({'$cant_generate', Type});
+    Constraints = proper_types:get_prop(constraints, Type),
+    %% In presence of multiple failing constraints, we focus only the first one.
+    [FailingConstraint|_] = [C || {C, true} <- Constraints],
+    Parent = fun_parent(FailingConstraint),
+    throw({'$cant_generate', Parent});
 generate(_Type, 0, {ok,Fallback}) ->
     Fallback;
 generate(Type, TriesLeft, Fallback) ->
@@ -646,3 +652,24 @@ update_seed(Seed) ->
     put(?SEED_NAME, Seed).
 -endif.
 -endif.
+
+%%------------------------------------------------------------------------------
+%% Helper Function to extract the MFA containing a given fun.
+%%------------------------------------------------------------------------------
+%% NOTE: This code is extracted from OTP's module 'eunit_lib' to avoid creating
+%% a dependency from proper to eunit just for this.
+%%------------------------------------------------------------------------------
+%% @private
+-spec fun_parent(function()) -> mfa().
+fun_parent(F) ->
+    {module, M} = erlang:fun_info(F, module),
+    {name, N} = erlang:fun_info(F, name),
+    case erlang:fun_info(F, type) of
+      {type, external} ->
+        {arity, A} = erlang:fun_info(F, arity),
+        {M, N, A};
+      {type, local} ->
+        [$-|S] = atom_to_list(N),
+        [S2, T] = string:split(S, "/", trailing),
+        {M, list_to_atom(S2), element(1, string:to_integer(T))}
+    end.
