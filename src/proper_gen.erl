@@ -661,15 +661,19 @@ update_seed(Seed) ->
 %%------------------------------------------------------------------------------
 %% @private
 -spec fun_parent(function()) -> mfa().
-fun_parent(F) ->
-    {module, M} = erlang:fun_info(F, module),
-    {name, N} = erlang:fun_info(F, name),
-    case erlang:fun_info(F, type) of
+fun_parent(Fun) ->
+    {module, M} = erlang:fun_info(Fun, module),
+    {name, N} = erlang:fun_info(Fun, name),
+    case erlang:fun_info(Fun, type) of
       {type, external} ->
-        {arity, A} = erlang:fun_info(F, arity),
+        {arity, A} = erlang:fun_info(Fun, arity),
         {M, N, A};
       {type, local} ->
         [$-|S] = atom_to_list(N),
-        [S2, T] = string:split(S, "/", trailing),
-        {M, list_to_atom(S2), element(1, string:to_integer(T))}
+        %% Not using string:split/3 here to ensure backward-compatibility
+        %% with older versions of Erlang/OTP (i.e. < 20)
+        Tokens = string:tokens(S, "/"),
+        {A, _} = string:to_integer(lists:last(Tokens)),
+        F = list_to_atom(string:join(lists:droplast(Tokens), "/")),
+        {M, F, A}
     end.
