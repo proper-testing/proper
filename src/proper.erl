@@ -1558,7 +1558,7 @@ apply_args(Args, Prop, Ctx, Opts) ->
 	throw:'$arity_limit' ->
 	    {error, arity_limit};
 	throw:{'$cant_generate',MFA} ->
-      {error, {cant_generate,MFA}};
+	    {error, {cant_generate,MFA}};
 	throw:{'$typeserver',SubReason} ->
 	    {error, {typeserver,SubReason}};
 	?STACKTRACE(ExcKind, ExcReason, Trace) %, is in macro

@@ -983,7 +983,7 @@ false_props_test_() ->
      ?_fails(error_statem:prop_simple())].
 
 error_props_test_() ->
-    [?_errorsOut({cant_generate,{proper_tests,error_props_test_,0}},
+    [?_errorsOut({cant_generate,{?MODULE,error_props_test_,0}},
 		 ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X =< 0), true)),
      ?_errorsOut(cant_satisfy,
 		 ?FORALL(X, pos_integer(), ?IMPLIES(X =< 0, true))),
@@ -1033,7 +1033,7 @@ options_test_() ->
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
      ?_fails(?FORALL(_,integer(),false), [fails]),
-     ?_assertRun({error,{cant_generate,{proper_tests,options_test_,0}}},
+     ?_assertRun({error,{cant_generate,{?MODULE,options_test_,0}}},
 		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X > 0),true),
 		 [{constraint_tries,0}], true),
      ?_failsWith([12],
