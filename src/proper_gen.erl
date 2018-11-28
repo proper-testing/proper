@@ -69,7 +69,7 @@
 -type instance() :: term().
 %% A value produced by the random instance generator.
 -type error_reason() :: 'arity_limit'
-                      | {'cant_generate',mfa()}
+                      | {'cant_generate',[mfa()]}
                       | {'typeserver',term()}.
 
 %% @private_type
@@ -117,7 +117,7 @@ safe_generate(RawType) ->
 	ImmInstance -> {ok, ImmInstance}
     catch
 	throw:'$arity_limit'            -> {error, arity_limit};
-	throw:{'$cant_generate',MFA}    -> {error, {cant_generate,MFA}};
+	throw:{'$cant_generate',MFAs}   -> {error, {cant_generate,MFAs}};
 	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
     end.
 
@@ -166,10 +166,8 @@ remove_parameters(Type) ->
 	       'none' | {'ok',imm_instance()}) -> imm_instance().
 generate(Type, 0, none) ->
     Constraints = proper_types:get_prop(constraints, Type),
-    %% In presence of multiple failing constraints, we focus only the first one.
-    [FailingConstraint|_] = [C || {C, true} <- Constraints],
-    Parent = eunit_lib:fun_parent(FailingConstraint),
-    throw({'$cant_generate', Parent});
+    MFAs = [eunit_lib:fun_parent(C) || {C, true} <- Constraints],
+    throw({'$cant_generate', lists:usort(MFAs)});
 generate(_Type, 0, {ok,Fallback}) ->
     Fallback;
 generate(Type, TriesLeft, Fallback) ->

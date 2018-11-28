@@ -330,12 +330,13 @@
 %%%   a function of the desired arity. Please recompile PropEr with a suitable
 %%%   value for `?MAX_ARITY' (defined in `proper_internal.hrl'). This error
 %%%   should only be encountered during normal operation.</dd>
-%%% <dt>`{cant_generate, <MFA>}'</dt>
+%%% <dt>`{cant_generate, [<MFA>]}'</dt>
 %%% <dd>The random instance generation subsystem has failed to
 %%%   produce an instance that satisfies some `?SUCHTHAT' constraint. You
 %%%   should either increase the `constraint_tries' limit, loosen the failing
-%%%   constraint, or make it non-strict. The `<MFA>' refers to the
-%%%   function which wraps the failing constraint.
+%%%   constraint, or make it non-strict. The failure is due to a failing
+%%%   strict constraint which is wrapped by one of the MFAs from the list of
+%%%   candidates `[<MFA>]'.
 %%%   This error should only be encountered during normal operation.</dd>
 %%% <dt>`cant_satisfy'</dt>
 %%% <dd>All the tests were rejected because no produced test case
@@ -580,7 +581,7 @@
 -type stacktrace() :: [call_record()].
 -type call_record() :: {mod_name(),fun_name(),arity() | list(),location()}.
 -type location() :: [{atom(),term()}].
--type error_reason() :: 'arity_limit' | {'cant_generate',mfa()}
+-type error_reason() :: 'arity_limit' | {'cant_generate',[mfa()]}
                       | 'cant_satisfy'
                       | 'non_boolean_result' | 'rejected' | 'too_many_instances'
                       | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
@@ -1267,7 +1268,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 			      orelse Reason =:= non_boolean_result
 			      orelse Reason =:= type_mismatch ->
 	    Error;
-	{error, {cant_generate,_MFA}} = Error ->
+	{error, {cant_generate,_MFAs}} = Error ->
 	    Error;
 	{error, {typeserver,_SubReason}} = Error ->
 	    Error;
@@ -1557,8 +1558,8 @@ apply_args(Args, Prop, Ctx, Opts) ->
 	    end;
 	throw:'$arity_limit' ->
 	    {error, arity_limit};
-	throw:{'$cant_generate',MFA} ->
-	    {error, {cant_generate,MFA}};
+	throw:{'$cant_generate',MFAs} ->
+	    {error, {cant_generate,MFAs}};
 	throw:{'$typeserver',SubReason} ->
 	    {error, {typeserver,SubReason}};
 	?STACKTRACE(ExcKind, ExcReason, Trace) %, is in macro
@@ -1998,10 +1999,10 @@ report_rerun_result({error,Reason}, #opts{output_fun = Print}) ->
 report_error(arity_limit, Print) ->
     Print("Error: Couldn't produce a function of the desired arity, please "
           "recompile PropEr with an increased value for ?MAX_ARITY.~n", []);
-report_error({cant_generate,MFA}, Print) ->
+report_error({cant_generate,MFAs}, Print) ->
     Print("Error: Couldn't produce an instance that satisfies all strict "
-          "constraints from ~s after ~b tries.~n",
-          [mfa_to_string(MFA),get('$constraint_tries')]);
+          "constraints from (~s) after ~b tries.~n",
+          [mfas_to_string(MFAs),get('$constraint_tries')]);
 report_error(cant_satisfy, Print) ->
     Print("Error: No valid test could be generated.~n", []);
 report_error(non_boolean_result, Print) ->
@@ -2165,6 +2166,10 @@ avg_and_last([Last], Sum, Len) ->
     {(Sum + Last) / (Len + 1), Last};
 avg_and_last([X | Rest], Sum, Len) ->
     avg_and_last(Rest, Sum + X, Len + 1).
+
+-spec mfas_to_string([mfa()]) -> string().
+mfas_to_string(MFAs) ->
+  string:join([mfa_to_string(MFA) || MFA <- MFAs], ", ").
 
 -spec mfa_to_string(mfa()) -> string().
 mfa_to_string({M, F, A}) ->
