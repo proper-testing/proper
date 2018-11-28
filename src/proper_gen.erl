@@ -168,7 +168,7 @@ generate(Type, 0, none) ->
     Constraints = proper_types:get_prop(constraints, Type),
     %% In presence of multiple failing constraints, we focus only the first one.
     [FailingConstraint|_] = [C || {C, true} <- Constraints],
-    Parent = fun_parent(FailingConstraint),
+    Parent = eunit_lib:fun_parent(FailingConstraint),
     throw({'$cant_generate', Parent});
 generate(_Type, 0, {ok,Fallback}) ->
     Fallback;
@@ -652,28 +652,3 @@ update_seed(Seed) ->
     put(?SEED_NAME, Seed).
 -endif.
 -endif.
-
-%%------------------------------------------------------------------------------
-%% Helper Function to extract the MFA containing a given fun.
-%%------------------------------------------------------------------------------
-%% NOTE: This code is extracted from OTP's module 'eunit_lib' to avoid creating
-%% a dependency from proper to eunit just for this.
-%%------------------------------------------------------------------------------
-%% @private
--spec fun_parent(function()) -> mfa().
-fun_parent(Fun) ->
-    {module, M} = erlang:fun_info(Fun, module),
-    {name, N} = erlang:fun_info(Fun, name),
-    case erlang:fun_info(Fun, type) of
-      {type, external} ->
-        {arity, A} = erlang:fun_info(Fun, arity),
-        {M, N, A};
-      {type, local} ->
-        [$-|S] = atom_to_list(N),
-        %% Not using string:split/3 here to ensure backward-compatibility
-        %% with older versions of Erlang/OTP (i.e. < 20)
-        Tokens = string:tokens(S, "/"),
-        {A, _} = string:to_integer(lists:last(Tokens)),
-        F = list_to_atom(string:join(lists:droplast(Tokens), "/")),
-        {M, F, A}
-    end.
