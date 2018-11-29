@@ -510,7 +510,22 @@ impossible_types() ->
      ?SUCHTHAT(B, binary(), lists:member(256,binary_to_list(B))),
      ?SUCHTHAT(X, exactly('Lelouch'), X =:= 'vi Brittania'),
      ?SUCHTHAT(X, utf8(), unicode:characters_to_list(X) =:= [16#D800]),
-     ?SUCHTHAT(X, utf8(1, 1), size(X) > 1)].
+     ?SUCHTHAT(X, utf8(1, 1), size(X) > 1),
+     %% Nested constraints, of which the inner one fails
+     ?SUCHTHAT(X, ?SUCHTHAT(Y, pos_integer(), Y < 0), X > 0),
+     %% Nested constraints, of which the outer one fails
+     ?SUCHTHAT(X, ?SUCHTHAT(Y, pos_integer(), Y > 0), X < 0),
+     %% Nested constraints, one strict and one non-strict, where the inner one fails
+     ?SUCHTHATMAYBE(_X, ?SUCHTHAT(Y, pos_integer(), Y < 0), true),
+     %% Nested constraints, one strict and one non-strict, where the outer one fails
+     ?SUCHTHAT(X, ?SUCHTHATMAYBE(Y, pos_integer(), Y < 0), X < 0),
+     %% Two failing constraints within a ?LET macro, where one
+     %% constraint is used as the 'raw type' and one is used as the 'generator'
+     ?LET(Y,?SUCHTHAT(X, pos_integer(), X < 0),?SUCHTHAT(Y, pos_integer(), Y < 0)),
+     %% Two failing constraints within a ?LET macro, where both
+     %% constraints are used as a 'raw type'
+     ?LET({X,Y},{?SUCHTHAT(X1, pos_integer(), X1 < 0),?SUCHTHAT(Y1, pos_integer(), Y1 < 0)},{X,Y})
+    ].
 
 impossible_native_types() ->
     [{types_test1, ["1.1","no_such_module:type1()","no_such_type()"]},
@@ -721,6 +736,39 @@ native_shrinks_to_test_() ->
 
 cant_generate_test_() ->
     [?_test(assert_cant_generate(Type)) || Type <- impossible_types()].
+
+%%------------------------------------------------------------------------------
+%% Verify that failing constraints are correctly reported
+%%------------------------------------------------------------------------------
+
+cant_generate_constraints_test_() ->
+  [%% An impossible generator specified in the same function
+   ?_errorsOut({cant_generate, [{?MODULE, cant_generate_constraints_test_, 0}]},
+               ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X =< 0), true)),
+   %% An impossible generator specified in a separate function
+   ?_errorsOut({cant_generate, [{?MODULE, impossible, 0}]},
+               ?FORALL(_X, impossible(), true)),
+   %% An impossible generator in presence of multiple constraints
+   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},{?MODULE, possible_made_impossible, 0}]},
+               ?FORALL(_X, possible_made_impossible(), true)),
+   %% An impossible generator in presence of multiple, duplicated constraints
+   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},{?MODULE, possible_made_impossible_2, 0}]},
+               ?FORALL(_X, possible_made_impossible_2(), true))
+  ].
+
+possible() ->
+  ?SUCHTHAT(X, pos_integer(), X > 0).
+
+impossible() ->
+  ?SUCHTHAT(X, pos_integer(), X =< 0).
+
+possible_made_impossible() ->
+  ?SUCHTHAT(X, possible(), X =< 0).
+
+possible_made_impossible_2() ->
+  ?SUCHTHAT(Y, ?SUCHTHAT(X, possible(), X =< 0), Y =< 0).
+
+%%------------------------------------------------------------------------------
 
 native_cant_translate_test_() ->
     [?_test(assert_cant_translate(Mod,TypeStr))
@@ -982,7 +1030,7 @@ false_props_test_() ->
      ?_fails(error_statem:prop_simple())].
 
 error_props_test_() ->
-    [?_errorsOut(cant_generate,
+    [?_errorsOut({cant_generate,[{?MODULE,error_props_test_,0}]},
 		 ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X =< 0), true)),
      ?_errorsOut(cant_satisfy,
 		 ?FORALL(X, pos_integer(), ?IMPLIES(X =< 0, true))),
@@ -992,8 +1040,8 @@ error_props_test_() ->
 		   ?FORALL(X, integer(), ?IMPLIES(X > 5, X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
 		   ?FORALL(X, pos_integer(), X < 0)),
-     ?_errorsOut(cant_generate, prec_false:prop_simple()),
-     ?_errorsOut(cant_generate, nogen_statem:prop_simple()),
+     ?_errorsOut({cant_generate,[{proper_statem,commands,4}]}, prec_false:prop_simple()),
+     ?_errorsOut({cant_generate,[{nogen_statem,impossible_arg,0}]}, nogen_statem:prop_simple()),
      ?_errorsOut(non_boolean_result, ?FORALL(_, integer(), not_a_boolean)),
      ?_errorsOut(non_boolean_result,
 		 ?FORALL(_, ?SHRINK(42,[0]),
@@ -1032,7 +1080,7 @@ options_test_() ->
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
      ?_fails(?FORALL(_,integer(),false), [fails]),
-     ?_assertRun({error,cant_generate},
+     ?_assertRun({error,{cant_generate,[{?MODULE,options_test_,0}]}},
 		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X > 0),true),
 		 [{constraint_tries,0}], true),
      ?_failsWith([12],

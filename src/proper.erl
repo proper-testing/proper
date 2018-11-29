@@ -330,12 +330,14 @@
 %%%   a function of the desired arity. Please recompile PropEr with a suitable
 %%%   value for `?MAX_ARITY' (defined in `proper_internal.hrl'). This error
 %%%   should only be encountered during normal operation.</dd>
-%%% <dt>`cant_generate'</dt>
+%%% <dt>`{cant_generate, [<MFA>]}'</dt>
 %%% <dd>The random instance generation subsystem has failed to
 %%%   produce an instance that satisfies some `?SUCHTHAT' constraint. You
 %%%   should either increase the `constraint_tries' limit, loosen the failing
-%%%   constraint, or make it non-strict. This error should only be encountered
-%%%   during normal operation.</dd>
+%%%   constraint, or make it non-strict. The failure is due to a failing
+%%%   strict constraint which is wrapped by one of the MFAs from the list of
+%%%   candidates `[<MFA>]'.
+%%%   This error should only be encountered during normal operation.</dd>
 %%% <dt>`cant_satisfy'</dt>
 %%% <dd>All the tests were rejected because no produced test case
 %%%   would pass all `?IMPLIES' checks. You should loosen the failing `?IMPLIES'
@@ -579,10 +581,11 @@
 -type stacktrace() :: [call_record()].
 -type call_record() :: {mod_name(),fun_name(),arity() | list(),location()}.
 -type location() :: [{atom(),term()}].
--type error_reason() :: 'arity_limit' | 'cant_generate' | 'cant_satisfy'
-		      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
-		      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
-		      | {'unexpected',any()} | {'unrecognized_option',term()}.
+-type error_reason() :: 'arity_limit' | {'cant_generate',[mfa()]}
+                      | 'cant_satisfy'
+                      | 'non_boolean_result' | 'rejected' | 'too_many_instances'
+                      | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
+                      | {'unexpected',any()} | {'unrecognized_option',term()}.
 
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
@@ -1262,9 +1265,10 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	    perform(Passed, ToPass, TriesLeft - 1, Test,
 		    Samples, Printers, Opts);
 	{error, Reason} = Error when Reason =:= arity_limit
-			      orelse Reason =:= cant_generate
 			      orelse Reason =:= non_boolean_result
 			      orelse Reason =:= type_mismatch ->
+	    Error;
+	{error, {cant_generate,_MFAs}} = Error ->
 	    Error;
 	{error, {typeserver,_SubReason}} = Error ->
 	    Error;
@@ -1554,8 +1558,8 @@ apply_args(Args, Prop, Ctx, Opts) ->
 	    end;
 	throw:'$arity_limit' ->
 	    {error, arity_limit};
-	throw:'$cant_generate' ->
-	    {error, cant_generate};
+	throw:{'$cant_generate',MFAs} ->
+	    {error, {cant_generate,MFAs}};
 	throw:{'$typeserver',SubReason} ->
 	    {error, {typeserver,SubReason}};
 	?STACKTRACE(ExcKind, ExcReason, Trace) %, is in macro
@@ -1994,10 +1998,11 @@ report_rerun_result({error,Reason}, #opts{output_fun = Print}) ->
 -spec report_error(error_reason(), output_fun()) -> 'ok'.
 report_error(arity_limit, Print) ->
     Print("Error: Couldn't produce a function of the desired arity, please "
-	  "recompile PropEr with an increased value for ?MAX_ARITY.~n", []);
-report_error(cant_generate, Print) ->
+          "recompile PropEr with an increased value for ?MAX_ARITY.~n", []);
+report_error({cant_generate,MFAs}, Print) ->
     Print("Error: Couldn't produce an instance that satisfies all strict "
-	  "constraints after ~b tries.~n", [get('$constraint_tries')]);
+          "constraints from (~s) after ~b tries.~n",
+          [mfas_to_string(MFAs),get('$constraint_tries')]);
 report_error(cant_satisfy, Print) ->
     Print("Error: No valid test could be generated.~n", []);
 report_error(non_boolean_result, Print) ->
@@ -2161,3 +2166,11 @@ avg_and_last([Last], Sum, Len) ->
     {(Sum + Last) / (Len + 1), Last};
 avg_and_last([X | Rest], Sum, Len) ->
     avg_and_last(Rest, Sum + X, Len + 1).
+
+-spec mfas_to_string([mfa()]) -> string().
+mfas_to_string(MFAs) ->
+  string:join([mfa_to_string(MFA) || MFA <- MFAs], ", ").
+
+-spec mfa_to_string(mfa()) -> string().
+mfa_to_string({M, F, A}) ->
+  io_lib:format("~p:~p/~p", [M, F, A]).
