@@ -113,8 +113,10 @@
 %%%   abstract state machine. In case precondition doesn't hold, a new call is
 %%%   chosen using the `command/1' generator. If preconditions are very strict,
 %%%   it will take a lot of tries for PropEr to randomly choose a valid command.
-%%%   Testing will be stopped in case the `constraint_tries' limit is reached
-%%%   (see the 'Options' section in the {@link proper} module documentation).
+%%%   Testing will be stopped if the `constraint_tries' limit is reached
+%%%   (see the 'Options' section in the {@link proper} module documentation) and
+%%%   a `{cant_generate,[{proper_statem,commands,4}]}' error will be produced in
+%%%   that case.
 %%%   Preconditions are also important for correct shrinking of failing
 %%%   testcases. When shrinking command sequences, we try to eliminate commands
 %%%   that do not contribute to failure, ensuring that all preconditions still
