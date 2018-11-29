@@ -218,7 +218,7 @@ postcondition({fsm_floor,N}, {fsm_floor,N}, _, {call,_,which_floor,[]}, N) ->
 postcondition(_, _, _, {call,_,which_floor,[]}, _) ->
     false;
 postcondition(_, _, _, _, R) ->
-    R == ok.
+    R =:= ok.
 
 prop_elevator() ->
     ?FORALL(
@@ -238,7 +238,7 @@ prop_elevator() ->
 		     io:format("H: ~w~nS: ~w~nR: ~w~n", [H,S,Res]),
 		     aggregate(zip(proper_fsm:state_names(H),
 				   command_names(Cmds)),
-			       Res == ok))
+			       Res =:= ok))
 	      end)
        end).
 
