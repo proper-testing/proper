@@ -28,7 +28,7 @@
 
 -module(proper_tests).
 
--include("proper.hrl").
+-include_lib("proper/include/proper.hrl").
 
 -include_lib("eunit/include/eunit.hrl").
 
