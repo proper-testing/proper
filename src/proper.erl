@@ -447,14 +447,14 @@
 %% @type test(). A testable property that has not been wrapped with an
 %% <a href="#external-wrappers">external wrapper</a>.
 -opaque test() :: boolean()
-	        | forall_clause()
-	        | exists_clause()
-	        | conjunction_clause()
-	        | implies_clause()
-	        | sample_clause()
-	        | whenfail_clause()
-	        | trapexit_clause()
-	        | timeout_clause().
+	        | {'forall', proper_types:raw_type(), dependent_test()}
+	        | {'exists', proper_target:tmap(), dependent_test(), boolean()}
+	        | {'conjunction', [{tag(),test()}]}
+	        | {'implies', boolean(), delayed_test()}
+	        | {'sample', sample(), stats_printer(), test()}
+	        | {'whenfail', side_effects_fun(), delayed_test()}
+	        | {'trapexit', fun(() -> boolean())}
+	        | {'timeout', time_period(), fun(() -> boolean())}.
 	      %%| always_clause()
 	      %%| sometimes_clause()
 -type delayed_test() :: fun(() -> test()).
@@ -468,19 +468,9 @@
 -type finalize_fun() :: fun (() -> 'ok').
 -type setup_fun() :: fun(() -> finalize_fun()) | fun ((setup_opts()) -> finalize_fun()).
 
-
 -type numtests_clause() :: {'numtests', pos_integer(), outer_test()}.
 -type fails_clause() :: {'fails', outer_test()}.
 -type on_output_clause() :: {'on_output', output_fun(), outer_test()}.
-
--type forall_clause() :: {'forall', proper_types:raw_type(), dependent_test()}.
--type exists_clause() :: {'exists', proper_target:tmap(), dependent_test(), boolean()}.
--type conjunction_clause() :: {'conjunction', [{tag(),test()}]}.
--type implies_clause() :: {'implies', boolean(), delayed_test()}.
--type sample_clause() :: {'sample', sample(), stats_printer(), test()}.
--type whenfail_clause() :: {'whenfail', side_effects_fun(), delayed_test()}.
--type trapexit_clause() :: {'trapexit', fun(() -> boolean())}.
--type timeout_clause() :: {'timeout', time_period(), fun(() -> boolean())}.
 -type setup_clause() :: {'setup', setup_fun(), outer_test()}.
 %%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
 %%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
@@ -996,7 +986,7 @@ on_output(Print, Test) ->
     {on_output, Print, Test}.
 
 %% @private
--spec forall(proper_types:raw_type(), dependent_test()) -> forall_clause().
+-spec forall(proper_types:raw_type(), dependent_test()) -> test().
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
 
@@ -1006,7 +996,7 @@ setup(Fun, Test) ->
     {setup, Fun, Test}.
 
 %% @private
--spec exists(proper_types:raw_type(), dependent_test(), boolean()) -> exists_clause().
+-spec exists(proper_types:raw_type(), dependent_test(), boolean()) -> test().
 exists(RawType, DTest, Not) ->
     {exists, #{gen => RawType}, DTest, Not}.
 
@@ -1015,12 +1005,12 @@ exists(RawType, DTest, Not) ->
 %% If this property fails, each failing sub-property will be reported and saved
 %% inside the counterexample along with its tag.
 %% @spec conjunction([{tag(),test()}]) -> test()
--spec conjunction([{tag(),test()}]) -> conjunction_clause().
+-spec conjunction([{tag(),test()}]) -> test().
 conjunction(SubProps) ->
     {conjunction, SubProps}.
 
 %% @private
--spec implies(boolean(), delayed_test()) -> implies_clause().
+-spec implies(boolean(), delayed_test()) -> test().
 implies(Pre, DTest) ->
     {implies, Pre, DTest}.
 
@@ -1032,28 +1022,28 @@ implies(Pre, DTest) ->
 %% wrappers are allowed in a single property, in which case the percentages for
 %% each `collect' wrapper are printed separately.
 %% @spec collect(term(), test()) -> test()
--spec collect(term(), test()) -> sample_clause().
+-spec collect(term(), test()) -> test().
 collect(Category, Test) ->
     collect(with_title(""), Category, Test).
 
 %% @doc Same as {@link collect/2}, but also accepts a fun `Printer' to be used
 %% as the stats printer.
 %% @spec collect(stats_printer(), term(), test()) -> test()
--spec collect(stats_printer(), term(), test()) -> sample_clause().
+-spec collect(stats_printer(), term(), test()) -> test().
 collect(Printer, Category, Test) ->
     aggregate(Printer, [Category], Test).
 
 %% @doc Same as {@link collect/2}, but accepts a list of categories under which
 %% to classify the produced test case.
 %% @spec aggregate(sample(), test()) -> test()
--spec aggregate(sample(), test()) -> sample_clause().
+-spec aggregate(sample(), test()) -> test().
 aggregate(Sample, Test) ->
     aggregate(with_title(""), Sample, Test).
 
 %% @doc Same as {@link collect/3}, but accepts a list of categories under which
 %% to classify the produced test case.
 %% @spec aggregate(stats_printer(), sample(), test()) -> test()
--spec aggregate(stats_printer(), sample(), test()) -> sample_clause().
+-spec aggregate(stats_printer(), sample(), test()) -> test().
 aggregate(Printer, Sample, Test) ->
     {sample, Sample, Printer, Test}.
 
@@ -1061,7 +1051,7 @@ aggregate(Printer, Sample, Test) ->
 %% list of categories. `Count' is a boolean flag: when `false', the particular
 %% test case will not be counted.
 %% @spec classify(Count::boolean(), term() | sample(), test()) -> test()
--spec classify(boolean(), term() | sample(), test()) -> sample_clause().
+-spec classify(boolean(), term() | sample(), test()) -> test().
 classify(false, _TermOrSample, Test) ->
     aggregate([], Test);
 classify(true, Sample, Test) when is_list(Sample) ->
@@ -1074,19 +1064,19 @@ classify(true, Term, Test) ->
 %% collected sample are printed at the end of testing (in case no test fails),
 %% prepended with `Title', which should be an atom or string.
 %% @spec measure(title(), number() | [number()], test()) -> test()
--spec measure(title(), number() | [number()], test()) -> sample_clause().
+-spec measure(title(), number() | [number()], test()) -> test().
 measure(Title, Sample, Test) when is_number(Sample) ->
     measure(Title, [Sample], Test);
 measure(Title, Sample, Test) when is_list(Sample) ->
     aggregate(numeric_with_title(Title), Sample, Test).
 
 %% @private
--spec whenfail(side_effects_fun(), delayed_test()) -> whenfail_clause().
+-spec whenfail(side_effects_fun(), delayed_test()) -> test().
 whenfail(Action, DTest) ->
     {whenfail, Action, DTest}.
 
 %% @private
--spec trapexit(fun(() -> boolean())) -> trapexit_clause().
+-spec trapexit(fun(() -> boolean())) -> test().
 trapexit(DTest) ->
     {trapexit, DTest}.
 
@@ -1098,7 +1088,7 @@ timeout(Limit, DTest) ->
 %% @doc A custom property that evaluates to `true' only if `A =:= B', else
 %% evaluates to `false' and prints "`A =/= B'" on the screen.
 %% @spec equals(term(), term()) -> test()
--spec equals(term(), term()) -> whenfail_clause().
+-spec equals(term(), term()) -> test().
 equals(A, B) ->
     ?WHENFAIL(io:format("~w =/= ~w~n",[A,B]), A =:= B).
 
