@@ -371,6 +371,7 @@
 %%% </dl>
 
 -module(proper).
+
 -export([quickcheck/1, quickcheck/2, counterexample/1, counterexample/2,
 	 check/2, check/3, module/1, module/2, check_spec/1, check_spec/2,
 	 check_specs/1, check_specs/2]).
@@ -380,6 +381,7 @@
 -export([counterexample/0, counterexamples/0]).
 -export([clean_garbage/0, global_state_erase/0]).
 
+-export([gen_and_print_samples/3]).
 -export([get_size/1, global_state_init_size/1,
 	 global_state_init_size_seed/2, report_error/2]).
 -export([pure_check/1, pure_check/2]).
@@ -434,14 +436,13 @@
 -type numeric_stats() :: {number(), float(), number()}.
 -type time_period() :: non_neg_integer().
 
-%% TODO: This should be opaque.
 %% @type outer_test(). A testable property that has optionally been wrapped with
 %% one or more <a href="#external-wrappers">external wrappers</a>.
--type outer_test() :: test()
-		    | numtests_clause()
-		    | fails_clause()
-		    | on_output_clause()
-		    | setup_clause().
+-opaque outer_test() :: test()
+		      | numtests_clause()
+		      | fails_clause()
+		      | on_output_clause()
+		      | setup_clause().
 %% TODO: This should be opaque.
 %% TODO: Should the tags be of the form '$...'?
 %% @type test(). A testable property that has not been wrapped with an
@@ -1329,6 +1330,15 @@ add_samples(MoreSamples, none) ->
 add_samples(MoreSamples, Samples) ->
     [M ++ S || {M, S} <- proper_arith:safe_zip(MoreSamples, Samples)].
 
+
+%% Evaluated only for its side-effects.
+-spec gen_and_print_samples(proper_types:raw_type(), size(), size()) -> 'ok'.
+gen_and_print_samples(RawType, StartSize, EndSize) ->
+    Tests = EndSize - StartSize + 1,
+    Prop = ?FORALL(X, RawType, begin io:format("~p~n",[X]), true end),
+    Opts = [quiet,{start_size,StartSize},{max_size,EndSize},{numtests,Tests}],
+    _ = quickcheck(Prop, Opts),
+    ok.
 
 %%-----------------------------------------------------------------------------
 %% Single test runner functions

@@ -241,11 +241,7 @@ sample(RawType) ->
 %% `StartSize' up to `EndSize'.
 -spec sample(Type::proper_types:raw_type(), size(), size()) -> 'ok'.
 sample(RawType, StartSize, EndSize) when StartSize =< EndSize ->
-    Tests = EndSize - StartSize + 1,
-    Prop = ?FORALL(X, RawType, begin io:format("~p~n",[X]), true end),
-    Opts = [quiet,{start_size,StartSize},{max_size,EndSize},{numtests,Tests}],
-    _ = proper:quickcheck(Prop, Opts),
-    ok.
+    proper:gen_and_print_samples(RawType, StartSize, EndSize).
 
 %% @equiv sampleshrink(Type, 10)
 -spec sampleshrink(Type::proper_types:raw_type()) -> 'ok'.
