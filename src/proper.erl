@@ -443,19 +443,18 @@
 		      | fails_clause()
 		      | on_output_clause()
 		      | setup_clause().
-%% TODO: This should be opaque.
 %% TODO: Should the tags be of the form '$...'?
 %% @type test(). A testable property that has not been wrapped with an
 %% <a href="#external-wrappers">external wrapper</a>.
--type test() :: boolean()
-	      | forall_clause()
-	      | exists_clause()
-	      | conjunction_clause()
-	      | implies_clause()
-	      | sample_clause()
-	      | whenfail_clause()
-	      | trapexit_clause()
-	      | timeout_clause().
+-opaque test() :: boolean()
+	        | forall_clause()
+	        | exists_clause()
+	        | conjunction_clause()
+	        | implies_clause()
+	        | sample_clause()
+	        | whenfail_clause()
+	        | trapexit_clause()
+	        | timeout_clause().
 	      %%| always_clause()
 	      %%| sometimes_clause()
 -type delayed_test() :: fun(() -> test()).
@@ -1092,7 +1091,7 @@ trapexit(DTest) ->
     {trapexit, DTest}.
 
 %% @private
--spec timeout(time_period(), fun(() -> boolean())) -> timeout_clause().
+-spec timeout(time_period(), fun(() -> boolean())) -> test().
 timeout(Limit, DTest) ->
     {timeout, Limit, DTest}.
 

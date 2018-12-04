@@ -503,39 +503,41 @@ make_spec_test({Mod,_Fun,_Arity}=MFA, {Domain,_Range}=FunRepr, SpecTimeout, Fals
 	    Error
     end.
 
--spec apply_spec_test(mfa(), fun_repr(), timeout(), false_positive_mfas(), term()) -> proper:test().
+-spec apply_spec_test(mfa(), fun_repr(), timeout(), false_positive_mfas(), [term()]) -> proper:test().
 apply_spec_test({Mod,Fun,_Arity}=MFA, {_Domain,Range}, SpecTimeout, FalsePositiveMFAs, Args) ->
-    ?TIMEOUT(SpecTimeout,
-             begin
-                 %% NOTE: only call apply/3 inside try/catch (do not trust ?MODULE:is_instance/3)
-                 {Result, StackTrace} =
-                     try apply(Mod, Fun, Args) of
-                         X -> {{ok, X}, none}
-                     catch
-                         ?STACKTRACE(X, Y, Trace) %, is in macro
-                         {{X, Y}, Trace}
-                     end,
-                 case Result of
-                     {ok, Z} ->
-                         case ?MODULE:is_instance(Z, Mod, Range) of
-                             true ->
-                                 true;
-                             false when is_function(FalsePositiveMFAs) ->
-                                 FalsePositiveMFAs(MFA, Args, {fail, Z});
-                             false ->
-                                 false
-                         end;
-                     Exception when is_function(FalsePositiveMFAs) ->
-                         case FalsePositiveMFAs(MFA, Args, Exception) of
-                             true ->
-                                 true;
-                             false ->
-                                 error(Exception, StackTrace)
-                         end;
-                     Exception ->
-                         error(Exception, StackTrace)
-                 end
-             end).
+    Prop =
+	?DELAY(
+	   begin
+	       %% NOTE: only call apply/3 inside try/catch (do not trust ?MODULE:is_instance/3)
+	       {Result, StackTrace} =
+		   try apply(Mod, Fun, Args) of
+		       X -> {{ok, X}, none}
+		   catch
+		       ?STACKTRACE(X, Y, Trace) %, is in macro
+		       {{X, Y}, Trace}
+		       end,
+	       case Result of
+		   {ok, Z} ->
+		       case ?MODULE:is_instance(Z, Mod, Range) of
+			   true ->
+			       true;
+			   false when is_function(FalsePositiveMFAs) ->
+			       FalsePositiveMFAs(MFA, Args, {fail, Z});
+			   false ->
+			       false
+		       end;
+		   Exception when is_function(FalsePositiveMFAs) ->
+		       case FalsePositiveMFAs(MFA, Args, Exception) of
+			   true ->
+			       true;
+			   false ->
+			       error(Exception, StackTrace)
+		       end;
+		   Exception ->
+		       error(Exception, StackTrace)
+	       end
+	   end),
+    proper:timeout(SpecTimeout, Prop).
 
 -spec get_exp_specced(mod_name(), state()) -> rich_result2([mfa()],state()).
 get_exp_specced(Mod, State) ->
