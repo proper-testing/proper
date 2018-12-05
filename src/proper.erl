@@ -439,10 +439,10 @@
 %% @type outer_test(). A testable property that has optionally been wrapped with
 %% one or more <a href="#external-wrappers">external wrappers</a>.
 -opaque outer_test() :: test()
-		      | numtests_clause()
-		      | fails_clause()
-		      | on_output_clause()
-		      | setup_clause().
+		      | {'fails', outer_test()}
+		      | {'setup', setup_fun(), outer_test()}
+		      | {'numtests', pos_integer(), outer_test()}
+		      | {'on_output', output_fun(), outer_test()}.
 %% TODO: Should the tags be of the form '$...'?
 %% @type test(). A testable property that has not been wrapped with an
 %% <a href="#external-wrappers">external wrapper</a>.
@@ -455,8 +455,8 @@
 	        | {'whenfail', side_effects_fun(), delayed_test()}
 	        | {'trapexit', fun(() -> boolean())}
 	        | {'timeout', time_period(), fun(() -> boolean())}.
-	      %%| always_clause()
-	      %%| sometimes_clause()
+	      %%| {'always', pos_integer(), delayed_test()}
+	      %%| {'sometimes', pos_integer(), delayed_test()}
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
@@ -467,13 +467,6 @@
 		       | [{tag(),test()}].
 -type finalize_fun() :: fun (() -> 'ok').
 -type setup_fun() :: fun(() -> finalize_fun()) | fun ((setup_opts()) -> finalize_fun()).
-
--type numtests_clause() :: {'numtests', pos_integer(), outer_test()}.
--type fails_clause() :: {'fails', outer_test()}.
--type on_output_clause() :: {'on_output', output_fun(), outer_test()}.
--type setup_clause() :: {'setup', setup_fun(), outer_test()}.
-%%-type always_clause() :: {'always', pos_integer(), delayed_test()}.
-%%-type sometimes_clause() :: {'sometimes', pos_integer(), delayed_test()}.
 
 -type false_positive_mfas() :: fun((mfa(),Args::[term()],{fail,Result::term()} | {error | exit | throw,Reason::term()}) -> boolean()) | 'undefined'.
 
@@ -961,19 +954,17 @@ peel_test(Test, Opts) ->
 %% Test declaration functions
 %%-----------------------------------------------------------------------------
 
-%% TODO: All of these should have a test() or outer_test() return type.
-
 %% @doc Specifies the number `N' of tests to run when testing the property
 %% `Test'. Default is 100.
 %% @spec numtests(pos_integer(), outer_test()) -> outer_test()
--spec numtests(pos_integer(), outer_test()) -> numtests_clause().
+-spec numtests(pos_integer(), outer_test()) -> outer_test().
 numtests(N, Test) ->
     {numtests, N, Test}.
 
 %% @doc Specifies that we expect the property `Test' to fail for some input. The
 %% property will be considered failing if it passes all the tests.
 %% @spec fails(outer_test()) -> outer_test()
--spec fails(outer_test()) -> fails_clause().
+-spec fails(outer_test()) -> outer_test().
 fails(Test) ->
     {fails, Test}.
 
@@ -981,19 +972,19 @@ fails(Test) ->
 %% printing during the testing of property `Test'. This wrapper is equivalent to
 %% the `on_output' option.
 %% @spec on_output(output_fun(), outer_test()) -> outer_test()
--spec on_output(output_fun(), outer_test()) -> on_output_clause().
+-spec on_output(output_fun(), outer_test()) -> outer_test().
 on_output(Print, Test) ->
     {on_output, Print, Test}.
+
+%% @private
+-spec setup(setup_fun(), outer_test()) -> outer_test().
+setup(Fun, Test) ->
+    {setup, Fun, Test}.
 
 %% @private
 -spec forall(proper_types:raw_type(), dependent_test()) -> test().
 forall(RawType, DTest) ->
     {forall, RawType, DTest}.
-
-%% @private
--spec setup(setup_fun(), outer_test()) -> setup_clause().
-setup(Fun, Test) ->
-    {setup, Fun, Test}.
 
 %% @private
 -spec exists(proper_types:raw_type(), dependent_test(), boolean()) -> test().
