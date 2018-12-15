@@ -189,7 +189,7 @@ incompatibilities between the two tools by now.
 <!-- Badges (alphabetically) -->
 [codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
 [commit badge]: https://img.shields.io/github/last-commit/proper-testing/proper.svg?style=flat-square
-[erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2021.1-blue.svg?style=flat-square
+[erlang versions badge]: https://img.shields.io/badge/erlang-17.0%20to%2021.2-blue.svg?style=flat-square
 [license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
 [release badge]: https://img.shields.io/github/release/proper-testing/proper.svg?style=flat-square
 [travis badge]: https://img.shields.io/travis/proper-testing/proper/master.svg?style=flat-square
