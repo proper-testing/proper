@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -293,9 +293,9 @@ precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
 	    true;
 	_ ->
 	    io:format(
-	      "\nError: The transition from \"~w\" state triggered by ~w "
-	      "call leads to multiple target states.\nUse the precondition/5 "
-              "callback to specify which target state should be chosen.\n",
+	      "~nError: The transition from \"~w\" state triggered by ~w "
+	      "call leads to multiple target states.~nUse the precondition/5 "
+              "callback to specify which target state should be chosen.~n",
 	      [From, get_mfa(Call)]),
 	    erlang:error(too_many_targets)
     end.
