@@ -6,13 +6,12 @@ defmodule Proper.Mixfile do
      version: "1.3.0",
      description: description(),
      package: package(),
-     deps: deps()]
+     deps: deps(),
+     aliases: aliases()]
   end
 
   defp deps do
-    [
-      {:ex_doc, "~> 0.14", only: :dev},
-    ]
+    []
   end
 
   defp description do
@@ -27,4 +26,8 @@ defmodule Proper.Mixfile do
      licenses: ["GPL"],
      links: %{"GitHub" => "https://github.com/proper-testing/proper"}]
    end
+
+  defp aliases do
+    [docs: "cmd ./make_doc"]
+  end
 end
