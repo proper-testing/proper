@@ -98,6 +98,12 @@ Quickstart guide
     application and a recent version of `EDoc`).
     Optionally, sfmt-erlang can be selected as an alternative random number
     generator using `./configure --use-sfmt` before running `make`.
+*   If you are using [Homebrew](https://brew.sh), you can simply:
+
+    ```shell
+        brew install proper
+    ```
+    and continue following the instructions below.
 *   Add PropEr's base directory to your Erlang library path, using one of the
     following methods:
     1.   `ERL_LIBS` environment variable: Add the following line to your shell
