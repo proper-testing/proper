@@ -19,7 +19,7 @@ otp_release:
 matrix:
   include:
     - language: erlang
-      otp_release: 21.3
+      otp_release: 22.0
       before_script:
             - >
                 printf "\n{cover_enabled, true}.\n{cover_export_enabled, true}.

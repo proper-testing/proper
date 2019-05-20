@@ -431,7 +431,8 @@ is_inst(Instance, RawType, Size) ->
 -spec safe_is_instance(proper_gen:imm_instance(), raw_type()) ->
 	  boolean() | {'error',{'typeserver',term()}}.
 safe_is_instance(ImmInstance, RawType) ->
-    try is_instance(ImmInstance, RawType) catch
+    try is_instance(ImmInstance, RawType)
+    catch
 	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
     end.
 
