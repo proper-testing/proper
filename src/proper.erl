@@ -89,10 +89,11 @@
 %%%   than `<Time_limit>' milliseconds to return. The purpose of this wrapper is
 %%%   to test code that may hang if something goes wrong. `?TIMEOUT' cannot
 %%%   contain any more wrappers.</dd>
-%%% <dt>`?SETUP(<Fun>, <Prop>)'</dt>
-%%% <dd>Adds a setup `<Fun>'ction to the property which will be called before the
-%%%   first test. This function has to return a finalize function of arity 0,
-%%%   which should return the atom `ok', that will be called after the last test.
+%%% <dt>`?SETUP(<Setup_fun>, <Prop>)'</dt>
+%%% <dd>Adds a setup `<Setup_fun>'ction to the property which will be called
+%%%   before the first test. This function has to return a finalize function of
+%%%   arity 0, which should return the atom `ok', that will be called after
+%%%   the last test.
 %%%   It is possible to use multiple `?SETUP' macros on the same property.</dd>
 %%% <dt>`conjunction(<SubProps>)'</dt>
 %%% <dd>See the documentation for {@link conjunction/1}.</dd>
