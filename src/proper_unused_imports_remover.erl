@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2015-2017 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2015-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2015-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2015-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Zaiming Shi (modifications and update by Kostis Sagonas)
 
@@ -29,15 +29,8 @@
 
 -include("proper_internal.hrl").
 
--ifdef(USE_ERL_SCAN_LINE).
--define(LINE_MOD, erl_scan).
--else.
--define(LINE_MOD, erl_anno).
--endif.
-
 -type key() :: {fun_name(), arity()}.
-
--type val() :: {?LINE_MOD:line(), mod_name(), boolean()}.
+-type val() :: {erl_anno:line(), mod_name(), boolean()}.
 -type imp_dict() :: dict:dict(key(), val()).
 
 -define(IMP_MODULES,
@@ -120,7 +113,7 @@ new_import_attributes(Dict) ->
     Imports = lists:keysort(1, LMFs),
     lists:reverse(lists:foldl(fun add_new_attribute/2, [], Imports)).
 
--type lmf() :: {?LINE_MOD:line(), mod_name(), fun_name()}.
+-type lmf() :: {erl_anno:line(), mod_name(), fun_name()}.
 -spec add_new_attribute(lmf(), [abs_form()]) -> [abs_form()].
 add_new_attribute({Line, Mod, Fun}, [{_, Line, _, {Mod, FunL}} | Attributes]) ->
     [{attribute, Line, import, {Mod, [Fun | FunL]}} | Attributes];
