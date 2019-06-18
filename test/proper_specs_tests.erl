@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Joseph Wayne Norton <norton@alum.mit.edu>, Kostis Sagonas
 %%% @doc This modules contains PropEr's Unit tests for check specs.
@@ -43,7 +43,8 @@
          test6_exc_fp/2,
          test7_exc_fp/2,
 	 test_const_bitstrs/0,
-	 t0/2, t1/2, t2/2, t3/2, tp1/2, tp2/2, tp3/2]).
+	 t0/2, t1/2, t2/2, t3/2, tp1/2, tp2/2, tp3/2,
+	 tm0/1, tm1/1, tm2/1]).
 
 check1_specs_test_() ->
     ?_test(?assert(check1_specs_test())).
@@ -201,3 +202,16 @@ tp2(A, B) -> [{A, B}].
 
 -spec tp3(integer(), atom()) -> param_pair_list(integer(), atom()).
 tp3(A, B) -> [{B, A}]. % fails
+
+%%
+%% Tests for maps below
+%%
+-spec tm0(map()) -> map().
+tm0(M) -> M#{key => 42}.
+
+-spec tm1(#{any() => any()}) -> #{any() => any()}.
+tm1(M) -> M#{key => 42}.
+
+-spec tm2(#{atom() => integer()}) -> #{atom() => integer()}.
+tm2(M) -> M#{key => 42}.
+

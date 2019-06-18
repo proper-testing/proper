@@ -1034,6 +1034,8 @@ collect_vars(FullADTRef, {paren_type,_,[Type]}, UsedVars) ->
     collect_vars(FullADTRef, Type, UsedVars);
 collect_vars(FullADTRef, {ann_type,_,[_Var,Type]}, UsedVars) ->
     collect_vars(FullADTRef, Type, UsedVars);
+collect_vars(_FullADTRef, {type,_,map,any}, UsedVars) ->
+    UsedVars;
 collect_vars(_FullADTRef, {type,_,tuple,any}, UsedVars) ->
     UsedVars;
 collect_vars({_Mod,SameName,Arity} = FullADTRef, {type,_,SameName,ArgForms},
@@ -1422,6 +1424,8 @@ is_instance(X, Mod, {type,_,record,[{atom,_,Name} = NameForm | RawSubsts]},
     end;
 is_instance(X, _Mod, {type,_,reference,[]}, _Stack) ->
     is_reference(X);
+is_instance(X, _Mod, {type,_,map,any}, _Stack) ->
+    is_map(X);
 is_instance(X, _Mod, {type,_,tuple,any}, _Stack) ->
     is_tuple(X);
 is_instance(X, Mod, {type,_,tuple,Fields}, _Stack) ->
@@ -1634,6 +1638,8 @@ convert(_Mod, {type,_,nonempty_list,[]}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:non_empty(proper_types:list())}, State};
 convert(_Mod, {type,_,nonempty_string,[]}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:non_empty(proper_types:string())}, State};
+convert(_Mod, {type,_,map,any}, State, _Stack, _VarDict) ->
+    {ok, {simple,proper_types:map()}, State};
 convert(_Mod, {type,_,tuple,any}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:tuple()}, State};
 convert(Mod, {type,_,tuple,ElemForms}, State, Stack, VarDict) ->
