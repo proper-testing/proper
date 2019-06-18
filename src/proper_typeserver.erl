@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -1090,13 +1090,15 @@ update_vars({remote_type,Line,[RemModForm,NameForm,ArgForms]}, VarSubstsDict,
 	    UnboundToAny) ->
     NewArgForms = [update_vars(A,VarSubstsDict,UnboundToAny) || A <- ArgForms],
     {remote_type, Line, [RemModForm,NameForm,NewArgForms]};
-update_vars({T,_,tuple,any} = Call, _VarSubstsDict, _UnboundToAny) when ?IS_TYPE_TAG(T) ->
-    Call;
+update_vars({type,_,map,any} = Type, _VarSubstsDict, _UnboundToAny) ->
+    Type;
+update_vars({type,_,tuple,any} = Type, _VarSubstsDict, _UnboundToAny) ->
+    Type;
 update_vars({T,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) when ?IS_TYPE_TAG(T) ->
     NewArgForms = [update_vars(A,VarSubstsDict,UnboundToAny) || A <- ArgForms],
     {T, Line, Name, NewArgForms};
-update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
-    Call.
+update_vars(Type, _VarSubstsDict, _UnboundToAny) ->
+    Type.
 
 
 %%------------------------------------------------------------------------------
