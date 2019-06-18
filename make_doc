@@ -3,7 +3,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -54,17 +54,11 @@
 		    {pretty_printer,erl_pp}, {preprocess,true},
 		    {source_path, [?TEMP_SRC_DIR]}]).
 
--ifdef(USE_ERL_SCAN_LINE).
--define(LINE_MOD, erl_scan).
--else.
--define(LINE_MOD, erl_anno).
--endif.
-
 %%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
 
--type line()      :: ?LINE_MOD:line().
+-type line()      :: erl_anno:line().
 -type var_name()  :: atom().
 -type rec_name()  :: atom().
 -type var_form()  :: {'var', line(), var_name()}.
