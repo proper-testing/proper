@@ -31,7 +31,7 @@
 %% Test generation macros
 %%------------------------------------------------------------------------------
 
--define(FORALL(X,RawType,Prop), proper:forall(RawType,fun(X) -> Prop end)).
+-define(FORALL(X,RawType,Prop), proper:forall(RawType, fun(X) -> Prop end)).
 -define(EXISTS(X,RawType,Prop), proper:exists(RawType, fun(X) -> Prop end, false)).
 -define(NOT_EXISTS(X,RawType,Prop), proper:exists(RawType, fun(X) -> Prop end, true)).
 -define(FORALL_TARGETED(X, RawType, Prop),
