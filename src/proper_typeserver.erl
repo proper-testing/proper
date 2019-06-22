@@ -1149,21 +1149,21 @@ match([Tag|PatRest], [X|ToMatchRest], Acc, TypeMode) when is_atom(Tag) ->
 %% CAUTION: these must be sorted
 -define(NON_ATOM_TYPES,
 	[arity,binary,bitstring,byte,char,float,'fun',function,integer,iodata,
-	 iolist,list,maybe_improper_list,mfa,neg_integer,nil,no_return,
+	 iolist,list,map,maybe_improper_list,mfa,neg_integer,nil,no_return,
 	 non_neg_integer,none,nonempty_improper_list,nonempty_list,
 	 nonempty_maybe_improper_list,nonempty_string,number,pid,port,
 	 pos_integer,range,record,reference,string,tuple]).
 -define(NON_TUPLE_TYPES,
 	[arity,atom,binary,bitstring,bool,boolean,byte,char,float,'fun',
-	 function,identifier,integer,iodata,iolist,list,maybe_improper_list,
+	 function,identifier,integer,iodata,iolist,list,map,maybe_improper_list,
 	 neg_integer,nil,no_return,node,non_neg_integer,none,
 	 nonempty_improper_list,nonempty_list,nonempty_maybe_improper_list,
 	 nonempty_string,number,pid,port,pos_integer,range,reference,string,
 	 timeout]).
 -define(NO_HEAD_TYPES,
 	[arity,atom,binary,bitstring,bool,boolean,byte,char,float,'fun',
-	 function,identifier,integer,mfa,module,neg_integer,nil,no_return,node,
-	 non_neg_integer,none,number,pid,port,pos_integer,range,record,
+	 function,identifier,integer,map,mfa,module,neg_integer,nil,no_return,
+	 node,non_neg_integer,none,number,pid,port,pos_integer,range,record,
 	 reference,timeout,tuple]).
 
 -spec can_be_tag(atom(), abs_type()) -> boolean().
