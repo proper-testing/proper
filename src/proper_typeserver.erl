@@ -1156,7 +1156,7 @@ match([Tag|PatRest], [X|ToMatchRest], Acc, TypeMode) when is_atom(Tag) ->
 -define(NON_TUPLE_TYPES,
 	[arity,atom,binary,bitstring,bool,boolean,byte,char,float,'fun',
 	 function,identifier,integer,iodata,iolist,list,map,maybe_improper_list,
-	 neg_integer,nil,no_return,node,non_neg_integer,none,
+	 module,neg_integer,nil,no_return,node,non_neg_integer,none,
 	 nonempty_improper_list,nonempty_list,nonempty_maybe_improper_list,
 	 nonempty_string,number,pid,port,pos_integer,range,reference,string,
 	 timeout]).
@@ -1375,8 +1375,7 @@ is_instance(X, Mod, {type,_,list,[Type]}, _Stack) ->
 is_instance(X, Mod, {type,_,maybe_improper_list,[Cont,Term]}, _Stack) ->
     list_test(X, Mod, Cont, Term, true, true, true);
 is_instance(X, _Mod, {type,_,module,[]}, _Stack) ->
-    is_atom(X) orelse
-    is_tuple(X) andalso X =/= {} andalso is_atom(element(1,X));
+    is_atom(X);
 is_instance([], _Mod, {type,_,nil,[]}, _Stack) ->
     true;
 is_instance(X, _Mod, {type,_,neg_integer,[]}, _Stack) ->
