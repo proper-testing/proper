@@ -381,6 +381,7 @@
 	 with_title/1, equals/2]).
 -export([counterexample/0, counterexamples/0]).
 -export([clean_garbage/0, global_state_erase/0]).
+-export([test_to_outer_test/1]).
 
 -export([gen_and_print_samples/3]).
 -export([get_size/1, global_state_init_size/1,
@@ -882,6 +883,13 @@ multi_test_prep(Mod, Kind, UserOpts) ->
 	    {error, Reason}
     end.
 
+%% @doc A type-conversion function that can be used to convert an argument of
+%% a {@type proper:test()} opaque type to a {@type proper:outer_test()} opaque
+%% type so that the latter type can be passed to functions such as
+%% {@link proper:quickcheck/1} without a warning from dialyzer.
+%% @spec test_to_outer_test(test()) -> outer_test()
+-spec test_to_outer_test(test()) -> outer_test().
+test_to_outer_test(Test) -> Test.
 
 %%-----------------------------------------------------------------------------
 %% Options parsing functions
