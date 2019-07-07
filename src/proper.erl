@@ -2032,7 +2032,7 @@ report_fail_reason(time_out, Prefix, Print) ->
 report_fail_reason({trapped,ExcReason}, Prefix, Print) ->
     Print(Prefix ++ "A linked process died with reason ~w.~n", [ExcReason]);
 report_fail_reason({exception,ExcKind,ExcReason,StackTrace}, Prefix, Print) ->
-    Print(Prefix ++ "An exception was raised: ~w:~w.~n", [ExcKind,ExcReason]),
+    Print(Prefix ++ "An exception was raised: ~w:~p.~n", [ExcKind,ExcReason]),
     Print(Prefix ++ "Stacktrace: ~p.~n", [StackTrace]);
 report_fail_reason({sub_props,SubReasons}, Prefix, Print) ->
     Report =
