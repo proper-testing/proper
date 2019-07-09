@@ -162,9 +162,9 @@ step() ->
 path() ->
   list(step()).
 
-path_sa() ->
-  #{first => path(),
-    next => path_next()}.
+%% path_sa() ->
+%%   #{first => path(),
+%%     next => path_next()}.
 
 path_next() ->
   fun (PrevPath, _) ->
@@ -187,18 +187,20 @@ prop_exit_targeted(LevelData) ->
   Level = build_level(LevelData),
   #{entrance := Entrance} = Level,
   #{exit := Exit} = Level,
-  ?FORALL_SA(Path, ?TARGET(path_sa()),
-             case follow_path(Entrance, Path, Level) of
-               {exited, _Pos} -> false;
-               Pos ->
-                 case length(Path) > 500 of
-                   true -> proper_sa:reset(), true;
-                   _ ->
-                     UV = distance(Pos, Exit),
-                     ?MINIMIZE(UV),
-                     true
-                 end
-             end).
+  ?FORALL_TARGETED(Path, ?USERNF(path(), path_next()),
+		   case follow_path(Entrance, Path, Level) of
+		       {exited, _Pos} -> false;
+		       Pos ->
+			   case length(Path) > 500 of
+			       true ->
+				   proper_sa:reset(),
+				   true;
+			       _ ->
+				   UV = distance(Pos, Exit),
+				   ?MINIMIZE(UV),
+				   true
+			   end
+		   end).
 
 distance({X1, Y1}, {X2, Y2}) ->
   math:sqrt(math:pow(X1 - X2, 2) + math:pow(Y1 - Y2, 2)).
