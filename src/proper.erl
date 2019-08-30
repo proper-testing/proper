@@ -1227,6 +1227,13 @@ get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
 -spec perform(pos_integer(), test(), opts()) -> imm_result().
+perform(NumTests, {targeted, TMap, _Target, Prop}, #opts{search_strategy = Strat} = Opts) ->
+    proper_target:init_strategy(Strat),
+    Target = proper_target:targeted(make_ref(), TMap),
+    Res = perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests,
+                  {targeted, TMap, Target, Prop}, none, none, Opts),
+    proper_target:cleanup_strategy(),
+    Res;
 perform(NumTests, Test, Opts) ->
     perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
