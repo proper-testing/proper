@@ -1414,6 +1414,33 @@ run({exists, _TMap, Prop, Not}, #ctx{mode = try_cexm,
 	{#pass{}, true} -> create_fail_result(Ctx, false_prop);
 	{R, _} -> R
     end;
+run({targeted, _TMap, Target, Prop}, #ctx{mode = new, bound = Bound} = Ctx, Opts) ->
+    case proper_gen:safe_generate(Target) of
+    {ok, ImmInstance} ->
+        Instance = proper_gen:clean_instance(ImmInstance),
+        NewCtx = Ctx#ctx{bound = [ImmInstance | Bound]},
+        force(Instance, Prop, NewCtx, Opts);
+    {error, _Reason} = Error ->
+        Error
+    end;
+run({targeted, _TMap, _Target, _Prop}, #ctx{bound = []} = Ctx, _Opts) ->
+    create_pass_result(Ctx, didnt_crash);
+run({targeted, TMap, _Target, Prop}, #ctx{mode = try_shrunk,
+				  bound = [ImmInstance | Rest]} = Ctx, Opts) ->
+    RawType = (proper_target:strategy()):get_shrinker(TMap),
+    case proper_types:safe_is_instance(ImmInstance, RawType) of
+	true ->
+	    Instance = proper_gen:clean_instance(ImmInstance),
+	    force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts);
+	false ->
+	    %% TODO: could try to fix the instances here
+	    {error, wrong_type};
+	{error, _Reason} = Error ->
+	    Error
+    end;
+run({targeted, _TMap, _Target, Prop}, #ctx{mode = try_cexm,
+	bound = [Instance | Rest]} = Ctx, Opts) ->
+    force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts);
 run({forall, RawType, Prop}, #ctx{mode = new, bound = Bound} = Ctx, Opts) ->
     case proper_gen:safe_generate(RawType) of
 	{ok, ImmInstance} ->
