@@ -1897,6 +1897,10 @@ skip_to_next({exists, TMap, Prop, false}) ->
     Type = proper_types:cook_outer(RawType),
     %% negate the property result around for ?NOT_EXISTS
     {Type, fun (X) -> not Prop(X) end};
+skip_to_next({targeted, TMap, _Target, Prop}) ->
+    RawType = proper_target:get_shrinker(TMap),
+    Type = proper_types:cook_outer(RawType),
+    {Type, Prop};
 skip_to_next({forall,RawType,Prop}) ->
     Type = proper_types:cook_outer(RawType),
     {Type, Prop};
