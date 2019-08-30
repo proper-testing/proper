@@ -387,7 +387,7 @@
 -export([get_size/1, global_state_init_size/1,
 	 global_state_init_size_seed/2, report_error/2]).
 -export([pure_check/1, pure_check/2]).
--export([forall/2, exists/3, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
+-export([forall/2, targeted/2, exists/3, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
 	      false_positive_mfas/0, setup_opts/0]).
@@ -445,12 +445,15 @@
 		      | {'setup', setup_fun(), outer_test()}
 		      | {'numtests', pos_integer(), outer_test()}
 		      | {'on_output', output_fun(), outer_test()}.
+-type targeted_type() :: 'none'
+                       | proper_types:type().
 %% TODO: Should the tags be of the form '$...'?
 %% @type test(). A testable property that has not been wrapped with an
 %% <a href="#external-wrappers">external wrapper</a>.
 -opaque test() :: boolean()
 	        | {'forall', proper_types:raw_type(), dependent_test()}
 	        | {'exists', proper_target:tmap(), dependent_test(), boolean()}
+            | {'targeted', proper_target:tmap(), targeted_type(), dependent_test()}
 	        | {'conjunction', [{tag(),test()}]}
 	        | {'implies', boolean(), delayed_test()}
 	        | {'sample', sample(), stats_printer(), test()}
@@ -999,6 +1002,11 @@ forall(RawType, DTest) ->
 -spec exists(proper_types:raw_type(), dependent_test(), boolean()) -> test().
 exists(RawType, DTest, Not) ->
     {exists, #{gen => RawType}, DTest, Not}.
+
+%% @private
+-spec targeted(proper_types:raw_type(), dependent_test()) -> test().
+targeted(RawType, DTest) ->
+    {targeted, #{gen => RawType}, none, DTest}.
 
 %% @doc Returns a property that is true only if all of the sub-properties
 %% `SubProps' are true. Each sub-property should be tagged with a distinct atom.
