@@ -959,6 +959,8 @@ peel_test({setup,Fun,OuterTest}, #opts{setup_funs = Funs} = Opts) ->
     peel_test(OuterTest, Opts#opts{setup_funs = [Fun|Funs]});
 peel_test({exists,_,_,_} = ExistsTest, Opts) ->
     {ExistsTest, Opts#opts{numtests=1}};
+peel_test({targeted, _, _, _} = TargetedTest, #opts{numtests = NumTests} = Opts) ->
+    {TargetedTest, Opts#opts{search_steps = NumTests}};
 peel_test(Test, Opts) ->
     {Test, Opts}.
 
