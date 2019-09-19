@@ -35,7 +35,7 @@
 -define(EXISTS(X,RawType,Prop), proper:exists(RawType, fun(X) -> Prop end, false)).
 -define(NOT_EXISTS(X,RawType,Prop), proper:exists(RawType, fun(X) -> Prop end, true)).
 -define(FORALL_TARGETED(X, RawType, Prop),
-        proper:exists(RawType, fun(X) -> not Prop end, true)).
+        proper:targeted(RawType, fun(X) -> Prop end)).
 -define(IMPLIES(Pre,Prop), proper:implies(Pre,?DELAY(Prop))).
 -define(WHENFAIL(Action,Prop), proper:whenfail(?DELAY(Action),?DELAY(Prop))).
 -define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).
