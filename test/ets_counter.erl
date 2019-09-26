@@ -34,8 +34,9 @@
 -include_lib("proper/include/proper.hrl").
 
 %% ---------------------------------------------------------------------
-%% Under "reasonable schedulings", the following property *fails* due
-%% to races between the ets:lookup/2 and ets:insert/2 calls.
+%% Under _reasonable_ schedulings, the following property is expected
+%% to *fail* due to races between the ets:lookup/2 and ets:insert/2
+%% calls.
 %%
 %% In Erlang/OTP releases 22.0 and prior, a call to erlang:yield/0 was
 %% sufficient to provoke the race when executing commands in parallel.
@@ -74,11 +75,11 @@ ets_inc(Key, Inc) ->
 
 %% Enabling this requires compiler options to be passed to eunit
 %%-ifdef(AT_LEAST_23).
-%% my_yield() ->
-%%    timer:sleep(1).
-%%-else.
 my_yield() ->
-    erlang:yield().
+   timer:sleep(1).
+%%-else.	% this suffices for OTP versions prior to 23
+%% my_yield() ->
+%%     erlang:yield().
 %%-endif.
 
 set_up() ->
