@@ -73,14 +73,8 @@ ets_inc(Key, Inc) ->
 	    NewValue
     end.
 
-%% Enabling this requires compiler options to be passed to eunit
-%%-ifdef(AT_LEAST_23).
 my_yield() ->
-   timer:sleep(1).
-%%-else.	% this suffices for OTP versions prior to 23
-%% my_yield() ->
-%%     erlang:yield().
-%%-endif.
+   timer:sleep(1).	% for OTP < 22.1 sufficed: erlang:yield().
 
 set_up() ->
     counter = ets:new(counter, [public, named_table]),
