@@ -687,7 +687,7 @@ binary() ->
 %% `Len' must be an Erlang expression that evaluates to a non-negative integer.
 %% Instances shrink towards binaries of zeroes.
 -spec binary(length()) -> proper_types:type().
-binary(Len) ->
+binary(Len) when is_integer(Len), Len >= 0 ->
     ?WRAPPER([
 	{env, Len},
 	{generator, {typed, fun binary_len_gen/1}},
@@ -716,7 +716,7 @@ bitstring() ->
 %% `Len' must be an Erlang expression that evaluates to a non-negative integer.
 %% Instances shrink towards bitstrings of zeroes
 -spec bitstring(length()) -> proper_types:type().
-bitstring(Len) ->
+bitstring(Len) when is_integer(Len), Len >= 0 ->
     ?WRAPPER([
 	{env, Len},
 	{generator, {typed, fun bitstring_len_gen/1}},
@@ -819,7 +819,7 @@ distlist_gen(Type) ->
 %% @doc All lists of length `Len' containing elements of type `ElemType'.
 %% `Len' must be an Erlang expression that evaluates to a non-negative integer.
 -spec vector(length(), ElemType::raw_type()) -> proper_types:type().
-vector(Len, RawElemType) ->
+vector(Len, RawElemType) when is_integer(Len), Len >= 0 ->
     ElemType = cook_outer(RawElemType),
     ?CONTAINER([
 	{env, Len},
