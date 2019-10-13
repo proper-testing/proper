@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Internal header file: This header is included in all PropEr source
@@ -33,19 +33,12 @@
 %% Random generator selection
 %%------------------------------------------------------------------------------
 
--ifdef(USE_SFMT).
--define(RANDOM_MOD, sfmt).
--define(SEED_NAME, sfmt_seed).
-
--else.
-
 -ifdef(AT_LEAST_19).
--define(RANDOM_MOD, rand).   %% for 19.x use the 'rand' module
+-define(RANDOM_MOD, rand).   %% for 19.x onwards use the 'rand' module
 -define(SEED_NAME, rand_seed).
 -else.
 -define(RANDOM_MOD, random).
 -define(SEED_NAME, random_seed).
--endif.
 -endif.
 
 

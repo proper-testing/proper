@@ -25,7 +25,7 @@ You can reach PropEr's developers in the following ways:
 We welcome user contributions and feedback (comments, suggestions, feature
 requests, bug reports, patches, etc.).
 
-Copyright 2010-2018 by Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas.
+Copyright 2010-2019 by Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas.
 
 This program is distributed under the [GPL](http://www.gnu.org/licenses/gpl.html),
 version 3 or later. Please see the [COPYING][license] file for details.
@@ -96,8 +96,6 @@ Quickstart guide
     dialyzer PLT. To do the above but also build PropEr's documentation issue
     a `make all` call; in that case, you are going to need the `syntax_tools`
     application and a recent version of `EDoc`).
-    Optionally, sfmt-erlang can be selected as an alternative random number
-    generator using `./configure --use-sfmt` before running `make`.
 *   If you are using [Homebrew](https://brew.sh), you can simply:
 
     ```shell
@@ -117,7 +115,6 @@ Quickstart guide
          ```erlang
              code:load_abs("/full/path/to/proper").
          ```
-    If using the sfmt RNG be sure to add /full/path/to/proper/deps/sfmt too.
 *   Add the following include line to all source files that contain properties:
 
     ```erlang
