@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
 %%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
@@ -21,7 +21,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -530,16 +530,12 @@
 	      printers = []  :: [stats_printer()]}).
 -type ctx() :: #ctx{}.
 
--ifdef(AT_LEAST_19).
 -type setup_opts() :: #{numtests := pos_integer(),
 			search_steps := pos_integer(),
 			search_strategy := atom(),
 			start_size := size(),
 			max_size := size(),
 			output_fun := output_fun()}.
--else.
--type setup_opts() :: term().
--endif.
 %%
 
 %%-----------------------------------------------------------------------------

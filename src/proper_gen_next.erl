@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017-2018, Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017-2019, Andreas Löscher <andreas.loscher@it.uu.se>
 %%%                     and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017-2018 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017-2019 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
 %%% @author Andreas Löscher
 
@@ -34,11 +34,7 @@
 
 -include("proper_internal.hrl").
 
--ifdef(AT_LEAST_19).
 -dialyzer({no_improper_lists, construct_improper/2}).
--else.
--export([construct_improper/2]).
--endif.
 
 -define(GENERATORS, [{fun is_user_defined/1, fun user_defined_gen_sa/1}, %% needs to be first!
                      {fun is_atom/1, fun dont_change/1},
@@ -725,9 +721,6 @@ safe_zip(ITL, ITR, Acc) ->
     _ -> {ok, construct_improper(Acc, {ITL, ITR})}
   end.
 
--ifndef(AT_LEAST_19).
--spec construct_improper(list(), term()) -> term().
--endif.
 construct_improper([], IT) ->
   IT;
 construct_improper([H|T], IT) ->

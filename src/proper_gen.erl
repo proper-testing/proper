@@ -632,11 +632,6 @@ function_body(Args, RetType, {Seed1,Seed2}) ->
 	    proper_symb:internal_eval(Ret)
     end.
 
--ifdef(AT_LEAST_19).
 update_seed(Seed) ->
     _ = rand:seed(exsplus, Seed),
     ok.
--else.
-update_seed(Seed) ->
-    put(?SEED_NAME, Seed).
--endif.
