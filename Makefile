@@ -44,16 +44,16 @@ dialyzer: .plt/proper_plt compile
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit
 
 check_escripts:
-	./check_escripts.sh make_doc
+	./scripts/check_escripts.sh make_doc
 
 test:
 	$(PROPER_REBAR) eunit
 
 doc: compile
-	./make_doc
+	./scripts/make_doc
 
 clean:
-	./clean_temp.sh
+	./scripts/clean_temp.sh
 
 distclean: clean
 	$(RM) -r .eunit .rebar
