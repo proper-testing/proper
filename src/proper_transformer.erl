@@ -140,7 +140,7 @@ is_prop(_) ->
 -spec add_exports([abs_form()], [{fun_name(),arity()}]) -> [abs_form()].
 add_exports([], _ToExport) -> [];
 add_exports([{attribute,_,module,_} = ModAttr | Rest], ToExport) ->
-    ExpAttr = {attribute,0,export,ToExport},
+    ExpAttr = {attribute,?anno(0),export,ToExport},
     [ModAttr, ExpAttr | Rest];
 add_exports([Form | Rest], ToExport) ->
     [Form | add_exports(Rest, ToExport)].
