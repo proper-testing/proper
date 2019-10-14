@@ -33,25 +33,14 @@
 %% Random generator selection
 %%------------------------------------------------------------------------------
 
--ifdef(AT_LEAST_19).
--define(RANDOM_MOD, rand).   %% for 19.x onwards use the 'rand' module
+-define(RANDOM_MOD, rand).
 -define(SEED_NAME, rand_seed).
--else.
--define(RANDOM_MOD, random).
--define(SEED_NAME, random_seed).
--endif.
-
 
 %%------------------------------------------------------------------------------
 %% Line annotations
 %%------------------------------------------------------------------------------
 
--ifdef(AT_LEAST_19).
 -define(anno(L), erl_anno:new(L)).
--else.
--define(anno(L), L).
--endif.
-
 
 %%------------------------------------------------------------------------------
 %% Stacktrace access
@@ -103,11 +92,7 @@
 -type abs_expr()   :: erl_parse:abstract_expr().
 -type abs_clause() :: erl_parse:abstract_clause().
 
--ifdef(AT_LEAST_19).
--type abs_type() :: erl_parse:abstract_type().
--else.
--type abs_type() :: term().
--endif.
+-type abs_type()   :: erl_parse:abstract_type().
 %% TODO: Replace abs_rec_field with its proper type once it is exported.
 -type abs_rec_field() :: term().	% erl_parse:af_field_decl().
 

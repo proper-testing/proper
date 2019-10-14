@@ -224,16 +224,9 @@ remove_n(N, {List,Acc}) ->
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
 -spec rand_start(seed()) -> 'ok'.
--ifdef(AT_LEAST_19).
 rand_start(Seed) ->
     _ = rand:seed(exsplus, Seed),
     ok.
--else.
-rand_start(Seed) ->
-    _ = ?RANDOM_MOD:seed(Seed),
-    %% TODO: read option for RNG bijections here
-    ok.
--endif.
 
 %% @doc Conditionally seeds the random number generator. This function should
 %% be run before calling any random function from this module.
@@ -247,17 +240,9 @@ rand_restart(Seed) ->
     end.
 
 -spec rand_reseed() -> 'ok'.
--ifdef(AT_LEAST_19).
 rand_reseed() ->
     _ = rand:seed(exsplus, os:timestamp()),
     ok.
--else.
-rand_reseed() ->
-    %% TODO: This should use the pid of the process somehow, in case two
-    %%       spawned functions call it simultaneously?
-    _ = ?RANDOM_MOD:seed(os:timestamp()),
-    ok.
--endif.
 
 -spec rand_stop() -> 'ok'.
 rand_stop() ->
