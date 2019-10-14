@@ -31,7 +31,7 @@ for ESCRIPT_NAME in "$@"; do
     echo "-module($ESCRIPT_NAME)." >> $SRC_FILE
     echo "-export([main/1])." >> $SRC_FILE
     echo -n "%" >> $SRC_FILE
-    cat $ESCRIPT_NAME >> $SRC_FILE
+    cat scripts/$ESCRIPT_NAME >> $SRC_FILE
     erlc +debug_info $SRC_FILE; true
     dialyzer -Wunmatched_returns $BIN_FILE; true
     rm -f $SRC_FILE $BIN_FILE

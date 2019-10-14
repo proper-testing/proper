@@ -38,7 +38,7 @@
 
 
 %% Needed for some defines and some types
--include("include/proper_internal.hrl").
+-include("../include/proper_internal.hrl").
 
 %%------------------------------------------------------------------------------
 %% Constants
