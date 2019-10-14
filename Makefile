@@ -1,4 +1,4 @@
-# Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -17,10 +17,10 @@
 # You should have received a copy of the GNU General Public License
 # along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-# Author(s):   Manolis Papadakis, Kostis Sagonas
+# Author(s):   Manolis Papadakis and Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default fast all get-deps compile dialyzer check_escripts tests doc clean distclean rebuild retest
+.PHONY: default fast all compile dialyzer check_escripts tests doc clean distclean rebuild retest
 
 ifneq (,$(findstring Windows,$(OS)))
     SEP := $(strip \)
@@ -32,18 +32,15 @@ REBAR := .$(SEP)rebar
 
 default: fast
 
-fast: get-deps compile
+fast: compile
 
 all: fast dialyzer doc tests
-
-get-deps:
-	$(REBAR) get-deps
 
 compile:
 	$(REBAR) compile
 
 dialyzer: .plt/proper_plt compile
-	dialyzer -n -nn --plt $< -Wunmatched_returns ebin $(find . -path 'deps/*/ebin/*.beam')
+	dialyzer -n -nn --plt $< -Wunmatched_returns ebin
 
 .plt/proper_plt: .plt
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit
