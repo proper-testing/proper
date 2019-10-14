@@ -2,7 +2,7 @@
 
 # -*- coding: utf-8 -*-
 # --------------------------------------------------------------------
-# Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -25,14 +25,16 @@
 # Description: Script for testing the validity of escript files
 
 for ESCRIPT_NAME in "$@"; do
+    cd scripts
     SRC_FILE="$ESCRIPT_NAME".erl
     BIN_FILE="$ESCRIPT_NAME".beam
     > $SRC_FILE
     echo "-module($ESCRIPT_NAME)." >> $SRC_FILE
     echo "-export([main/1])." >> $SRC_FILE
     echo -n "%" >> $SRC_FILE
-    cat scripts/$ESCRIPT_NAME >> $SRC_FILE
+    cat $ESCRIPT_NAME >> $SRC_FILE
     erlc +debug_info $SRC_FILE; true
     dialyzer -Wunmatched_returns $BIN_FILE; true
     rm -f $SRC_FILE $BIN_FILE
+    cd ..
 done
