@@ -90,12 +90,13 @@ Quickstart guide
     ```shell
         git clone git://github.com/proper-testing/proper.git
     ```
-*   Compile PropEr: Run `make` if you just want to build PropEr, optionally
-    followed by a `make tests` to run its unit tests and a `make dialyzer` call
-    to also run dialyzer on PropEr's code base; the latter requires having a
-    dialyzer PLT. To do the above but also build PropEr's documentation issue
-    a `make all` call; in that case, you are going to need the `syntax_tools`
-    application and a recent version of `EDoc`).
+*   Compile PropEr: Simply run `make` if you just want to build PropEr.
+    If you want to do some changes to PropEr or submit some pull request you
+    most likely will want to issue a `make test` to run its unit tests and
+    a `make dialyzer` call to also run dialyzer on PropEr's code base.
+    To do the above but also build PropEr's documentation issue a `make all`
+    call; in that case, you are going to need the `syntax_tools` application
+    and a recent version of `EDoc`).
 *   If you are using [Homebrew](https://brew.sh), you can simply:
 
     ```shell
