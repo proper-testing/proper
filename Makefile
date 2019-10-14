@@ -20,7 +20,7 @@
 # Author(s):   Manolis Papadakis and Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default fast all compile dialyzer check_escripts tests doc clean distclean rebuild retest
+.PHONY: default all compile dialyzer check_escripts test doc clean distclean rebuild retest
 
 ifneq (,$(findstring Windows,$(OS)))
     SEP := $(strip \)
@@ -28,16 +28,14 @@ else
     SEP := $(strip /)
 endif
 
-REBAR := .$(SEP)rebar
+PROPER_REBAR := .$(SEP)rebar
 
-default: fast
+default: compile
 
-fast: compile
-
-all: fast dialyzer doc tests
+all: compile dialyzer doc test
 
 compile:
-	$(REBAR) compile
+	$(PROPER_REBAR) compile
 
 dialyzer: .plt/proper_plt compile
 	dialyzer -n -nn --plt $< -Wunmatched_returns ebin
@@ -48,8 +46,8 @@ dialyzer: .plt/proper_plt compile
 check_escripts:
 	./check_escripts.sh make_doc
 
-tests: compile
-	$(REBAR) eunit
+test:
+	$(PROPER_REBAR) eunit
 
 doc: compile
 	./make_doc
@@ -60,11 +58,10 @@ clean:
 distclean: clean
 	$(RM) -r .eunit .rebar
 	$(RM) .plt/proper_plt
-	$(REBAR) clean
+	$(PROPER_REBAR) clean
 
-rebuild: distclean
-	$(REBAR) compile
+rebuild: distclean compile
 
-retest: compile
+retest:
 	$(RM) -r .eunit
-	$(REBAR) eunit
+	$(PROPER_REBAR) eunit
