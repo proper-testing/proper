@@ -59,9 +59,10 @@
 %%------------------------------------------------------------------------------
 
 -type line()      :: erl_anno:line().
+-type anno()      :: erl_anno:anno().
 -type var_name()  :: atom().
 -type rec_name()  :: atom().
--type var_form()  :: {'var', line(), var_name()}.
+-type var_form()  :: {'var', anno(), var_name()}.
 -type type_name() :: atom().
 -type type_ref()  :: {'type', type_name(), arity()}.
 -type type_def()  :: {abs_type(), [var_form()]}.
@@ -133,11 +134,12 @@ add_lines_to_forms([], Acc, _FilePos, _Stack) ->
     lists:reverse(Acc);
 add_lines_to_forms([Form|Rest], Acc, {FileName,_FileLine}, Stack) ->
     case Form of
-	{attribute,Line,file,{NewFileName,_NewFileLine} = NewFilePos} ->
+	{attribute,Anno,file,{NewFileName,_NewFileLine} = NewFilePos} ->
 	    case NewFileName of
 		"" ->
 		    %% TODO: What is the meaning of an empty file name?
 		    %% TODO: Why is it causing problems?
+		    Line = erl_anno:line(Anno),
 		    add_lines_to_forms(Rest, Acc, {FileName,Line}, Stack);
 		FileName ->
 		    %% TODO: Can this happen?
@@ -148,11 +150,12 @@ add_lines_to_forms([Form|Rest], Acc, {FileName,_FileLine}, Stack) ->
 			    [{NewFileName,_}|Bottom] ->
 				Bottom;
 			    _ ->
-				[{FileName,Line}|Stack]
+				[{FileName,erl_anno:line(Anno)}|Stack]
 			end,
 		    add_lines_to_forms(Rest, Acc, NewFilePos, NewStack)
 	    end;
-	{attribute,Line,record,_Fields} ->
+	{attribute,Anno,record,_Fields} ->
+	    Line = erl_anno:line(Anno),
 	    add_lines_to_forms(Rest, Acc, {FileName,Line}, Stack);
 	_ ->
 	    PrintedForm = print_form(Form),
@@ -186,7 +189,7 @@ print_record_field({record_field,_,{atom,_,Name}}) ->
 print_record_field({record_field,_,{atom,_,Name},Initialization}) ->
     [atom_to_list(Name), $=, erl_pp:expr(Initialization,-1,none)];
 print_record_field({typed_record_field,InnerField,FieldType}) ->
-    MyTypeDecl = {attribute,0,type,{mytype,FieldType,[]}},
+    MyTypeDecl = {attribute,?anno(0),type,{mytype,FieldType,[]}},
     PrintedMyType = lists:flatten(erl_pp:form(MyTypeDecl)),
     PrintedFieldType =
 	lists:reverse(remove_from_head("\n.",
@@ -202,10 +205,10 @@ remove_from_head([C|ToRemoveRest], [C|StrRest]) ->
     remove_from_head(ToRemoveRest, StrRest).
 
 -spec get_line_from_form(abs_form()) -> line().
-get_line_from_form({attribute,Line,_Kind,_Value}) ->
-    Line;
-get_line_from_form({function,Line,_Name,_Arity,_Clauses}) ->
-    Line;
+get_line_from_form({attribute,Anno,_Kind,_Value}) ->
+    erl_anno:line(Anno);
+get_line_from_form({function,Anno,_Name,_Arity,_Clauses}) ->
+    erl_anno:line(Anno);
 get_line_from_form({eof,Line}) ->
     Line.
 
@@ -307,7 +310,7 @@ find_next_type(CommLine, RevForms, [Form|Rest] = Forms, TopFileName) ->
 	  {'error' | {type_ref(),type_def()}, [abs_form(),...], [abs_form()]}.
 continue_after_header(CommLine, RevForms, [Form|Rest], TopFileName) ->
     case Form of
-	{attribute,_AttrLine,file,{TopFileName,_TopFileLine}} ->
+	{attribute,_AttrAnno,file,{TopFileName,_TopFileLine}} ->
 	    find_next_type(CommLine, [Form|RevForms], Rest, TopFileName);
 	_Other ->
 	    continue_after_header(CommLine, [Form|RevForms], Rest, TopFileName)
@@ -348,7 +351,7 @@ replace({type,Line,bounded_fun,[MainClause,Constraints]}, Alias, Value) ->
 	end,
     NewConstraints = [ReplaceInConstraint(C) || C <- Constraints],
     {type, Line, bounded_fun, [MainClause,NewConstraints]};
-replace({var,_Line1,SameName}, {var,_Line2,SameName}, Value) ->
+replace({var,_Anno1,SameName}, {var,_Anno2,SameName}, Value) ->
     Value;
 replace({Kind,Line,Args}, Alias, Value) when Kind =:= ann_type
 				      orelse Kind =:= paren_type
