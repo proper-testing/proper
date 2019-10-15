@@ -62,7 +62,7 @@
 
 -module(proper_target).
 
--export([targeted/2, update_target_uvs/2, use_strategy/2,
+-export([targeted/1, update_target_uvs/2, use_strategy/2,
          strategy/0, init_strategy/1, cleanup_strategy/0, get_shrinker/1]).
 
 -include_lib("proper_common.hrl").
@@ -101,22 +101,22 @@
 %% generator for shrinking
 -callback get_shrinker(tmap()) -> proper_types:type().
 %% store, and retrieve state
--callback store_target(key(), target_state()) -> 'ok'.
--callback retrieve_target(key()) -> target() | 'undefined'.
+-callback store_target(target_state()) -> 'ok'.
+-callback retrieve_target() -> target() | 'undefined'.
 %% update the strategy with the fitness
--callback update_global_fitness(fitness()) -> 'ok'.
+-callback update_fitness(fitness()) -> 'ok'.
 
 %% @private
--spec targeted(key(), tmap()) -> proper_types:type().
-targeted(Key, TMap) ->
-  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(Key, TMap))),
+-spec targeted(tmap()) -> proper_types:type().
+targeted(TMap) ->
+  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(TMap))),
           [get_shrinker(TMap)]).
 
 %% @private
-targeted_gen(Key, TMap) ->
-  {State, NextFunc, _FitnessFunc} = get_target(Key, TMap),
+targeted_gen(TMap) ->
+  {State, NextFunc, _FitnessFunc} = get_target(TMap),
   {NewState, NextValue} = NextFunc(State),
-  update_target(Key, NewState),
+  update_target(NewState),
   NextValue.
 
 %% @private
@@ -175,30 +175,30 @@ cleanup_strategy() ->
   ok.
 
 %% @private
--spec get_target(key(), tmap()) -> target().
-get_target(Key, Opts) ->
+-spec get_target(tmap()) -> target().
+get_target(TMap) ->
   Strategy = strategy(),
-  case Strategy:retrieve_target(Key) of
+  case Strategy:retrieve_target() of
     undefined ->
-      FreshTarget = Strategy:init_target(Opts),
-      Strategy:store_target(Key, FreshTarget),
+      FreshTarget = Strategy:init_target(TMap),
+      Strategy:store_target(FreshTarget),
       FreshTarget;
     StoredTarget ->
       StoredTarget
   end.
 
 %% @private
--spec update_target(key(), target_state()) -> 'ok'.
-update_target(Key, State) ->
+-spec update_target(target_state()) -> 'ok'.
+update_target(State) ->
   Strategy = strategy(),
-  {_, N, F} = Strategy:retrieve_target(Key),
-  Strategy:store_target(Key, {State, N, F}).
+  {_, N, F} = Strategy:retrieve_target(),
+  Strategy:store_target({State, N, F}).
 
 %% @private
 -spec update_global(fitness()) -> 'ok'.
 update_global(Fitness) ->
   Strategy = strategy(),
-  Strategy:update_global_fitness(Fitness).
+  Strategy:update_fitness(Fitness).
 
 %% @private
 -spec get_shrinker(tmap()) -> proper_types:type().

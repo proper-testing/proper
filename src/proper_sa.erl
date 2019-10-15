@@ -42,9 +42,9 @@
 -export([init_strategy/1,
          init_target/1,
          cleanup/0,
-         store_target/2,
-         retrieve_target/1,
-         update_global_fitness/1,
+         store_target/1,
+         retrieve_target/0,
+         update_fitness/1,
          get_shrinker/1
         ]).
 %% lib
@@ -85,10 +85,9 @@
          current_generated = null :: proper_gen:instance(),
          last_generated    = null :: proper_gen:instance()
         }).
--type sa_target() :: #sa_target{}.
 
 -record(sa_data,
-        {state = dict:new()                          :: dict:dict(proper_target:key(), sa_target()),
+        {target = undefined                          :: proper_target:target() | 'undefined',
          %% max runs
          k_max = 0                                   :: k(),
          %% run number
@@ -170,22 +169,16 @@ get_last_fitness() ->
 reset() ->
   Data = get(?SA_DATA),
   put(?SA_DATA,
-      Data#sa_data{state = reset_all_targets(Data#sa_data.state),
+      Data#sa_data{target = reset_target(Data#sa_data.target),
                    last_energy = null,
                    last_update = 0,
                    k_max = Data#sa_data.k_max - Data#sa_data.k_current,
                    k_current = 0}).
 
-reset_all_targets(TargetDict) ->
-  reset_all_targets(TargetDict, dict:fetch_keys(TargetDict)).
-
-reset_all_targets(Dict,  []) ->
-  Dict;
-reset_all_targets(Dict, [K|T]) ->
-  {S, N, F} = dict:fetch(K, Dict),
+-spec reset_target(proper_target:target()) -> proper_target:target().
+reset_target({S, N, F}) ->
   {ok, ResetValue} = proper_gen:safe_generate(S#sa_target.first),
-  NewVal = {S#sa_target{last_generated = ResetValue}, N, F},
-  reset_all_targets(dict:store(K, NewVal, Dict), T).
+  {S#sa_target{last_generated = ResetValue}, N, F}.
 
 %% @private
 -spec init_strategy(proper:setup_opts()) -> 'ok'.
@@ -231,27 +224,21 @@ next_func(SATarget) ->
   {SATarget#sa_target{current_generated = Generated}, Generated}.
 
 %% @private
--spec store_target(proper_target:key(), proper_target:target()) -> 'ok'.
-store_target(Key, Target) ->
+-spec store_target(proper_target:target()) -> 'ok'.
+store_target(Target) ->
   Data = get(?SA_DATA),
-  NewData = Data#sa_data{state = dict:store(Key, Target, (Data#sa_data.state))},
+  NewData = Data#sa_data{target = Target},
   put(?SA_DATA, NewData),
   ok.
 
 %% @private
--spec retrieve_target(proper_target:key()) -> proper_target:target() | 'undefined'.
-retrieve_target(Key) ->
-  Dict = (get(?SA_DATA))#sa_data.state,
-  case dict:is_key(Key, Dict) of
-    true ->
-      dict:fetch(Key, Dict);
-    false ->
-      undefined
-  end.
+-spec retrieve_target() -> proper_target:target() | 'undefined'.
+retrieve_target() ->
+  (get(?SA_DATA))#sa_data.target.
 
 %% @private
--spec update_global_fitness(proper_target:fitness()) -> 'ok'.
-update_global_fitness(Fitness) ->
+-spec update_fitness(proper_target:fitness()) -> 'ok'.
+update_fitness(Fitness) ->
   case get(?SA_DATA) of
     Data = #sa_data{k_current = K_CURRENT,
                     k_max = K_MAX,
@@ -264,7 +251,7 @@ update_global_fitness(Fitness) ->
                   true ->
                     %% accept new state
                     proper_gen_next:update_caches(accept),
-                    NewState = update_all_targets(Data#sa_data.state),
+                    NewTarget = update_target(Data#sa_data.target),
                     %% calculate new temperature
                     {NewTemperature, AdjustedK} =
                       TempFunc(Temperature,
@@ -273,7 +260,7 @@ update_global_fitness(Fitness) ->
                                K_MAX,
                                K_CURRENT,
                                true),
-                    Data#sa_data{state = NewState,
+                    Data#sa_data{target = NewTarget,
                                  last_energy = Fitness,
                                  last_update = 0,
                                  k_current = AdjustedK,
@@ -302,15 +289,8 @@ update_global_fitness(Fitness) ->
 
 %% update the last generated value with the current generated value
 %% (hence accepting new state)
-update_all_targets(TargetDict) ->
-  update_all_targets(TargetDict, dict:fetch_keys(TargetDict)).
-
-update_all_targets(Dict,  []) ->
-  Dict;
-update_all_targets(Dict, [K|T]) ->
-  {S, N, F} = dict:fetch(K, Dict),
-  NewVal = {S#sa_target{last_generated = S#sa_target.current_generated}, N, F},
-  update_all_targets(dict:store(K, NewVal, Dict), T).
+update_target({S, N, F}) ->
+  {S#sa_target{last_generated = S#sa_target.current_generated}, N, F}.
 
 %% @private
 -spec get_shrinker(proper_target:tmap()) -> proper_types:type().
