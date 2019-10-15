@@ -28,6 +28,6 @@ defmodule Proper.Mixfile do
    end
 
   defp aliases do
-    [docs: "cmd ./make_doc"]
+    [docs: "cmd ./scripts/make_doc"]
   end
 end

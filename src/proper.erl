@@ -1491,7 +1491,7 @@ run({sample, NewSample, NewPrinter, Prop}, #ctx{samples = Samples,
     NewCtx = Ctx#ctx{samples = [NewSample | Samples],
 		     printers = [NewPrinter | Printers]},
     run(Prop, NewCtx, Opts);
-run({whenfail, NewAction, Prop}, #ctx{actions = Actions} = Ctx, Opts)->
+run({whenfail, NewAction, Prop}, #ctx{actions = Actions} = Ctx, Opts) ->
     NewCtx = Ctx#ctx{actions = [NewAction | Actions]},
     force(Prop, NewCtx, Opts);
 run({trapexit, Prop}, Ctx, Opts) ->
