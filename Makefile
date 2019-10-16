@@ -60,10 +60,10 @@ clean:
 	./scripts/clean_temp.sh
 
 distclean: clean
+	$(REBAR3) clean
 	$(RM) -r .eunit .rebar
 	$(RM) .plt/proper_plt
 	$(RM) -r _build rebar3 rebar.lock
-	$(PROPER_REBAR) clean
 
 rebuild: distclean compile
 
