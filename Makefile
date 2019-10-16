@@ -30,15 +30,19 @@ endif
 
 PROPER_REBAR := .$(SEP)rebar
 
+REBAR3_URL := https://s3.amazonaws.com/rebar3/rebar3
+REBAR3 ?= $(shell which rebar3 || which .$(SEP)rebar3 || \
+            (wget $(REBAR3_URL) && chmod +x rebar3 && echo .$(SEP)rebar3))
+
 default: compile
 
 all: compile dialyzer doc test
 
 compile:
-	$(PROPER_REBAR) compile
+	$(REBAR3) compile
 
 dialyzer: .plt/proper_plt compile
-	dialyzer -n -nn --plt $< -Wunmatched_returns ebin
+	dialyzer -n -nn --plt $< -Wunmatched_returns _build/default/lib/proper/ebin
 
 .plt/proper_plt: .plt
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit
@@ -58,6 +62,7 @@ clean:
 distclean: clean
 	$(RM) -r .eunit .rebar
 	$(RM) .plt/proper_plt
+	$(RM) -r _build rebar3 rebar.lock
 	$(PROPER_REBAR) clean
 
 rebuild: distclean compile

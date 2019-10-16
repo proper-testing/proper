@@ -8,6 +8,8 @@ doc/*.css
 doc/*.html
 doc/*.png
 doc/edoc-info
-.directory
-.eunit
-.rebar
+rebar3
+rebar.lock
+.eunit/
+.rebar/
+_build/
