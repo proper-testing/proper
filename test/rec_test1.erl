@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,30 +20,30 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains types for testing the typeserver.
 
 -module(rec_test1).
--export_type([expb/0, expc/0]).
+-export_type([bb/0, expb/0, expc/0]).
 
--type a() :: 'aleaf' | b() | [{'rec',a()}] | c() | d().
--type b() :: 'bleaf' | {'bnode',b(),b()}.
--type c() :: [c()] | {'cnode1',a()} | {'cnode2',d()}.
+-type a() :: 'aleaf' | b() | [{'rec', a()}] | c() | d().
+-type b() :: 'bleaf' | {'bnode', b(), b()}.
+-type c() :: [c()] | {'cnode1', a()} | {'cnode2',d()}.
 -type d() :: [a()].
--type e() :: {'e','none' | e()}.
--type f() :: {'f','none'} | {'f',f()}.
+-type e() :: {'e', 'none' | e()}.
+-type f() :: {'f', 'none'} | {'f', f()}.
 
 -type deeplist() :: [deeplist()].
 
--type mylist(T) :: [] | {'cons',T,mylist(T)}.
+-type mylist(T) :: [] | {'cons', T, mylist(T)}.
 -type aa() :: {} | mylist(aa()).
 -type bb() :: mylist(integer()).
 -type cc() :: mylist(cc()).
 
 -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}).
 
--opaque expb() :: {'a',rec_test2:expa()}.
+-opaque expb() :: {'a', rec_test2:expa()}.
 
--type expc() :: 'c' | {'node',?MODULE:expc()}.
+-type expc() :: 'c' | {'node', ?MODULE:expc()}.
