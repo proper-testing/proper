@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,22 +20,26 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module tests a weird scenario for the parse transform.
 
 -module(weird_types).
 -export([]).
--export_type([foo/0]).
+
 -compile(export_all).
--compile([{no_auto_import,[hd/1]}]).
+-compile([{no_auto_import, [hd/1]}]).
 
 -include_lib("proper/include/proper.hrl").
 
+-export_type([foo/0]).
+%% NOTE: Possibly here temporarily until the compiler's warnings are fixed.
+-export_type([hd/1]).
+
 -type foo() :: atom().
 foo() -> integer().
--type hd(T) :: {'head',T}.
+-type hd(T) :: {'head', T}.
 
 prop_export_all_works() ->
     ?FORALL(X, ?MODULE:foo(), is_integer(X)).
