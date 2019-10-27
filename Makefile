@@ -65,7 +65,7 @@ distclean: clean
 	$(REBAR3) clean
 	$(RM) -r .eunit .rebar
 	$(RM) .plt/proper_plt
-	$(RM) -r _build rebar3 rebar.lock
+	$(RM) -r _build ebin rebar3 rebar.lock
 
 rebuild: distclean compile
 
