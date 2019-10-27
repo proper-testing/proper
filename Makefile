@@ -39,10 +39,12 @@ default: compile
 all: compile dialyzer doc test
 
 compile:
+	$(RM) ebin
 	$(REBAR3) compile
+	ln -s _build/default/lib/proper/ebin .
 
 dialyzer: .plt/proper_plt compile
-	dialyzer -n -nn --plt $< -Wunmatched_returns _build/default/lib/proper/ebin
+	dialyzer -n -nn --plt $< -Wunmatched_returns ebin
 
 .plt/proper_plt: .plt
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit
