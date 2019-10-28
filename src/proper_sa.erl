@@ -60,6 +60,7 @@
 
 -define(SA_DATA, proper_sa_data).
 -define(SA_REHEAT_COUNTER, proper_sa_reheat_counter).
+-define(SA_TABLE, proper_sa_table).
 
 %% types
 -type k() :: integer().
@@ -158,22 +159,55 @@ get_acceptance_function(_) ->
     _ -> fun acceptance_function_standard/3
   end.
 
+%% @private
+new_ets() ->
+    case ets:info(?SA_TABLE) of
+        undefined -> _ = ets:new(?SA_TABLE, [set, public, named_table]), ok;
+        _ -> ets:delete_all_objects(?SA_TABLE), ok
+    end.
+
+%% @private
+delete_ets() ->
+    case ets:info(?SA_TABLE) of
+        undefined -> ok;
+        _ -> ets:delete(?SA_TABLE), ok
+    end.
+
+%% @private
+get_ets(Key) ->
+    case ets:info(?SA_TABLE) of
+        undefined -> undefined;
+        _ ->
+            case ets:lookup(?SA_TABLE, Key) of
+                [] -> undefined;
+                [{Key, Value} | _Rest] -> Value
+            end
+    end.
+
+%% @private
+put_ets(Key, Value) ->
+    case ets:info(?SA_TABLE) of
+        undefined -> true;
+        _ -> ets:insert(?SA_TABLE, {Key, Value})
+    end.
+
 %% @doc returns the fitness of the last accepted solution and how many tests old the fitness is
 -spec get_last_fitness() -> {integer(), proper_target:fitness()}.
 get_last_fitness() ->
-  State = get(?SA_DATA),
+  State = get_ets(?SA_DATA),
   {State#sa_data.last_update, State#sa_data.last_energy}.
 
 %% @doc restart the search starting from a random input
 -spec reset() -> ok.
 reset() ->
-  Data = get(?SA_DATA),
-  put(?SA_DATA,
+  Data = get_ets(?SA_DATA),
+  put_ets(?SA_DATA,
       Data#sa_data{target = reset_target(Data#sa_data.target),
                    last_energy = null,
                    last_update = 0,
                    k_max = Data#sa_data.k_max - Data#sa_data.k_current,
-                   k_current = 0}).
+                   k_current = 0}),
+  ok.
 
 -spec reset_target(proper_target:target()) -> proper_target:target().
 reset_target({S, N, F}) ->
@@ -183,15 +217,17 @@ reset_target({S, N, F}) ->
 %% @private
 -spec init_strategy(proper:setup_opts()) -> 'ok'.
 init_strategy(#{numtests:=Steps, output_fun:=OutputFun}) ->
+  new_ets(),
   proper_gen_next:init(),
   SA_Data = #sa_data{k_max = Steps,
                      p = get_acceptance_function(OutputFun),
                      temp_func = get_temperature_function(OutputFun)},
-  put(?SA_DATA, SA_Data), ok.
+  put_ets(?SA_DATA, SA_Data), ok.
 
 %% @private
 -spec cleanup() -> ok.
 cleanup() ->
+  delete_ets(),
   erase(?SA_DATA),
   erase(?SA_REHEAT_COUNTER),
   proper_gen_next:cleanup(),
@@ -214,7 +250,7 @@ create_target(SATarget) ->
 %% generating next element and updating the target state
 next_func(SATarget) ->
   %% retrieving temperature
-  GlobalData = get(?SA_DATA),
+  GlobalData = get_ets(?SA_DATA),
   Temperature = GlobalData#sa_data.temperature,
   %% calculating the max generated size
   NextGenerator = (SATarget#sa_target.next)(SATarget#sa_target.last_generated, Temperature),
@@ -226,20 +262,20 @@ next_func(SATarget) ->
 %% @private
 -spec store_target(proper_target:target()) -> 'ok'.
 store_target(Target) ->
-  Data = get(?SA_DATA),
+  Data = get_ets(?SA_DATA),
   NewData = Data#sa_data{target = Target},
-  put(?SA_DATA, NewData),
+  put_ets(?SA_DATA, NewData),
   ok.
 
 %% @private
 -spec retrieve_target() -> proper_target:target() | 'undefined'.
 retrieve_target() ->
-  (get(?SA_DATA))#sa_data.target.
+  (get_ets(?SA_DATA))#sa_data.target.
 
 %% @private
 -spec update_fitness(proper_target:fitness()) -> 'ok'.
 update_fitness(Fitness) ->
-  case get(?SA_DATA) of
+  case get_ets(?SA_DATA) of
     Data = #sa_data{k_current = K_CURRENT,
                     k_max = K_MAX,
                     temperature = Temperature,
@@ -280,7 +316,7 @@ update_fitness(Fitness) ->
                                  k_current = AdjustedK,
                                  temperature = NewTemperature}
 		end,
-      put(?SA_DATA, NewData),
+      put_ets(?SA_DATA, NewData),
       ok;
     _ ->
       %% no search strategy or shrinking
