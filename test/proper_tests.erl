@@ -1027,7 +1027,9 @@ false_props_test_() ->
 		 ]))),
      {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
      ?_fails(post_false:prop_simple()),
-     ?_fails(error_statem:prop_simple())].
+     ?_fails(error_statem:prop_simple()),
+     ?_failsWith([100], exists_tests:prop_normal()),
+     ?_failsWith([100], exists_tests:prop_trapexit())].
 
 error_props_test_() ->
     [?_errorsOut({cant_generate,[{?MODULE,error_props_test_,0}]},

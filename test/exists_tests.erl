@@ -81,6 +81,21 @@ prop_forall_targeted() ->
                      I < 10
                    end).
 
+prop_normal() ->
+    ?FORALL_TARGETED(I, integer(),
+                     begin
+                         ?MAXIMIZE(I),
+                         I < 100
+                     end).
+
+prop_trapexit() ->
+    ?FORALL_TARGETED(I, integer(),
+                     ?TRAPEXIT(
+                         begin
+                             ?MAXIMIZE(I),
+                             I < 100
+                         end)).
+
 exists_test() ->
   ?assert(proper:quickcheck(prop_exists(), ?PROPER_OPTIONS)).
 
