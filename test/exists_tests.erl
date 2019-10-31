@@ -78,23 +78,16 @@ prop_forall_targeted() ->
   ?FORALL_TARGETED(I, integer(),
                    begin
                      ?MAXIMIZE(I),
-                     I < 10
+                     I < 100
                    end).
 
-prop_normal() ->
-    ?FORALL_TARGETED(I, integer(),
-                     begin
-                         ?MAXIMIZE(I),
-                         I < 100
-                     end).
-
-prop_trapexit() ->
+prop_forall_targeted_trapexit() ->
     ?FORALL_TARGETED(I, integer(),
                      ?TRAPEXIT(
-                         begin
-                             ?MAXIMIZE(I),
-                             I < 100
-                         end)).
+                       begin
+                         ?MAXIMIZE(I),
+                         I < 100
+                       end)).
 
 exists_test() ->
   ?assert(proper:quickcheck(prop_exists(), ?PROPER_OPTIONS)).
@@ -106,7 +99,12 @@ not_exists_test() ->
 
 forall_targeted_test() ->
   false = proper:quickcheck(prop_forall_targeted(), ?PROPER_OPTIONS_SHRINKING),
-  [10] = proper:counterexample(),
+  [100] = proper:counterexample(),
+  ok.
+
+forall_targeted_trapexit_test() ->
+  false = proper:quickcheck(prop_forall_targeted_trapexit(), ?PROPER_OPTIONS_SHRINKING),
+  [100] = proper:counterexample(),
   ok.
 
 %% configuration tests
