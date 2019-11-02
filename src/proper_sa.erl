@@ -161,35 +161,35 @@ get_acceptance_function(_) ->
 
 %% @private
 new_ets() ->
-    case ets:info(?SA_TABLE) of
-        undefined -> _ = ets:new(?SA_TABLE, [set, public, named_table]), ok;
-        _ -> ets:delete_all_objects(?SA_TABLE), ok
-    end.
+  case ets:info(?SA_TABLE) of
+    undefined -> _ = ets:new(?SA_TABLE, [set, public, named_table]), ok;
+    _ -> ets:delete_all_objects(?SA_TABLE), ok
+  end.
 
 %% @private
 delete_ets() ->
-    case ets:info(?SA_TABLE) of
-        undefined -> ok;
-        _ -> ets:delete(?SA_TABLE), ok
-    end.
+  case ets:info(?SA_TABLE) of
+    undefined -> ok;
+    _ -> ets:delete(?SA_TABLE), ok
+  end.
 
 %% @private
 get_ets(Key) ->
-    case ets:info(?SA_TABLE) of
-        undefined -> undefined;
-        _ ->
-            case ets:lookup(?SA_TABLE, Key) of
-                [] -> undefined;
-                [{Key, Value} | _Rest] -> Value
-            end
-    end.
+  case ets:info(?SA_TABLE) of
+    undefined -> undefined;
+    _ ->
+      case ets:lookup(?SA_TABLE, Key) of
+        [] -> undefined;
+        [{Key, Value} | _Rest] -> Value
+      end
+  end.
 
 %% @private
 put_ets(Key, Value) ->
-    case ets:info(?SA_TABLE) of
-        undefined -> true;
-        _ -> ets:insert(?SA_TABLE, {Key, Value})
-    end.
+  case ets:info(?SA_TABLE) of
+    undefined -> true;
+    _ -> ets:insert(?SA_TABLE, {Key, Value})
+  end.
 
 %% @doc returns the fitness of the last accepted solution and how many tests old the fitness is
 -spec get_last_fitness() -> {integer(), proper_target:fitness()}.
@@ -202,11 +202,11 @@ get_last_fitness() ->
 reset() ->
   Data = get_ets(?SA_DATA),
   put_ets(?SA_DATA,
-      Data#sa_data{target = reset_target(Data#sa_data.target),
-                   last_energy = null,
-                   last_update = 0,
-                   k_max = Data#sa_data.k_max - Data#sa_data.k_current,
-                   k_current = 0}),
+          Data#sa_data{target = reset_target(Data#sa_data.target),
+                       last_energy = null,
+                       last_update = 0,
+                       k_max = Data#sa_data.k_max - Data#sa_data.k_current,
+                       k_current = 0}),
   ok.
 
 -spec reset_target(proper_target:target()) -> proper_target:target().
