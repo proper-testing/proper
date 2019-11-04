@@ -66,7 +66,7 @@
 %% Target macros
 %%------------------------------------------------------------------------------
 
--define(MAXIMIZE(Fitness), proper_target:update_target_uvs(Fitness, inf)).
+-define(MAXIMIZE(Fitness), proper_target:update_uv(Fitness, inf)).
 -define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
 -define(USERNF(Type, NF), proper_gen_next:set_user_nf(Type, NF)).
 -define(USERMATCHER(Type, Matcher), proper_gen_next:set_matcher(Type, Matcher)).
@@ -77,7 +77,8 @@
 
 -define(TARGET(TMap), proper_target:targeted(TMap)).
 -define(STRATEGY(Strat, Prop), ?SETUP(fun (Opts) ->
-                                          proper_target:use_strategy(Strat, Opts),
+                                          proper_target:init_strategy(
+                                            Opts#{search_strategy => Strat}),
                                           fun proper_target:cleanup_strategy/0
                                       end, Prop)).
 -define(FORALL_SA(X, RawType, Prop),

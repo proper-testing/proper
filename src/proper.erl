@@ -1226,7 +1226,7 @@ get_rerun_result({error,_Reason} = ErrorResult) ->
 
 -spec perform(pos_integer(), test(), opts()) -> imm_result().
 perform(NumTests, {targeted, TMap, _Target, Prop}, #opts{search_strategy = Strat} = Opts) ->
-    proper_target:init_strategy(Strat),
+    _ = proper_target:init_strategy(Strat),
     Target = proper_target:targeted(TMap),
     Res = perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests,
                   {targeted, TMap, Target, Prop}, none, none, Opts),
@@ -1374,7 +1374,7 @@ run(Result, #ctx{mode = Mode, bound = Bound} = Ctx, _Opts) when is_boolean(Resul
 run({exists, TMap, Prop, Not}, #ctx{mode = new} = Ctx,
     #opts{search_strategy = Strat, search_steps = Steps,
           output_fun = Print, start_size = StartSize} = Opts) ->
-    proper_target:init_strategy(Strat),
+    _ = proper_target:init_strategy(Strat),
     Target = proper_target:targeted(TMap),
     Print("[", []),
     BackupSize = get('$size'),
@@ -1390,7 +1390,7 @@ run({exists, _TMap, _Prop, _Not}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
 run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk,
 				    bound = [ImmInstance | Rest]} = Ctx, Opts) ->
-    RawType = (proper_target:strategy()):get_shrinker(TMap),
+    RawType = proper_target:get_shrinker(TMap),
     case proper_types:safe_is_instance(ImmInstance, RawType) of
 	true ->
 	    Instance = proper_gen:clean_instance(ImmInstance),
@@ -1425,7 +1425,7 @@ run({targeted, _TMap, _Target, _Prop}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
 run({targeted, TMap, _Target, Prop}, #ctx{mode = try_shrunk,
 				  bound = [ImmInstance | Rest]} = Ctx, Opts) ->
-    RawType = (proper_target:strategy()):get_shrinker(TMap),
+    RawType = proper_target:get_shrinker(TMap),
     case proper_types:safe_is_instance(ImmInstance, RawType) of
 	true ->
 	    Instance = proper_gen:clean_instance(ImmInstance),

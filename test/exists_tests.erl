@@ -351,7 +351,7 @@ prop_reset() ->
                 ?MAXIMIZE(I),
                 case I < 10 of
                   true -> ok;
-                  false -> proper_sa:reset()
+                  false -> proper_target:reset()
                 end,
                 %% I will be 10 when resetting
                 %% and then 0 in the next run
