@@ -88,11 +88,13 @@
 -type target_state()  :: term().
 -type strategy_data() :: term().
 -type next_func()     :: fun ((target_state()) -> {target_state(), any()}).
--type fitness_func()  :: fun ((target_state(), fitness()) -> target_state()) | none.
+-type fitness_func()  :: fun ((target_state(), fitness()) -> target_state()) 
+                       | none.
 
 -type target()   :: {target_state(), next_func(), fitness_func()}.
 -type strategy() :: module().
--type opts()     :: strategy() | proper:setup_opts().
+-type opts()     :: strategy() 
+                  | #{search_steps := integer(), search_strategy := strategy()}.
 
 -record(state,
         {strategy           :: strategy(),
@@ -134,18 +136,13 @@
 
 -spec init_strategy(Opts :: opts()) -> {ok, pid()}.
 init_strategy(Strat) when is_atom(Strat) ->
-  Strategy = strategy(Strat),
-  put('$search_strategy', Strategy),
   Steps = get('$search_steps'),
-  proper_gen_next:init(),
-  Data = Strategy:init_strategy(#{numtests => Steps}),
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Strategy, Data], []);
+  init_strategy(#{search_steps => Steps, search_strategy => Strat});
 init_strategy(#{search_steps := Steps, search_strategy := Strat}) ->
   Strategy = strategy(Strat),
-  put('$search_strategy', Strategy),
   proper_gen_next:init(),
   Data = Strategy:init_strategy(#{numtests => Steps}),
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Strategy, Data], []).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [{Strategy, Data}], []).
 
 %% @doc Cleans up proper_gen_next as well as stopping the gen_server.
 
@@ -161,14 +158,14 @@ cleanup_strategy() ->
 %% @private
 -spec targeted(tmap()) -> proper_types:type().
 targeted(TMap) ->
-  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(TMap))), 
+  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(TMap))),
           [get_shrinker(TMap)]).
 
 %% @doc Initialize the target of the strategy.
 
 -spec init_target(tmap()) -> ok.
 init_target(TMap) ->
-  gen_server:cast(?MODULE, {init_target, TMap}).
+  safe_call(?MODULE, {init_target, TMap}).
 
 %% This produces the next gen instance from the next
 %% generator provided by the strategy. It will also
@@ -193,7 +190,7 @@ get_shrinker(#{gen := Gen}) ->
 %% @private
 -spec update_uv(fitness(), threshold()) -> boolean().
 update_uv(Fitness, Threshold) ->
-  gen_server:cast(?MODULE, {update_fitness, Fitness}),
+  safe_call(?MODULE, {update_fitness, Fitness}),
   check_threshold(Threshold, Fitness).
 
 %% @doc Reset the strategy target and data to a random
@@ -202,7 +199,20 @@ update_uv(Fitness, Threshold) ->
 
 -spec reset() -> ok.
 reset() ->
-  gen_server:cast(?MODULE, reset).
+  safe_call(?MODULE, reset).
+
+%% Create a safe call to a gen_server in case it
+%% raises noproc. Τhis should only be used for
+%% calls that do not return significant values.
+
+%% @private
+-spec safe_call(module(), term()) -> term() | ok.
+safe_call(Mod, Call) ->
+  try
+    gen_server:call(Mod, Call)
+  catch _:{noproc, _} ->
+    ok
+  end.
 
 %% @private
 check_threshold(Threshold, Fitness) ->
@@ -229,8 +239,8 @@ strategy(Strat) ->
 %% -----------------------------------------------------------------------------
 
 %% @private
--spec init(Args :: [any()]) -> {ok, state()}.
-init([Strategy, Data]) ->
+-spec init(Args :: [{strategy(), strategy_data()}]) -> {ok, state()}.
+init([{Strategy, Data}]) ->
   {ok, #state{strategy = Strategy, data = Data}}.
 
 %% @private
@@ -242,12 +252,8 @@ handle_call(gen, _From, State) ->
   Target = State#state.target,
   Data = State#state.data,
   {NextValue, NewTarget, NewData} = Strat:next(Target, Data),
-  {reply, NextValue, State#state{target = NewTarget, data = NewData}}.
-
-%% @private
--spec handle_cast(Request :: term(), State :: state()) ->
-  {noreply, NewState :: term()}.
-handle_cast({init_target, TMap}, State) ->
+  {reply, NextValue, State#state{target = NewTarget, data = NewData}};
+handle_call({init_target, TMap}, _From, State) ->
   Strat = State#state.strategy,
   Target = State#state.target,
   NewTarget = case Target of
@@ -260,19 +266,25 @@ handle_cast({init_target, TMap}, State) ->
       end;
     _ -> Target
   end,
-  {noreply, State#state{target = NewTarget}};
-handle_cast({update_fitness, Fitness}, State) ->
+  {reply, ok, State#state{target = NewTarget}};
+handle_call({update_fitness, Fitness}, _From, State) ->
   Strat = State#state.strategy,
   Target = State#state.target,
   Data = State#state.data,
   {NewTarget, NewData} = Strat:update_fitness(Fitness, Target, Data),
-  {noreply, State#state{target = NewTarget, data = NewData}};
-handle_cast(reset, State) ->
+  {reply, ok, State#state{target = NewTarget, data = NewData}};
+handle_call(reset, _From, State) ->
   Strat = State#state.strategy,
   Target = State#state.target,
   Data = State#state.data,
   {NewTarget, NewData} = Strat:reset(Target, Data),
-  {noreply, State#state{target = NewTarget, data = NewData}}.
+  {reply, ok, State#state{target = NewTarget, data = NewData}}.
+
+%% @private
+-spec handle_cast(Request :: term(), State :: state()) ->
+  {noreply, NewState :: term()}.
+handle_cast(_Request, State) ->
+  {noreply, State}.
 
 %% @private
 -spec handle_info(Info :: timeout | term(), State :: state()) ->
