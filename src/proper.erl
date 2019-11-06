@@ -1226,7 +1226,7 @@ get_rerun_result({error,_Reason} = ErrorResult) ->
 
 -spec perform(pos_integer(), test(), opts()) -> imm_result().
 perform(NumTests, {targeted, TMap, _Target, Prop}, #opts{search_strategy = Strat} = Opts) ->
-    {ok, _} = proper_target:init_strategy(Strat),
+    proper_target:init_strategy(Strat),
     Target = proper_target:targeted(TMap),
     Res = perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests,
                   {targeted, TMap, Target, Prop}, none, none, Opts),
@@ -1374,7 +1374,7 @@ run(Result, #ctx{mode = Mode, bound = Bound} = Ctx, _Opts) when is_boolean(Resul
 run({exists, TMap, Prop, Not}, #ctx{mode = new} = Ctx,
     #opts{search_strategy = Strat, search_steps = Steps,
           output_fun = Print, start_size = StartSize} = Opts) ->
-    {ok, _} = proper_target:init_strategy(Strat),
+    proper_target:init_strategy(Strat),
     Target = proper_target:targeted(TMap),
     Print("[", []),
     BackupSize = get('$size'),

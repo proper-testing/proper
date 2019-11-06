@@ -134,7 +134,7 @@
 %% Depending on the argument, the search steps will be taken from
 %% from the process dictionary or the setup options.
 
--spec init_strategy(Opts :: opts()) -> {ok, pid()}.
+-spec init_strategy(Opts :: opts()) -> ok.
 init_strategy(Strat) when is_atom(Strat) ->
   Steps = get('$search_steps'),
   init_strategy(#{search_steps => Steps, search_strategy => Strat});
@@ -142,14 +142,22 @@ init_strategy(#{search_steps := Steps, search_strategy := Strat}) ->
   Strategy = strategy(Strat),
   proper_gen_next:init(),
   Data = Strategy:init_strategy(#{numtests => Steps}),
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [{Strategy, Data}], []).
+  {ok, TargetserverPid} = gen_server:start_link(?MODULE, [{Strategy, Data}], []),
+  put('$targetserver_pid', TargetserverPid),
+  ok.
 
 %% @doc Cleans up proper_gen_next as well as stopping the gen_server.
 
 -spec cleanup_strategy() -> ok.
 cleanup_strategy() ->
-  proper_gen_next:cleanup(),
-  gen_server:stop(?MODULE).
+  case erase('$targetserver_pid') of
+    undefined -> ok;
+    TargetserverPid ->
+      proper_gen_next:cleanup(),
+      ok = gen_server:stop(TargetserverPid),
+      ok
+  end,
+  ok.
 
 %% This is used to create the targeted generator.
 %% ?SHRINK so that this can be used with a ?SETUP macro,
@@ -165,7 +173,8 @@ targeted(TMap) ->
 
 -spec init_target(tmap()) -> ok.
 init_target(TMap) ->
-  safe_call(?MODULE, {init_target, TMap}).
+  TargetserverPid = get('$targetserver_pid'),
+  safe_call(TargetserverPid, {init_target, TMap}).
 
 %% This produces the next gen instance from the next
 %% generator provided by the strategy. It will also
@@ -175,7 +184,8 @@ init_target(TMap) ->
 -spec targeted_gen(tmap()) -> any().
 targeted_gen(TMap) ->
   init_target(TMap),
-  gen_server:call(?MODULE, gen).
+  TargetserverPid = get('$targetserver_pid'),
+  gen_server:call(TargetserverPid, gen).
 
 %% @doc Get the shrinker for a tmap.
 
@@ -190,7 +200,8 @@ get_shrinker(#{gen := Gen}) ->
 %% @private
 -spec update_uv(fitness(), threshold()) -> boolean().
 update_uv(Fitness, Threshold) ->
-  safe_call(?MODULE, {update_fitness, Fitness}),
+  TargetserverPid = get('$targetserver_pid'),
+  safe_call(TargetserverPid, {update_fitness, Fitness}),
   check_threshold(Threshold, Fitness).
 
 %% @doc Reset the strategy target and data to a random
@@ -199,17 +210,18 @@ update_uv(Fitness, Threshold) ->
 
 -spec reset() -> ok.
 reset() ->
-  safe_call(?MODULE, reset).
+  TargetserverPid = get('$targetserver_pid'),
+  safe_call(TargetserverPid, reset).
 
 %% Create a safe call to a gen_server in case it
 %% raises noproc. Τhis should only be used for
 %% calls that do not return significant values.
 
 %% @private
--spec safe_call(module(), term()) -> term() | ok.
-safe_call(Mod, Call) ->
+-spec safe_call(pid(), term()) -> term() | ok.
+safe_call(Pid, Call) ->
   try
-    gen_server:call(Mod, Call)
+    gen_server:call(Pid, Call)
   catch _:{noproc, _} ->
     ok
   end.
