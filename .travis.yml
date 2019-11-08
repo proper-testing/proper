@@ -34,7 +34,7 @@ matrix:
                 proper_unused_imports_remover,
                 vararg]}." >> rebar.config
       after_success:
-            - git clone git://github.com/idubrov/covertool.git
+            - git clone https://github.com/covertool/covertool.git
             - cd covertool && make compile && cd ..
             - find .eunit/ -name *.coverdata -exec ./covertool/covertool -cover {} -output {}.coverage.xml \;
             - mv .eunit/*.xml .
