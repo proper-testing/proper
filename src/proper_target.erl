@@ -218,7 +218,7 @@ reset() ->
 %% calls that do not return significant values.
 
 %% @private
--spec safe_call(pid(), term()) -> term() | ok.
+-spec safe_call(pid(), term()) -> term().
 safe_call(Pid, Call) ->
   try
     gen_server:call(Pid, Call)
