@@ -1390,7 +1390,7 @@ run({exists, _TMap, _Prop, _Not}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
 run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk,
 				    bound = [ImmInstance | Rest]} = Ctx, Opts) ->
-    RawType = (proper_target:strategy()):get_shrinker(TMap),
+    RawType = proper_target:get_shrinker(TMap),
     case proper_types:safe_is_instance(ImmInstance, RawType) of
 	true ->
 	    Instance = proper_gen:clean_instance(ImmInstance),
@@ -1425,7 +1425,7 @@ run({targeted, _TMap, _Target, _Prop}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
 run({targeted, TMap, _Target, Prop}, #ctx{mode = try_shrunk,
 				  bound = [ImmInstance | Rest]} = Ctx, Opts) ->
-    RawType = (proper_target:strategy()):get_shrinker(TMap),
+    RawType = proper_target:get_shrinker(TMap),
     case proper_types:safe_is_instance(ImmInstance, RawType) of
 	true ->
 	    Instance = proper_gen:clean_instance(ImmInstance),

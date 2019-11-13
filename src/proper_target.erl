@@ -61,50 +61,105 @@
 %%% </dl>
 
 -module(proper_target).
+-behaviour(gen_server).
 
--export([targeted/1, update_target_uvs/2, use_strategy/2,
-         strategy/0, init_strategy/1, cleanup_strategy/0, get_shrinker/1]).
+-include_lib("proper_internal.hrl").
 
--include_lib("proper_common.hrl").
 
--export_type([key/0, fitness/0, tmap/0]).
--export_type([target_state/0, next_func/0, fitness_func/0,
-              target/0]).
+%% -----------------------------------------------------------------------------
+%% Exports
+%% -----------------------------------------------------------------------------
+
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+         code_change/3]).
+-export([init_strategy/1, cleanup_strategy/0, init_target/1,
+         update_uv/2, reset/0, targeted/1, get_shrinker/1]).
+
 
 %% -----------------------------------------------------------------------------
 %% Type declarations
 %% -----------------------------------------------------------------------------
 
--type key()     :: nonempty_string() | reference().
 -type fitness() :: number().
 -type tmap()    :: #{atom() => term()}.
 
 -type threshold() :: fitness() | 'inf'.
 
--type target_state() :: term().
--type next_func()    :: fun ((target_state()) -> {target_state(), any()}).
--type fitness_func() :: fun ((target_state(), fitness()) -> target_state()) | none.
+-type target_state()  :: term().
+-type strategy_data() :: term().
+-type next_func()     :: fun ((target_state()) -> {target_state(), any()}).
+-type fitness_func()  :: fun ((target_state(), fitness()) -> target_state()) 
+                       | none.
 
--type target()    :: {target_state(), next_func(), fitness_func()}.
--type strategy()  :: module().
+-type target()   :: {target_state(), next_func(), fitness_func()}.
+-type strategy() :: module().
+-type opts()     :: strategy() 
+                  | #{search_steps := integer(), search_strategy := strategy()}.
+
+-record(state,
+        {strategy           :: strategy(),
+         target = undefined :: target_state() | undefined,
+         data = undefined   :: strategy_data() | undefined}).
+-type state() :: #state{}.
+
+-export_type([fitness/0, tmap/0]).
+-export_type([target_state/0, strategy_data/0, next_func/0, fitness_func/0,
+              target/0, opts/0]).
+
 
 %% -----------------------------------------------------------------------------
 %% proper_target callback functions for defining strategies
 %% ----------------------------------------------------------------------------
 
 %% strategy global initializer
--callback init_strategy(proper:setup_opts()) -> 'ok'.
-%% cleanup function
--callback cleanup() -> 'ok'.
+-callback init_strategy(proper:setup_opts()) -> strategy_data().
 %% target initializer
--callback init_target(tmap()) -> target().
-%% generator for shrinking
--callback get_shrinker(tmap()) -> proper_types:type().
-%% store, and retrieve state
--callback store_target(target_state()) -> 'ok'.
--callback retrieve_target() -> target() | 'undefined'.
+-callback init_target(tmap()) -> target_state().
+%% next function
+-callback next(target_state(), strategy_data()) -> 
+  {any(), target_state(), strategy_data()}.
 %% update the strategy with the fitness
--callback update_fitness(fitness()) -> 'ok'.
+-callback update_fitness(fitness(), target_state(), strategy_data()) -> 
+  {target_state(), strategy_data()}.
+%% reset strat
+-callback reset(target_state(), strategy_data()) -> 
+  {target_state(), strategy_data()}.
+
+
+%% -----------------------------------------------------------------------------
+%% API
+%% -----------------------------------------------------------------------------
+
+%% @doc Initializes targeted gen server based on a search strategy.
+%% Depending on the argument, the search steps will be taken from
+%% from the process dictionary or the setup options.
+
+-spec init_strategy(Opts :: opts()) -> ok.
+init_strategy(Strat) when is_atom(Strat) ->
+  Steps = get('$search_steps'),
+  init_strategy(#{search_steps => Steps, search_strategy => Strat});
+init_strategy(#{search_steps := Steps, search_strategy := Strat}) ->
+  Strategy = strategy(Strat),
+  proper_gen_next:init(),
+  Data = Strategy:init_strategy(#{numtests => Steps}),
+  {ok, TargetserverPid} = gen_server:start_link(?MODULE, [{Strategy, Data}], []),
+  put('$targetserver_pid', TargetserverPid),
+  ok.
+
+%% @doc Cleans up proper_gen_next as well as stopping the gen_server.
+
+-spec cleanup_strategy() -> ok.
+cleanup_strategy() ->
+  case erase('$targetserver_pid') of
+    undefined -> ok;
+    TargetserverPid ->
+      proper_gen_next:cleanup(),
+      gen_server:stop(TargetserverPid)
+  end.
+
+%% This is used to create the targeted generator.
+%% ?SHRINK so that this can be used with a ?SETUP macro,
+%% in conjuction with ?FORALL.
 
 %% @private
 -spec targeted(tmap()) -> proper_types:type().
@@ -112,18 +167,62 @@ targeted(TMap) ->
   ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(TMap))),
           [get_shrinker(TMap)]).
 
-%% @private
-targeted_gen(TMap) ->
-  {State, NextFunc, _FitnessFunc} = get_target(TMap),
-  {NewState, NextValue} = NextFunc(State),
-  update_target(NewState),
-  NextValue.
+%% @doc Initialize the target of the strategy.
+
+-spec init_target(tmap()) -> ok.
+init_target(TMap) ->
+  TargetserverPid = get('$targetserver_pid'),
+  safe_call(TargetserverPid, {init_target, TMap}).
+
+%% This produces the next gen instance from the next
+%% generator provided by the strategy. It will also
+%% update the state and data of the strategy.
 
 %% @private
--spec update_target_uvs(fitness(), threshold()) -> boolean().
-update_target_uvs(Fitness, Threshold) ->
-  set_fitness(Fitness),
+-spec targeted_gen(tmap()) -> any().
+targeted_gen(TMap) ->
+  init_target(TMap),
+  TargetserverPid = get('$targetserver_pid'),
+  gen_server:call(TargetserverPid, gen).
+
+%% @doc Get the shrinker for a tmap.
+
+-spec get_shrinker(tmap()) -> proper_types:type().
+get_shrinker(#{gen := Gen}) ->
+  Gen.
+
+%% This is used to update the fitness value.
+%% Depending on the strategy and the fitness this 
+%% may accept the newly generated value.
+
+%% @private
+-spec update_uv(fitness(), threshold()) -> boolean().
+update_uv(Fitness, Threshold) ->
+  TargetserverPid = get('$targetserver_pid'),
+  safe_call(TargetserverPid, {update_fitness, Fitness}),
   check_threshold(Threshold, Fitness).
+
+%% @doc Reset the strategy target and data to a random
+%% initial value. Useful when the generated instances
+%% differ from the target, depending on the problem.
+
+-spec reset() -> ok.
+reset() ->
+  TargetserverPid = get('$targetserver_pid'),
+  safe_call(TargetserverPid, reset).
+
+%% Create a safe call to a gen_server in case it
+%% raises noproc. Τhis should only be used for
+%% calls that do not return significant values.
+
+%% @private
+-spec safe_call(pid(), term()) -> term().
+safe_call(Pid, Call) ->
+  try
+    gen_server:call(Pid, Call)
+  catch _:{noproc, _} ->
+    ok
+  end.
 
 %% @private
 check_threshold(Threshold, Fitness) ->
@@ -133,13 +232,6 @@ check_threshold(Threshold, Fitness) ->
   end.
 
 %% @private
-set_fitness(Fitness) ->
-  update_global(Fitness).
-
--spec strategy() -> strategy().
-strategy() ->
-  get('$search_strategy').
-
 strategy(Strat) ->
   case Strat of
     simulated_annealing ->
@@ -151,57 +243,77 @@ strategy(Strat) ->
       Strat
   end.
 
-%% store the used strategy into the process dictionary
-%% used only to provide backwards compatibility
-%% @private
--spec use_strategy(strategy(), proper:setup_opts()) -> proper:outer_test().
-use_strategy(Strat, Opts) ->
-  Strategy = strategy(Strat),
-  put('$search_strategy', Strategy),
-  Strategy:init_strategy(Opts).
 
--spec init_strategy(strategy()) -> ok.
-init_strategy(Strat) ->
-  Strategy = strategy(Strat),
-  put('$search_strategy', Strategy),
-  Steps = get('$search_steps'),
-  OutputFun = fun(_, _) -> ok end,
-  Strategy:init_strategy(#{numtests=>Steps, output_fun=>OutputFun}).
+%% -----------------------------------------------------------------------------
+%% gen_server callbacks
+%% -----------------------------------------------------------------------------
 
 %% @private
--spec cleanup_strategy() -> ok.
-cleanup_strategy() ->
-  (strategy()):cleanup(),
+-spec init(Args :: [{strategy(), strategy_data()}]) -> {ok, state()}.
+init([{Strategy, Data}]) ->
+  {ok, #state{strategy = Strategy, data = Data}}.
+
+%% @private
+-spec handle_call(Request :: term(), From :: {pid(), Tag :: term()},
+                  State :: state()) ->
+  {reply, Reply :: term(), NewState :: state()}.
+handle_call(gen, _From, State) ->
+  Strat = State#state.strategy,
+  Target = State#state.target,
+  Data = State#state.data,
+  {NextValue, NewTarget, NewData} = Strat:next(Target, Data),
+  {reply, NextValue, State#state{target = NewTarget, data = NewData}};
+handle_call({init_target, TMap}, _From, State) ->
+  Strat = State#state.strategy,
+  Target = State#state.target,
+  NewTarget = case Target of
+                undefined ->
+                  case TMap of
+                    #{gen := Gen} ->
+                      NewTMap = proper_gen_next:from_proper_generator(Gen),
+                      Strat:init_target(NewTMap);
+                    #{first := _First, next := _Next} ->
+                      Strat:init_target(TMap)
+                  end;
+                _ -> Target
+              end,
+  {reply, ok, State#state{target = NewTarget}};
+handle_call({update_fitness, Fitness}, _From, State) ->
+  Strat = State#state.strategy,
+  Target = State#state.target,
+  Data = State#state.data,
+  {NewTarget, NewData} = Strat:update_fitness(Fitness, Target, Data),
+  {reply, ok, State#state{target = NewTarget, data = NewData}};
+handle_call(reset, _From, State) ->
+  Strat = State#state.strategy,
+  Target = State#state.target,
+  Data = State#state.data,
+  {NewTarget, NewData} = Strat:reset(Target, Data),
+  {reply, ok, State#state{target = NewTarget, data = NewData}}.
+
+%% @private
+-spec handle_cast(Request :: term(), State :: state()) ->
+  {noreply, NewState :: term()}.
+handle_cast(_Request, State) ->
+  {noreply, State}.
+
+%% @private
+-spec handle_info(Info :: timeout | term(), State :: state()) ->
+  {noreply, NewState :: state()}.
+handle_info(_Info, State) ->
+  {noreply, State}.
+
+%% @private
+-spec terminate(Reason :: (normal | shutdown | {shutdown, term()} |
+                           term()),
+                State :: state()) ->
+  ok.
+terminate(_Reason, _State) ->
   ok.
 
 %% @private
--spec get_target(tmap()) -> target().
-get_target(TMap) ->
-  Strategy = strategy(),
-  case Strategy:retrieve_target() of
-    undefined ->
-      FreshTarget = Strategy:init_target(TMap),
-      Strategy:store_target(FreshTarget),
-      FreshTarget;
-    StoredTarget ->
-      StoredTarget
-  end.
-
-%% @private
--spec update_target(target_state()) -> 'ok'.
-update_target(State) ->
-  Strategy = strategy(),
-  {_, N, F} = Strategy:retrieve_target(),
-  Strategy:store_target({State, N, F}).
-
-%% @private
--spec update_global(fitness()) -> 'ok'.
-update_global(Fitness) ->
-  Strategy = strategy(),
-  Strategy:update_fitness(Fitness).
-
-%% @private
--spec get_shrinker(tmap()) -> proper_types:type().
-get_shrinker(Opts) ->
-  Strategy = strategy(),
-  Strategy:get_shrinker(Opts).
+-spec code_change(OldVsn :: (term() | {down, term()}), State :: state(),
+                  Extra :: term()) ->
+  {ok, NewState :: state()}.
+code_change(_OldVsn, State, _Extra) ->
+  {ok, State}.
