@@ -126,10 +126,8 @@ init_target(#{first := First, next := Next}) ->
 
 %% @private
 -spec next(sa_target(), sa_data()) -> {any(), sa_target(), sa_data()}.
-next(Target, Data) ->
-  Temperature = Data#sa_data.temperature,
-  NextGenerator = (Target#sa_target.next)(Target#sa_target.last_generated,
-                                          Temperature),
+next(#sa_target{next = Next, last_generated = LastGen} = Target, Data) ->
+  NextGenerator = Next(LastGen, Data#sa_data.temperature),
   {ok, Generated} = proper_gen:safe_generate(NextGenerator),
   {Generated, Target#sa_target{current_generated = Generated}, Data}.
 
@@ -147,11 +145,9 @@ update_fitness(Fitness, Target, Data) ->
            k_max = K_Max,
            last_energy = Energy,
            temperature = Temperature,
-           temp_func = TempFunc} = Data,
-  case (Energy =:= null)
-       orelse (Data#sa_data.p)(Energy,
-                               Fitness,
-                               Temperature) of
+           temp_func = TempFunc,
+           p = P} = Data,
+  case (Energy =:= null) orelse P(Energy, Fitness, Temperature) of
     true ->
       %% accept new state
       proper_gen_next:update_caches(accept),

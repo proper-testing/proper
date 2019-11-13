@@ -154,10 +154,8 @@ cleanup_strategy() ->
     undefined -> ok;
     TargetserverPid ->
       proper_gen_next:cleanup(),
-      ok = gen_server:stop(TargetserverPid),
-      ok
-  end,
-  ok.
+      gen_server:stop(TargetserverPid)
+  end.
 
 %% This is used to create the targeted generator.
 %% ?SHRINK so that this can be used with a ?SETUP macro,
@@ -269,15 +267,16 @@ handle_call({init_target, TMap}, _From, State) ->
   Strat = State#state.strategy,
   Target = State#state.target,
   NewTarget = case Target of
-    undefined -> 
-      case TMap of
-        #{gen := Gen} -> 
-          Strat:init_target(proper_gen_next:from_proper_generator(Gen));
-        #{first := _First, next := _Next} -> 
-          Strat:init_target(TMap)
-      end;
-    _ -> Target
-  end,
+                undefined ->
+                  case TMap of
+                    #{gen := Gen} ->
+                      NewTMap = proper_gen_next:from_proper_generator(Gen),
+                      Strat:init_target(NewTMap);
+                    #{first := _First, next := _Next} ->
+                      Strat:init_target(TMap)
+                  end;
+                _ -> Target
+              end,
   {reply, ok, State#state{target = NewTarget}};
 handle_call({update_fitness, Fitness}, _From, State) ->
   Strat = State#state.strategy,

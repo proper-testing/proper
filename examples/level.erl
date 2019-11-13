@@ -168,7 +168,7 @@ path() ->
 
 path_next() ->
   fun (PrevPath, _) ->
-    ?LET(NextSteps, vector(20, step()), PrevPath ++ NextSteps)
+      ?LET(NextSteps, vector(20, step()), PrevPath ++ NextSteps)
   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

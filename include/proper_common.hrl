@@ -77,8 +77,8 @@
 
 -define(TARGET(TMap), proper_target:targeted(TMap)).
 -define(STRATEGY(Strat, Prop), ?SETUP(fun (Opts) ->
-                                          proper_target:init_strategy(
-                                            Opts#{search_strategy => Strat}),
+                                          NewOpts = Opts#{search_strategy => Strat},
+                                          proper_target:init_strategy(NewOpts),
                                           fun proper_target:cleanup_strategy/0
                                       end, Prop)).
 -define(FORALL_SA(X, RawType, Prop),
