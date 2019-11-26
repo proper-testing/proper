@@ -2169,6 +2169,9 @@ assign_tests_on_list([H|T], Extras, Acc) ->
     assign_tests_on_list(T, Extras - 1, NewAcc).
 
 -spec assign_tests_on_list(pos_integer(), non_neg_integer()) -> list(pos_integer()).
+assign_tests_on_list(NumTests, NumProcs) when NumTests < NumProcs ->
+    BaseList = lists:map(fun(_X) -> 1 end,  lists:seq(1, NumTests)),
+    assign_tests_on_list(BaseList, 0, []);
 assign_tests_on_list(NumTests, NumProcs) ->
     Const = NumTests div NumProcs,
     Extras = NumTests rem NumProcs,
