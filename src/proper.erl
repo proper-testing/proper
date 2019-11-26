@@ -514,6 +514,7 @@
 		  | 'verbose'
 		  | pos_integer()
 		  | {'constraint_tries',pos_integer()}
+          | {'distributed', boolean()}
 		  | {'false_positive_mfas',false_positive_mfas()}
 		  | {'max_shrinks',non_neg_integer()}
 		  | {'max_size',proper_gen:size()}
@@ -544,6 +545,8 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
+		   distributed      = 0               :: non_neg_integer(),
+		   parent           = self()          :: pid(),
                nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
 -record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
@@ -965,6 +968,7 @@ parse_opt(UserOpt, Opts) ->
 	%% tuple options, sorted on tag
 	{constraint_tries,N} ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{constraint_tries = N});
+    {distributed,N} -> Opts#opts{distributed = N};
 	{false_positive_mfas,F} ->
 	    ?VALIDATE_OPT(is_function(F, 3) orelse F =:= undefined,
 			  Opts#opts{false_positive_mfas = F});
@@ -1146,7 +1150,6 @@ timeout(Limit, DTest) ->
 equals(A, B) ->
     ?WHENFAIL(io:format("~w =/= ~w~n",[A,B]), A =:= B).
 
-
 %%-----------------------------------------------------------------------------
 %% Bulk testing functions
 %%-----------------------------------------------------------------------------
@@ -1162,9 +1165,18 @@ test(RawTest, Opts) ->
 
 -spec inner_test(raw_test(), opts()) -> result().
 inner_test(RawTest, Opts) ->
-    #opts{numtests = NumTests, long_result = Long, output_fun = Print} = Opts,
+    #opts{numtests = NumTests, long_result = Long, output_fun = Print,
+            distributed = NumProcs} = Opts,
     Test = cook_test(RawTest, Opts),
-    ImmResult = perform(NumTests, Test, Opts),
+	ImmResult = case NumProcs > 0 of
+	true ->
+	    Fun = fun(N) -> spawn_link_migrate(fun() -> perform(N, Test, Opts) end) end,
+	    BaseList = assign_tests_on_list(NumTests, NumProcs),
+	    ProcList = lists:map(Fun, BaseList),
+	    aggregate_imm_result(ProcList, #pass{});
+	false ->
+	    perform(NumTests, Test, Opts)
+	end, 
     Print("~n", []),
     report_imm_result(ImmResult, Opts),
     {ShortResult,LongResult} = get_result(ImmResult, Test, Opts),
@@ -1278,16 +1290,23 @@ perform(NumTests, Test, Opts) ->
 
 -spec perform(non_neg_integer(), pos_integer(), non_neg_integer(), test(),
 	      [sample()] | 'none', [stats_printer()] | 'none', opts()) ->
-	  imm_result().
+      imm_result()
+    ; (non_neg_integer(), pos_integer(), non_neg_integer(), test(),
+        [sample()] | 'none', [stats_printer()] | 'none', opts()) -> ok.
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
     case Passed of
 	0 -> {error, cant_satisfy};
 	_ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
     end;
+perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, 
+        #opts{distributed = NumProcs, parent = From} = _Opts) when NumProcs > 0 ->
+    R = #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []},
+    From ! {run_output, R, self()},
+    ok;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
-	#opts{output_fun = Print} = Opts) ->
+    #opts{output_fun = Print, distributed = NumProcs, parent = From} = Opts) ->
     case run(Test, Opts) of
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
@@ -1302,7 +1321,14 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 		    NewSamples, NewPrinters, Opts);
 	#fail{} = FailResult ->
 	    Print("!", []),
-	    FailResult#fail{performed = Passed + 1};
+        R = FailResult#fail{performed = Passed + 1},
+        case NumProcs > 0 of
+        true ->
+            From ! {run_output, R, self()},
+            ok;
+        false ->
+            R
+        end;
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(Opts),
@@ -1959,6 +1985,28 @@ apply_skip(Args, Prop) ->
 %% Output functions
 %%-----------------------------------------------------------------------------
 
+-spec aggregate_imm_result(list(pid()), imm_result()) -> imm_result().
+aggregate_imm_result([], ImmResult) ->
+    ImmResult;
+aggregate_imm_result(ProcList, ImmResult) -> 
+    receive
+        {run_output, #pass{performed = PassedRcvd} = Received, From} ->
+            #pass{performed = Passed} = ImmResult,
+            case Passed of
+                undefined -> % in case we hadnt received anything yet we use the first pass
+                    aggregate_imm_result(ProcList -- [From], Received);
+                _ -> % from that moment on, we accumulate the count of passes
+                    aggregate_imm_result(ProcList -- [From], 
+                    ImmResult#pass{performed = Passed + PassedRcvd})
+            end;
+        {run_output, #fail{} = Received, _From} -> 
+            aggregate_imm_result([], Received);
+        {run_output, {error, _Reason} = Error, _From} -> 
+            aggregate_imm_result([], Error);
+        {'EXIT', From, _ExcReason} ->
+            aggregate_imm_result(ProcList -- [From], ImmResult)
+    end.
+
 -spec report_imm_result(imm_result(), opts()) -> 'ok'.
 report_imm_result(#pass{samples = Samples, printers = Printers,
 			performed = Performed},
@@ -2109,6 +2157,23 @@ report_shrinking(NumShrinks, MinImmTestCase, MinActions, Opts) ->
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
+-spec assign_tests_on_list(list(pos_integer()), non_neg_integer(), list(pos_integer())) -> list(pos_integer()).
+assign_tests_on_list(L, 0, []) ->
+    L;
+assign_tests_on_list(L, 0, Acc) ->
+    Acc ++ L;
+assign_tests_on_list([], Extras, Acc) ->
+    assign_tests_on_list(Acc, Extras, []);
+assign_tests_on_list([H|T], Extras, Acc) ->
+    NewAcc = Acc ++ [H + 1],
+    assign_tests_on_list(T, Extras - 1, NewAcc).
+
+-spec assign_tests_on_list(pos_integer(), non_neg_integer()) -> list(pos_integer()).
+assign_tests_on_list(NumTests, NumProcs) ->
+    Const = NumTests div NumProcs,
+    Extras = NumTests rem NumProcs,
+    BaseList = lists:map(fun(_X) -> Const end,  lists:seq(1, NumProcs)),
+    assign_tests_on_list(BaseList, Extras, []).
 
 %%-----------------------------------------------------------------------------
 %% Stats printing functions
