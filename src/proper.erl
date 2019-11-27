@@ -514,10 +514,10 @@
 		  | 'verbose'
 		  | pos_integer()
 		  | {'constraint_tries',pos_integer()}
-          | {'distributed', boolean()}
 		  | {'false_positive_mfas',false_positive_mfas()}
 		  | {'max_shrinks',non_neg_integer()}
 		  | {'max_size',proper_gen:size()}
+          | {'num_processes', non_neg_integer()}
 		  | {'numtests',pos_integer()}
 		  | {'on_output',output_fun()}
 		  | {'search_steps',pos_integer()}
@@ -545,7 +545,7 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-		   distributed      = 0               :: non_neg_integer(),
+		   num_processes    = 0               :: non_neg_integer(),
 		   parent           = self()          :: pid(),
                nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
@@ -968,7 +968,6 @@ parse_opt(UserOpt, Opts) ->
 	%% tuple options, sorted on tag
 	{constraint_tries,N} ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{constraint_tries = N});
-    {distributed,N} -> Opts#opts{distributed = N};
 	{false_positive_mfas,F} ->
 	    ?VALIDATE_OPT(is_function(F, 3) orelse F =:= undefined,
 			  Opts#opts{false_positive_mfas = F});
@@ -976,6 +975,7 @@ parse_opt(UserOpt, Opts) ->
 	    ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{max_shrinks = N});
 	{max_size,Size} ->
 	    ?VALIDATE_OPT(?NON_NEG_INTEGER(Size), Opts#opts{max_size = Size});
+    {num_processes,N} -> Opts#opts{num_processes = N};
 	{numtests,N} ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
 	{on_output,Print} ->
@@ -1166,12 +1166,12 @@ test(RawTest, Opts) ->
 -spec inner_test(raw_test(), opts()) -> result().
 inner_test(RawTest, Opts) ->
     #opts{numtests = NumTests, long_result = Long, output_fun = Print,
-            distributed = NumProcs} = Opts,
+            num_processes = NumProcesses} = Opts,
     Test = cook_test(RawTest, Opts),
-	ImmResult = case NumProcs > 0 of
+	ImmResult = case NumProcesses > 0 of
 	true ->
 	    Fun = fun(N) -> spawn_link_migrate(fun() -> perform(N, Test, Opts) end) end,
-	    BaseList = assign_tests_on_list(NumTests, NumProcs),
+	    BaseList = assign_tests_on_list(NumTests, NumProcesses),
 	    ProcList = lists:map(Fun, BaseList),
 	    aggregate_imm_result(ProcList, #pass{});
 	false ->
@@ -1299,14 +1299,14 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
 	_ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
     end;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, 
-        #opts{distributed = NumProcs, parent = From} = _Opts) when NumProcs > 0 ->
+        #opts{num_processes = NumProcesses, parent = From} = _Opts) when NumProcesses > 0 ->
     R = #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []},
     From ! {run_output, R, self()},
     ok;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
-    #opts{output_fun = Print, distributed = NumProcs, parent = From} = Opts) ->
+    #opts{output_fun = Print, num_processes = NumProcesses, parent = From} = Opts) ->
     case run(Test, Opts) of
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
@@ -1322,7 +1322,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#fail{} = FailResult ->
 	    Print("!", []),
         R = FailResult#fail{performed = Passed + 1},
-        case NumProcs > 0 of
+        case NumProcesses > 0 of
         true ->
             From ! {run_output, R, self()},
             ok;
@@ -2169,13 +2169,13 @@ assign_tests_on_list([H|T], Extras, Acc) ->
     assign_tests_on_list(T, Extras - 1, NewAcc).
 
 -spec assign_tests_on_list(pos_integer(), non_neg_integer()) -> list(pos_integer()).
-assign_tests_on_list(NumTests, NumProcs) when NumTests < NumProcs ->
+assign_tests_on_list(NumTests, NumProcesses) when NumTests < NumProcesses ->
     BaseList = lists:map(fun(_X) -> 1 end,  lists:seq(1, NumTests)),
     assign_tests_on_list(BaseList, 0, []);
-assign_tests_on_list(NumTests, NumProcs) ->
-    Const = NumTests div NumProcs,
-    Extras = NumTests rem NumProcs,
-    BaseList = lists:map(fun(_X) -> Const end,  lists:seq(1, NumProcs)),
+assign_tests_on_list(NumTests, NumProcesses) ->
+    Const = NumTests div NumProcesses,
+    Extras = NumTests rem NumProcesses,
+    BaseList = lists:map(fun(_X) -> Const end,  lists:seq(1, NumProcesses)),
     assign_tests_on_list(BaseList, Extras, []).
 
 %%-----------------------------------------------------------------------------
