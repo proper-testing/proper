@@ -756,7 +756,8 @@ spawn_link_migrate(ActualFun) ->
 	      proper_arith:rand_reseed(),
 	      ok = ActualFun()
 	  end,
-    spawn_link(Fun).
+    Node = get(slave_node),
+    spawn_link(Node, Fun).
 
 -spec save_counterexample(counterexample()) -> 'ok'.
 save_counterexample(CExm) ->
@@ -1163,6 +1164,19 @@ test(RawTest, Opts) ->
     global_state_erase(),
     Result.
 
+-spec start_node() -> ok.
+start_node() ->
+    [] = os:cmd("epmd -daemon"),
+    HostName = list_to_atom(net_adm:localhost()),
+    net_kernel:start([proper_master, shortnames]),
+    case slave:start_link(HostName, proper_slave) of
+        {ok, Node} -> 
+            undefined = put(slave_node, Node),
+            ok;
+        {error, {already_running, _Node}} ->
+            ok
+    end.
+
 -spec inner_test(raw_test(), opts()) -> result().
 inner_test(RawTest, Opts) ->
     #opts{numtests = NumTests, long_result = Long, output_fun = Print,
@@ -1170,6 +1184,7 @@ inner_test(RawTest, Opts) ->
     Test = cook_test(RawTest, Opts),
 	ImmResult = case NumProcesses > 0 of
 	true ->
+        ok = start_node(),
 	    Fun = fun(N) -> spawn_link_migrate(fun() -> perform(N, Test, Opts) end) end,
 	    BaseList = assign_tests_on_list(NumTests, NumProcesses),
 	    ProcList = lists:map(Fun, BaseList),
