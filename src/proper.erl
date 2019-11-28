@@ -756,8 +756,12 @@ spawn_link_migrate(ActualFun) ->
 	      proper_arith:rand_reseed(),
 	      ok = ActualFun()
 	  end,
-    Node = get(slave_node),
-    spawn_link(Node, Fun).
+    case get(slave_node) of
+        undefined ->
+            spawn_link(Fun);
+        Node ->
+            spawn_link(Node, Fun)
+    end.
 
 -spec save_counterexample(counterexample()) -> 'ok'.
 save_counterexample(CExm) ->
@@ -1164,19 +1168,6 @@ test(RawTest, Opts) ->
     global_state_erase(),
     Result.
 
--spec start_node() -> ok.
-start_node() ->
-    [] = os:cmd("epmd -daemon"),
-    HostName = list_to_atom(net_adm:localhost()),
-    net_kernel:start([proper_master, shortnames]),
-    case slave:start_link(HostName, proper_slave) of
-        {ok, Node} -> 
-            undefined = put(slave_node, Node),
-            ok;
-        {error, {already_running, _Node}} ->
-            ok
-    end.
-
 -spec inner_test(raw_test(), opts()) -> result().
 inner_test(RawTest, Opts) ->
     #opts{numtests = NumTests, long_result = Long, output_fun = Print,
@@ -1188,7 +1179,9 @@ inner_test(RawTest, Opts) ->
 	    Fun = fun(N) -> spawn_link_migrate(fun() -> perform(N, Test, Opts) end) end,
 	    BaseList = assign_tests_on_list(NumTests, NumProcesses),
 	    ProcList = lists:map(Fun, BaseList),
-	    aggregate_imm_result(ProcList, #pass{});
+	    Aggregate = aggregate_imm_result(ProcList, #pass{}),
+        ok = stop_node(),
+        Aggregate;
 	false ->
 	    perform(NumTests, Test, Opts)
 	end, 
@@ -2192,6 +2185,29 @@ assign_tests_on_list(NumTests, NumProcesses) ->
     Extras = NumTests rem NumProcesses,
     BaseList = lists:map(fun(_X) -> Const end,  lists:seq(1, NumProcesses)),
     assign_tests_on_list(BaseList, Extras, []).
+
+-spec start_node() -> ok.
+start_node() ->
+    os:cmd("epmd -daemon"),
+    HostName = list_to_atom(net_adm:localhost()),
+    net_kernel:start([proper_master, shortnames]),
+    case slave:start_link(HostName, proper_slave) of
+        {ok, Node} -> 
+            put(slave_node, Node),
+            Path = code:get_path(),
+            spawn(Node, fun() -> lists:foreach(fun code:add_patha/1, Path) end),
+            ok;
+        {error, {already_running, _Node}} ->
+            ok
+    end.
+
+-spec stop_node() -> ok.
+stop_node() ->
+    Node = get(slave_node),
+    slave:stop(Node),
+    net_kernel:stop(),
+    erase(slave_node),
+    ok.
 
 %%-----------------------------------------------------------------------------
 %% Stats printing functions
