@@ -1996,7 +1996,7 @@ apply_skip(Args, Prop) ->
 -spec aggregate_imm_result(list(pid()), imm_result()) -> imm_result().
 aggregate_imm_result([], ImmResult) ->
     ImmResult;
-aggregate_imm_result(ProcList, ImmResult) -> 
+aggregate_imm_result(ProcList, ImmResult) ->
     receive
         {run_output, #pass{performed = PassedRcvd} = Received, From} ->
             #pass{performed = Passed} = ImmResult,
@@ -2007,9 +2007,11 @@ aggregate_imm_result(ProcList, ImmResult) ->
                     aggregate_imm_result(ProcList -- [From], 
                     ImmResult#pass{performed = Passed + PassedRcvd})
             end;
-        {run_output, #fail{} = Received, _From} -> 
+        {run_output, #fail{} = Received, _From} ->
+            kill_processes(ProcList),
             aggregate_imm_result([], Received);
-        {run_output, {error, _Reason} = Error, _From} -> 
+        {run_output, {error, _Reason} = Error, _From} ->
+            kill_processes(ProcList),
             aggregate_imm_result([], Error);
         {'EXIT', From, _ExcReason} ->
             aggregate_imm_result(ProcList -- [From], ImmResult)
@@ -2207,6 +2209,16 @@ stop_node() ->
     slave:stop(Node),
     net_kernel:stop(),
     erase(slave_node),
+    ok.
+
+-spec kill_processes(list(pid())) -> ok.
+kill_processes(ProcList) ->
+    UnlinkAndKill = 
+    fun(P) ->
+        unlink(P),
+        exit(P, kill)
+    end,
+    lists:map(UnlinkAndKill, ProcList),
     ok.
 
 %%-----------------------------------------------------------------------------
