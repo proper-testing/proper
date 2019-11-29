@@ -1179,7 +1179,8 @@ inner_test(RawTest, Opts) ->
 	    Fun = fun(N) -> spawn_link_migrate(fun() -> perform(N, Test, Opts) end) end,
 	    BaseList = assign_tests_on_list(NumTests, NumProcesses),
 	    ProcList = lists:map(Fun, BaseList),
-	    Aggregate = aggregate_imm_result(ProcList, #pass{}),
+        InitialResult = #pass{samples = [], printers = [], actions = []},
+	    Aggregate = aggregate_imm_result(ProcList, InitialResult),
         ok = stop_node(),
         Aggregate;
 	false ->
@@ -1298,9 +1299,7 @@ perform(NumTests, Test, Opts) ->
 
 -spec perform(non_neg_integer(), pos_integer(), non_neg_integer(), test(),
 	      [sample()] | 'none', [stats_printer()] | 'none', opts()) ->
-      imm_result()
-    ; (non_neg_integer(), pos_integer(), non_neg_integer(), test(),
-        [sample()] | 'none', [stats_printer()] | 'none', opts()) -> ok.
+      imm_result() | ok.
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
     case Passed of
 	0 -> {error, cant_satisfy};
@@ -1996,17 +1995,15 @@ apply_skip(Args, Prop) ->
 -spec aggregate_imm_result(list(pid()), imm_result()) -> imm_result().
 aggregate_imm_result([], ImmResult) ->
     ImmResult;
-aggregate_imm_result(ProcList, ImmResult) ->
+aggregate_imm_result(ProcList, #pass{performed = Passed} = ImmResult) ->
     receive
-        {run_output, #pass{performed = PassedRcvd} = Received, From} ->
-            #pass{performed = Passed} = ImmResult,
-            case Passed of
-                undefined -> % in case we hadnt received anything yet we use the first pass
-                    aggregate_imm_result(ProcList -- [From], Received);
-                _ -> % from that moment on, we accumulate the count of passes
-                    aggregate_imm_result(ProcList -- [From], 
-                    ImmResult#pass{performed = Passed + PassedRcvd})
-            end;
+        % in case we didnt receive anything yet we use the first pass
+        {run_output, Received, From} when Passed == undefined ->
+                aggregate_imm_result(ProcList -- [From], Received);
+        % from that moment on, we accumulate the count of tests passed
+        {run_output, #pass{performed = PassedRcvd} = _Received, From} ->
+                NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd},
+                aggregate_imm_result(ProcList -- [From], NewImmResult);
         {run_output, #fail{} = Received, _From} ->
             kill_processes(ProcList),
             aggregate_imm_result([], Received);
@@ -2190,9 +2187,9 @@ assign_tests_on_list(NumTests, NumProcesses) ->
 
 -spec start_node() -> ok.
 start_node() ->
-    os:cmd("epmd -daemon"),
+    [] = os:cmd("epmd -daemon"),
     HostName = list_to_atom(net_adm:localhost()),
-    net_kernel:start([proper_master, shortnames]),
+    _ = net_kernel:start([proper_master, shortnames]),
     case slave:start_link(HostName, proper_slave) of
         {ok, Node} -> 
             put(slave_node, Node),
@@ -2206,8 +2203,8 @@ start_node() ->
 -spec stop_node() -> ok.
 stop_node() ->
     Node = get(slave_node),
-    slave:stop(Node),
-    net_kernel:stop(),
+    ok = slave:stop(Node),
+    _ = net_kernel:stop(),
     erase(slave_node),
     ok.
 
@@ -2218,7 +2215,7 @@ kill_processes(ProcList) ->
         unlink(P),
         exit(P, kill)
     end,
-    lists:map(UnlinkAndKill, ProcList),
+    _ = lists:map(UnlinkAndKill, ProcList),
     ok.
 
 %%-----------------------------------------------------------------------------
