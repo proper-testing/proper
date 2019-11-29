@@ -1998,12 +1998,12 @@ aggregate_imm_result([], ImmResult) ->
 aggregate_imm_result(ProcList, #pass{performed = Passed} = ImmResult) ->
     receive
         % in case we didnt receive anything yet we use the first pass
-        {run_output, Received, From} when Passed == undefined ->
+        {run_output, #pass{} = Received, From} when Passed == undefined ->
                 aggregate_imm_result(ProcList -- [From], Received);
         % from that moment on, we accumulate the count of tests passed
         {run_output, #pass{performed = PassedRcvd} = _Received, From} ->
-                NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd},
-                aggregate_imm_result(ProcList -- [From], NewImmResult);
+            NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd},
+            aggregate_imm_result(ProcList -- [From], NewImmResult);
         {run_output, #fail{} = Received, _From} ->
             kill_processes(ProcList),
             aggregate_imm_result([], Received);
