@@ -2215,8 +2215,7 @@ kill_processes(ProcList) ->
         unlink(P),
         exit(P, kill)
     end,
-    _ = lists:map(UnlinkAndKill, ProcList),
-    ok.
+    lists:foreach(UnlinkAndKill, ProcList).
 
 %%-----------------------------------------------------------------------------
 %% Stats printing functions
