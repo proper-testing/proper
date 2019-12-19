@@ -748,15 +748,15 @@ finalize_test(Finalizers) ->
     lists:foreach(fun (Fun) -> ok = Fun() end, Finalizers).
 
 %% @private
--spec spawn_link_migrate(fun(() -> 'ok')) -> pid().
-spawn_link_migrate(ActualFun) ->
+-spec spawn_link_migrate(node(), fun(() -> 'ok')) -> pid().
+spawn_link_migrate(Node, ActualFun) ->
     PDictStuff = get(),
     Fun = fun() ->
 	      lists:foreach(fun({K,V}) -> put(K,V) end, PDictStuff),
 	      proper_arith:rand_reseed(),
 	      ok = ActualFun()
 	  end,
-    case get(slave_node) of
+    case Node of
         undefined ->
             spawn_link(Fun);
         Node ->
@@ -1175,10 +1175,13 @@ inner_test(RawTest, Opts) ->
     Test = cook_test(RawTest, Opts),
 	ImmResult = case NumProcesses > 0 of
 	true ->
-        ok = start_node(),
-	    Fun = fun(N) -> spawn_link_migrate(fun() -> perform(N, Test, Opts) end) end,
-	    BaseList = assign_tests_on_list(NumTests, NumProcesses),
-	    ProcList = lists:map(Fun, BaseList),
+        NodeList = start_nodes(NumProcesses),
+        NumProcsList = assign_tests_on_list(NumTests, NumProcesses),
+        BaseList = lists:zip(NodeList, NumProcsList),
+	    SpawnFun =
+            fun({Node,N}) -> spawn_link_migrate(Node, fun() -> perform(N, Test, Opts) end) 
+        end,
+	    ProcList = lists:map(SpawnFun, BaseList),
         InitialResult = #pass{samples = [], printers = [], actions = []},
 	    Aggregate = aggregate_imm_result(ProcList, InitialResult),
         ok = stop_node(),
@@ -1552,7 +1555,7 @@ run({whenfail, NewAction, Prop}, #ctx{actions = Actions} = Ctx, Opts) ->
 run({trapexit, Prop}, Ctx, Opts) ->
     OldFlag = process_flag(trap_exit, true),
     Self = self(),
-    Child = spawn_link_migrate(fun() -> child(Self, Prop, Ctx, Opts) end),
+    Child = spawn_link_migrate(undefined, fun() -> child(Self, Prop, Ctx, Opts) end),
     Result =
 	receive
 	    {result, RecvResult} ->
@@ -1564,7 +1567,7 @@ run({trapexit, Prop}, Ctx, Opts) ->
     Result;
 run({timeout, Limit, Prop}, Ctx, Opts) ->
     Self = self(),
-    Child = spawn_link_migrate(fun() -> child(Self, Prop, Ctx, Opts) end),
+    Child = spawn_link_migrate(undefined, fun() -> child(Self, Prop, Ctx, Opts) end),
     receive
 	{result, RecvResult} -> RecvResult
     after Limit ->
@@ -2185,25 +2188,43 @@ assign_tests_on_list(NumTests, NumProcesses) ->
     BaseList = lists:map(fun(_X) -> Const end,  lists:seq(1, NumProcesses)),
     assign_tests_on_list(BaseList, Extras, []).
 
--spec start_node() -> ok.
-start_node() ->
+%% @private
+-spec update_slave_node_ref(node()) -> list(node()).
+update_slave_node_ref(Node) ->
+    NewMap = case get(slave_node) of
+        undefined -> [Node];
+        Map -> [Node|Map]
+    end,
+    put(slave_node, NewMap).
+
+-spec start_node(node()) -> node().
+start_node(SlaveName) ->
     [] = os:cmd("epmd -daemon"),
     HostName = list_to_atom(net_adm:localhost()),
     _ = net_kernel:start([proper_master, shortnames]),
-    case slave:start_link(HostName, proper_slave) of
+    case slave:start_link(HostName, SlaveName) of
         {ok, Node} -> 
-            put(slave_node, Node),
+            _ = update_slave_node_ref(Node),
             Path = code:get_path(),
             spawn(Node, fun() -> lists:foreach(fun code:add_patha/1, Path) end),
-            ok;
-        {error, {already_running, _Node}} ->
-            ok
+            Node;
+        {error, {already_running, Node}} ->
+            Node
     end.
+
+-spec start_nodes(non_neg_integer()) -> list(atom()).
+start_nodes(NumNodes) ->
+    StartNode =
+    fun(N) ->
+        SlaveName = list_to_atom("proper_slave_" ++ integer_to_list(N)),
+        _ = start_node(SlaveName)
+    end,
+    lists:map(StartNode, lists:seq(1, NumNodes)).
 
 -spec stop_node() -> ok.
 stop_node() ->
-    Node = get(slave_node),
-    ok = slave:stop(Node),
+    Nodes = get(slave_node),
+    lists:foreach(fun slave:stop/1, Nodes),
     _ = net_kernel:stop(),
     erase(slave_node),
     ok.
