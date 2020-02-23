@@ -1175,17 +1175,7 @@ inner_test(RawTest, Opts) ->
     Test = cook_test(RawTest, Opts),
 	ImmResult = case NumProcesses > 0 of
 	true ->
-        NodeList = start_nodes(NumProcesses),
-        NumProcsList = assign_tests_on_list(NumTests, NumProcesses),
-        BaseList = lists:zip(NodeList, NumProcsList),
-	    SpawnFun =
-            fun({Node,N}) -> spawn_link_migrate(Node, fun() -> perform(N, Test, Opts) end) 
-        end,
-	    ProcList = lists:map(SpawnFun, BaseList),
-        InitialResult = #pass{samples = [], printers = [], actions = []},
-	    Aggregate = aggregate_imm_result(ProcList, InitialResult),
-        ok = stop_node(),
-        Aggregate;
+        perform_with_nodes(Test, Opts);
 	false ->
 	    perform(NumTests, Test, Opts)
 	end, 
@@ -1196,6 +1186,28 @@ inner_test(RawTest, Opts) ->
 	true  -> LongResult;
 	false -> ShortResult
     end.
+
+-spec perform_with_nodes(test(), opts()) -> imm_result().
+perform_with_nodes(Test, #opts{numtests = NumTests, num_processes = NumProcesses} = Opts) ->
+    {forall, {_, TList}, _Fun} = Test,
+    NumProcsList = assign_tests_on_list(NumTests, NumProcesses),
+    NodeList =
+    case lists:keyfind(constructed, 2, TList) of
+        false -> % stateless
+            [Node|_] = start_nodes(1),
+            lists:map(fun(N) -> {Node, N} end, NumProcsList);
+        {kind, constructed}  -> % stateful
+            Nodes = start_nodes(NumProcesses),
+            lists:zip(Nodes, NumProcsList)
+    end,
+    SpawnFun = fun({Node,N}) ->
+        spawn_link_migrate(Node, fun() -> perform(N, Test, Opts) end)
+    end,
+    ProcList = lists:map(SpawnFun, NodeList),
+    InitialResult = #pass{samples = [], printers = [], actions = []},
+    Aggregate = aggregate_imm_result(ProcList, InitialResult),
+    ok = stop_node(),
+    Aggregate.
 
 -spec retry(test(), counterexample(), opts()) -> short_result().
 retry(Test, CExm, Opts) ->
