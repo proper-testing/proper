@@ -1175,7 +1175,12 @@ inner_test(RawTest, Opts) ->
     Test = cook_test(RawTest, Opts),
 	ImmResult = case NumProcesses > 0 of
 	true ->
-        perform_with_nodes(Test, Opts);
+        case NumProcesses > NumTests of
+            true ->
+                perform_with_nodes(Test, Opts#opts{num_processes = NumTests});
+            false ->
+                perform_with_nodes(Test, Opts)
+        end;
 	false ->
 	    perform(NumTests, Test, Opts)
 	end, 
