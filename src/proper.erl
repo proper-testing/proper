@@ -284,6 +284,9 @@
 %%% is undefined.</dd>
 %%% <dt>`nocolors'</dt>
 %%% <dd>Do not use term colors in output.</dd>
+%%% <dt>`{num_workers, <Non_negative_number>}'</dt>
+%%% <dd> Specifies the number of workers to spawn when performing the tests (defaults to 0,
+%%% which is PropEr's default behaviour). Each worker gets their own share of the total of number of tests to perform.</dd>
 %%% </dl>
 %%%
 %%% == Spec testing ==
@@ -517,8 +520,8 @@
 		  | {'false_positive_mfas',false_positive_mfas()}
 		  | {'max_shrinks',non_neg_integer()}
 		  | {'max_size',proper_gen:size()}
-          | {'num_processes', non_neg_integer()}
 		  | {'numtests',pos_integer()}
+          | {'num_workers', non_neg_integer()}
 		  | {'on_output',output_fun()}
 		  | {'search_steps',pos_integer()}
 		  | {'search_strategy',proper_target:strategy()}
@@ -545,7 +548,7 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-		   num_processes    = 0               :: non_neg_integer(),
+		   num_workers      = 0               :: non_neg_integer(),
 		   parent           = self()          :: pid(),
                nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
@@ -980,9 +983,10 @@ parse_opt(UserOpt, Opts) ->
 	    ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{max_shrinks = N});
 	{max_size,Size} ->
 	    ?VALIDATE_OPT(?NON_NEG_INTEGER(Size), Opts#opts{max_size = Size});
-    {num_processes,N} -> Opts#opts{num_processes = N};
 	{numtests,N} ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
+    {num_workers, N} ->
+        ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{num_workers = N});
 	{on_output,Print} ->
 	    ?VALIDATE_OPT(is_function(Print, 2),
 			  Opts#opts{output_fun = Print, nocolors = true});
@@ -1171,19 +1175,19 @@ test(RawTest, Opts) ->
 -spec inner_test(raw_test(), opts()) -> result().
 inner_test(RawTest, Opts) ->
     #opts{numtests = NumTests, long_result = Long, output_fun = Print,
-            num_processes = NumProcesses} = Opts,
+            num_workers = NumWorkers} = Opts,
     Test = cook_test(RawTest, Opts),
-	ImmResult = case NumProcesses > 0 of
+	ImmResult = case NumWorkers > 0 of
 	true ->
-        case NumProcesses > NumTests of
+        case NumWorkers > NumTests of
             true ->
-                perform_with_nodes(Test, Opts#opts{num_processes = NumTests});
+                perform_with_nodes(Test, Opts#opts{num_workers = NumTests});
             false ->
                 perform_with_nodes(Test, Opts)
         end;
 	false ->
 	    perform(NumTests, Test, Opts)
-	end, 
+	end,
     Print("~n", []),
     report_imm_result(ImmResult, Opts),
     {ShortResult,LongResult} = get_result(ImmResult, Test, Opts),
@@ -1192,18 +1196,28 @@ inner_test(RawTest, Opts) ->
 	false -> ShortResult
     end.
 
+-spec property_type(test()) -> tuple() | false.
+property_type({forall, {_, {'$type', TList}}, _}) -> lists:keyfind(constructed, 2, TList);
+property_type({forall, {_, TList}, _}) -> lists:keyfind(constructed, 2, TList);
+property_type(_) -> false.
+
+%% @private
+%% @doc Runs PropEr in parallel mode, through the use of workers to perform the tests.
+%% Under this mode, PropEr will try to detect if a property is stateless or stateful,
+%% on the former case all the workers will be spawned on a single node, while on the
+%% latter case it will start a node for every worker that will be spawned in order to
+%% avoid test collisions between them.
 -spec perform_with_nodes(test(), opts()) -> imm_result().
-perform_with_nodes(Test, #opts{numtests = NumTests, num_processes = NumProcesses} = Opts) ->
-    {forall, {_, TList}, _Fun} = Test,
-    NumProcsList = assign_tests_on_list(NumTests, NumProcesses),
+perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers} = Opts) ->
+    TestsPerProcess = tests_per_worker(NumTests, NumWorkers),
     NodeList =
-    case lists:keyfind(constructed, 2, TList) of
+    case property_type(Test) of
         false -> % stateless
             [Node|_] = start_nodes(1),
-            lists:map(fun(N) -> {Node, N} end, NumProcsList);
+            lists:map(fun(N) -> {Node, N} end, TestsPerProcess);
         {kind, constructed}  -> % stateful
-            Nodes = start_nodes(NumProcesses),
-            lists:zip(Nodes, NumProcsList)
+            Nodes = start_nodes(NumWorkers),
+            lists:zip(Nodes, TestsPerProcess)
     end,
     SpawnFun = fun({Node,N}) ->
         spawn_link_migrate(Node, fun() -> perform(N, Test, Opts) end)
@@ -1211,7 +1225,7 @@ perform_with_nodes(Test, #opts{numtests = NumTests, num_processes = NumProcesses
     ProcList = lists:map(SpawnFun, NodeList),
     InitialResult = #pass{samples = [], printers = [], actions = []},
     Aggregate = aggregate_imm_result(ProcList, InitialResult),
-    ok = stop_node(),
+    ok = stop_nodes(),
     Aggregate.
 
 -spec retry(test(), counterexample(), opts()) -> short_result().
@@ -1314,6 +1328,15 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
+-spec check_if_early_fail(non_neg_integer()) -> ok.
+check_if_early_fail(Passed) ->
+    receive
+        {run_output, {failed_test, From}} ->
+            From ! {performed, Passed},
+            ok
+        after 0 -> ok
+    end.
+
 perform(NumTests, Test, Opts) ->
     perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
@@ -1325,15 +1348,17 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
 	0 -> {error, cant_satisfy};
 	_ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
     end;
-perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, 
-        #opts{num_processes = NumProcesses, parent = From} = _Opts) when NumProcesses > 0 ->
+perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
+        #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
+    check_if_early_fail(ToPass),
     R = #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []},
     From ! {run_output, R, self()},
     ok;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
-    #opts{output_fun = Print, num_processes = NumProcesses, parent = From} = Opts) ->
+    #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts) ->
+    check_if_early_fail(Passed),
     case run(Test, Opts) of
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
@@ -1349,7 +1374,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#fail{} = FailResult ->
 	    Print("!", []),
         R = FailResult#fail{performed = Passed + 1},
-        case NumProcesses > 0 of
+        case NumWorkers > 0 of
         true ->
             From ! {run_output, R, self()},
             ok;
@@ -2024,11 +2049,20 @@ aggregate_imm_result(ProcList, #pass{performed = Passed} = ImmResult) ->
         {run_output, #pass{performed = PassedRcvd} = _Received, From} ->
             NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd},
             aggregate_imm_result(ProcList -- [From], NewImmResult);
-        {run_output, #fail{} = Received, _From} ->
-            kill_processes(ProcList),
-            aggregate_imm_result([], Received);
+        {run_output, #fail{performed = FailedOn} = Received, From} ->
+            lists:foreach(fun(P) -> P ! {run_output, {failed_test, self()}} end, ProcList -- [From]),
+            ToSum = lists:map(fun(_Proccess) ->
+                                receive
+                                    {performed, P} -> P;
+                                    {run_output, #fail{performed = FailedOn2} = _Received2, _From2} -> FailedOn2
+                                end
+                             end,
+                    ProcList -- [From]),
+            Sum = lists:sum(ToSum),
+            kill_workers(ProcList),
+            aggregate_imm_result([], Received#fail{performed = Sum + FailedOn});
         {run_output, {error, _Reason} = Error, _From} ->
-            kill_processes(ProcList),
+            kill_workers(ProcList),
             aggregate_imm_result([], Error);
         {'EXIT', From, _ExcReason} ->
             aggregate_imm_result(ProcList -- [From], ImmResult)
@@ -2184,26 +2218,21 @@ report_shrinking(NumShrinks, MinImmTestCase, MinActions, Opts) ->
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
--spec assign_tests_on_list(list(pos_integer()), non_neg_integer(), list(pos_integer())) -> list(pos_integer()).
-assign_tests_on_list(L, 0, []) ->
-    L;
-assign_tests_on_list(L, 0, Acc) ->
-    Acc ++ L;
-assign_tests_on_list([], Extras, Acc) ->
-    assign_tests_on_list(Acc, Extras, []);
-assign_tests_on_list([H|T], Extras, Acc) ->
-    NewAcc = Acc ++ [H + 1],
-    assign_tests_on_list(T, Extras - 1, NewAcc).
+-spec tests_per_worker(list(pos_integer()), non_neg_integer(), list(pos_integer())) -> list(pos_integer()).
+tests_per_worker(L, 0, []) -> L;
+tests_per_worker(L, 0, Acc) -> Acc ++ L;
+tests_per_worker([], Extras, Acc) -> tests_per_worker(Acc, Extras, []);
+tests_per_worker([H|T], Extras, Acc) -> tests_per_worker(T, Extras - 1, Acc ++ [H + 1]).
 
--spec assign_tests_on_list(pos_integer(), non_neg_integer()) -> list(pos_integer()).
-assign_tests_on_list(NumTests, NumProcesses) when NumTests < NumProcesses ->
-    BaseList = lists:map(fun(_X) -> 1 end,  lists:seq(1, NumTests)),
-    assign_tests_on_list(BaseList, 0, []);
-assign_tests_on_list(NumTests, NumProcesses) ->
-    Const = NumTests div NumProcesses,
-    Extras = NumTests rem NumProcesses,
-    BaseList = lists:map(fun(_X) -> Const end,  lists:seq(1, NumProcesses)),
-    assign_tests_on_list(BaseList, Extras, []).
+-spec tests_per_worker(pos_integer(), non_neg_integer()) -> list(pos_integer()).
+tests_per_worker(NumTests, NumWorkers) when NumTests < NumWorkers ->
+    BaseList = lists:map(fun(_X) -> 1 end, lists:seq(1, NumTests)),
+    tests_per_worker(BaseList, 0, []);
+tests_per_worker(NumTests, NumWorkers) ->
+    Const = NumTests div NumWorkers,
+    Extras = NumTests rem NumWorkers,
+    BaseList = lists:map(fun(_X) -> Const end, lists:seq(1, NumWorkers)),
+    tests_per_worker(BaseList, Extras, []).
 
 %% @private
 -spec update_slave_node_ref(node()) -> list(node()).
@@ -2214,13 +2243,16 @@ update_slave_node_ref(Node) ->
     end,
     put(slave_node, NewMap).
 
+%% @private
+%% @doc Starts a remote node to ensure the testing will not
+%% crash the BEAM, and loads on it all the needed code.
 -spec start_node(node()) -> node().
 start_node(SlaveName) ->
     [] = os:cmd("epmd -daemon"),
     HostName = list_to_atom(net_adm:localhost()),
     _ = net_kernel:start([proper_master, shortnames]),
     case slave:start_link(HostName, SlaveName) of
-        {ok, Node} -> 
+        {ok, Node} ->
             _ = update_slave_node_ref(Node),
             Path = code:get_path(),
             spawn(Node, fun() -> lists:foreach(fun code:add_patha/1, Path) end),
@@ -2229,6 +2261,8 @@ start_node(SlaveName) ->
             Node
     end.
 
+%% @private
+%% @doc Starts multiple (NumNodes) remote nodes.
 -spec start_nodes(non_neg_integer()) -> list(atom()).
 start_nodes(NumNodes) ->
     StartNode =
@@ -2238,17 +2272,21 @@ start_nodes(NumNodes) ->
     end,
     lists:map(StartNode, lists:seq(1, NumNodes)).
 
--spec stop_node() -> ok.
-stop_node() ->
+%% @private
+%% @doc Stops all the registered (started) nodes.
+-spec stop_nodes() -> ok.
+stop_nodes() ->
     Nodes = get(slave_node),
     lists:foreach(fun slave:stop/1, Nodes),
     _ = net_kernel:stop(),
     erase(slave_node),
     ok.
 
--spec kill_processes(list(pid())) -> ok.
-kill_processes(ProcList) ->
-    UnlinkAndKill = 
+%% @private
+%% @doc Kills, not before unlinking them, all the workers.
+-spec kill_workers(list(pid())) -> ok.
+kill_workers(ProcList) ->
+    UnlinkAndKill =
     fun(P) ->
         unlink(P),
         exit(P, kill)
