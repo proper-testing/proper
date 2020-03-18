@@ -1,4 +1,5 @@
-sudo: false
+os: linux
+dist: xenial
 language: erlang
 script: "make all"
 
@@ -13,7 +14,7 @@ otp_release:
    - 19.0
 
 # coverage tests
-matrix:
+jobs:
   include:
     - language: erlang
       otp_release: 22.3
