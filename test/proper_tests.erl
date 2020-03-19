@@ -515,16 +515,20 @@ impossible_types() ->
      ?SUCHTHAT(X, ?SUCHTHAT(Y, pos_integer(), Y < 0), X > 0),
      %% Nested constraints, of which the outer one fails
      ?SUCHTHAT(X, ?SUCHTHAT(Y, pos_integer(), Y > 0), X < 0),
-     %% Nested constraints, one strict and one non-strict, where the inner one fails
+     %% Nested constraints, one strict and one non-strict, where the
+     %% inner one fails
      ?SUCHTHATMAYBE(_X, ?SUCHTHAT(Y, pos_integer(), Y < 0), true),
-     %% Nested constraints, one strict and one non-strict, where the outer one fails
+     %% Nested constraints, one strict and one non-strict, where the
+     %% outer one fails
      ?SUCHTHAT(X, ?SUCHTHATMAYBE(Y, pos_integer(), Y < 0), X < 0),
-     %% Two failing constraints within a ?LET macro, where one
-     %% constraint is used as the 'raw type' and one is used as the 'generator'
-     ?LET(Y,?SUCHTHAT(X, pos_integer(), X < 0),?SUCHTHAT(Y, pos_integer(), Y < 0)),
+     %% Two failing constraints within a ?LET macro, where one constraint
+     %% is used as the 'raw type' and one is used as the 'generator'
+     ?LET(Y, ?SUCHTHAT(X, pos_integer(), X < 0),
+	     ?SUCHTHAT(Y, pos_integer(), Y < 0)),
      %% Two failing constraints within a ?LET macro, where both
      %% constraints are used as a 'raw type'
-     ?LET({X,Y},{?SUCHTHAT(X1, pos_integer(), X1 < 0),?SUCHTHAT(Y1, pos_integer(), Y1 < 0)},{X,Y})
+     ?LET({X,Y}, {?SUCHTHAT(X1, pos_integer(), X1 < 0),
+		  ?SUCHTHAT(Y1, pos_integer(), Y1 < 0)}, {X,Y})
     ].
 
 impossible_native_types() ->
@@ -1040,8 +1044,10 @@ error_props_test_() ->
 		   ?FORALL(X, integer(), ?IMPLIES(X > 5, X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
 		   ?FORALL(X, pos_integer(), X < 0)),
-     ?_errorsOut({cant_generate,[{proper_statem,commands,4}]}, prec_false:prop_simple()),
-     ?_errorsOut({cant_generate,[{nogen_statem,impossible_arg,0}]}, nogen_statem:prop_simple()),
+     ?_errorsOut({cant_generate,[{proper_statem,commands,4}]},
+		 prec_false:prop_simple()),
+     ?_errorsOut({cant_generate,[{nogen_statem,impossible_arg,0}]},
+		 nogen_statem:prop_simple()),
      ?_errorsOut(non_boolean_result, ?FORALL(_, integer(), not_a_boolean)),
      ?_errorsOut(non_boolean_result,
 		 ?FORALL(_, ?SHRINK(42,[0]),
@@ -1383,9 +1389,9 @@ partition(Pivot, List) ->
 partition_tr(_Pivot, [], Lower, Higher) ->
     {Lower, Higher};
 partition_tr(Pivot, [H|T], Lower, Higher) ->
-    if
-	H =< Pivot -> partition_tr(Pivot, T, [H|Lower], Higher);
-	H > Pivot  -> partition_tr(Pivot, T, Lower, [H|Higher])
+    case H =< Pivot of
+	true  -> partition_tr(Pivot, T, [H|Lower], Higher);
+	false -> partition_tr(Pivot, T, Lower, [H|Higher])
     end.
 
 quicksort([]) -> [];
@@ -1401,9 +1407,9 @@ creator(X) ->
     end.
 
 destroyer(X, Father) ->
-    if
-	X < 20 -> Father ! not_yet;
-	true   -> exit(this_is_the_end)
+    case X < 20 of
+	true  -> Father ! not_yet;
+	false -> exit(this_is_the_end)
     end.
 
 
