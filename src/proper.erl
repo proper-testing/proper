@@ -1197,8 +1197,9 @@ inner_test(RawTest, Opts) ->
     end.
 
 -spec property_type(test()) -> tuple() | false.
-property_type({forall, {_, {'$type', TList}}, _}) -> lists:keyfind(constructed, 2, TList);
-property_type({forall, {_, TList}, _}) -> lists:keyfind(constructed, 2, TList);
+property_type({forall, {_, {'$type', TList}}, _}) when is_list(TList) -> lists:keyfind(constructed, 2, TList);
+property_type({forall, {{'$type', TList}, _}, _}) when is_list(TList) -> lists:keyfind(constructed, 2, TList);
+property_type({forall, {_, TList}, _}) when is_list(TList) -> lists:keyfind(constructed, 2, TList);
 property_type(_) -> false.
 
 %% @private
@@ -1357,7 +1358,8 @@ perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
-    #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts) ->
+        #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts) 
+        when NumWorkers > 0 ->
     check_if_early_fail(Passed),
     case run(Test, Opts) of
 	#pass{reason = true_prop, samples = MoreSamples,
@@ -1374,13 +1376,29 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#fail{} = FailResult ->
 	    Print("!", []),
         R = FailResult#fail{performed = Passed + 1},
-        case NumWorkers > 0 of
-        true ->
-            From ! {run_output, R, self()},
-            ok;
-        false ->
-            R
-        end;
+        From ! {run_output, R, self()},
+        ok;
+    {error, Reason} ->
+        From ! {run_output, {error, Reason}, self()},
+        ok
+    end;
+perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
+        #opts{output_fun = Print} = Opts) ->
+    case run(Test, Opts) of
+	#pass{reason = true_prop, samples = MoreSamples,
+	      printers = MorePrinters} ->
+	    Print(".", []),
+	    NewSamples = add_samples(MoreSamples, Samples),
+	    NewPrinters = case Printers of
+			      none -> MorePrinters;
+			      _    -> Printers
+			  end,
+	    grow_size(Opts),
+	    perform(Passed + 1, ToPass, TriesLeft - 1, Test,
+		    NewSamples, NewPrinters, Opts);
+	#fail{} = FailResult ->
+	    Print("!", []),
+        FailResult#fail{performed = Passed + 1};
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(Opts),
