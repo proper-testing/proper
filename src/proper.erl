@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
 %%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
@@ -21,7 +21,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -2151,9 +2151,8 @@ with_title(Title) ->
 plain_stats_printer(SortedSample, Print, Title) ->
     print_title(Title, Print),
     Total = length(SortedSample),
-    FreqSample = process_sorted_sample(SortedSample),
-    lists:foreach(fun({X,F}) -> Print("~b\% ~w~n", [100 * F div Total,X]) end,
-		  FreqSample).
+    PrFun = fun ({Cmd,Fr}) -> Print("~5.2f\% ~w~n", [100 * Fr / Total,Cmd]) end,
+    lists:foreach(PrFun, process_sorted_sample(SortedSample)).
 
 -spec print_title(title(), output_fun()) -> 'ok'.
 print_title(RawTitle, Print) ->
