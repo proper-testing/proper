@@ -1344,6 +1344,14 @@ perform(NumTests, Test, Opts) ->
 -spec perform(non_neg_integer(), pos_integer(), non_neg_integer(), test(),
 	      [sample()] | 'none', [stats_printer()] | 'none', opts()) ->
       imm_result() | ok.
+perform(Passed, _ToPass, 0, _Test, Samples, Printers,
+        #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
+    R = case Passed of
+        0 -> {error, cant_satisfy};
+        _ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
+    end,
+    From ! {run_output, R, self()},
+    ok;
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
     case Passed of
 	0 -> {error, cant_satisfy};
@@ -1378,6 +1386,11 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
         R = FailResult#fail{performed = Passed + 1},
         From ! {run_output, R, self()},
         ok;
+    {error, rejected} ->
+	    Print("x", []),
+	    grow_size(Opts),
+	    perform(Passed, ToPass, TriesLeft - 1, Test,
+		    Samples, Printers, Opts);
     {error, Reason} ->
         From ! {run_output, {error, Reason}, self()},
         ok
