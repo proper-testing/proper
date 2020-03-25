@@ -1055,14 +1055,14 @@ error_props_test_() ->
      ?_assertRun(false,
 		 ?FORALL(_, ?SHRINK(42,[0]),
 			 non_deterministic([{4,false},{1,true}])),
-		 [], false),
+		 [{num_workers,0}], false),
      ?_assertRun(false,
 		 ?FORALL(_, ?SHRINK(42,[0]),
 			 non_deterministic([{3,false},{1,true},{1,false}])),
-		 [], false),
+		 [{num_workers,0}], false),
      ?_assertRun(false,
 		 ?FORALL(_, ?LAZY(non_deterministic([{1,1},{1,2},{1,3},{1,4}])),
-			 false), [], false)].
+			 false), [{num_workers,0}], false)].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))
