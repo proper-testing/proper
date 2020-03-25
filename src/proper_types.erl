@@ -252,7 +252,7 @@
     | {'combine', proper_gen:combine_fun()}
     | {'alt_gens', proper_gen:alt_gens()}
     | {'shrink_to_parts', boolean()}
-    | {'size_transform', fun((size()) -> size())}
+    | {'size_transform', fun((proper_gen:size()) -> proper_gen:size())}
     | {'is_instance', instance_test()}
     | {'shrinkers', [proper_shrink:shrinker()]}
     | {'noshrink', boolean()}
@@ -426,7 +426,7 @@ is_inst(Instance, RawType) ->
     is_inst(Instance, RawType, 10).
 
 %% @private
--spec is_inst(proper_gen:instance(), raw_type(), size()) ->
+-spec is_inst(proper_gen:instance(), raw_type(), proper_gen:size()) ->
 	  boolean() | {'error',{'typeserver',term()}}.
 is_inst(Instance, RawType, Size) ->
     proper:global_state_init_size(Size),
@@ -806,7 +806,7 @@ list_get_indices(_, List) ->
 %% This assumes that:
 %% - instances of size S are always valid instances of size >S
 %% - any recursive calls inside Gen are lazy
--spec distlist(size(), proper_gen:sized_generator(), boolean()) ->
+-spec distlist(proper_gen:size(), proper_gen:sized_generator(), boolean()) ->
 	  proper_types:type().
 distlist(Size, Gen, NonEmpty) ->
     ParentType = case NonEmpty of
@@ -1327,7 +1327,7 @@ weighted_default(Default, Type) ->
 %% types to produce instances that grow faster or slower, like so:
 %% ```?SIZED(Size, resize(Size * 2, list(integer()))'''
 %% The above specifies a list type that grows twice as fast as normal lists.
--spec resize(size(), Type::raw_type()) -> proper_types:type().
+-spec resize(proper_gen:size(), Type::raw_type()) -> proper_types:type().
 resize(NewSize, RawType) ->
     Type = cook_outer(RawType),
     case find_prop(size_transform, Type) of

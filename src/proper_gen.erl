@@ -48,7 +48,7 @@
 	 safe_union_gen/1]).
 
 %% Public API types
--export_type([instance/0, seed/0]).
+-export_type([instance/0, seed/0, size/0]).
 %% Internal types
 -export_type([imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, reverse_gen/0, combine_fun/0, alt_gens/0]).
@@ -62,9 +62,9 @@
 %% Types
 %%-----------------------------------------------------------------------------
 
--type seed()     :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
-
 -type instance() :: term().
+-type seed()     :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
+-type size()     :: non_neg_integer().
 
 %% TODO: update imm_instance() when adding more types: be careful when reading
 %%	 anything that returns it
