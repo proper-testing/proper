@@ -83,7 +83,6 @@
 -type mod_name() :: atom().
 -type fun_name() :: atom().
 -type size() :: non_neg_integer().
--type length() :: non_neg_integer().
 -type position() :: pos_integer().
 
 -type abs_form()   :: erl_parse:abstract_form().

@@ -413,7 +413,7 @@ binary_rev(Binary) ->
     {'$used', binary_to_list(Binary), Binary}.
 
 %% @private
--spec binary_len_gen(length()) -> proper_types:type().
+-spec binary_len_gen(proper_types:length()) -> proper_types:type().
 binary_len_gen(Len) ->
     ?LET(Bytes,
 	 proper_types:vector(Len, proper_types:byte()),
@@ -443,7 +443,7 @@ bitstring_rev(BitString) ->
      BitString}.
 
 %% @private
--spec bitstring_len_gen(length()) -> proper_types:type().
+-spec bitstring_len_gen(proper_types:length()) -> proper_types:type().
 bitstring_len_gen(Len) ->
     BytesLen = Len div 8,
     BitsLen = Len rem 8,
@@ -475,12 +475,12 @@ distlist_gen(RawSize, Gen, NonEmpty) ->
     fixed_list_gen(InnerTypes).
 
 %% @private
--spec vector_gen(length(), proper_types:type()) -> [imm_instance()].
+-spec vector_gen(proper_types:length(), proper_types:type()) -> [imm_instance()].
 vector_gen(Len, ElemType) ->
     vector_gen_tr(Len, ElemType, []).
 
--spec vector_gen_tr(length(), proper_types:type(), [imm_instance()]) ->
-	  [imm_instance()].
+-spec vector_gen_tr(proper_types:length(), proper_types:type(),
+		    [imm_instance()]) -> [imm_instance()].
 vector_gen_tr(0, _ElemType, AccList) ->
     AccList;
 vector_gen_tr(Left, ElemType, AccList) ->

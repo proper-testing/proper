@@ -206,7 +206,7 @@ insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos, Acc) ->
 insert_tr(Xs, Positions, [Y | YsTail], Pos, Acc) ->
     insert_tr(Xs, Positions, YsTail, Pos + 1, [Y | Acc]).
 
--spec unflatten([T], [length()]) -> [[T]].
+-spec unflatten([T], [proper_types:length()]) -> [[T]].
 unflatten(List, Lens) ->
     {[],RevSubLists} = lists:foldl(fun remove_n/2, {List,[]}, Lens),
     lists:reverse(RevSubLists).

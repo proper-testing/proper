@@ -162,7 +162,10 @@
 	 parameter/1, parameter/2]).
 -export([le/2]).
 
--export_type([type/0, raw_type/0, extint/0, extnum/0, frequency/0]).
+%% Public API types
+-export_type([type/0, raw_type/0]).
+-export_type([extint/0, extnum/0, frequency/0, length/0]).
+%% Internal types
 
 -include("proper_internal.hrl").
 
@@ -209,6 +212,7 @@
 %%------------------------------------------------------------------------------
 
 -type frequency() :: pos_integer().
+-type length()    :: non_neg_integer().
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | atom().
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean())
