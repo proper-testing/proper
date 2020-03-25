@@ -510,7 +510,7 @@
 	       search_steps     = 1000            :: pos_integer(),
 	       search_strategy  = proper_sa       :: atom(),
 	       start_size       = 1               :: size(),
-	       seed             = os:timestamp()  :: seed(),
+	       seed             = os:timestamp()  :: proper_gen:seed(),
 	       max_size         = 42              :: size(),
 	       max_shrinks      = 500             :: non_neg_integer(),
 	       noshrink         = false           :: boolean(),
@@ -655,7 +655,7 @@ global_state_init_size(Size) ->
     global_state_init(#opts{start_size = Size}).
 
 %% @private
--spec global_state_init_size_seed(size(), seed()) -> 'ok'.
+-spec global_state_init_size_seed(size(), proper_gen:seed()) -> 'ok'.
 global_state_init_size_seed(Size, Seed) ->
     global_state_init(#opts{start_size = Size, seed = Seed}).
 

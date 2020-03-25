@@ -47,7 +47,10 @@
 	 any_gen/1, native_type_gen/2, safe_weighted_union_gen/1,
 	 safe_union_gen/1]).
 
--export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
+%% Public API types
+-export_type([instance/0, seed/0]).
+%% Internal types
+-export_type([imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, reverse_gen/0, combine_fun/0, alt_gens/0]).
 
 -include("proper_internal.hrl").
@@ -59,6 +62,10 @@
 %% Types
 %%-----------------------------------------------------------------------------
 
+-type seed()     :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
+
+-type instance() :: term().
+
 %% TODO: update imm_instance() when adding more types: be careful when reading
 %%	 anything that returns it
 %% @private_type
@@ -66,7 +73,6 @@
 		      | instance()
 		      | {'$used', imm_instance(), imm_instance()}
 		      | {'$to_part', imm_instance()}.
--type instance() :: term().
 %% A value produced by the random instance generator.
 -type error_reason() :: 'arity_limit'
                       | {'cant_generate',[mfa()]}

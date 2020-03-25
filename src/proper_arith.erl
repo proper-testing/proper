@@ -223,14 +223,14 @@ remove_n(N, {List,Acc}) ->
 
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
--spec rand_start(seed()) -> 'ok'.
+-spec rand_start(proper_gen:seed()) -> 'ok'.
 rand_start(Seed) ->
     _ = rand:seed(exsplus, Seed),
     ok.
 
 %% @doc Conditionally seeds the random number generator. This function should
 %% be run before calling any random function from this module.
--spec rand_restart(seed()) -> 'ok'.
+-spec rand_restart(proper_gen:seed()) -> 'ok'.
 rand_restart(Seed) ->
     case get(?SEED_NAME) of
         undefined ->
