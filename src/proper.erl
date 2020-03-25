@@ -548,7 +548,7 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-		   num_workers      = 0               :: non_neg_integer(),
+		   num_workers      = 1               :: non_neg_integer(),
 		   parent           = self()          :: pid(),
                nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
@@ -1366,7 +1366,7 @@ perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
-        #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts) 
+        #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts)
         when NumWorkers > 0 ->
     check_if_early_fail(Passed),
     case run(Test, Opts) of
@@ -1391,8 +1391,19 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	    grow_size(Opts),
 	    perform(Passed, ToPass, TriesLeft - 1, Test,
 		    Samples, Printers, Opts);
-    {error, Reason} ->
-        From ! {run_output, {error, Reason}, self()},
+    {error, Reason} = Error when Reason =:= arity_limit
+			      orelse Reason =:= non_boolean_result
+			      orelse Reason =:= type_mismatch ->
+	    From ! {run_output, Error, self()},
+        ok;
+	{error, {cant_generate,_MFAs}} = Error ->
+	    From ! {run_output, Error, self()},
+        ok;
+	{error, {typeserver,_SubReason}} = Error ->
+	    From ! {run_output, Error, self()},
+        ok;
+	Other ->
+        From ! {run_output, {error, {unexpected,Other}}, self()},
         ok
     end;
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
@@ -2286,11 +2297,29 @@ start_node(SlaveName) ->
         {ok, Node} ->
             _ = update_slave_node_ref(Node),
             Path = code:get_path(),
-            spawn(Node, fun() -> lists:foreach(fun code:add_patha/1, Path) end),
+            ensure_code_loaded(Node, Path),
             Node;
         {error, {already_running, Node}} ->
             Node
     end.
+
+%% @private
+-spec ensure_code_loaded(node(), list(file:filename())) -> ok.
+ensure_code_loaded(Node, Path) ->
+    %% get all the files that need to be loaded from the current directory
+    Files = filelib:wildcard("**/*.beam"),
+    Filenames = lists:map(fun filename:basename/1, Files),
+    %% but we only need the filename without the .beam extension
+    FilesNoExt = lists:map(fun(File) -> re:replace(File, ".beam", "") end, Filenames),
+    Modules = lists:map(fun(File) ->
+                  erlang:list_to_atom(erlang:binary_to_list(File))
+              end, lists:flatten(FilesNoExt)),
+
+    %% spawn the functions needed to ensure that
+    %% all modules are available on the node
+    spawn(Node, fun() -> lists:foreach(fun code:add_patha/1, Path) end),
+    spawn(Node, fun() -> code:ensure_modules_loaded(Modules) end),
+    ok.
 
 %% @private
 %% @doc Starts multiple (NumNodes) remote nodes.
