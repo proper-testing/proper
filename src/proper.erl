@@ -489,7 +489,7 @@
 		  | 'long_result'
 		  | {'numtests',pos_integer()}
 		  | {'search_steps',pos_integer()}
-		  | {'search_strategy',atom()}
+		  | {'search_strategy',proper_target:strategy()}
 		  | pos_integer()
 		  | {'start_size',proper_gen:size()}
 		  | {'max_size',proper_gen:size()}
@@ -508,10 +508,10 @@
 	       long_result      = false           :: boolean(),
 	       numtests         = 100             :: pos_integer(),
 	       search_steps     = 1000            :: pos_integer(),
-	       search_strategy  = proper_sa       :: atom(),
+	       search_strategy  = proper_sa       :: proper_target:strategy(),
 	       start_size       = 1               :: proper_gen:size(),
 	       seed             = os:timestamp()  :: proper_gen:seed(),
-	       max_size         = 42              :: proper_gem:size(),
+	       max_size         = 42              :: proper_gen:size(),
 	       max_shrinks      = 500             :: non_neg_integer(),
 	       noshrink         = false           :: boolean(),
 	       constraint_tries = 50              :: pos_integer(),
@@ -532,7 +532,7 @@
 
 -type setup_opts() :: #{numtests := pos_integer(),
 			search_steps := pos_integer(),
-			search_strategy := atom(),
+			search_strategy := proper_target:strategy(),
 			start_size := proper_gen:size(),
 			max_size := proper_gen:size(),
 			output_fun := output_fun()}.

@@ -1,8 +1,8 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
-%%%                and  Konstantinos Sagonas <kostis@it.uu.se>
+%%% Copyright (c) 2017-2020 Andreas Löscher <andreas.loscher@it.uu.se>
+%%%                     and Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,12 +19,12 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017-2020 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
 %%% @author Andreas Löscher
 
-%%% @doc This module defines the top-level behaviour for targeted
-%%% property-based testing (TPBT). Using TPBT the input generation
+%%% @doc This module defines the top-level behaviour for Targeted
+%%% Property-Based Testing (TPBT). Using TPBT the input generation
 %%% is no longer random, but guided by a search strategy to increase
 %%% the probability of finding failing input. For this to work the user
 %%% has to specify a search strategy and also needs to extract
@@ -75,10 +75,13 @@
 -export([init_strategy/1, cleanup_strategy/0, init_target/1,
          update_uv/2, reset/0, targeted/1, get_shrinker/1]).
 
+-export_type([strategy/0]).
 
 %% -----------------------------------------------------------------------------
 %% Type declarations
 %% -----------------------------------------------------------------------------
+
+-type strategy() :: mod_name().
 
 -type fitness() :: number().
 -type tmap()    :: #{atom() => term()}.
@@ -92,7 +95,6 @@
                        | none.
 
 -type target()   :: {target_state(), next_func(), fitness_func()}.
--type strategy() :: module().
 -type opts()     :: strategy() 
                   | #{search_steps := integer(), search_strategy := strategy()}.
 
