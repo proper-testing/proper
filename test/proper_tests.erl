@@ -155,7 +155,7 @@ get_cexm() ->
 
 -define(_assertTempBecomesN(N, ExpShortResult, Prop, Opts),
 	?_test(begin
-		   ?assertMatch(ExpShortResult, proper:quickcheck(Prop, Opts)),
+		   ?assertMatch(ExpShortResult, proper:quickcheck(Prop, [{num_workers,0}|Opts])),
 		   ?assertEqual(N, get_temp()),
 		   erase_temp(),
 		   proper:clean_garbage(),
@@ -923,11 +923,11 @@ true_props_test_() ->
 			  numtests(300,?FORALL(_,1,begin inc_temp(),true end))),
      ?_assertTempBecomesN(30, true, ?FORALL(X, ?SIZED(Size,Size),
 					    begin inc_temp(X),true end),
-			  [{numtests,12},{max_size,4},{num_workers,0}]),
+			  [{numtests,12},{max_size,4}]),
      ?_assertTempBecomesN(12, true,
 			  ?FORALL(X, ?SIZED(Size,Size),
 				  begin inc_temp(X),true end),
-			  [{numtests,3},{start_size,4},{max_size,4},{num_workers,0}]),
+			  [{numtests,3},{start_size,4},{max_size,4}]),
      ?_passes(?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X))),
      ?_passes(?FORALL(X, integer(), ?IMPLIES(X >= 0, true))),
      ?_passes(?FORALL({X,Lim}, {int(),?SIZED(Size,Size)}, abs(X) =< Lim)),
@@ -977,7 +977,7 @@ false_props_test_() ->
      ?_assertTempBecomesN(7, false,
 			  ?FORALL(X, ?SIZED(Size,integer(Size,Size)),
 				  begin inc_temp(), X < 5 end),
-			  [{numtests,5}, {max_size,5},{num_workers,0}]),
+			  [{numtests,5}, {max_size,5}]),
      %% it runs 2 more times: one while shrinking (recursing into the property)
      %% and one when the minimal input is rechecked
      ?_assertTempBecomesN(2, false,
@@ -986,7 +986,7 @@ false_props_test_() ->
      ?_assertTempBecomesN(3, false,
 			  ?FORALL(S, ?SIZED(Size,Size),
 				  begin inc_temp(), S =< 20 end),
-			  [{numtests,3},{max_size,40},noshrink,{num_workers,0}]),
+			  [{numtests,3},{max_size,40},noshrink]),
      ?_failsWithOneOf([[{true,false}],[{false,true}]],
 		      ?FORALL({B1,B2}, {boolean(),boolean()}, equals(B1,B2))),
      ?_failsWith([2,1],
@@ -1079,10 +1079,10 @@ not_defined_test_() ->
 options_test_() ->
     [?_assertTempBecomesN(300, true,
 			  ?FORALL(_, 1, begin inc_temp(), true end),
-			  [{numtests,300},{num_workers,0}]),
+			  [{numtests,300}]),
      ?_assertTempBecomesN(300, true,
 			  ?FORALL(_, 1, begin inc_temp(), true end),
-			  [300,{num_workers,0}]),
+			  [300]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
      ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
      ?_fails(?FORALL(_,integer(),false), [fails]),
