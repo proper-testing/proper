@@ -63,7 +63,7 @@
         proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
 
 %%------------------------------------------------------------------------------
-%% Target macros
+%% Targeted macros
 %%------------------------------------------------------------------------------
 
 -define(MAXIMIZE(Fitness), proper_target:update_uv(Fitness, inf)).

@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -103,6 +103,8 @@
 -type alt_gens() :: fun(() -> [imm_instance()]).
 %% @private_type
 -type fun_seed() :: {non_neg_integer(),non_neg_integer()}.
+%% @private_type
+-type freq_choices() :: [{proper_types:frequency(),proper_types:type()},...].
 
 
 %%-----------------------------------------------------------------------------
@@ -485,8 +487,7 @@ union_gen(Choices) ->
     generate(Type).
 
 %% @private
--spec weighted_union_gen([{frequency(),proper_types:type()},...]) ->
-	  imm_instance().
+-spec weighted_union_gen(freq_choices()) -> imm_instance().
 weighted_union_gen(FreqChoices) ->
     {_Choice,Type} = proper_arith:freq_choose(FreqChoices),
     generate(Type).
@@ -502,8 +503,7 @@ safe_union_gen(Choices) ->
     end.
 
 %% @private
--spec safe_weighted_union_gen([{frequency(),proper_types:type()},...]) ->
-         imm_instance().
+-spec safe_weighted_union_gen(freq_choices()) -> imm_instance().
 safe_weighted_union_gen(FreqChoices) ->
     {Choice,Type} = proper_arith:freq_choose(FreqChoices),
     try generate(Type)

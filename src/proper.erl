@@ -420,7 +420,7 @@
 -type sub_counterexamples() :: [{tag(),counterexample()}].
 
 -type sample() :: [term()].
--type freq_sample() :: [{term(),frequency()}].
+-type freq_sample() :: [{term(),proper_types:frequency()}].
 -type side_effects_fun() :: fun(() -> 'ok').
 -type fail_actions() :: [side_effects_fun()].
 -type output_fun() :: fun((string(),[term()]) -> 'ok').
@@ -2178,7 +2178,8 @@ get_freqs([Term | Rest], Freqs) ->
     {Freq,Others} = remove_all(Term, 1, Rest),
     get_freqs(Others, [{Term,Freq} | Freqs]).
 
--spec remove_all(term(), frequency(), sample()) -> {frequency(), sample()}.
+-spec remove_all(term(), proper_types:frequency(), sample()) ->
+	  {proper_types:frequency(), sample()}.
 remove_all(X, Freq, [X | Rest]) ->
     remove_all(X, Freq + 1, Rest);
 remove_all(_X, Freq, Sample) ->

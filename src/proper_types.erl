@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -162,7 +162,7 @@
 	 parameter/1, parameter/2]).
 -export([le/2]).
 
--export_type([type/0, raw_type/0, extint/0, extnum/0]).
+-export_type([type/0, raw_type/0, extint/0, extnum/0, frequency/0]).
 
 -include("proper_internal.hrl").
 
@@ -207,6 +207,8 @@
 %%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
+
+-type frequency() :: pos_integer().
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | atom().
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean())
