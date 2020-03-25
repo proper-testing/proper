@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains helper arithmetic, list handling and random
@@ -206,7 +206,7 @@ insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos, Acc) ->
 insert_tr(Xs, Positions, [Y | YsTail], Pos, Acc) ->
     insert_tr(Xs, Positions, YsTail, Pos + 1, [Y | Acc]).
 
--spec unflatten([T], [length()]) -> [[T]].
+-spec unflatten([T], [proper_types:length()]) -> [[T]].
 unflatten(List, Lens) ->
     {[],RevSubLists} = lists:foldl(fun remove_n/2, {List,[]}, Lens),
     lists:reverse(RevSubLists).
@@ -223,14 +223,14 @@ remove_n(N, {List,Acc}) ->
 
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
--spec rand_start(seed()) -> 'ok'.
+-spec rand_start(proper_gen:seed()) -> 'ok'.
 rand_start(Seed) ->
     _ = rand:seed(exsplus, Seed),
     ok.
 
 %% @doc Conditionally seeds the random number generator. This function should
 %% be run before calling any random function from this module.
--spec rand_restart(seed()) -> 'ok'.
+-spec rand_restart(proper_gen:seed()) -> 'ok'.
 rand_restart(Seed) ->
     case get(?SEED_NAME) of
         undefined ->
@@ -258,7 +258,7 @@ rand_non_neg_int(Const) ->
     trunc(rand_non_neg_float(Const)).
 
 -spec bounded_rand_non_neg_int(non_neg_integer(), non_neg_integer()) ->
-				      non_neg_integer().
+	  non_neg_integer().
 bounded_rand_non_neg_int(Const, Lim) when is_integer(Lim), Lim >= 0 ->
     X = rand_non_neg_int(Const),
     case X > Lim of
@@ -280,7 +280,7 @@ smart_rand_int(Const, Low, High) ->
     end.
 
 -spec wide_range_rand_int(non_neg_integer(), integer(), integer()) ->
-				 integer().
+	  integer().
 wide_range_rand_int(Const, Low, High) when Low >= 0 ->
     Low + bounded_rand_non_neg_int(Const, High - Low);
 wide_range_rand_int(Const, Low, High) when High =< 0 ->
@@ -343,13 +343,14 @@ rand_choose(Choices) when Choices =/= [] ->
     Pos = rand_int(1, length(Choices)),
     {Pos, lists:nth(Pos, Choices)}.
 
--spec freq_choose([{frequency(),T},...]) -> {position(),T}.
+-spec freq_choose([{proper_types:frequency(),T},...]) -> {position(),T}.
 freq_choose(Choices) when Choices =/= []  ->
     AddFreq = fun({Freq,_},Acc) -> Freq + Acc end,
     SumFreq = lists:foldl(AddFreq, 0, Choices),
     freq_select(rand_int(1, SumFreq), Choices, 1).
 
--spec freq_select(frequency(), [{frequency(),T}], position()) -> {position(),T}.
+-spec freq_select(proper_types:frequency(), [{proper_types:frequency(),T}],
+		  position()) -> {position(),T}.
 freq_select(N, [{Freq,Choice} | Rest], Pos) ->
     case N =< Freq of
 	true ->

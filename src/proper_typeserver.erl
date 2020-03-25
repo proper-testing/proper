@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -246,8 +246,8 @@
 -type type_repr() :: {'abs_type',abs_type(),[var_name()],symb_info()}
 		   | {'cached',fin_type(),abs_type(),symb_info()}
 		   | {'abs_record',[{field_name(),abs_type()}]}.
--type gen_fun() :: fun((size()) -> fin_type()).
--type rec_fun() :: fun(([gen_fun()],size()) -> fin_type()).
+-type gen_fun() :: fun((proper_gen:size()) -> fin_type()).
+-type rec_fun() :: fun(([gen_fun()],proper_gen:size()) -> fin_type()).
 -type rec_arg() :: {boolean() | {'list',boolean(),rec_fun()},full_type_ref()}.
 -type rec_args() :: [rec_arg()].
 -type ret_type() :: {'simple',fin_type()} | {'rec',rec_fun(),rec_args()}.

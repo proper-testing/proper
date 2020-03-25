@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -229,6 +229,10 @@
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
 
+
+-export_type([symbolic_var/0, symbolic_call/0, statem_result/0]).
+
+
 -include("proper_internal.hrl").
 
 -define(WORKERS, 2).
@@ -243,7 +247,6 @@
 -export([is_valid/4, args_defined/2]).
 -export([get_next/6, mk_first_comb/3]).
 -export([execute/3, check/6, run/3, get_initial_state/2]).
-
 
 %% -----------------------------------------------------------------------------
 %% Type declarations
@@ -272,8 +275,6 @@
 -type indices()     :: [index()].
 -type combination() :: [{pos_integer(),indices()}].
 -type lookup()      :: orddict:orddict().
-
--export_type([symbolic_var/0, symbolic_call/0, statem_result/0]).
 
 
 %% -----------------------------------------------------------------------------
@@ -334,7 +335,7 @@ commands(Mod, InitialState) ->
        is_valid(Mod, InitialState, Cmds, [])).
 
 %% @private
--spec commands(size(), mod_name(), symbolic_state(), pos_integer()) ->
+-spec commands(proper_gen:size(), mod_name(), symbolic_state(), pos_integer()) ->
          proper_types:type().
 commands(Size, Mod, State, Count) ->
     ?LAZY(

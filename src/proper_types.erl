@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -162,7 +162,10 @@
 	 parameter/1, parameter/2]).
 -export([le/2]).
 
--export_type([type/0, raw_type/0, extint/0, extnum/0]).
+%% Public API types
+-export_type([type/0, raw_type/0]).
+-export_type([extint/0, extnum/0, frequency/0, length/0]).
+%% Internal types
 
 -include("proper_internal.hrl").
 
@@ -208,6 +211,9 @@
 %% Types
 %%------------------------------------------------------------------------------
 
+-type frequency() :: pos_integer().
+-type length()    :: non_neg_integer().
+
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | atom().
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean())
                        | {'typed',
@@ -246,7 +252,7 @@
     | {'combine', proper_gen:combine_fun()}
     | {'alt_gens', proper_gen:alt_gens()}
     | {'shrink_to_parts', boolean()}
-    | {'size_transform', fun((size()) -> size())}
+    | {'size_transform', fun((proper_gen:size()) -> proper_gen:size())}
     | {'is_instance', instance_test()}
     | {'shrinkers', [proper_shrink:shrinker()]}
     | {'noshrink', boolean()}
@@ -420,7 +426,7 @@ is_inst(Instance, RawType) ->
     is_inst(Instance, RawType, 10).
 
 %% @private
--spec is_inst(proper_gen:instance(), raw_type(), size()) ->
+-spec is_inst(proper_gen:instance(), raw_type(), proper_gen:size()) ->
 	  boolean() | {'error',{'typeserver',term()}}.
 is_inst(Instance, RawType, Size) ->
     proper:global_state_init_size(Size),
@@ -800,7 +806,7 @@ list_get_indices(_, List) ->
 %% This assumes that:
 %% - instances of size S are always valid instances of size >S
 %% - any recursive calls inside Gen are lazy
--spec distlist(size(), proper_gen:sized_generator(), boolean()) ->
+-spec distlist(proper_gen:size(), proper_gen:sized_generator(), boolean()) ->
 	  proper_types:type().
 distlist(Size, Gen, NonEmpty) ->
     ParentType = case NonEmpty of
@@ -1321,7 +1327,7 @@ weighted_default(Default, Type) ->
 %% types to produce instances that grow faster or slower, like so:
 %% ```?SIZED(Size, resize(Size * 2, list(integer()))'''
 %% The above specifies a list type that grows twice as fast as normal lists.
--spec resize(size(), Type::raw_type()) -> proper_types:type().
+-spec resize(proper_gen:size(), Type::raw_type()) -> proper_types:type().
 resize(NewSize, RawType) ->
     Type = cook_outer(RawType),
     case find_prop(size_transform, Type) of

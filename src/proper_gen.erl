@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -47,7 +47,10 @@
 	 any_gen/1, native_type_gen/2, safe_weighted_union_gen/1,
 	 safe_union_gen/1]).
 
--export_type([instance/0, imm_instance/0, sized_generator/0, nosize_generator/0,
+%% Public API types
+-export_type([instance/0, seed/0, size/0]).
+%% Internal types
+-export_type([imm_instance/0, sized_generator/0, nosize_generator/0,
 	      generator/0, reverse_gen/0, combine_fun/0, alt_gens/0]).
 
 -include("proper_internal.hrl").
@@ -59,6 +62,10 @@
 %% Types
 %%-----------------------------------------------------------------------------
 
+-type instance() :: term().
+-type seed()     :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
+-type size()     :: non_neg_integer().
+
 %% TODO: update imm_instance() when adding more types: be careful when reading
 %%	 anything that returns it
 %% @private_type
@@ -66,7 +73,6 @@
 		      | instance()
 		      | {'$used', imm_instance(), imm_instance()}
 		      | {'$to_part', imm_instance()}.
--type instance() :: term().
 %% A value produced by the random instance generator.
 -type error_reason() :: 'arity_limit'
                       | {'cant_generate',[mfa()]}
@@ -103,6 +109,8 @@
 -type alt_gens() :: fun(() -> [imm_instance()]).
 %% @private_type
 -type fun_seed() :: {non_neg_integer(),non_neg_integer()}.
+%% @private_type
+-type freq_choices() :: [{proper_types:frequency(),proper_types:type()},...].
 
 
 %%-----------------------------------------------------------------------------
@@ -405,7 +413,7 @@ binary_rev(Binary) ->
     {'$used', binary_to_list(Binary), Binary}.
 
 %% @private
--spec binary_len_gen(length()) -> proper_types:type().
+-spec binary_len_gen(proper_types:length()) -> proper_types:type().
 binary_len_gen(Len) ->
     ?LET(Bytes,
 	 proper_types:vector(Len, proper_types:byte()),
@@ -435,7 +443,7 @@ bitstring_rev(BitString) ->
      BitString}.
 
 %% @private
--spec bitstring_len_gen(length()) -> proper_types:type().
+-spec bitstring_len_gen(proper_types:length()) -> proper_types:type().
 bitstring_len_gen(Len) ->
     BytesLen = Len div 8,
     BitsLen = Len rem 8,
@@ -467,12 +475,12 @@ distlist_gen(RawSize, Gen, NonEmpty) ->
     fixed_list_gen(InnerTypes).
 
 %% @private
--spec vector_gen(length(), proper_types:type()) -> [imm_instance()].
+-spec vector_gen(proper_types:length(), proper_types:type()) -> [imm_instance()].
 vector_gen(Len, ElemType) ->
     vector_gen_tr(Len, ElemType, []).
 
--spec vector_gen_tr(length(), proper_types:type(), [imm_instance()]) ->
-	  [imm_instance()].
+-spec vector_gen_tr(proper_types:length(), proper_types:type(),
+		    [imm_instance()]) -> [imm_instance()].
 vector_gen_tr(0, _ElemType, AccList) ->
     AccList;
 vector_gen_tr(Left, ElemType, AccList) ->
@@ -485,8 +493,7 @@ union_gen(Choices) ->
     generate(Type).
 
 %% @private
--spec weighted_union_gen([{frequency(),proper_types:type()},...]) ->
-	  imm_instance().
+-spec weighted_union_gen(freq_choices()) -> imm_instance().
 weighted_union_gen(FreqChoices) ->
     {_Choice,Type} = proper_arith:freq_choose(FreqChoices),
     generate(Type).
@@ -502,8 +509,7 @@ safe_union_gen(Choices) ->
     end.
 
 %% @private
--spec safe_weighted_union_gen([{frequency(),proper_types:type()},...]) ->
-         imm_instance().
+-spec safe_weighted_union_gen(freq_choices()) -> imm_instance().
 safe_weighted_union_gen(FreqChoices) ->
     {Choice,Type} = proper_arith:freq_choose(FreqChoices),
     try generate(Type)

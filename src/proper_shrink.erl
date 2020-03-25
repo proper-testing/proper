@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc The shrinking subsystem and all predefined shrinkers are contained in
@@ -294,7 +294,7 @@ split_shrinker(Instance, Type, {shrunk,Pos,{slices,DoubleN,_Len}}) ->
     end.
 
 -spec slice(proper_gen:imm_instance(), proper_types:type(), pos_integer(),
-	    length()) ->
+	    proper_types:length()) ->
 	  {[proper_gen:imm_instance()],[proper_gen:imm_instance()]}.
 slice(Instance, Type, Slices, Len) ->
     BigSlices = Len rem Slices,
@@ -311,7 +311,7 @@ slice(Instance, Type, Slices, Len) ->
 		 || {From,SliceLen} <- WhereToSlice]).
 
 -spec take_slice(proper_gen:imm_instance(), proper_types:type(), pos_integer(),
-		 length()) ->
+		 proper_types:length()) ->
 	  {proper_gen:imm_instance(),proper_gen:imm_instance()}.
 take_slice(Instance, Type, From, SliceLen) ->
     Split = proper_types:get_prop(split, Type),

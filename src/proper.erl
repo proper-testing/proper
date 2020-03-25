@@ -420,7 +420,7 @@
 -type sub_counterexamples() :: [{tag(),counterexample()}].
 
 -type sample() :: [term()].
--type freq_sample() :: [{term(),frequency()}].
+-type freq_sample() :: [{term(),proper_types:frequency()}].
 -type side_effects_fun() :: fun(() -> 'ok').
 -type fail_actions() :: [side_effects_fun()].
 -type output_fun() :: fun((string(),[term()]) -> 'ok').
@@ -453,7 +453,7 @@
 -opaque test() :: boolean()
 	        | {'forall', proper_types:raw_type(), dependent_test()}
 	        | {'exists', proper_target:tmap(), dependent_test(), boolean()}
-            | {'targeted', proper_target:tmap(), targeted_type(), dependent_test()}
+                | {'targeted', proper_target:tmap(), targeted_type(), dependent_test()}
 	        | {'conjunction', [{tag(),test()}]}
 	        | {'implies', boolean(), delayed_test()}
 	        | {'sample', sample(), stats_printer(), test()}
@@ -489,10 +489,10 @@
 		  | 'long_result'
 		  | {'numtests',pos_integer()}
 		  | {'search_steps',pos_integer()}
-		  | {'search_strategy', atom()}
+		  | {'search_strategy',proper_target:strategy()}
 		  | pos_integer()
-		  | {'start_size',size()}
-		  | {'max_size',size()}
+		  | {'start_size',proper_gen:size()}
+		  | {'max_size',proper_gen:size()}
 		  | {'max_shrinks',non_neg_integer()}
 		  | 'noshrink'
 		  | {'constraint_tries',pos_integer()}
@@ -508,10 +508,10 @@
 	       long_result      = false           :: boolean(),
 	       numtests         = 100             :: pos_integer(),
 	       search_steps     = 1000            :: pos_integer(),
-	       search_strategy  = proper_sa       :: atom(),
-	       start_size       = 1               :: size(),
-	       seed             = os:timestamp()  :: seed(),
-	       max_size         = 42              :: size(),
+	       search_strategy  = proper_sa       :: proper_target:strategy(),
+	       start_size       = 1               :: proper_gen:size(),
+	       seed             = os:timestamp()  :: proper_gen:seed(),
+	       max_size         = 42              :: proper_gen:size(),
 	       max_shrinks      = 500             :: non_neg_integer(),
 	       noshrink         = false           :: boolean(),
 	       constraint_tries = 50              :: pos_integer(),
@@ -532,11 +532,10 @@
 
 -type setup_opts() :: #{numtests := pos_integer(),
 			search_steps := pos_integer(),
-			search_strategy := atom(),
-			start_size := size(),
-			max_size := size(),
+			search_strategy := proper_target:strategy(),
+			start_size := proper_gen:size(),
+			max_size := proper_gen:size(),
 			output_fun := output_fun()}.
-%%
 
 %%-----------------------------------------------------------------------------
 %% Result types
@@ -606,7 +605,8 @@ grow_size(#opts{max_size = MaxSize} = Opts) ->
 	    ok
     end.
 
--spec tests_at_next_size(size(), opts()) -> {pos_integer(), size()}.
+-spec tests_at_next_size(proper_gen:size(), opts()) ->
+	  {pos_integer(), proper_gen:size()}.
 tests_at_next_size(_Size, #opts{numtests = 1, start_size = StartSize}) ->
     {1, StartSize};
 tests_at_next_size(Size, #opts{numtests = NumTests, start_size = StartSize,
@@ -637,7 +637,7 @@ tests_at_next_size(Size, #opts{numtests = NumTests, start_size = StartSize,
     end.
 
 %% @private
--spec get_size(proper_types:type()) -> size() | 'undefined'.
+-spec get_size(proper_types:type()) -> proper_gen:size() | 'undefined'.
 get_size(Type) ->
     case get('$size') of
 	undefined ->
@@ -650,12 +650,12 @@ get_size(Type) ->
     end.
 
 %% @private
--spec global_state_init_size(size()) -> 'ok'.
+-spec global_state_init_size(proper_gen:size()) -> 'ok'.
 global_state_init_size(Size) ->
     global_state_init(#opts{start_size = Size}).
 
 %% @private
--spec global_state_init_size_seed(size(), seed()) -> 'ok'.
+-spec global_state_init_size_seed(proper_gen:size(), proper_gen:seed()) -> 'ok'.
 global_state_init_size_seed(Size, Seed) ->
     global_state_init(#opts{start_size = Size, seed = Seed}).
 
@@ -1334,7 +1334,8 @@ add_samples(MoreSamples, Samples) ->
 
 
 %% Evaluated only for its side-effects.
--spec gen_and_print_samples(proper_types:raw_type(), size(), size()) -> 'ok'.
+-spec gen_and_print_samples(proper_types:raw_type(),
+			    proper_gen:size(), proper_gen:size()) -> 'ok'.
 gen_and_print_samples(RawType, StartSize, EndSize) ->
     Tests = EndSize - StartSize + 1,
     Prop = ?FORALL(X, RawType, begin io:format("~p~n",[X]), true end),
@@ -2178,7 +2179,8 @@ get_freqs([Term | Rest], Freqs) ->
     {Freq,Others} = remove_all(Term, 1, Rest),
     get_freqs(Others, [{Term,Freq} | Freqs]).
 
--spec remove_all(term(), frequency(), sample()) -> {frequency(), sample()}.
+-spec remove_all(term(), proper_types:frequency(), sample()) ->
+	  {proper_types:frequency(), sample()}.
 remove_all(X, Freq, [X | Rest]) ->
     remove_all(X, Freq + 1, Rest);
 remove_all(_X, Freq, Sample) ->

@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Internal header file: This header is included in all PropEr source
@@ -82,11 +82,7 @@
 %% TODO: Perhaps these should be moved inside modules.
 -type mod_name() :: atom().
 -type fun_name() :: atom().
--type size() :: non_neg_integer().
--type length() :: non_neg_integer().
 -type position() :: pos_integer().
--type frequency() :: pos_integer().
--type seed() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
 
 -type abs_form()   :: erl_parse:abstract_form().
 -type abs_expr()   :: erl_parse:abstract_expr().
