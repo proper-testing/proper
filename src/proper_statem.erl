@@ -603,7 +603,8 @@ safe_apply(M, F, A) ->
 %%   concurrent tasks.</li>
 %% <li>`Result' specifies the outcome of the attemp to serialize command
 %%   execution, based on the results observed. It can be one of the following:
-%%   <ul><li> `ok' </li><li> `no_possible_interleaving' </li></ul> </li>
+%%   <ul><li> `ok' </li><li> `no_possible_interleaving' </li>
+%%   <li> `{exception, Kind, Reason, StackTrace}' </li></ul> </li>
 %% </ul>
 
 -spec run_parallel_commands(mod_name(), parallel_testcase()) ->
@@ -620,33 +621,49 @@ run_parallel_commands(Mod, {_Sequential, _Parallel} = Testcase) ->
 	 {history(),[parallel_history()],statem_result()}.
 run_parallel_commands(Mod, {Sequential, Parallel}, Env) ->
     case run(Mod, Sequential, Env) of
-	{{Seq_history, State, ok}, SeqEnv} ->
-	    F = fun(T) -> execute(T, SeqEnv, Mod) end,
-	    Parallel_history = pmap(F, Parallel),
-	    case check(Mod, State, SeqEnv, false, [], Parallel_history) of
-		true ->
-		    {Seq_history, Parallel_history, ok};
-		false ->
-		    {Seq_history, Parallel_history, no_possible_interleaving}
-	    end;
-	{{Seq_history, _, Res}, _} ->
-	    {Seq_history, [], Res}
+    {{Seq_history, State, ok}, SeqEnv} ->
+        F = fun(T) -> execute(T, SeqEnv, Mod) end,
+        case pmap(F, Parallel) of
+        {ok, Parallel_history} ->
+            case check(Mod, State, SeqEnv, false, [], Parallel_history) of
+            true ->
+                {Seq_history, Parallel_history, ok};
+            false ->
+                {Seq_history, Parallel_history,
+                 no_possible_interleaving}
+            end;
+        {error, Exc, Parallel_history} ->
+            {Seq_history, Parallel_history, Exc}
+        end;
+    {{Seq_history, _, Res}, _} ->
+        {Seq_history, [], Res}
     end.
 
 %% @private
 -spec execute(command_list(), proper_symb:var_values(), mod_name()) ->
-	 parallel_history().
-execute([], _Env, _Mod) -> [];
-execute([{set, {var,V}, {call,M,F,A}} = Cmd|Rest], Env, Mod) ->
+                     {ok, parallel_history()} | {error, term(), parallel_history()}.
+execute(Cmds, Env, Mod) -> execute(Cmds, Env, Mod, []).
+
+-spec execute(command_list(), proper_symb:var_values(), mod_name(),
+              parallel_history()) -> {ok, parallel_history()} |
+                                     {error, proper:exception(), parallel_history()}.
+execute([], _Env, _Mod, Hist) -> {ok,lists:reverse(Hist)};
+execute([{set, {var,V}, {call,M,F,A}} = Cmd|Rest], Env, Mod, Hist) ->
     M2 = proper_symb:eval(Env, M),
     F2 = proper_symb:eval(Env, F),
     A2 = proper_symb:eval(Env, A),
-    Res = apply(M2, F2, A2),
-    Env2 = [{V,Res}|Env],
-    [{Cmd,Res}|execute(Rest, Env2, Mod)].
+
+    case safe_apply(M2, F2, A2) of
+    {ok,Res} ->
+        Env2 = [{V,Res}|Env],
+        execute(Rest, Env2, Mod, [{Cmd,Res}|Hist]);
+    {error, Exc} ->
+        {error, Exc, lists:reverse(Hist)}
+    end.
 
 -spec pmap(fun((command_list()) -> parallel_history()), [command_list()]) ->
-         [parallel_history()].
+                  {ok, [parallel_history()]} |
+                  {error, proper:exception(), [parallel_history()]}.
 pmap(F, L) ->
     await(spawn_jobs(F, L)).
 
@@ -654,18 +671,28 @@ pmap(F, L) ->
 		 [command_list()]) -> [pid()].
 spawn_jobs(F, L) ->
     Parent = self(),
-    [spawn_link_cp(fun() -> Parent ! {self(),catch {ok,F(X)}} end) || X <- L].
+    [spawn_link_cp(fun() -> Parent ! {self(), F(X)} end) || X <- L].
 
--spec await([pid()]) -> [parallel_history()].
-await([]) -> [];
-await([H|T]) ->
+-spec await([pid()]) ->
+                   {ok, [parallel_history()]} |
+                   {error, proper:exception(), [parallel_history()]}.
+await(Pids) -> await(Pids, [], false).
+
+-spec await([pid()], [parallel_history()], false | proper:exception()) ->
+                   {ok, [parallel_history()]} |
+                   {error, proper:exception(), [parallel_history()]}.
+await([], Hist, false) -> {ok, lists:reverse(Hist)};
+await([], Hist, Exc) -> {error, Exc, lists:reverse(Hist)};
+await([H|T], Hist, MaybeExc) ->
     receive
-	{H, {ok, Res}} ->
-        [Res|await(T)];
-	{H, {'EXIT',_} = Err} ->
-	    _ = [exit(Pid, kill) || Pid <- T],
-	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
-	    erlang:error(Err)
+    {H, {ok, Res}} ->
+        await(T, [Res|Hist], MaybeExc);
+    {H, {error, Exc, Res}} ->
+        Exc2 = case MaybeExc of
+                   false -> Exc;
+                   E -> E
+               end,
+        await(T, [Res|Hist], Exc2)
     end.
 
 %% @private
