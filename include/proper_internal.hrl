@@ -46,13 +46,14 @@
 %% Stacktrace access
 %%------------------------------------------------------------------------------
 
--ifdef(AT_LEAST_21).
--define(STACKTRACE(ErrorType, Error, ErrorStackTrace),
-        ErrorType:Error:ErrorStackTrace ->).
--else.
+-ifndef(OTP_RELEASE).	 %% introduced in 21
+%% cases for Erlang/OTP releases prior to 21
 -define(STACKTRACE(ErrorType, Error, ErrorStackTrace),
         ErrorType:Error ->
             ErrorStackTrace = erlang:get_stacktrace(),).
+-else.  %% -if (?OTP_RELEASE >= 21)
+-define(STACKTRACE(ErrorType, Error, ErrorStackTrace),
+        ErrorType:Error:ErrorStackTrace ->).
 -endif.
 
 %%------------------------------------------------------------------------------
