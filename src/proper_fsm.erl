@@ -69,10 +69,10 @@
 %%%   <p>Specifies the initial state of the finite state machine. As with
 %%%   `proper_statem:initial_state/0', its result should be deterministic.
 %%%   </p></li>
-%%% <li> `initial_state_data() ::' {@type state_data()}
+%%% <li> `initial_state_data() ->' {@type state_data()}
 %%%   <p>Specifies what the state data should initially contain. Its result
 %%%   should be deterministic</p></li>
-%%% <li> `StateName(S::'{@type state_data()}`) ::'
+%%% <li> `StateName(S::'{@type state_data()}`) ->'
 %%%        `['{@type transition()}`]'
 %%%   <p>There should be one instance of this function for each reachable
 %%%   state `StateName' of the finite state machine. In case `StateName' is a
@@ -90,7 +90,7 @@
 %%%   them. This feature can be used to include conditional transitions that
 %%%   depend on the `StateData'.</p></li>
 %%% <li> `StateName(Attr1::term(), ..., AttrN::term(),
-%%%                 S::'{@type state_data()}`) ::'
+%%%                 S::'{@type state_data()}`) ->'
 %%%        `['{@type transition()}`]'
 %%%   <p>There should be one instance of this function for each reachable state
 %%%   `{StateName,Attr1,...,AttrN}' of the finite state machine. The function
