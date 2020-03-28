@@ -64,6 +64,20 @@
 %%%   wrappers, the test case is rejected (it doesn't count as a failing test
 %%%   case), and PropEr starts over with a new random test case. Also, in
 %%%   verbose mode, an `x' is printed on screen.</dd>
+%%% <dt>`?ALWAYS(<N>, <Prop>)`</dt>
+%%% <dd>Repeats the `<Prop>` test `<N>` times. It has to pass exactly `<N>`
+%%%   times or macro will fail as soon as any of the `<Prop>` tests fails. It's
+%%%   useful when shrinking `X`, but `Y` generated based on `X`, makes the test
+%%%   pass in most cases, because as `X` is getting smaller, `Y` is getting more
+%%%   likely to pass. Or when hunting for a race condition, which needs several
+%%%   executions to provoke it during shrinking.
+%%%   This should not be used at top-level, `<numtests/2>` is more suitable for
+%%%   that.</dd>
+%%% <dt>`?SOMETIMES(<N>, <Prop>)`</dt>
+%%% <dd>Repeats the `<Prop>` test `<N>` times. It has to fail exactly `<N>`
+%%%   times, for the macro to fail, and passes as soon as any of `<Prop>` tests
+%%%   passes - in other words, this macro ensures that `<Prop>` sometimes
+%%%   passes.</dd>
 %%% <dt>`?WHENFAIL(<Action>, <Prop>)'</dt>
 %%% <dd>The `<Action>' field should contain an expression or statement block
 %%%   that produces some side-effect (e.g. prints something to the screen).
