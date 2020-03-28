@@ -238,6 +238,8 @@
 -define(WORKERS, 2).
 -define(LIMIT, 12).
 
+-define(COMMANDS_SZ_FACTOR, '$commands_size_factor').
+-define(RESIZE_FACTOR, proper_types:parameter(?COMMANDS_SZ_FACTOR, 1)).
 
 %% -----------------------------------------------------------------------------
 %% Exported only for testing purposes
@@ -310,7 +312,8 @@ commands(Mod) ->
 	    ?LET(List,
 		 ?SIZED(Size,
 			proper_types:noshrink(
-			  commands(Size, Mod, InitialState, 1))),
+			  commands(Size * ?RESIZE_FACTOR,
+				   Mod, InitialState, 1))),
 		 proper_types:shrink_list(List)),
 	    is_valid(Mod, InitialState, Cmds, []))).
 
@@ -329,7 +332,8 @@ commands(Mod, InitialState) ->
 	    ?LET(List,
 		 ?SIZED(Size,
 			proper_types:noshrink(
-			  commands(Size, Mod, InitialState, 1))),
+			  commands(Size * ?RESIZE_FACTOR,
+				   Mod, InitialState, 1))),
 		 proper_types:shrink_list(List)),
 	    [{init,InitialState}|CmdTail]),
        is_valid(Mod, InitialState, Cmds, [])).
@@ -358,7 +362,7 @@ commands(Size, Mod, State, Count) ->
 
 -spec more_commands(pos_integer(), proper_types:type()) -> proper_types:type().
 more_commands(N, CmdType) ->
-    ?SIZED(Size, proper_types:resize(Size * N, CmdType)).
+    proper_types:with_parameter(?COMMANDS_SZ_FACTOR, N, CmdType).
 
 
 %% -----------------------------------------------------------------------------
