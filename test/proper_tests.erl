@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2018 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains PropEr's Unit tests. You need the EUnit
@@ -29,7 +29,6 @@
 -module(proper_tests).
 
 -include_lib("proper/include/proper.hrl").
-
 -include_lib("eunit/include/eunit.hrl").
 
 
@@ -942,6 +941,7 @@ true_props_test_() ->
      ?_passes(improper_lists_statem:prop_simple()),
      ?_passes(pdict_statem:prop_pdict()),
      ?_passes(symb_statem:prop_simple()),
+     ?_passes(more_commands_test:prop_commands_passes(), [{numtests,42}]),
      {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 10, ?_passes(ets_statem:prop_ets())},
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
@@ -1029,6 +1029,7 @@ false_props_test_() ->
 		      ])},
 		     {stupid, ?FORALL(_, pos_integer(), throw(woot))}
 		 ]))),
+     ?_fails(more_commands_test:prop_more_commands_fails(), [{numtests,42}]),
      {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
      ?_fails(post_false:prop_simple()),
      ?_fails(error_statem:prop_simple())].
