@@ -898,6 +898,26 @@ native_type_props_test_() ->
 -record(untyped, {a, b = 12}).
 -type untyped() :: #untyped{}.
 
+shrinking_param_phases_test_() ->
+    ?_test(begin
+               ?assertMatch(
+                  false,
+                  proper:quickcheck(
+                    ?FORALL(_, 1, false),
+                    [{numtests, 1},
+                     {on_output,
+                      fun(_,_) ->
+                              S = proper_types:parameter(shrinking, false),
+                              put({shrink_phase_mark, S}, true)
+                      end}])),
+               ?assertEqual(true, get({shrink_phase_mark, false})),
+               ?assertEqual(true, get({shrink_phase_mark, true})),
+               ?assertEqual(true, get({shrink_phase_mark, done})),
+               [erase({shrink_phase_mark, P}) || P <- [false, true, done]],
+               proper:clean_garbage(),
+               ?assert(state_is_clean())
+           end).
+
 true_props_test_() ->
     [?_passes(?FORALL(X,integer(),X < X + 1)),
      ?_passes(?FORALL(A,atom(),list_to_atom(atom_to_list(A)) =:= A)),
