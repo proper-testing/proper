@@ -26,13 +26,16 @@
 %%% @doc This module contains types for testing the typeserver.
 
 -module(types_test2).
--export([function_whose_spec_has_map_type/1]).
+-export([function_that_uses_rec1/1, function_whose_spec_has_map_type/1]).
 
 -export_type([exp1/1, exp2/0]).
 
 -type exp1(T) :: {'a' | 'b', binary()} | {'c', T}.
 -type exp2() :: atom() | [types_test1:exp1()].
 -record(rec1, {f :: exp1(fun(() -> integer())), g :: fun((_,_) -> float())}).
+
+function_that_uses_rec1(#rec1{}) ->
+    ok.
 
 %%
 %% Added on the 18th of June 2019 to test the fix of issue #194
