@@ -310,10 +310,10 @@ commands(Mod) ->
 	 ?SUCHTHAT(
 	    Cmds,
 	    ?LET(List,
-             ?SIZED(Size,
-                    proper_types:noshrink(
-                      commands(Size * ?RESIZE_FACTOR,
-                               Mod, InitialState, 1))),
+		 ?SIZED(Size,
+			proper_types:noshrink(
+			  commands(Size * ?RESIZE_FACTOR,
+				   Mod, InitialState, 1))),
 		 proper_types:shrink_list(List)),
 	    is_valid(Mod, InitialState, Cmds, []))).
 
@@ -330,12 +330,12 @@ commands(Mod, InitialState) ->
        Cmds,
        ?LET(CmdTail,
 	    ?LET(List,
-             ?SIZED(Size,
-                    proper_types:noshrink(
-                      commands(Size * ?RESIZE_FACTOR,
-                               Mod, InitialState, 1))),
-             proper_types:shrink_list(List)),
-            [{init,InitialState}|CmdTail]),
+		 ?SIZED(Size,
+			proper_types:noshrink(
+			  commands(Size * ?RESIZE_FACTOR,
+				   Mod, InitialState, 1))),
+		 proper_types:shrink_list(List)),
+	    [{init,InitialState}|CmdTail]),
        is_valid(Mod, InitialState, Cmds, [])).
 
 %% @private
