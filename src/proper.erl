@@ -387,7 +387,8 @@
 -export([get_size/1, global_state_init_size/1,
 	 global_state_init_size_seed/2, report_error/2]).
 -export([pure_check/1, pure_check/2]).
--export([forall/2, targeted/2, exists/3, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
+-export([forall/2, targeted/2, exists/3, implies/2, whenfail/2, trapexit/1,
+         always/2, sometimes/2, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
 	      false_positive_mfas/0, setup_opts/0]).
@@ -1020,6 +1021,16 @@ conjunction(SubProps) ->
 implies(Pre, DTest) ->
     {implies, Pre, DTest}.
 
+%% @private
+-spec always(pos_integer(), delayed_test()) -> test().
+always(N, DTest) ->
+    {always, N, DTest}.
+
+%% @private
+-spec sometimes(pos_integer(), delayed_test()) -> test().
+sometimes(N, DTest) ->
+    {sometimes, N, DTest}.
+
 %% @doc Specifies that test cases produced by this property should be
 %% categorized under the term `Category'. This field can be an expression or
 %% statement block that evaluates to any term. All produced categories are
@@ -1483,6 +1494,20 @@ run({conjunction, SubProps}, #ctx{mode = try_cexm, bound = Bound} = Ctx, Opts) -
 	[SubTCs] -> run_all(SubProps, SubTCs, Ctx#ctx{bound = []}, Opts);
 	_        -> {error, too_many_instances}
     end;
+run({always, 1, Prop}, Ctx, Opts) ->
+    force(Prop, Ctx, Opts);
+run({always, N, Prop}, Ctx, Opts) ->
+    case force(Prop, Ctx, Opts) of
+        #pass{} -> run({always, N-1, Prop}, Ctx, Opts);
+        #fail{} = Res -> Res
+    end;
+run({sometimes, 1, Prop}, Ctx, Opts) ->
+    force(Prop, Ctx, Opts);
+run({sometimes, N, Prop}, Ctx, Opts) ->
+    case force(Prop, Ctx, Opts) of
+        #pass{} = Res -> Res;
+        #fail{} -> run({sometimes, N-1, Prop}, Ctx, Opts)
+    end;
 run({implies, true, Prop}, Ctx, Opts) ->
     force(Prop, Ctx, Opts);
 run({implies, false, _Prop}, _Ctx, _Opts) ->
@@ -1905,6 +1930,10 @@ skip_to_next({forall,RawType,Prop}) ->
     {Type, Prop};
 skip_to_next({conjunction,SubProps}) ->
     SubProps;
+skip_to_next({always,_N,Prop}) ->
+    force_skip(Prop);
+skip_to_next({sometimes,_N,Prop}) ->
+    force_skip(Prop);
 skip_to_next({implies,Pre,Prop}) ->
     case Pre of
 	true  -> force_skip(Prop);

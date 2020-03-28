@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
 %%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
@@ -21,7 +21,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Common parts of user and internal header files
@@ -41,8 +41,8 @@
 -define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).
 -define(TIMEOUT(Limit,Prop), proper:timeout(Limit,?DELAY(Prop))).
 -define(SETUP(SetupFun,Prop), proper:setup(SetupFun,Prop)).
-%% TODO: -define(ALWAYS(Tests,Prop), proper:always(Tests,?DELAY(Prop))).
-%% TODO: -define(SOMETIMES(Tests,Prop), proper:sometimes(Tests,?DELAY(Prop))).
+-define(ALWAYS(N,Prop), proper:always(N,?DELAY(Prop))).
+-define(SOMETIMES(N,Prop), proper:sometimes(N,?DELAY(Prop))).
 
 %%------------------------------------------------------------------------------
 %% Generator macros
