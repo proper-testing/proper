@@ -110,7 +110,7 @@ prop_check_true() ->
 		?MOD:clean_up(),
 		?MOD:set_up(),
 		{{_, State, ok}, Env} = proper_statem:run(?MOD, Seq, []),
-		Res = [proper_statem:execute(C, Env, ?MOD) || C <- Par],
+		Res = [begin {ok, R}=proper_statem:execute(C, Env, ?MOD), R end || C <- Par],
 		V = proper_statem:check(?MOD, State, Env, false, [], Res),
 		equals(V, true)
 	    end).
