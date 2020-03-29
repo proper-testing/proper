@@ -898,6 +898,10 @@ native_type_props_test_() ->
 -record(untyped, {a, b = 12}).
 -type untyped() :: #untyped{}.
 
+parallel_statem_test_() ->
+    [?_passes(parallel_statem:prop_parallel_crash()),
+     ?_passes(parallel_statem:prop_sequential_crash())].
+
 true_props_test_() ->
     [?_passes(?FORALL(X,integer(),X < X + 1)),
      ?_passes(?FORALL(A,atom(),list_to_atom(atom_to_list(A)) =:= A)),
