@@ -51,7 +51,7 @@
 -define(STACKTRACE(ErrorType, Error, ErrorStackTrace),
         ErrorType:Error ->
             ErrorStackTrace = erlang:get_stacktrace(),).
--else.  %% -if (?OTP_RELEASE >= 21)
+-else.  %% -if (?OTP_RELEASE >= 21).
 -define(STACKTRACE(ErrorType, Error, ErrorStackTrace),
         ErrorType:Error:ErrorStackTrace ->).
 -endif.
@@ -88,10 +88,16 @@
 -type abs_form()   :: erl_parse:abstract_form().
 -type abs_expr()   :: erl_parse:abstract_expr().
 -type abs_clause() :: erl_parse:abstract_clause().
-
 -type abs_type()   :: erl_parse:abstract_type().
-%% TODO: Replace abs_rec_field with its proper type once it is exported.
--type abs_rec_field() :: term().	% erl_parse:af_field_decl().
+-ifdef(OTP_RELEASE).
+-if (?OTP_RELEASE >= 23).
+-type abs_rec_field() :: erl_parse:af_field_decl().
+-else.
+-type abs_rec_field() :: term().
+-endif.
+-else.	% for Erlang/OTP versions prior to 21.0
+-type abs_rec_field() :: term().
+-endif.
 
 -type loose_tuple(T) :: {} | {T} | {T,T} | {T,T,T} | {T,T,T,T} | {T,T,T,T,T}
 		      | {T,T,T,T,T,T} | {T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T}
