@@ -20,7 +20,7 @@ jobs:
       before_script:
             - >
                 printf "\n{cover_enabled, true}.\n{cover_export_enabled, true}.
-                \n{cover_skip_modules, [
+                \n{cover_excl_modules, [
                 proper_array,
                 proper_dict,
                 proper_gb_sets,
