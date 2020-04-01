@@ -53,7 +53,7 @@ check_escripts:
 	./scripts/check_escripts.sh make_doc
 
 test:
-	$(PROPER_REBAR) eunit
+	$(REBAR3) eunit
 
 doc: compile
 	./scripts/make_doc
@@ -70,5 +70,5 @@ distclean: clean
 rebuild: distclean compile
 
 retest:
-	$(RM) -r .eunit
-	$(PROPER_REBAR) eunit
+	$(RM) -r _build/test/lib/proper/test
+	$(REBAR3) eunit
