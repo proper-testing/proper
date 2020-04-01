@@ -1030,6 +1030,10 @@ false_props_test_() ->
 		     {stupid, ?FORALL(_, pos_integer(), throw(woot))}
 		 ]))),
      ?_fails(more_commands_test:prop_more_commands_fails(), [{numtests,42}]),
+     ?_failsWith([500], targeted_shrinking_test:prop_int()),
+     ?_failsWith([500], targeted_shrinking_test:prop_let_int()),
+     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_outer()),
+     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner()),
      {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
      ?_fails(post_false:prop_simple()),
      ?_fails(error_statem:prop_simple())].

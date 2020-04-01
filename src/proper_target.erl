@@ -53,7 +53,7 @@
 %%%   <dt>`?USERNF(Gen, Nf)'</dt>
 %%%   <dd>This uses the neighborhood function `Nf' instead of PropEr's
 %%%     constructed neighborhood function for this generator. The neighborhood
-%%%     function `Fun' should be of type 
+%%%     function `Fun' should be of type
 %%%    `fun(term(), {Depth :: pos_integer(), Temperature::float()} -> term()'</dd>
 %%%   <dt>`?USERMATCHER(Gen, Matcher)'</dt>
 %%%   <dd>This overwrites the structural matching of PropEr with the user provided
@@ -91,12 +91,14 @@
 -type target_state()  :: term().
 -type strategy_data() :: term().
 -type next_func()     :: fun ((target_state()) -> {target_state(), any()}).
--type fitness_func()  :: fun ((target_state(), fitness()) -> target_state()) 
+-type fitness_func()  :: fun ((target_state(), fitness()) -> target_state())
                        | none.
 
 -type target()   :: {target_state(), next_func(), fitness_func()}.
--type opts()     :: strategy() 
-                  | #{search_steps := integer(), search_strategy := strategy()}.
+-type opts()     :: strategy()
+                  | #{search_steps := integer(),
+                      search_strategy := strategy(),
+                      atom() => term()}.
 
 -record(state,
         {strategy           :: strategy(),
@@ -111,20 +113,22 @@
 
 %% -----------------------------------------------------------------------------
 %% proper_target callback functions for defining strategies
-%% ----------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------
 
 %% strategy global initializer
 -callback init_strategy(proper:setup_opts()) -> strategy_data().
 %% target initializer
 -callback init_target(tmap()) -> target_state().
 %% next function
--callback next(target_state(), strategy_data()) -> 
+-callback next(target_state(), strategy_data()) ->
   {any(), target_state(), strategy_data()}.
+%% shrinker
+-callback get_shrinker(target_state(), strategy_data()) -> proper_types:type().
 %% update the strategy with the fitness
--callback update_fitness(fitness(), target_state(), strategy_data()) -> 
+-callback update_fitness(fitness(), target_state(), strategy_data()) ->
   {target_state(), strategy_data()}.
 %% reset strat
--callback reset(target_state(), strategy_data()) -> 
+-callback reset(target_state(), strategy_data()) ->
   {target_state(), strategy_data()}.
 
 
@@ -166,8 +170,17 @@ cleanup_strategy() ->
 %% @private
 -spec targeted(tmap()) -> proper_types:type().
 targeted(TMap) ->
-  ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(TMap))),
-          [get_shrinker(TMap)]).
+  Type = ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(TMap))),
+                 [get_shrinker(TMap)]),
+  case TMap of
+    #{gen := Gen} ->
+      case proper_types:find_prop(user_nf, Gen) of
+        {ok, _} -> proper_types:add_prop(is_user_nf, true, Type);
+        error -> proper_types:add_prop(is_user_nf, false, Type)
+      end;
+    %% Old API.
+    _ -> proper_types:add_prop(is_user_nf, true, Type)
+  end.
 
 %% @doc Initialize the target of the strategy.
 
@@ -190,11 +203,21 @@ targeted_gen(TMap) ->
 %% @doc Get the shrinker for a tmap.
 
 -spec get_shrinker(tmap()) -> proper_types:type().
-get_shrinker(#{gen := Gen}) ->
-  Gen.
+get_shrinker(TMap) ->
+  init_target(TMap),
+  TargetserverPid = get('$targetserver_pid'),
+  try
+    gen_server:call(TargetserverPid, shrinker)
+  catch
+    _:{noproc, _} ->
+      case maps:is_key(gen, TMap) of
+        true -> maps:get(gen, TMap);
+        false -> maps:get(first, TMap)
+      end
+  end.
 
 %% This is used to update the fitness value.
-%% Depending on the strategy and the fitness this 
+%% Depending on the strategy and the fitness this
 %% may accept the newly generated value.
 
 %% @private
@@ -223,7 +246,7 @@ safe_call(Pid, Call) ->
   try
     gen_server:call(Pid, Call)
   catch _:{noproc, _} ->
-    ok
+      ok
   end.
 
 %% @private
@@ -258,16 +281,17 @@ init([{Strategy, Data}]) ->
 %% @private
 -spec handle_call(Request :: term(), From :: {pid(), Tag :: term()},
                   State :: state()) ->
-  {reply, Reply :: term(), NewState :: state()}.
+        {reply, Reply :: term(), NewState :: state()}.
 handle_call(gen, _From, State) ->
-  Strat = State#state.strategy,
-  Target = State#state.target,
-  Data = State#state.data,
+  #state{strategy = Strat, target = Target, data = Data} = State,
   {NextValue, NewTarget, NewData} = Strat:next(Target, Data),
   {reply, NextValue, State#state{target = NewTarget, data = NewData}};
+handle_call(shrinker, _From, State) ->
+  #state{strategy = Strat, target = Target, data = Data} = State,
+  Shrinker = Strat:get_shrinker(Target, Data),
+  {reply, Shrinker, State};
 handle_call({init_target, TMap}, _From, State) ->
-  Strat = State#state.strategy,
-  Target = State#state.target,
+  #state{strategy = Strat, target = Target} = State,
   NewTarget = case Target of
                 undefined ->
                   case TMap of
@@ -281,27 +305,23 @@ handle_call({init_target, TMap}, _From, State) ->
               end,
   {reply, ok, State#state{target = NewTarget}};
 handle_call({update_fitness, Fitness}, _From, State) ->
-  Strat = State#state.strategy,
-  Target = State#state.target,
-  Data = State#state.data,
+  #state{strategy = Strat, target = Target, data = Data} = State,
   {NewTarget, NewData} = Strat:update_fitness(Fitness, Target, Data),
   {reply, ok, State#state{target = NewTarget, data = NewData}};
 handle_call(reset, _From, State) ->
-  Strat = State#state.strategy,
-  Target = State#state.target,
-  Data = State#state.data,
+  #state{strategy = Strat, target = Target, data = Data} = State,
   {NewTarget, NewData} = Strat:reset(Target, Data),
   {reply, ok, State#state{target = NewTarget, data = NewData}}.
 
 %% @private
 -spec handle_cast(Request :: term(), State :: state()) ->
-  {noreply, NewState :: term()}.
+        {noreply, NewState :: term()}.
 handle_cast(_Request, State) ->
   {noreply, State}.
 
 %% @private
 -spec handle_info(Info :: timeout | term(), State :: state()) ->
-  {noreply, NewState :: state()}.
+        {noreply, NewState :: state()}.
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -309,13 +329,13 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: (normal | shutdown | {shutdown, term()} |
                            term()),
                 State :: state()) ->
-  ok.
+        ok.
 terminate(_Reason, _State) ->
   ok.
 
 %% @private
 -spec code_change(OldVsn :: (term() | {down, term()}), State :: state(),
                   Extra :: term()) ->
-  {ok, NewState :: state()}.
+        {ok, NewState :: state()}.
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.

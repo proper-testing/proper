@@ -387,7 +387,8 @@
 -export([get_size/1, global_state_init_size/1,
 	 global_state_init_size_seed/2, report_error/2]).
 -export([pure_check/1, pure_check/2]).
--export([forall/2, targeted/2, exists/3, implies/2, whenfail/2, trapexit/1, timeout/2, setup/2]).
+-export([forall/2, targeted/2, exists/3, implies/2,
+         whenfail/2, trapexit/1, timeout/2, setup/2]).
 
 -export_type([test/0, outer_test/0, counterexample/0, exception/0,
 	      false_positive_mfas/0, setup_opts/0]).
@@ -445,15 +446,12 @@
 		      | {'setup', setup_fun(), outer_test()}
 		      | {'numtests', pos_integer(), outer_test()}
 		      | {'on_output', output_fun(), outer_test()}.
--type targeted_type() :: 'none'
-                       | proper_types:type().
 %% TODO: Should the tags be of the form '$...'?
 %% @type test(). A testable property that has not been wrapped with an
 %% <a href="#external-wrappers">external wrapper</a>.
 -opaque test() :: boolean()
 	        | {'forall', proper_types:raw_type(), dependent_test()}
 	        | {'exists', proper_target:tmap(), dependent_test(), boolean()}
-                | {'targeted', proper_target:tmap(), targeted_type(), dependent_test()}
 	        | {'conjunction', [{tag(),test()}]}
 	        | {'implies', boolean(), delayed_test()}
 	        | {'sample', sample(), stats_printer(), test()}
@@ -955,8 +953,6 @@ peel_test({setup,Fun,OuterTest}, #opts{setup_funs = Funs} = Opts) ->
     peel_test(OuterTest, Opts#opts{setup_funs = [Fun|Funs]});
 peel_test({exists,_,_,_} = ExistsTest, Opts) ->
     {ExistsTest, Opts#opts{numtests=1}};
-peel_test({targeted, _, _, _} = TargetedTest, #opts{numtests = NumTests} = Opts) ->
-    {TargetedTest, Opts#opts{search_steps = NumTests}};
 peel_test(Test, Opts) ->
     {Test, Opts}.
 
@@ -1002,9 +998,15 @@ exists(RawType, DTest, Not) ->
     {exists, #{gen => RawType}, DTest, Not}.
 
 %% @private
--spec targeted(proper_types:raw_type(), dependent_test()) -> test().
+-spec targeted(proper_types:raw_type(), dependent_test()) -> outer_test().
 targeted(RawType, DTest) ->
-    {targeted, #{gen => RawType}, none, DTest}.
+  setup(fun(#{numtests := Numtests} = Opts) ->
+            NewOpts = Opts#{search_steps => Numtests},
+            proper_target:init_strategy(NewOpts),
+            proper_target:init_target(#{gen => RawType}),
+            fun proper_target:cleanup_strategy/0
+        end,
+        forall(proper_target:targeted(#{gen => RawType}), DTest)).
 
 %% @doc Returns a property that is true only if all of the sub-properties
 %% `SubProps' are true. Each sub-property should be tagged with a distinct atom.
@@ -1224,14 +1226,6 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
--spec perform(pos_integer(), test(), opts()) -> imm_result().
-perform(NumTests, {targeted, TMap, _Target, Prop}, #opts{search_strategy = Strat} = Opts) ->
-    proper_target:init_strategy(Strat),
-    Target = proper_target:targeted(TMap),
-    Res = perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests,
-                  {targeted, TMap, Target, Prop}, none, none, Opts),
-    proper_target:cleanup_strategy(),
-    Res;
 perform(NumTests, Test, Opts) ->
     perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
@@ -1413,33 +1407,6 @@ run({exists, _TMap, Prop, Not}, #ctx{mode = try_cexm,
 	{#pass{}, true} -> create_fail_result(Ctx, false_prop);
 	{R, _} -> R
     end;
-run({targeted, _TMap, Target, Prop}, #ctx{mode = new, bound = Bound} = Ctx, Opts) ->
-    case proper_gen:safe_generate(Target) of
-    {ok, ImmInstance} ->
-        Instance = proper_gen:clean_instance(ImmInstance),
-        NewCtx = Ctx#ctx{bound = [ImmInstance | Bound]},
-        force(Instance, Prop, NewCtx, Opts);
-    {error, _Reason} = Error ->
-        Error
-    end;
-run({targeted, _TMap, _Target, _Prop}, #ctx{bound = []} = Ctx, _Opts) ->
-    create_pass_result(Ctx, didnt_crash);
-run({targeted, TMap, _Target, Prop}, #ctx{mode = try_shrunk,
-				  bound = [ImmInstance | Rest]} = Ctx, Opts) ->
-    RawType = proper_target:get_shrinker(TMap),
-    case proper_types:safe_is_instance(ImmInstance, RawType) of
-	true ->
-	    Instance = proper_gen:clean_instance(ImmInstance),
-	    force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts);
-	false ->
-	    %% TODO: could try to fix the instances here
-	    {error, wrong_type};
-	{error, _Reason} = Error ->
-	    Error
-    end;
-run({targeted, _TMap, _Target, Prop}, #ctx{mode = try_cexm,
-	bound = [Instance | Rest]} = Ctx, Opts) ->
-    force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts);
 run({forall, RawType, Prop}, #ctx{mode = new, bound = Bound} = Ctx, Opts) ->
     case proper_gen:safe_generate(RawType) of
 	{ok, ImmInstance} ->
@@ -1774,12 +1741,15 @@ shrink(Shrunk, [ImmInstance | Rest], {_Type,Prop}, Reason,
 	   Shrinks, ShrinksLeft, init, Opts);
 shrink(Shrunk, [RawImmInstance | Rest] = TestTail, {Type,Prop} = StrTest, Reason,
        Shrinks, ShrinksLeft, State, Opts) ->
-    ImmInstance = case proper_types:find_prop(user_nf, Type) of
-		      {ok, _} ->
-			  proper_gen:clean_instance(RawImmInstance);
-		      error ->
-			  RawImmInstance
-		  end,
+    ImmInstance = case proper_types:find_prop(is_user_nf, Type) of
+                    {ok, true} ->
+                      case proper_types:safe_is_instance(RawImmInstance, Type) of
+                        false -> proper_gen:clean_instance(RawImmInstance);
+                        true -> RawImmInstance
+                      end;
+                    {ok, false} -> RawImmInstance;
+                    error -> RawImmInstance
+                  end,
     {NewImmInstances,NewState} = proper_shrink:shrink(ImmInstance, Type, State),
     %% TODO: Should we try fixing the nested ?FORALLs while shrinking? We could
     %%       also just produce new test tails.
@@ -1896,10 +1866,6 @@ skip_to_next({exists, TMap, Prop, false}) ->
     Type = proper_types:cook_outer(RawType),
     %% negate the property result around for ?NOT_EXISTS
     {Type, fun (X) -> not Prop(X) end};
-skip_to_next({targeted, TMap, _Target, Prop}) ->
-    RawType = proper_target:get_shrinker(TMap),
-    Type = proper_types:cook_outer(RawType),
-    {Type, Prop};
 skip_to_next({forall,RawType,Prop}) ->
     Type = proper_types:cook_outer(RawType),
     {Type, Prop};
