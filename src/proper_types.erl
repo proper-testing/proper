@@ -241,7 +241,7 @@
 			| 'get_length' | 'split' | 'join' | 'get_indices'
 			| 'remove' | 'retrieve' | 'update' | 'constraints'
 			| 'parameters' | 'env' | 'subenv'
-			| 'user_nf' | 'matcher'.
+			| 'user_nf' | 'is_user_nf' | 'matcher'.
 
 -type type_prop_value() :: term().
 -type type_prop() ::
