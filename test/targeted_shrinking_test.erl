@@ -72,9 +72,9 @@ nf_list() ->
   fun (Prev, _T) ->
       {Max, NewLen} = case Prev of
                         [] -> {0, 1};
-                        _ -> {lists:max(Prev), length(Prev)}
+                        _ -> {max(0, lists:max(Prev)), length(Prev)}
                       end,
-      ?SHRINK(?LET(L, vector(NewLen, integer(Max, inf)), Prev ++ L),
+      ?SHRINK(vector(NewLen * 2, integer(Max, inf)),
               [list(integer())])
   end.
 
