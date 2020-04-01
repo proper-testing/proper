@@ -160,7 +160,7 @@ get_cexm() ->
 
 %%
 %% The two macros below differ in that the first one we do not know the
-%% expected counterexample pattern, so no need to match against it.
+%% expected counterexample pattern, so there is no need to match against it.
 %%
 -define(checkNoExpCExp(CExm, AllCExms, Test, Opts),
 	begin
