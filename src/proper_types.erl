@@ -290,7 +290,8 @@
     | {'parameters', [{atom(),value()}]}
     | {'env', term()}
     | {'subenv', term()}
-    | {'user_nf', proper_gen_next:nf()}.
+    | {'user_nf', proper_gen_next:nf()}
+    | {'is_user_nf', boolean()}.
 
 
 %%------------------------------------------------------------------------------

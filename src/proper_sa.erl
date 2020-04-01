@@ -44,13 +44,15 @@
 %% Exports
 %% -----------------------------------------------------------------------------
 
--export([init_strategy/1, init_target/1, next/2, update_fitness/3, reset/2]).
+-export([init_strategy/1, init_target/1, next/2,
+         get_shrinker/2, update_fitness/3, reset/2]).
 
 %% -----------------------------------------------------------------------------
 %% Macros
 %% -----------------------------------------------------------------------------
 
 -define(RANDOM_PROBABILITY, (?RANDOM_MOD:uniform())).
+-define(TEMP_FUN, fun(_, _, _, _, _) -> 1.0 end).
 
 %% -----------------------------------------------------------------------------
 %% Types
@@ -71,6 +73,7 @@
                          boolean()) -> {proper_gen_next:temperature(), k()}).
 -type accept_fun() :: fun((proper_target:fitness(), proper_target:fitness(),
                            proper_gen_next:temperature()) -> boolean()).
+-type next_fun_ret() :: proper_types:type() | proper_gen:instance().
 
 %% -----------------------------------------------------------------------------
 %% Records
@@ -78,31 +81,31 @@
 
 -record(sa_target,
         {first             = null :: proper_types:type(),
-         next              = null :: fun((_, _) -> proper_types:type()),
+         next              = null :: fun((_, _) -> next_fun_ret()),
          current_generated = null :: proper_gen:instance(),
          last_generated    = null :: proper_gen:instance()}).
 -type sa_target() :: #sa_target{}.
 
 -record(sa_data,
         {%% search steps
-         k_max = 0                                 :: k(),
+         k_max = 0                      :: k(),
          %% current step
-         k_current = 0                             :: k(),
+         k_current = 0                  :: k(),
          %% acceptance function
-         p = fun (_, _, _) -> false end            :: accept_fun(),
+         p = fun (_, _, _) -> false end :: accept_fun(),
          %% fitness
-         last_energy = null                        :: proper_target:fitness() | null,
-         last_update = 0                           :: integer(),
+         last_energy = null             :: proper_target:fitness() | null,
+         last_update = 0                :: integer(),
          %% temperature
-         temperature = 1.0                         :: proper_gen_next:temperature(),
-         temp_func = fun(_, _, _, _, _) -> 1.0 end :: temp_fun()}).
+         temperature = 1.0              :: proper_gen_next:temperature(),
+         temp_func = ?TEMP_FUN          :: temp_fun()}).
 -type sa_data() :: #sa_data{}.
 
 %% -----------------------------------------------------------------------------
 %% proper_target callbacks
 %% -----------------------------------------------------------------------------
 
-%% Initialize the strategy data based on the 
+%% Initialize the strategy data based on the
 %% number of the search steps and the strategy.
 
 %% @private
@@ -131,6 +134,35 @@ next(#sa_target{next = Next, last_generated = LastGen} = Target, Data) ->
   {ok, Generated} = proper_gen:safe_generate(NextGenerator),
   {Generated, Target#sa_target{current_generated = Generated}, Data}.
 
+%% The function which returns the generator to use when shrinking.
+
+%% @private
+-spec get_shrinker(sa_target(), sa_data()) -> proper_types:type().
+get_shrinker(#sa_target{first = RawType, current_generated = Generated}, Data) ->
+  CleanGenerated = proper_gen:clean_instance(Generated),
+  case proper_types:find_prop(user_nf, RawType) of
+    {ok, NF} ->
+      NextType = NF(CleanGenerated, Data#sa_data.temperature),
+      %% Check for shrinkers provided by user with ?SHRINK macro.
+      case proper_types:find_prop(alt_gens, NextType) of
+        %% User provided ?SHRINK, so we keep it.
+        {ok, _} -> NextType;
+        %% Try to find which is the best shrinker.
+        %% We try to keep the original generator whenever possible.
+        error ->
+          case proper_types:safe_is_instance(Generated, RawType) of
+            false ->
+              case proper_types:safe_is_instance(CleanGenerated, RawType) of
+                true -> RawType;
+                false -> NextType
+              end;
+            true -> RawType
+          end
+      end;
+    error ->
+      RawType
+  end.
+
 %% Update state and data based on current fitness.
 %% The current generated value is accepted based on the
 %% simulated annealing acceptance function, which always
@@ -139,7 +171,7 @@ next(#sa_target{next = Next, last_generated = LastGen} = Target, Data) ->
 
 %% @private
 -spec update_fitness(proper_target:fitness(), sa_target(), sa_data()) ->
-  {sa_target(), sa_data()}.
+        {sa_target(), sa_data()}.
 update_fitness(Fitness, Target, Data) ->
   #sa_data{k_current = K_Current,
            k_max = K_Max,
@@ -159,7 +191,7 @@ update_fitness(Fitness, Target, Data) ->
                  K_Max,
                  K_Current,
                  true),
-      NewTarget = 
+      NewTarget =
         Target#sa_target{last_generated = Target#sa_target.current_generated},
       {NewTarget, Data#sa_data{last_energy = Fitness,
                                last_update = 0,
