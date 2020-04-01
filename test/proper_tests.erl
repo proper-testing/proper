@@ -28,9 +28,14 @@
 
 -module(proper_tests).
 
+-compile([nowarn_untyped_record]).  % deliberately contains one untyped record
+
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+%% NOTE: Possibly here temporarily until the compiler's warnings are fixed.
+-export_type([my_native_type/0, type_and_fun/0, type_only/0, id/1, lof/0]).
+-export_type([bin4/0, bits42/0, bits5x/0, bits7x/0, untyped/0]).
 
 %%------------------------------------------------------------------------------
 %% Helper macros
@@ -90,50 +95,61 @@ assertEqualsOneOf(X, List) ->
 	?_fails(Test, [])).
 
 -define(_fails(Test, Opts),
-	?_failsWith(_, Test, Opts)).
+	?_assertFailRun(none, Test, Opts)).
 
 -define(_failsWith(ExpCExm, Test),
 	?_failsWith(ExpCExm, Test, [])).
 
 -define(_failsWith(ExpCExm, Test, Opts),
-	?_assertFailRun(ExpCExm, none, Test, Opts)).
+	?_assertFailRun(none, Test, Opts, ExpCExm)).
 
 -define(_failsWithOneOf(AllCExms, Test),
 	?_failsWithOneOf(AllCExms, Test, [])).
 
 -define(_failsWithOneOf(AllCExms, Test, Opts),
-	?_assertFailRun(_, AllCExms, Test, Opts)).
+	?_assertFailRun(AllCExms, Test, Opts)).
 
 -define(SHRINK_TEST_OPTS, [{start_size,10},{max_shrinks,10000}]).
 
 -define(_shrinksTo(ExpShrunk, Type),
-	?_assertFailRun([ExpShrunk], none, ?FORALL(_X,Type,false),
-			?SHRINK_TEST_OPTS)).
+	?_assertFailRun(none, ?FORALL(_X,Type,false),
+			?SHRINK_TEST_OPTS, [ExpShrunk])).
 
 -define(_shrinksToOneOf(AllShrunk, Type),
-	?_assertFailRun(_, [[X] || X <- AllShrunk], ?FORALL(_X,Type,false),
+	?_assertFailRun([[X] || X <- AllShrunk], ?FORALL(_X,Type,false),
 			?SHRINK_TEST_OPTS)).
 
 -define(_nativeShrinksTo(ExpShrunk, TypeStr),
-	?_assertFailRun([ExpShrunk], none,
+	?_assertFailRun(none,
 			?FORALL(_X,assert_can_translate(?MODULE,TypeStr),false),
-			?SHRINK_TEST_OPTS)).
+			?SHRINK_TEST_OPTS, [ExpShrunk])).
 
 -define(_nativeShrinksToOneOf(AllShrunk, TypeStr),
-	?_assertFailRun(_, [[X] || X <- AllShrunk],
+	?_assertFailRun([[X] || X <- AllShrunk],
 			?FORALL(_X,assert_can_translate(?MODULE,TypeStr),false),
 			?SHRINK_TEST_OPTS)).
 
--define(_assertFailRun(ExpCExm, AllCExms, Test, Opts),
+-define(_assertFailRun(AllCExms, Test, Opts),
 	?_test(begin
 		   ShortResult = proper:quickcheck(Test, Opts),
 		   CExm1 = get_cexm(),
-		   ?checkCExm(CExm1, ExpCExm, AllCExms, Test, Opts),
+		   ?checkNoExpCExp(CExm1, AllCExms, Test, Opts),
 		   ?assertEqual(false, ShortResult),
 		   LongResult = proper:quickcheck(Test, [long_result|Opts]),
 		   CExm2 = get_cexm(),
-		   ?checkCExm(CExm2, ExpCExm, AllCExms, Test, Opts),
-		   ?checkCExm(LongResult, ExpCExm, AllCExms, Test, Opts)
+		   ?checkNoExpCExp(CExm2, AllCExms, Test, Opts),
+		   ?checkNoExpCExp(LongResult, AllCExms, Test, Opts)
+	       end)).
+-define(_assertFailRun(AllCExms, Test, Opts, ExpCExm),
+	?_test(begin
+		   ShortResult = proper:quickcheck(Test, Opts),
+		   CExm1 = get_cexm(),
+		   ?checkCExm(CExm1, AllCExms, Test, Opts, ExpCExm),
+		   ?assertEqual(false, ShortResult),
+		   LongResult = proper:quickcheck(Test, [long_result|Opts]),
+		   CExm2 = get_cexm(),
+		   ?checkCExm(CExm2, AllCExms, Test, Opts, ExpCExm),
+		   ?checkCExm(LongResult, AllCExms, Test, Opts, ExpCExm)
 	       end)).
 
 get_cexm() ->
@@ -142,7 +158,16 @@ get_cexm() ->
     ?assert(state_is_clean()),
     CExm.
 
--define(checkCExm(CExm, ExpCExm, AllCExms, Test, Opts),
+%%
+%% The two macros below differ in that the first one we do not know the
+%% expected counterexample pattern, so there is no need to match against it.
+%%
+-define(checkNoExpCExp(CExm, AllCExms, Test, Opts),
+	begin
+	    ?assertCheck(false, CExm, Test, Opts),
+	    assertEqualsOneOf(CExm, AllCExms)
+	end).
+-define(checkCExm(CExm, AllCExms, Test, Opts, ExpCExm),
 	begin
 	    ?assertCheck(false, CExm, Test, Opts),
 	    ?assertMatch(ExpCExm, CExm),
@@ -520,10 +545,6 @@ impossible_types() ->
      %% Nested constraints, one strict and one non-strict, where the
      %% outer one fails
      ?SUCHTHAT(X, ?SUCHTHATMAYBE(Y, pos_integer(), Y < 0), X < 0),
-     %% Two failing constraints within a ?LET macro, where one constraint
-     %% is used as the 'raw type' and one is used as the 'generator'
-     ?LET(Y, ?SUCHTHAT(X, pos_integer(), X < 0),
-	     ?SUCHTHAT(Y, pos_integer(), Y < 0)),
      %% Two failing constraints within a ?LET macro, where both
      %% constraints are used as a 'raw type'
      ?LET({X,Y}, {?SUCHTHAT(X1, pos_integer(), X1 < 0),

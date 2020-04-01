@@ -1,4 +1,4 @@
-# Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -28,8 +28,6 @@ else
     SEP := $(strip /)
 endif
 
-PROPER_REBAR := .$(SEP)rebar
-
 REBAR3_URL := https://s3.amazonaws.com/rebar3/rebar3
 REBAR3 ?= $(shell which rebar3 || which .$(SEP)rebar3 || \
             (wget $(REBAR3_URL) && chmod +x rebar3 && echo .$(SEP)rebar3))
@@ -44,7 +42,7 @@ compile:
 	ln -s _build/default/lib/proper/ebin .
 
 dialyzer: .plt/proper_plt compile
-	dialyzer -n -nn --plt $< -Wunmatched_returns ebin
+	dialyzer -n -nn --plt $< -Wunmatched_returns -Wunknown ebin
 
 .plt/proper_plt: .plt
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit
@@ -53,7 +51,7 @@ check_escripts:
 	./scripts/check_escripts.sh make_doc
 
 test:
-	$(PROPER_REBAR) eunit
+	$(REBAR3) eunit
 
 doc: compile
 	./scripts/make_doc
@@ -63,12 +61,11 @@ clean:
 
 distclean: clean
 	$(REBAR3) clean
-	$(RM) -r .eunit .rebar
 	$(RM) .plt/proper_plt
 	$(RM) -r _build ebin rebar3 rebar.lock
 
 rebuild: distclean compile
 
 retest:
-	$(RM) -r .eunit
-	$(PROPER_REBAR) eunit
+	$(RM) -r _build/test/lib/proper/test
+	$(REBAR3) eunit

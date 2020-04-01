@@ -20,7 +20,7 @@ jobs:
       before_script:
             - >
                 printf "\n{cover_enabled, true}.\n{cover_export_enabled, true}.
-                \n{cover_skip_modules, [
+                \n{cover_excl_mods, [
                 proper_array,
                 proper_dict,
                 proper_gb_sets,
@@ -36,8 +36,8 @@ jobs:
       after_success:
             - git clone https://github.com/covertool/covertool.git
             - cd covertool && make compile && cd ..
-            - find .eunit/ -name *.coverdata -exec ./covertool/covertool -cover {} -output {}.coverage.xml \;
-            - mv .eunit/*.xml .
+            - find _build/test/cover/ -name *.coverdata -exec ./covertool/covertool -cover {} -output {}.coverage.xml \;
+            - mv _build/test/cover/*.xml .
             - rm -rf covertool/
             - bash <(curl -s https://codecov.io/bash)
 

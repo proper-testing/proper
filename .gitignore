@@ -11,6 +11,4 @@ doc/edoc-info
 rebar3
 rebar.lock
 ebin
-.eunit/
-.rebar/
 _build/
