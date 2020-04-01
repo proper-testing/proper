@@ -28,9 +28,14 @@
 
 -module(proper_tests).
 
+-compile([nowarn_untyped_record]).  % deliberately contains one untyped record
+
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+%% NOTE: Possibly here temporarily until the compiler's warnings are fixed.
+-export_type([my_native_type/0, type_and_fun/0, type_only/0, id/1, lof/0]).
+-export_type([bin4/0, bits42/0, bits5x/0, bits7x/0, untyped/0]).
 
 %%------------------------------------------------------------------------------
 %% Helper macros
