@@ -525,10 +525,6 @@ impossible_types() ->
      %% Nested constraints, one strict and one non-strict, where the
      %% outer one fails
      ?SUCHTHAT(X, ?SUCHTHATMAYBE(Y, pos_integer(), Y < 0), X < 0),
-     %% Two failing constraints within a ?LET macro, where one constraint
-     %% is used as the 'raw type' and one is used as the 'generator'
-     ?LET(Y, ?SUCHTHAT(X, pos_integer(), X < 0),
-	     ?SUCHTHAT(Y, pos_integer(), Y < 0)),
      %% Two failing constraints within a ?LET macro, where both
      %% constraints are used as a 'raw type'
      ?LET({X,Y}, {?SUCHTHAT(X1, pos_integer(), X1 < 0),
