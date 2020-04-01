@@ -36,7 +36,6 @@ jobs:
       after_success:
             - git clone https://github.com/covertool/covertool.git
             - cd covertool && make compile && cd ..
-            - find _build/ -name *.coverdata 
             - find _build/test/cover/ -name *.coverdata -exec ./covertool/covertool -cover {} -output {}.coverage.xml \;
             - mv _build/test/cover/*.xml .
             - rm -rf covertool/
