@@ -31,6 +31,7 @@ endif
 REBAR3_URL := https://s3.amazonaws.com/rebar3/rebar3
 REBAR3 ?= $(shell which rebar3 || which .$(SEP)rebar3 || \
             (wget $(REBAR3_URL) && chmod +x rebar3 && echo .$(SEP)rebar3))
+COVER ?= false
 
 default: compile
 
@@ -51,7 +52,11 @@ check_escripts:
 	./scripts/check_escripts.sh make_doc
 
 test:
+ifeq ($(COVER), true)
+	$(REBAR3) do eunit -c, cover, covertool generate
+else
 	$(REBAR3) eunit
+endif
 
 doc: compile
 	./scripts/make_doc
