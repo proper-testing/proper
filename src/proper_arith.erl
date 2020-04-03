@@ -244,9 +244,9 @@ rand_restart(Seed) ->
 -spec rand_make_seed() -> proper_gen:seed().
 rand_make_seed() ->
     {_,_} = get(?SEED_NAME),
-    A = ?RANDOM_MOD:uniform(1000000),
-    B = ?RANDOM_MOD:uniform(1000000),
-    C = ?RANDOM_MOD:uniform(1000000),
+    A = rand_int(0, ?SEED_RANGE -1),
+    B = rand_int(0, ?SEED_RANGE -1),
+    C = rand_int(0, ?SEED_RANGE -1),
     {A,B,C}.
 
 -spec rand_reseed() -> 'ok'.
