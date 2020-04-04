@@ -55,16 +55,20 @@
 -define(TEMP(T), calculate_temperature(T)).
 -define(SLTEMP(T), adjust_temperature(T)).
 
+-define(GEN_NEXT_CACHE,  proper_gen_next_cache).
+-define(GEN_NEXT_BACKUP, proper_gen_next_cache_backup).
+-define(GEN_NEXT_DEPTH,  proper_gen_next_cache_depth).
+
 -type temperature() :: float().
 -type nf() :: fun((pos_integer(), temperature()) -> term()).
 -type matcher() :: fun((term(), proper_types:raw_type(), temperature()) -> term()).
 
 -spec update_caches('accept' | 'reject') -> 'ok'.
 update_caches(accept) ->
-  put(proper_gen_next_cache_backup, get(proper_gen_next_cache)),
+  put(?GEN_NEXT_BACKUP, get(?GEN_NEXT_CACHE)),
   ok;
 update_caches(reject) ->
-  put(proper_gen_next_cache, get(proper_gen_next_cache_backup)),
+  put(?GEN_NEXT_CACHE, get(?GEN_NEXT_BACKUP)),
   ok.
 
 -spec from_proper_generator(proper_types:type()) -> proper_target:tmap().
@@ -74,15 +78,9 @@ from_proper_generator(RawGenerator) ->
   #{first => RawGenerator, next => Next}.
 
 ensure_initialized() ->
-  L = [get(proper_gen_next_cache),
-       get(proper_gen_next_cache_backup),
-       get(proper_gen_next_depth_cache),
-       get(?SEED_NAME),
-       get('$any_type'),
-       get('$left'),
-       get('$constraint_tries'),
-       get('$typeserver_pid')],
-  case lists:member(undefined, L) of
+  L = [?GEN_NEXT_CACHE, ?GEN_NEXT_BACKUP, ?GEN_NEXT_DEPTH, ?SEED_NAME,
+       '$any_type', '$left', '$constraint_tries', '$typeserver_pid'],
+  case lists:any(fun(X) -> get(X) =:= undefined end, L) of
     true ->
       %% not correctly initialized
       init(),
@@ -94,17 +92,15 @@ ensure_initialized() ->
 
 -spec init() -> ok.
 init() ->
-  init_pd(proper_gen_next_cache, #{}),
-  init_pd(proper_gen_next_cache_backup, #{}),
-  init_pd(proper_gen_next_depth_cache, #{max => 1}),
+  init_pd(?GEN_NEXT_CACHE,  #{}),
+  init_pd(?GEN_NEXT_BACKUP, #{}),
+  init_pd(?GEN_NEXT_DEPTH,  #{max => 1}),
   ok.
 
 -spec cleanup() -> ok.
 cleanup() ->
-  erase(proper_gen_next_cache),
-  erase(proper_gen_next_cache_backup),
-  erase(proper_gen_next_depth_cache),
-  ok.
+  L = [?GEN_NEXT_CACHE, ?GEN_NEXT_BACKUP, ?GEN_NEXT_DEPTH],
+  lists:foreach(fun(X) -> erase(X) end, L).
 
 init_pd(Key, Value) ->
   case get(Key) of
@@ -122,16 +118,11 @@ set_user_nf(Type, NF) ->
 set_matcher(Type, Matcher) ->
   proper_types:add_prop(matcher, Matcher, Type).
 
-get_depth() ->
-  DS = get(proper_gen_next_depth_cache),
-  #{max := Max} = DS,
-  Max.
-
 store_max_depth(Depth) ->
-  DS = get(proper_gen_next_depth_cache),
-  #{max := Current} = DS,
-  NewMax = max(Depth, Current),
-  put(proper_gen_next_depth_cache, DS#{max => NewMax}),
+  DS = get(?GEN_NEXT_DEPTH),
+  #{max := CurrentMax} = DS,
+  NewMax = max(Depth, CurrentMax),
+  put(?GEN_NEXT_DEPTH, DS#{max => NewMax}),
   NewMax.
 
 replace_generators(RawGen) ->
@@ -149,7 +140,8 @@ replace_generators(RawGen) ->
           %% warning
           case get(proper_sa_testing) of
             true -> error(proper_sa_fallback);
-            false -> io:format("Fallback using regular generator instead: ~p~n", [Gen])
+            false ->
+	      io:format("Fallback using regular generator instead: ~p~n", [Gen])
           end;
         false ->
           %% literal value -> no warning
@@ -226,7 +218,7 @@ temperature_scaling(Temp, Depth) ->
     false -> 1.0;
     true ->
       M = 0.25,
-      MaxD = get_depth(),
+      #{max := MaxD} = get(?GEN_NEXT_DEPTH),
       case MaxD of
         1 -> Temp;
         _ -> M + M*1/(1-MaxD) * Temp * (Depth-1)
@@ -319,7 +311,7 @@ list_choice(empty, Temp) ->
 list_choice({list, GrowthCoefficient}, Temp) ->
   C = ?RANDOM_MOD:uniform(),
   AddCoefficient = 0.3 * GrowthCoefficient,
-  DelCoefficient = 0.3 * (1- GrowthCoefficient),
+  DelCoefficient = 0.3 * (1 - GrowthCoefficient),
   C_Add =          AddCoefficient * Temp,
   C_Del = C_Add + (DelCoefficient * Temp),
   C_Mod = C_Del + (0.15 * Temp),
@@ -360,7 +352,7 @@ list_gen_internal([H|T], null, InternalType, ElementType, GrowthCoefficient) ->
 list_gen_internal(L=[H|T], Temp, InternalType, ElementType, GrowthCoefficient) ->
   %% chance to modify current element
   %% chance to delete current element
-  %% chance to add element infront of current element
+  %% chance to add element in front of current element
   case list_choice({list, GrowthCoefficient}, ?TEMP(Temp)) of
     add ->
       {ok, New} = proper_gen:safe_generate(InternalType),
@@ -726,7 +718,7 @@ is_wrapper_type(Type) ->
 
 get_cached_size(Type) ->
   Key = erlang:phash2({sized_type, Type}),
-  case get(proper_gen_next_cache) of
+  case get(?GEN_NEXT_CACHE) of
     Map when is_map(Map) ->
       case maps:find(Key, Map) of
         error -> not_found;
@@ -737,8 +729,8 @@ get_cached_size(Type) ->
 
 set_cache_size(Type, Size) ->
   Key = erlang:phash2({sized_type, Type}),
-  M = get(proper_gen_next_cache),
-  put(proper_gen_next_cache, maps:put(Key, Size, M)).
+  M = get(?GEN_NEXT_CACHE),
+  put(?GEN_NEXT_CACHE, maps:put(Key, Size, M)).
 
 get_size(Type, Temp) ->
   Size = case get_cached_size(Type) of
