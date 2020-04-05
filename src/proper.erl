@@ -228,8 +228,11 @@
 %%% <dd>Redirects all of PropEr's output to `<IO_device>', which should be an
 %%%   IO device associated with a file opened for writing.</dd>
 %%% <dt>`{on_output, <Output_function>}'</dt>
-%%% <dd>PropEr will use the supplied function for all output printing. This
-%%%   function should accept two arguments in the style of `io:format/2'.<br/>
+%%% <dd>This option disables colored output (i.e,, it implies 'nocolors'), and
+%%%   makes PropEr use the supplied function for all output printing. This
+%%%   function should accept two arguments in the style of `io:format/2'
+%%%  (i.e., a string and a list of arguments) which are supplied to the
+%%%  function by PropEr.<br/>
 %%%   CAUTION: The above output control options are incompatible with each
 %%%   other.</dd>
 %%% <dt>`long_result'</dt>
@@ -280,7 +283,7 @@
 %%% user supplied function can call erlang:get_stacktrace/0.  Default
 %%% is undefined.</dd>
 %%% <dt>`nocolors'</dt>
-%%% <dd>Don't use term colors in output.</dd>
+%%% <dd>Do not use term colors in output.</dd>
 %%% </dl>
 %%%
 %%% == Spec testing ==
@@ -918,7 +921,7 @@ parse_opt(UserOpt, Opts) ->
 	{to_file,IoDev}      -> Opts#opts{output_fun =
 				    fun(S,F) -> io:format(IoDev, S, F) end
 				};
-	{on_output,Print}    -> Opts#opts{output_fun = Print};
+	{on_output,Print}    -> Opts#opts{output_fun = Print, nocolors = true};
 	long_result          -> Opts#opts{long_result = true};
 	{numtests,N}         -> Opts#opts{numtests = N};
 	{search_steps, N}    -> Opts#opts{search_steps = N};
@@ -1379,8 +1382,8 @@ run({exists, TMap, Prop, Not}, #ctx{mode = new} = Ctx,
     Print("]", []),
     proper_target:cleanup_strategy(),
     SR;
-run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk, bound = []}, Opts) ->
-    run({exists, TMap, Prop, Not}, #ctx{mode = new, bound = []}, Opts#opts{output_fun = fun (_, _) -> ok end});
+run({exists, _, _, _} = Exists, #ctx{mode = try_shrunk, bound = []}, Opts) ->
+    run(Exists, #ctx{mode = new, bound = []}, Opts#opts{output_fun = fun (_, _) -> ok end});
 run({exists, _TMap, _Prop, _Not}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
 run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk,
@@ -1401,7 +1404,7 @@ run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk,
 	    Error
     end;
 run({exists, _TMap, Prop, Not}, #ctx{mode = try_cexm,
-				    bound = [Instance | Rest]} = Ctx, Opts) ->
+				     bound = [Instance | Rest]} = Ctx, Opts) ->
     case {force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts), Not} of
 	{#fail{}, true} -> create_pass_result(Ctx, true_prop);
 	{#pass{}, true} -> create_fail_result(Ctx, false_prop);
