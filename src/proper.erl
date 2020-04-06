@@ -404,6 +404,25 @@
 
 -define(MISMATCH_MSG, "Error: The input doesn't correspond to this property: ").
 
+%%-----------------------------------------------------------------------------
+%% Color printing macros
+%%-----------------------------------------------------------------------------
+
+-define(BOLD_RED,     "\033[01;31m").
+-define(BOLD_GREEN,   "\033[01;32m").
+-define(BOLD_YELLOW,  "\033[01;33m"). % currently not used
+-define(BOLD_BLUE,    "\033[01;34m").
+-define(BOLD_MAGENTA, "\033[01;35m"). % currently not used
+-define(END_MARKER,   "\033[00m").
+
+-define(COLOR_WRAP(NoCol, StartMarker, Msg),
+	case NoCol of
+	    true -> Msg;
+	    false -> StartMarker ++ Msg ++ ?END_MARKER
+	end).
+-define(PRINT(NoCol, StartMarker, Print, Msg, Args),
+	Print(?COLOR_WRAP(NoCol, StartMarker, Msg), Args)).
+
 
 %%-----------------------------------------------------------------------------
 %% Test types
@@ -1676,12 +1695,7 @@ finalize_input(Instance) ->
 shrink(ImmTestCase, Test, Reason,
        #opts{expect_fail = false, noshrink = false, max_shrinks = MaxShrinks,
 	     output_fun = Print, nocolors = NoColors} = Opts) ->
-    case NoColors of
-        true ->
-            Print("~nShrinking ", []);
-        false ->
-            Print("~n\033[01;34mShrinking \033[00m", [])
-    end,
+    ?PRINT(NoColors, ?BOLD_BLUE, Print, "~nShrinking ", []),
     try
 	StrTest = skip_to_next(Test),
 	fix_shrink(ImmTestCase, StrTest, Reason, 0, MaxShrinks, Opts)
@@ -1923,19 +1937,12 @@ report_imm_result(#pass{samples = Samples, printers = Printers,
                         nocolors = NoColors}) ->
     case ExpectF of
         true ->
-            case NoColors of
-                true ->
-                    Print("Failed: All tests passed when a failure was expected.~n", []);
-                false ->
-                    Print("\033[1;31mFailed: All tests passed when a failure was expected.\033[0m~n", [])
-            end;
+	    ?PRINT(NoColors, ?BOLD_RED, Print,
+		   "Failed: All tests passed when a failure was expected.~n",
+		   []);
         false ->
-            case NoColors of
-                true ->
-                    Print("OK: Passed ~b test(s).~n", [Performed]);
-                false ->
-                    Print("\033[1;32mOK: Passed ~b test(s).~n\033[0m", [Performed])
-            end
+	    ?PRINT(NoColors, ?BOLD_GREEN, Print,
+		   "OK: Passed ~b test(s).~n", [Performed])
     end,
     SortedSamples = [lists:sort(Sample) || Sample <- Samples],
     lists:foreach(fun({P,S}) -> apply_stats_printer(P, S, Print) end,
@@ -1946,19 +1953,11 @@ report_imm_result(#fail{reason = Reason, bound = Bound, actions = Actions,
                         nocolors = NoColors}) ->
     case ExpectF of
         true ->
-            case NoColors of
-                true ->
-                    Print("OK: Failed as expected, after ~b test(s).~n", [Performed]);
-                false ->
-                    Print("\033[1;32mOK: Failed as expected, after ~b test(s).~n\033[0m", [Performed])
-            end;
+	    ?PRINT(NoColors, ?BOLD_GREEN, Print,
+		   "OK: Failed as expected, after ~b test(s).~n", [Performed]);
         false ->
-            case NoColors of
-                true ->
-                    Print("Failed: After ~b test(s).~n", [Performed]);
-                false ->
-                    Print("\033[1;31mFailed: After ~b test(s).~n\033[0m", [Performed])
-            end
+	    ?PRINT(NoColors, ?BOLD_RED, Print,
+		   "Failed: After ~b test(s).~n", [Performed])
     end,
     report_fail_reason(Reason, "", Print),
     print_imm_testcase(Bound, "", Print),
@@ -1969,18 +1968,10 @@ report_imm_result({error,Reason}, #opts{output_fun = Print}) ->
 -spec report_rerun_result(run_result(), opts()) -> 'ok'.
 report_rerun_result(#pass{reason = Reason},
                     #opts{expect_fail = ExpectF, output_fun = Print,
-                        nocolors = NoColors}) ->
+			  nocolors = NoColors}) ->
     case ExpectF of
-        true ->
-            case NoColors of
-                true  -> Print("Failed: ", []);
-                false -> Print("\033[1;31mFailed: \033[0m", [])
-            end;
-        false ->
-            case NoColors of
-                true  -> Print("OK: ", []);
-                false -> Print("\033[1;32mOK: \033[0m", [])
-            end
+        true  -> ?PRINT(NoColors, ?BOLD_RED, Print, "Failed: ", []);
+        false -> ?PRINT(NoColors, ?BOLD_GREEN, Print, "OK: ", [])
     end,
     case Reason of
 	true_prop   -> Print("The input passed the test.~n", []);
@@ -1990,16 +1981,8 @@ report_rerun_result(#fail{reason = Reason, actions = Actions},
                     #opts{expect_fail = ExpectF, output_fun = Print,
                           nocolors = NoColors}) ->
     case ExpectF of
-        true ->
-            case NoColors of
-                true  -> Print("OK: ", []);
-                false -> Print("\033[1;32mOK: \033[0m", [])
-            end;
-        false ->
-            case NoColors of
-                true  -> Print("Failed: ", []);
-                false -> Print("\033[1;31mFailed: \033[0m", [])
-            end
+        true  -> ?PRINT(NoColors, ?BOLD_GREEN, Print, "OK: ", []);
+        false -> ?PRINT(NoColors, ?BOLD_RED, Print, "Failed: ", [])
     end,
     Print("The input fails the test.~n", []),
     report_fail_reason(Reason, "", Print),
@@ -2090,10 +2073,7 @@ execute_actions(Actions) ->
 -spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
                        output_fun(), boolean()) -> 'ok'.
 report_shrinking(Shrinks, MinImmTestCase, MinActions, Print, NoColors) ->
-    case NoColors of
-        true -> Print("(~b time(s))~n", [Shrinks]);
-        false -> Print("\033[01;34m(~b time(s))\033[00m~n", [Shrinks])
-    end,
+    ?PRINT(NoColors, ?BOLD_BLUE, Print, "(~b time(s))~n", [Shrinks]),
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
