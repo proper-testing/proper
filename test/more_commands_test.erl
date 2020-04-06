@@ -51,7 +51,7 @@ prop_more_commands_fails() ->	% This property, most likely, fails
 %%
 
 command(_S) ->	% just one command suffices for this test
-  return({call,?MODULE,foo,[]}).
+  exactly({call,?MODULE,foo,[]}).
 
 -spec initial_state() -> 'ok'.
 initial_state() -> ok.
