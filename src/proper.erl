@@ -548,7 +548,7 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-		   num_workers      = 1               :: non_neg_integer(),
+		   num_workers      = 2               :: non_neg_integer(),
 		   parent           = self()          :: pid(),
                nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
@@ -701,6 +701,7 @@ global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
     grow_size(Opts),
     put('$constraint_tries', CTries),
     put('$any_type', AnyType),
+    put('$property_id', erlang:system_time()),
     {_, _, _} = Seed, % just an assertion
     proper_arith:rand_restart(Seed),
     proper_typeserver:restart(),
@@ -725,6 +726,7 @@ global_state_erase() ->
     erase('$parameters'),
     erase('$search_strategy'),
     erase('$search_steps'),
+    erase('$property_id'),
     ok.
 
 -spec setup_test(opts()) -> [finalize_fun()].
@@ -1197,10 +1199,13 @@ inner_test(RawTest, Opts) ->
     end.
 
 -spec property_type(test()) -> tuple() | false.
-property_type({forall, {_, {'$type', TList}}, _}) when is_list(TList) -> lists:keyfind(constructed, 2, TList);
-property_type({forall, {{'$type', TList}, _}, _}) when is_list(TList) -> lists:keyfind(constructed, 2, TList);
-property_type({forall, {_, TList}, _}) when is_list(TList) -> lists:keyfind(constructed, 2, TList);
-property_type(_) -> false.
+property_type({forall, {_, {'$type', TList}}, _}) when is_list(TList) ->
+   lists:keyfind(kind, 1, TList);
+property_type({forall, {{'$type', TList}, _}, _}) when is_list(TList) ->
+   lists:keyfind(kind, 1, TList);
+property_type({forall, {_, TList}, _}) when is_list(TList) ->
+   lists:keyfind(kind, 1, TList);
+property_type(_) -> {}.
 
 %% @private
 %% @doc Runs PropEr in parallel mode, through the use of workers to perform the tests.
@@ -1213,12 +1218,14 @@ perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers} = 
     TestsPerProcess = tests_per_worker(NumTests, NumWorkers),
     NodeList =
     case property_type(Test) of
-        false -> % stateless
-            [Node|_] = start_nodes(1),
-            lists:map(fun(N) -> {Node, N} end, TestsPerProcess);
-        {kind, constructed}  -> % stateful
+        {kind, Type} when Type =:= constructed; Type =:= wrapper ->
+            % stateful or simulated annealing
             Nodes = start_nodes(NumWorkers),
-            lists:zip(Nodes, TestsPerProcess)
+            lists:zip(Nodes, TestsPerProcess);
+        _ ->
+            % stateless
+            [Node] = start_nodes(1),
+            lists:map(fun(N) -> {Node, N} end, TestsPerProcess)
     end,
     SpawnFun = fun({Node,N}) ->
         spawn_link_migrate(Node, fun() -> perform(N, Test, Opts) end)
@@ -1331,9 +1338,10 @@ get_rerun_result({error,_Reason} = ErrorResult) ->
 
 -spec check_if_early_fail(non_neg_integer()) -> ok.
 check_if_early_fail(Passed) ->
+    Id = get('$property_id'),
     receive
-        {run_output, {failed_test, From}} ->
-            From ! {performed, Passed},
+        {run_output, {failed_test, From}, Id} ->
+            From ! {performed, Passed, Id},
             ok
         after 0 -> ok
     end.
@@ -1350,7 +1358,7 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers,
         0 -> {error, cant_satisfy};
         _ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
     end,
-    From ! {run_output, R, self()},
+    From ! {run_output, R, self(), get('$property_id')},
     ok;
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
     case Passed of
@@ -1361,7 +1369,7 @@ perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
         #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
     check_if_early_fail(ToPass),
     R = #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []},
-    From ! {run_output, R, self()},
+    From ! {run_output, R, self(), get('$property_id')},
     ok;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
@@ -1384,7 +1392,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#fail{} = FailResult ->
 	    Print("!", []),
         R = FailResult#fail{performed = Passed + 1},
-        From ! {run_output, R, self()},
+        From ! {run_output, R, self(), get('$property_id')},
         ok;
     {error, rejected} ->
 	    Print("x", []),
@@ -1394,16 +1402,16 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
     {error, Reason} = Error when Reason =:= arity_limit
 			      orelse Reason =:= non_boolean_result
 			      orelse Reason =:= type_mismatch ->
-	    From ! {run_output, Error, self()},
+	    From ! {run_output, Error, self(), get('$property_id')},
         ok;
 	{error, {cant_generate,_MFAs}} = Error ->
-	    From ! {run_output, Error, self()},
+	    From ! {run_output, Error, self(), get('$property_id')},
         ok;
 	{error, {typeserver,_SubReason}} = Error ->
-	    From ! {run_output, Error, self()},
+	    From ! {run_output, Error, self(), get('$property_id')},
         ok;
 	Other ->
-        From ! {run_output, {error, {unexpected,Other}}, self()},
+        From ! {run_output, {error, {unexpected,Other}}, self(), get('$property_id')},
         ok
     end;
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
@@ -2083,27 +2091,28 @@ apply_skip(Args, Prop) ->
 aggregate_imm_result([], ImmResult) ->
     ImmResult;
 aggregate_imm_result(ProcList, #pass{performed = Passed} = ImmResult) ->
+    Id = get('$property_id'),
     receive
         % in case we didnt receive anything yet we use the first pass
-        {run_output, #pass{} = Received, From} when Passed == undefined ->
+        {run_output, #pass{} = Received, From, Id} when Passed == undefined ->
                 aggregate_imm_result(ProcList -- [From], Received);
         % from that moment on, we accumulate the count of tests passed
-        {run_output, #pass{performed = PassedRcvd} = _Received, From} ->
+        {run_output, #pass{performed = PassedRcvd} = _Received, From, Id} ->
             NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd},
             aggregate_imm_result(ProcList -- [From], NewImmResult);
-        {run_output, #fail{performed = FailedOn} = Received, From} ->
-            lists:foreach(fun(P) -> P ! {run_output, {failed_test, self()}} end, ProcList -- [From]),
+        {run_output, #fail{performed = FailedOn} = Received, From, Id} ->
+            lists:foreach(fun(P) -> P ! {run_output, {failed_test, self()}, Id} end, ProcList -- [From]),
             ToSum = lists:map(fun(_Proccess) ->
                                 receive
-                                    {performed, P} -> P;
-                                    {run_output, #fail{performed = FailedOn2} = _Received2, _From2} -> FailedOn2
+                                    {performed, P, Id} -> P;
+                                    {run_output, #fail{performed = FailedOn2} = _Received2, _From2, Id} -> FailedOn2
                                 end
                              end,
                     ProcList -- [From]),
             Sum = lists:sum(ToSum),
             kill_workers(ProcList),
             aggregate_imm_result([], Received#fail{performed = Sum + FailedOn});
-        {run_output, {error, _Reason} = Error, _From} ->
+        {run_output, {error, _Reason} = Error, _From, Id} ->
             kill_workers(ProcList),
             aggregate_imm_result([], Error);
         {'EXIT', From, _ExcReason} ->
@@ -2277,7 +2286,7 @@ tests_per_worker(NumTests, NumWorkers) ->
     tests_per_worker(BaseList, Extras, []).
 
 %% @private
--spec update_slave_node_ref(node()) -> list(node()).
+-spec update_slave_node_ref({node(), {already_running, boolean()}}) -> list(node()).
 update_slave_node_ref(Node) ->
     NewMap = case get(slave_node) of
         undefined -> [Node];
@@ -2295,17 +2304,18 @@ start_node(SlaveName) ->
     _ = net_kernel:start([proper_master, shortnames]),
     case slave:start_link(HostName, SlaveName) of
         {ok, Node} ->
-            _ = update_slave_node_ref(Node),
-            Path = code:get_path(),
-            ensure_code_loaded(Node, Path),
+            _ = update_slave_node_ref({Node, {already_running, false}}),
+            ensure_code_loaded(Node),
             Node;
         {error, {already_running, Node}} ->
+            _ = update_slave_node_ref({Node, {already_running, true}}),
+            ensure_code_loaded(Node),
             Node
     end.
 
 %% @private
--spec ensure_code_loaded(node(), list(file:filename())) -> ok.
-ensure_code_loaded(Node, Path) ->
+-spec ensure_code_loaded(node()) -> ok.
+ensure_code_loaded(Node) ->
     %% get all the files that need to be loaded from the current directory
     Files = filelib:wildcard("**/*.beam"),
     Filenames = lists:map(fun filename:basename/1, Files),
@@ -2317,13 +2327,14 @@ ensure_code_loaded(Node, Path) ->
 
     %% spawn the functions needed to ensure that
     %% all modules are available on the node
+    Path = code:get_path(),
     spawn(Node, fun() -> lists:foreach(fun code:add_patha/1, Path) end),
     spawn(Node, fun() -> code:ensure_modules_loaded(Modules) end),
     ok.
 
 %% @private
 %% @doc Starts multiple (NumNodes) remote nodes.
--spec start_nodes(non_neg_integer()) -> list(atom()).
+-spec start_nodes(non_neg_integer()) -> list(node()).
 start_nodes(NumNodes) ->
     StartNode =
     fun(N) ->
@@ -2337,7 +2348,8 @@ start_nodes(NumNodes) ->
 -spec stop_nodes() -> ok.
 stop_nodes() ->
     Nodes = get(slave_node),
-    lists:foreach(fun slave:stop/1, Nodes),
+    NodesToStop = lists:filter(fun({_N, {already_running, Bool}}) -> not Bool end, Nodes),
+    lists:foreach(fun({Node, _}) -> slave:stop(Node) end, NodesToStop),
     _ = net_kernel:stop(),
     erase(slave_node),
     ok.
