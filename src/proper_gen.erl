@@ -160,7 +160,7 @@ remove_parameters(Type) ->
 	{ok, Params} ->
 	    AllParams = erlang:get('$parameters'),
 	    case AllParams of
-		Params->
+		Params ->
 		    erlang:erase('$parameters');
 	        _ ->
 		    erlang:put('$parameters', AllParams -- Params)

@@ -598,7 +598,7 @@ add_constraint(RawType, Condition, IsStrict) ->
 -spec native_type(mod_name(), string()) -> proper_types:type().
 native_type(Mod, TypeStr) ->
     ?WRAPPER([
-	{generator, fun() ->  proper_gen:native_type_gen(Mod,TypeStr) end}
+	{generator, fun() -> proper_gen:native_type_gen(Mod, TypeStr) end}
     ]).
 
 
@@ -921,8 +921,7 @@ safe_union_gen(Type) ->
 -spec safe_weighted_union([{frequency(),raw_type()},...]) ->
          proper_types:type().
 safe_weighted_union(RawFreqChoices) ->
-    CookFreqType = fun({Freq,RawType}) ->
-			   {Freq,cook_outer(RawType)} end,
+    CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
     FreqChoices = lists:map(CookFreqType, RawFreqChoices),
     Choices = [T || {_F,T} <- FreqChoices],
     subtype([{subenv, FreqChoices},
