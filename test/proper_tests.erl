@@ -1050,6 +1050,7 @@ false_props_test_() ->
 		      ])},
 		     {stupid, ?FORALL(_, pos_integer(), throw(woot))}
 		 ]))),
+     ?_failsWith([[a,a,a,a,a]], shrinking_gotchas:prop_shrink_list_same_elem()),
      ?_fails(more_commands_test:prop_more_commands_fails(), [{numtests,42}]),
      ?_failsWith([500], targeted_shrinking_test:prop_int()),
      ?_failsWith([500], targeted_shrinking_test:prop_let_int()),

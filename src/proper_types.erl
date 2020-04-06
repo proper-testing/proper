@@ -1068,11 +1068,10 @@ fixed_list_test(X, {ProperHead,ImproperTail}) ->
 	    andalso is_instance(XTail, ImproperTail)
 	end
     end;
-fixed_list_test(X, ProperFields) ->
-    is_list(X)
-    andalso length(X) =:= length(ProperFields)
-    andalso lists:all(fun({E,T}) -> is_instance(E, T) end,
-		      lists:zip(X, ProperFields)).
+fixed_list_test(X, ProperFields) when length(X) =:= length(ProperFields) ->
+    lists:all(fun({E,T}) -> is_instance(E, T) end, lists:zip(X, ProperFields));
+fixed_list_test(_X, _) ->
+    false.
 
 %% TODO: Move these 2 functions to proper_arith?
 -spec improper_list_retrieve(index(), nonempty_improper_list(value(),value()),
