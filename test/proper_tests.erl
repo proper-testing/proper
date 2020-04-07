@@ -272,7 +272,7 @@ assert_cant_translate(Mod, TypeStr) ->
     ?assert(state_is_clean()),
     ?assertMatch({error,_}, Result).
 
-%% TODO: after fixing the typesystem, use generic reverse function.
+%% TODO: after fixing the type system, use generic reverse function.
 assert_is_instance(X, Type) ->
     ?assert(proper_types:is_inst(X, Type) andalso state_is_clean()).
 
@@ -381,6 +381,8 @@ simple_types_with_data() ->
       [skill,pain,pleasure], luck, [clear,20,50], none},
      {{integer(0,42),list(atom())}, [{42,[a,b]},{21,[c,de,f]},{0,[]}], {0,[]},
       [{-1,[a]},{12},{21,[b,c],12}], "{0..42,[atom()]}"},
+     {tuple(), [{a,42},{2.56,<<42>>,{a}},{},{a,{a,17},3.14,{{}}}], {},
+      [#{a => 17},[{}],42], "tuple()"},
      {tuple([atom(),integer()]), [{the,1}], {'',0}, [{"a",0.0}],
       "{atom(),integer()}"},
      {{}, [{}], {}, [[],{1,2}], "{}"},
@@ -404,6 +406,8 @@ simple_types_with_data() ->
      {number(), [12,32.3,-9,-77.7], 0, [manolis,papadakis], "number()"},
      {boolean(), [true,false], false, [unknown], "boolean()"},
      {string(), ["hello","","world"], "", ['hello'], "string()"},
+     {arity(), [0,2,17,42,255], 0, [-1,256], "arity()"},
+     {timeout(), [0,42,infinity,666], 0, [-1,infinite,3.14], "timeout()"},
      {?LAZY(integer()), [0,2,99], 0, [1.1], "integer()"},
      {?LAZY(list(float())), [[0.0,1.2,1.99],[]], [], [1.1,[1,2]], "[float()]"},
      {zerostream(10), [[0,0,0],[],[0,0,0,0,0,0,0]], [], [[1,0,0],[0.1]], none},
@@ -747,16 +751,14 @@ constructed_types_test_() ->
 %% TODO: specific test-starting instances would be useful here
 %%	 (start from valid Xs)
 shrinks_to_test_() ->
+    All = simple_types_with_data() ++ constructed_types_with_data(),
     [?_shrinksTo(Target, Type)
-     || {Type,_Xs,Target,_Ys,_TypeStr} <- simple_types_with_data()
-					  ++ constructed_types_with_data(),
-	Type =/= none].
+     || {Type,_Xs,Target,_Ys,_TypeStr} <- All, Type =/= none].
 
 native_shrinks_to_test_() ->
+    All = simple_types_with_data() ++ constructed_types_with_data(),
     [?_nativeShrinksTo(Target, TypeStr)
-     || {_Type,_Xs,Target,_Ys,TypeStr} <- simple_types_with_data()
-					  ++ constructed_types_with_data(),
-	TypeStr =/= none].
+     || {_Type,_Xs,Target,_Ys,TypeStr} <- All, TypeStr =/= none].
 
 cant_generate_test_() ->
     [?_test(assert_cant_generate(Type)) || Type <- impossible_types()].
@@ -773,10 +775,12 @@ cant_generate_constraints_test_() ->
    ?_errorsOut({cant_generate, [{?MODULE, impossible, 0}]},
                ?FORALL(_X, impossible(), true)),
    %% An impossible generator in presence of multiple constraints
-   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},{?MODULE, possible_made_impossible, 0}]},
+   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},
+				{?MODULE, possible_made_impossible, 0}]},
                ?FORALL(_X, possible_made_impossible(), true)),
    %% An impossible generator in presence of multiple, duplicated constraints
-   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},{?MODULE, possible_made_impossible_2, 0}]},
+   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},
+				{?MODULE, possible_made_impossible_2, 0}]},
                ?FORALL(_X, possible_made_impossible_2(), true))
   ].
 
@@ -1155,7 +1159,8 @@ double_setup_prop() ->
 				  ok
 			  end
 		  end,
-		  ?FORALL(_, exactly(ok), get(setup_token) andalso get(setup_token2)))).
+		  ?FORALL(_, exactly(ok),
+			  get(setup_token) andalso get(setup_token2)))).
 
 setup_test_() ->
     [?_passes(setup_prop(), [10]),
@@ -1184,10 +1189,11 @@ adts1_test_() ->
       ?_passes(?FORALL({X,S},{integer(),sets:set(integer())},
 		       sets:is_element(X,sets:add_element(X,S))), [20])}.
 
-%% adts2_test_() -> {timeout, 60,	% for 18.x (and onwards?)
-%%       ?_passes(?FORALL({X,Y,D},
-%% 		       {integer(),float(),dict:dict(integer(),float())},
-%% 		       dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])}.
+adts2_test_() ->
+    {timeout, 60,	% for 18.x (and onwards?)
+     ?_passes(?FORALL({X,Y,D},
+		      {integer(),float(),dict:dict(integer(),float())},
+		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])}.
 
 adts3_test_() ->
      {timeout, 60,
