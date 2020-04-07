@@ -29,9 +29,9 @@
 
 -module(proper_arith).
 
--export([list_remove/2, list_update/3, list_insert/3, safe_map/2, safe_foldl/3,
+-export([list_remove/2, list_update/3, list_insert/3, safe_map/2, %safe_foldl/3,
 	 safe_any/2, safe_zip/2, tuple_map/2, cut_improper_tail/1,
-	 head_length/1, find_first/2, filter/2, partition/2, remove/2, insert/3,
+	 head_length/1, find_first/2, filter/2, partition/2, insert/3,%remove/2,
 	 unflatten/2]).
 -export([rand_start/1, rand_restart/1, rand_reseed/0, rand_stop/0,
 	 rand_int/1, rand_int/2, smart_rand_int/3, rand_non_neg_int/1,
@@ -76,13 +76,13 @@ safe_map_tr(Fun, [Head | Tail], AccList) ->
 safe_map_tr(Fun, ImproperTail, AccList) ->
     lists:reverse(AccList, Fun(ImproperTail)).
 
--spec safe_foldl(fun((T,A) -> A), A, maybe_improper_list(T,T | [])) -> A.
-safe_foldl(_Fun, Acc, []) ->
-    Acc;
-safe_foldl(Fun, Acc, [X | Rest]) ->
-    safe_foldl(Fun, Fun(X,Acc), Rest);
-safe_foldl(Fun, Acc, ImproperTail) ->
-    Fun(ImproperTail, Acc).
+%% -spec safe_foldl(fun((T,A) -> A), A, maybe_improper_list(T,T | [])) -> A.
+%% safe_foldl(_Fun, Acc, []) ->
+%%     Acc;
+%% safe_foldl(Fun, Acc, [X | Rest]) ->
+%%     safe_foldl(Fun, Fun(X,Acc), Rest);
+%% safe_foldl(Fun, Acc, ImproperTail) ->
+%%     Fun(ImproperTail, Acc).
 
 -spec safe_any(fun((T) -> boolean()), maybe_improper_list(T,T | [])) ->
 	  boolean().
@@ -182,18 +182,6 @@ partition_tr(Pred, [X | Rest], Pos, Trues, TrueLookup, Falses, FalseLookup) ->
 			 [Pos | FalseLookup])
     end.
 
--spec remove([T], [position()]) -> [T].
-remove(Xs, Positions) ->
-    remove_tr(Xs, Positions, 1, []).
-
--spec remove_tr([T], [position()], position(), [T]) -> [T].
-remove_tr(Xs, [], _Pos, Acc) ->
-    lists:reverse(Acc, Xs);
-remove_tr([_X | XsTail], [Pos | PosTail], Pos, Acc) ->
-    remove_tr(XsTail, PosTail, Pos + 1, Acc);
-remove_tr([X | XsTail], Positions, Pos, Acc) ->
-    remove_tr(XsTail, Positions, Pos + 1, [X | Acc]).
-
 -spec insert([T], [position()], [T]) -> [T].
 insert(Xs, Positions, Ys) ->
     insert_tr(Xs, Positions, Ys, 1, []).
@@ -205,6 +193,18 @@ insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos, Acc) ->
     insert_tr(XsTail, PosTail, Ys, Pos + 1, [X | Acc]);
 insert_tr(Xs, Positions, [Y | YsTail], Pos, Acc) ->
     insert_tr(Xs, Positions, YsTail, Pos + 1, [Y | Acc]).
+
+%% -spec remove([T], [position()]) -> [T].
+%% remove(Xs, Positions) ->
+%%     remove_tr(Xs, Positions, 1, []).
+%%
+%% -spec remove_tr([T], [position()], position(), [T]) -> [T].
+%% remove_tr(Xs, [], _Pos, Acc) ->
+%%     lists:reverse(Acc, Xs);
+%% remove_tr([_X | XsTail], [Pos | PosTail], Pos, Acc) ->
+%%     remove_tr(XsTail, PosTail, Pos + 1, Acc);
+%% remove_tr([X | XsTail], Positions, Pos, Acc) ->
+%%     remove_tr(XsTail, Positions, Pos + 1, [X | Acc]).
 
 -spec unflatten([T], [proper_types:length()]) -> [[T]].
 unflatten(List, Lens) ->
