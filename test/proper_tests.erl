@@ -152,6 +152,12 @@ assertEqualsOneOf(X, List) ->
 		   ?checkCExm(LongResult, AllCExms, Test, Opts, ExpCExm)
 	       end)).
 
+-define(_cexmMatchesWith(Pattern, Test),
+	?_test(begin
+		   ?assertEqual(false, proper:quickcheck(Test)),
+		   ?assertMatch(Pattern, get_cexm())
+	       end)).
+
 get_cexm() ->
     CExm = proper:counterexample(),
     proper:clean_garbage(),
@@ -963,17 +969,18 @@ true_props_test_() ->
 		  {three, conjunction([{a,true},{b,true}])}
 	      ])),
      ?_passes(?FORALL(X, untyped(), is_record(X, untyped))),
-     ?_passes(improper_lists_statem:prop_simple()),
+     ?_passes(fun_tests:prop_fun_bool())].
+
+true_stateful_test_() ->
+    [?_passes(improper_lists_statem:prop_simple()),
      ?_passes(pdict_statem:prop_pdict()),
      ?_passes(symb_statem:prop_simple()),
+     ?_passes(symb_statem_maps:prop_simple()),
      ?_passes(more_commands_test:prop_commands_passes(), [{numtests,42}]),
-     {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 10, ?_passes(ets_statem:prop_ets())},
      {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
-     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}].
-
-map_in_nextstate3_test_() ->
-    [?_passes(symb_statem_maps:prop_simple()),
+     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
+     {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())}].
 
 false_props_test_() ->
@@ -997,6 +1004,9 @@ false_props_test_() ->
 					true  -> erlang:exit(you_got_it);
 					false -> true
 				    end)),
+     %% TODO: Check that the following two tests shrink properly on _N
+     ?_cexmMatchesWith([{_,_N}], fun_tests:prop_fun_int_int()),
+     ?_cexmMatchesWith([{_,_,[_N]}], fun_tests:prop_lists_map_filter()),
      ?_fails(?FORALL(_, integer(), ?TIMEOUT(100,timer:sleep(150) =:= ok))),
      ?_failsWith([20], ?FORALL(X, pos_integer(), ?TRAPEXIT(creator(X) =:= ok))),
      ?_assertTempBecomesN(7, false,
@@ -1007,7 +1017,7 @@ false_props_test_() ->
      %% and one when the minimal input is rechecked
      ?_assertTempBecomesN(2, false,
 			  ?FORALL(L, list(atom()),
-				  ?WHENFAIL(inc_temp(),length(L) < 5))),
+				  ?WHENFAIL(inc_temp(), length(L) < 5))),
      ?_assertTempBecomesN(3, false,
 			  ?FORALL(S, ?SIZED(Size,Size),
 				  begin inc_temp(), S =< 20 end),
