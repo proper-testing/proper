@@ -769,6 +769,9 @@ native_shrinks_to_test_() ->
 cant_generate_test_() ->
     [?_test(assert_cant_generate(Type)) || Type <- impossible_types()].
 
+proper_exported_types_test_() ->
+    [?_assertEqual({[],11}, proper_exported_types_test:not_handled())].
+
 %%------------------------------------------------------------------------------
 %% Verify that failing constraints are correctly reported
 %%------------------------------------------------------------------------------
