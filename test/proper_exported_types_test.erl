@@ -36,17 +36,22 @@
 %%   - `proper_gen:pick/1`
 %% do not return errors when they are fed these types.
 %%
-%% The test is currently not 100% there.
+%% OBS: This test depends on the set of exported types from PropEr modules!
+%%
+%% Still, the test is currently not 100% there.
 %% TODOs:
-%%   - Eliminate the 11 cases of errors that `proper_typeserver:demo_translate_type/2`
-%%     currently returns. (Three of them are due to the incomplete handling of maps.)
-%%   - Handle symbolic instances (the {'$call', ...} case below.
+%%   - Eliminate the 11 errors that `proper_typeserver:demo_translate_type/2`
+%%     currently returns. (Three of these errors are due to the incomplete
+%%     handling of maps.)
+%%   - Handle symbolic instances (the {'$call', ...} case below).
 %%
 
+-define(STRINGIFY(T, A), string_from_type(T, A)).
+
 not_handled() ->
-  Beams = filelib:wildcard("ebin/*.beam"),  % eunit executed this from the top dir
+  Beams = filelib:wildcard("ebin/*.beam"),   % eunit executes from the top dir
   MTs = lists:flatmap(fun get_exported_types/1,  Beams),
-  R = [{M,T,A,proper_typeserver:demo_translate_type(M, string_from_type(T, A))}
+  R = [{M,T,A,proper_typeserver:demo_translate_type(M, ?STRINGIFY(T, A))}
        || {M,T,A} <- MTs],
   {OKs,Errors} = lists:partition(fun type_translation_is_ok/1, R),
   {[Inst || TGen <- OKs, (Inst = pick_instance(TGen)) =/= ok], length(Errors)}.
@@ -59,7 +64,7 @@ pick_instance({M,T,A,{ok,Gen}}) ->
       %% try proper_symb:eval(Inst)
       %% catch _ -> io:format("~p~n", [{M,T,A}]), Inst end;
     _ ->
-      case proper_typeserver:demo_is_instance(Inst, M, string_from_type(T, A)) of
+      case proper_typeserver:demo_is_instance(Inst, M, ?STRINGIFY(T, A)) of
 	true -> ok;
         false -> {M,T,A,Inst,Gen}
       end
@@ -68,12 +73,12 @@ pick_instance({M,T,A,{ok,Gen}}) ->
 type_translation_is_ok({_M,_T,_A,{error,_}}) -> false;
 type_translation_is_ok({_M,_T,_A,{ok,{'$type',_}}}) -> true. 
 
-%% Assumes that polymorphic types have max 2 parameters.
+%% Assumes that polymorphic types have at most two parameters.
 string_from_type(T, 0) -> atom_to_list(T)++"()";
 string_from_type(T, 1) -> atom_to_list(T)++"(any())";
 string_from_type(T, 2) -> atom_to_list(T)++"(any(),any())".
 
 get_exported_types(Beam) ->
   {ok,{M,[{abstract_code,{_,AC}}]}} = beam_lib:chunks(Beam, [abstract_code]),
-  ExportedTypes = lists:append([TypeList || {attribute,_,export_type,TypeList} <- AC]),
-  [{M,T,A} || {T,A} <- ExportedTypes].
+  ExpTypes = lists:append([TList || {attribute,_,export_type,TList} <- AC]),
+  [{M,T,A} || {T,A} <- ExpTypes].
