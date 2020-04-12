@@ -28,6 +28,8 @@ else
     SEP := $(strip /)
 endif
 
+EXAMPLES := $(shell ls examples$(SEP)[bms]*.erl)
+
 REBAR3_URL := https://s3.amazonaws.com/rebar3/rebar3
 REBAR3 ?= $(shell which rebar3 || which .$(SEP)rebar3 || \
             (wget $(REBAR3_URL) && chmod +x rebar3 && echo .$(SEP)rebar3))
@@ -52,11 +54,13 @@ check_escripts:
 	./scripts/check_escripts.sh make_doc
 
 test:
+	@$(foreach F,$(EXAMPLES),cp $(F) test;)
 ifeq ($(COVER), true)
 	$(REBAR3) do eunit -c, cover, covertool generate
 else
 	$(REBAR3) eunit
 endif
+	@$(foreach F,$(EXAMPLES),$(RM) test$(SEP)`basename $(F)`;)
 
 doc: compile
 	./scripts/make_doc
@@ -73,4 +77,6 @@ rebuild: distclean compile
 
 retest:
 	$(RM) -r _build/test/lib/proper/test
+	@$(foreach F,$(EXAMPLES),cp $(F) test;)
 	$(REBAR3) eunit
+	@$(foreach F,$(EXAMPLES),$(RM) test$(SEP)`basename $(F)`;)

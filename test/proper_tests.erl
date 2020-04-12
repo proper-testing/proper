@@ -1356,6 +1356,12 @@ sampleshrink_test_() ->
         ?_shrinksTo([a], Gen)},
        ?_test(proper_gen:sampleshrink(Gen))]}].
 
+%%------------------------------------------------------------------------------
+%% Test that the examples work
+%%------------------------------------------------------------------------------
+
+examples_are_ok_test_() ->
+    [?_assertEqual([], proper:module(M)) || M <- [b64,mastermind,stack]].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
