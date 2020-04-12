@@ -204,7 +204,7 @@
 -define(WRAPPER(PropList), new_type(PropList,wrapper)).
 -define(CONSTRUCTED(PropList), new_type(PropList,constructed)).
 -define(CONTAINER(PropList), new_type(PropList,container)).
--define(SUBTYPE(Type,PropList), subtype(PropList,Type)).
+-define(SUBTYPE(PropList,Type), subtype(PropList,Type)).
 
 
 %%------------------------------------------------------------------------------
@@ -814,10 +814,9 @@ distlist(Size, Gen, NonEmpty) ->
 		     true  -> non_empty(list(Gen(Size)));
 		     false -> list(Gen(Size))
 		 end,
-    ?SUBTYPE(ParentType, [
-	{subenv, {Size, Gen, NonEmpty}},
-	{generator, {typed, fun distlist_gen/1}}
-    ]).
+    PropList = [{subenv, {Size, Gen, NonEmpty}},
+		{generator, {typed, fun distlist_gen/1}}],
+    subtype(PropList, ParentType).
 
 distlist_gen(Type) ->
     {Size, Gen, NonEmpty} = get_prop(subenv, Type),
@@ -895,10 +894,9 @@ weighted_union(RawFreqChoices) ->
     CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
     FreqChoices = lists:map(CookFreqType, RawFreqChoices),
     Choices = [T || {_F,T} <- FreqChoices],
-    ?SUBTYPE(union(Choices), [
-	{subenv, FreqChoices},
-	{generator, {typed, fun weighted_union_gen/1}}
-    ]).
+    PropList = [{subenv, FreqChoices},
+		{generator, {typed, fun weighted_union_gen/1}}],
+    subtype(PropList, union(Choices)).
 
 weighted_union_gen(Gen) ->
     FreqChoices = get_prop(subenv, Gen),
@@ -908,10 +906,9 @@ weighted_union_gen(Gen) ->
 -spec safe_union([raw_type(),...]) -> proper_types:type().
 safe_union(RawChoices) ->
     Choices = [cook_outer(C) || C <- RawChoices],
-    subtype(
-      [{subenv, Choices},
-       {generator, {typed, fun safe_union_gen/1}}],
-      union(Choices)).
+    PropList = [{subenv, Choices},
+		{generator, {typed, fun safe_union_gen/1}}],
+    subtype(PropList, union(Choices)).
 
 safe_union_gen(Type) ->
     Choices = get_prop(subenv, Type),
@@ -924,9 +921,9 @@ safe_weighted_union(RawFreqChoices) ->
     CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
     FreqChoices = lists:map(CookFreqType, RawFreqChoices),
     Choices = [T || {_F,T} <- FreqChoices],
-    subtype([{subenv, FreqChoices},
-             {generator, {typed, fun safe_weighted_union_gen/1}}],
-            union(Choices)).
+    PropList = [{subenv, FreqChoices},
+		{generator, {typed, fun safe_weighted_union_gen/1}}],
+    subtype(PropList, union(Choices)).
 
 safe_weighted_union_gen(Type) ->
     FreqChoices = get_prop(subenv, Type),
@@ -1138,9 +1135,7 @@ map(K, V) ->
 any() ->
     AllTypes = [integer(),float(),atom(),bitstring(),?LAZY(loose_tuple(any())),
 		?LAZY(list(any())), ?LAZY(map(any(), any()))],
-    ?SUBTYPE(union(AllTypes), [
-	{generator, fun proper_gen:any_gen/1}
-    ]).
+    subtype([{generator, fun proper_gen:any_gen/1}], union(AllTypes)).
 
 
 %%------------------------------------------------------------------------------
