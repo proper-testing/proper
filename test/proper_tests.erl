@@ -1349,16 +1349,12 @@ dollar_only_cp_test_() ->
 	     is_atom(K),
 	     re:run(atom_to_list(K), ["^[$]"], [{capture,none}]) =:= match]).
 
-
 sampleshrink_test_() ->
+    Gen = non_empty(?LET({N,Lst}, {range(0,5),list(a)}, lists:sublist(Lst, N))),
     [{"Test type with restrain",
       [{"Try another way to call shrinking (not sampleshrink)",
-        ?_shrinksTo([a], non_empty(?LET({Len,List},
-                                        {range(0,5), list(a)},
-                                        lists:sublist(List, Len))))},
-       ?_test(proper_gen:sampleshrink(non_empty(?LET({Len,List},
-                                       {range(0,5), list(a)},
-                                       lists:sublist(List, Len)))))]}].
+        ?_shrinksTo([a], Gen)},
+       ?_test(proper_gen:sampleshrink(Gen))]}].
 
 
 %%------------------------------------------------------------------------------
