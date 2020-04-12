@@ -1127,15 +1127,22 @@ options_test_() ->
      ?_assertTempBecomesN(300, true,
 			  ?FORALL(_, 1, begin inc_temp(), true end),
 			  [300]),
-     ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
-     ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
-     ?_fails(?FORALL(_,integer(),false), [fails]),
+     ?_failsWith([42], ?FORALL(T, any(), T < 42),
+		 [any_to_integer,verbose,nocolors]),
+     ?_failsWith([42], ?FORALL(I, integer(), I < 42),
+		 [{on_output,fun print_in_magenta/2}]),
+     ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [noshrink]),
+     ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [{max_shrinks,0}]),
+     ?_fails(?FORALL(_, integer(), false), [fails]),
      ?_assertRun({error,{cant_generate,[{?MODULE,options_test_,0}]}},
-		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X > 0),true),
+		 ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X > 0), true),
 		 [{constraint_tries,0}], true),
      ?_failsWith([12],
-		 ?FORALL(_,?SIZED(Size,integer(Size,Size)),false),
+		 ?FORALL(_, ?SIZED(Size, integer(Size, Size)), false),
 		 [{start_size,12}])].
+
+print_in_magenta(S, L) ->
+   io:format("\033[1;35m"++S++"\033[0m", L).
 
 setup_prop() ->
     ?SETUP(fun () ->
