@@ -1370,9 +1370,9 @@ example_level_props_test_() ->
 		 level:prop_exit(Level0)),
      ?_failsWith([[left,left,left,left,left,left]],
 		 level:prop_exit_user_targeted(Level0)),
-     {timeout, 10, ?_fails(level:prop_exit_user_targeted(Level1), [5000])},
-     {timeout, 10, ?_fails(level:prop_exit_user_targeted(Level2), [5000])},
-     {timeout, 10, ?_fails(level:prop_exit_auto_targeted(Level2), [5000])}].
+     {timeout, 20, ?_fails(level:prop_exit_user_targeted(Level1), [5000])},
+     {timeout, 20, ?_fails(level:prop_exit_user_targeted(Level2), [5000])},
+     {timeout, 20, ?_fails(level:prop_exit_auto_targeted(Level2), [5000])}].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
