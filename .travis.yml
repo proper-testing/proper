@@ -5,6 +5,11 @@ script: "make all"
 
 otp_release:
    - 22.3
+   - 22.0
+   - 21.3
+   - 21.0
+   - 20.3
+   - 20.0
    - 19.3
 
 # coverage tests
