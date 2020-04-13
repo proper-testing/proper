@@ -1360,9 +1360,19 @@ sampleshrink_test_() ->
 %%------------------------------------------------------------------------------
 
 examples_are_ok_test_() ->
-    {timeout, 10,
+    {timeout, 20,
      [?_assertEqual([], proper:module(M))
-      || M <- [b64,mastermind,pdict_statem,stack]]}.
+      || M <- [b64,level,mastermind,pdict_statem,stack]]}.
+
+%% test the unary properties of the `level` example.
+example_level_props_test_() ->
+    [?_failsWith([[left,left,left,left,left,left]],
+		 level:prop_exit(level:level0())),
+     ?_failsWith([[left,left,left,left,left,left]],
+		 level:prop_exit_user_targeted(level:level0())),
+     ?_fails(level:prop_exit_user_targeted(level:level1()), [10000]),
+     ?_fails(level:prop_exit_user_targeted(level:level2()), [10000]),
+     ?_fails(level:prop_exit_auto_targeted(level:level2()), [10000])].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
