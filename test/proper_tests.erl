@@ -979,8 +979,8 @@ true_stateful_test_() ->
      ?_passes(symb_statem:prop_simple()),
      ?_passes(symb_statem_maps:prop_simple()),
      ?_passes(more_commands_test:prop_commands_passes(), [{numtests,42}]),
-     {timeout, 10, ?_passes(ets_statem:prop_ets())},
-     {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
+     {timeout, 10, ?_passes(ets_statem_test:prop_ets())},
+     {timeout, 20, ?_passes(ets_statem_test:prop_parallel_ets())},
      {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
      {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())}].
