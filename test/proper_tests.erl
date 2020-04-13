@@ -1361,7 +1361,7 @@ sampleshrink_test_() ->
 
 examples_are_ok_test_() ->
     [{timeout, 42, ?_assertEqual([], proper:module(M))}
-     || M <- [b64,ets_statem,level,mastermind,pdict_statem,stack]].
+     || M <- [b64,elevator_fsm,ets_statem,level,mastermind,pdict_statem,stack]].
 
 %% test the unary properties of the `level` example.
 example_level_props_test_() ->
