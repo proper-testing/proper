@@ -28,7 +28,7 @@ else
     SEP := $(strip /)
 endif
 
-EXAMPLES := $(shell ls examples$(SEP)[bmps]*.erl)
+EXAMPLES := $(shell ls examples$(SEP)[blmps]*.erl)
 
 REBAR3_URL := https://s3.amazonaws.com/rebar3/rebar3
 REBAR3 ?= $(shell which rebar3 || which .$(SEP)rebar3 || \
