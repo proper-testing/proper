@@ -976,7 +976,6 @@ true_props_test_() ->
 
 true_stateful_test_() ->
     [?_passes(improper_lists_statem:prop_simple()),
-     ?_passes(pdict_statem:prop_pdict()),
      ?_passes(symb_statem:prop_simple()),
      ?_passes(symb_statem_maps:prop_simple()),
      ?_passes(more_commands_test:prop_commands_passes(), [{numtests,42}]),
@@ -1361,7 +1360,9 @@ sampleshrink_test_() ->
 %%------------------------------------------------------------------------------
 
 examples_are_ok_test_() ->
-    [?_assertEqual([], proper:module(M)) || M <- [b64,mastermind,stack]].
+    {timeout, 10,
+     [?_assertEqual([], proper:module(M))
+      || M <- [b64,mastermind,pdict_statem,stack]]}.
 
 %%------------------------------------------------------------------------------
 %% Performance tests
