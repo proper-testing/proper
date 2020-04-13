@@ -1366,13 +1366,14 @@ examples_are_ok_test_() ->
 
 %% test the unary properties of the `level` example.
 example_level_props_test_() ->
+    Level0 = level:level0(), Level1 = level:level1(), Level2 = level:level2(),
     [?_failsWith([[left,left,left,left,left,left]],
-		 level:prop_exit(level:level0())),
+		 level:prop_exit(Level0)),
      ?_failsWith([[left,left,left,left,left,left]],
-		 level:prop_exit_user_targeted(level:level0())),
-     ?_fails(level:prop_exit_user_targeted(level:level1()), [10000]),
-     ?_fails(level:prop_exit_user_targeted(level:level2()), [10000]),
-     ?_fails(level:prop_exit_auto_targeted(level:level2()), [10000])].
+		 level:prop_exit_user_targeted(Level0)),
+     {timeout, 10, ?_fails(level:prop_exit_user_targeted(Level1), [5000])},
+     {timeout, 10, ?_fails(level:prop_exit_user_targeted(Level2), [5000])},
+     {timeout, 10, ?_fails(level:prop_exit_auto_targeted(Level2), [5000])}].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
