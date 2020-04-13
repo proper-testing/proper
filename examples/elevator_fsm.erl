@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -28,18 +28,23 @@
 -behaviour(gen_fsm).
 -behaviour(proper_fsm).
 
--include_lib("proper/include/proper.hrl").
-
+-export([test/0, test/1]).
+%% gen_fsm callbacks
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3,
-	 terminate/3, code_change/4]).
+	 terminate/3, code_change/4, basement/2, basement/3, floor/2, floor/3]).
+%% proper_fsm callbacks
 -export([initial_state/0, initial_state_data/0, precondition/4,
 	 next_state_data/5, postcondition/5]).
--compile(export_all).
+%% functions used as proper_fsm commands
+-export([up/0, down/0, which_floor/0, get_on/1, get_off/1,
+	 fsm_basement/1, fsm_floor/2]).
 
--record(state, {floor  = 0 :: non_neg_integer(),  %% current floor
-		people = 0 :: non_neg_integer(),  %% people inside the elevator
-		num_floors :: non_neg_integer(),  %% number of floors in the building
-		limit      :: pos_integer()}).    %% max number of people allowed
+-include_lib("proper/include/proper.hrl").
+
+-record(state, {floor  = 0 :: non_neg_integer(), %% current floor
+		people = 0 :: non_neg_integer(), %% people inside the elevator
+		num_floors :: non_neg_integer(), %% number of building floors
+		limit      :: pos_integer()}).   %% max number of people allowed
 
 -record(test_state, {people     = 0  :: non_neg_integer(),
 		     num_floors = 5  :: non_neg_integer(),
@@ -224,16 +229,16 @@ prop_elevator() ->
     ?FORALL(
        {NumFloors,MaxPeople}, {num_floors(), max_people()},
        begin
-	   Initial = {fsm_basement,
+	   Initial = {initial_state(),
 		      #test_state{num_floors = NumFloors,
 				  max_people = MaxPeople,
 				  people = 0}},
 	   ?FORALL(
 	      Cmds, more_commands(5, proper_fsm:commands(?MODULE, Initial)),
 	      begin
-		  ?MODULE:start_link({NumFloors,MaxPeople}),
+		  start_link({NumFloors,MaxPeople}),
 		  {H,S,Res} = proper_fsm:run_commands(?MODULE, Cmds),
-		  ?MODULE:stop(),
+		  stop(),
 		  ?WHENFAIL(
 		     io:format("H: ~w~nS: ~w~nR: ~w~n", [H,S,Res]),
 		     aggregate(zip(proper_fsm:state_names(H),
