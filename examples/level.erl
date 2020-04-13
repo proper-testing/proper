@@ -1,8 +1,8 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
-%%%                and  Kostis Sagonas <kostis@it.uu.se>
+%%% Copyright (c) 2017-2020, Andreas Löscher <andreas.loscher@it.uu.se>
+%%%                     and  Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,13 +19,13 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017-2020 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
 %%% @author Andreas Löscher
 
 -module(level).
--export([level0/0, level1/0, level2/0, build_level/1]).
--export([prop_exit/1, prop_exit_targeted/1]).
+-export([level0/0, level1/0, level2/0]).
+-export([prop_exit/1, prop_exit_user_targeted/1, prop_exit_auto_targeted/1]).
 
 -include_lib("proper/include/proper.hrl").
 
@@ -35,15 +35,16 @@
 
 -type pos() :: {integer(), integer()}.
 -type brick() :: wall | exit | entrance.
--type level_data() :: [string()].
+-type level_data() :: list(string()).
 -type level() :: #{pos() => brick(),
-                   exit=>pos(),
+                   exit => pos(),
                    entrance => pos()}.
 -type step() :: left | right | up | down.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Levels
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 -spec level0() -> level_data().
 level0() ->
   ["#########",
@@ -105,7 +106,7 @@ level2() ->
    "#                                                                    #",
    "######################################################################"].
 
--spec build_level(list(string())) -> level().
+-spec build_level(level_data()) -> level().
 build_level(Data) ->
   build_level(Data, #{}, 0).
 
@@ -129,6 +130,7 @@ build_level_line(_, _, _, _) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Movement
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 -spec do_step(pos(), step(), level()) -> pos().
 do_step(Pos = {X, Y}, Step, Level) ->
   NextPos = case Step of
@@ -156,15 +158,12 @@ follow_path(Start, Path, Level) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Generators
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 step() ->
   oneof([left, right, up, down]).
 
 path() ->
   list(step()).
-
-%% path_sa() ->
-%%   #{first => path(),
-%%     next => path_next()}.
 
 path_next() ->
   fun (PrevPath, _) ->
@@ -174,6 +173,7 @@ path_next() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Properties
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 prop_exit(LevelData) ->
   Level = build_level(LevelData),
   #{entrance := Entrance} = Level,
@@ -183,7 +183,7 @@ prop_exit(LevelData) ->
             _ -> true
           end).
 
-prop_exit_targeted(LevelData) ->
+prop_exit_user_targeted(LevelData) ->
   Level = build_level(LevelData),
   #{entrance := Entrance} = Level,
   #{exit := Exit} = Level,
@@ -191,7 +191,7 @@ prop_exit_targeted(LevelData) ->
                    case follow_path(Entrance, Path, Level) of
                      {exited, _Pos} -> false;
                      Pos ->
-                       case length(Path) > 500 of
+                       case length(Path) > 2000 of
                          true ->
                            proper_target:reset(),
                            true;
@@ -199,7 +199,20 @@ prop_exit_targeted(LevelData) ->
                            UV = distance(Pos, Exit),
                            ?MINIMIZE(UV),
                            true
-                     end
+                       end
+                   end).
+
+prop_exit_auto_targeted(LevelData) ->
+  Level = build_level(LevelData),
+  #{entrance := Entrance} = Level,
+  #{exit := Exit} = Level,
+  ?FORALL_TARGETED(Path, path(),
+                   case follow_path(Entrance, Path, Level) of
+                     {exited, _Pos} -> false;
+                     Pos ->
+                       UV = distance(Pos, Exit),
+                       ?MINIMIZE(UV),
+                       true
                    end).
 
 distance({X1, Y1}, {X2, Y2}) ->
