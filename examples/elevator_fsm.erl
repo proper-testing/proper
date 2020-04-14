@@ -27,7 +27,6 @@
 -module(elevator_fsm).
 -behaviour(gen_statem).
 -behaviour(proper_fsm).
--compile(nowarn_deprecated_function).
 
 -export([test/0, test/1]).
 %% gen_statem callbacks
