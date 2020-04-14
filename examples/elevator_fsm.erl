@@ -25,14 +25,14 @@
 %%% @author Eirini Arvaniti
 
 -module(elevator_fsm).
--behaviour(gen_fsm).
+-behaviour(gen_statem).
 -behaviour(proper_fsm).
 -compile(nowarn_deprecated_function).
 
 -export([test/0, test/1]).
-%% gen_fsm callbacks
--export([init/1, handle_event/3, handle_sync_event/4, handle_info/3,
-	 terminate/3, code_change/4, basement/2, basement/3, floor/2, floor/3]).
+%% gen_statem callbacks
+-export([init/1, callback_mode/0, basement/3, floor/3,
+	 terminate/3, code_change/4]).
 %% proper_fsm callbacks
 -export([initial_state/0, initial_state_data/0, precondition/4,
 	 next_state_data/5, postcondition/5]).
@@ -51,6 +51,7 @@
 		     num_floors = 5  :: non_neg_integer(),
 		     max_people = 10 :: pos_integer()}).
 
+-define(NAME, elevator).
 
 %%--------------------------------------------------------------------
 %%% API
@@ -60,105 +61,112 @@ test() ->
     test(100).
 
 test(Tests) ->
-    proper:quickcheck(?MODULE:prop_elevator(), [{numtests,Tests}]).
+    proper:quickcheck(prop_elevator(), [{numtests,Tests}]).
 
 start_link(Info) ->
-    gen_fsm:start_link({local,elevator}, ?MODULE, Info, []).
+    gen_statem:start_link({local,?NAME}, ?MODULE, Info, []).
 
 stop() ->
-    gen_fsm:sync_send_all_state_event(elevator, stop).
+    gen_statem:call(?NAME, stop).
 
 up() ->
-    gen_fsm:send_event(elevator, up).
+    gen_statem:cast(?NAME, up).
 
 down() ->
-    gen_fsm:send_event(elevator, down).
+    gen_statem:cast(?NAME, down).
 
 which_floor() ->
-    gen_fsm:sync_send_event(elevator, which_floor).
+    gen_statem:call(?NAME, which_floor).
 
 %% N people try to get on the elevator
 get_on(N) ->
-    gen_fsm:sync_send_event(elevator, {get_on,N}).
+    gen_statem:call(?NAME, {get_on,N}).
 
 %% N people get off the elevator (assuming at least N people are inside)
 get_off(N) ->
-    gen_fsm:send_event(elevator, {get_off,N}).
+    gen_statem:cast(?NAME, {get_off,N}).
 
 
 %%--------------------------------------------------------------------
-%%% Gen_fsm callbacks
+%%% gen_statem callbacks
 %%--------------------------------------------------------------------
 
 init(Info) ->
     {NumFloors, Limit} = Info,
     {ok, basement, #state{num_floors = NumFloors, limit = Limit}}.
 
-basement(up, S) ->
+callback_mode() ->
+    state_functions.
+
+basement(cast, up, S) ->
     case S#state.num_floors > 0 of
 	true ->
 	    {next_state, floor, S#state{floor = 1}};
 	false ->
 	    {next_state, basement, S}
     end;
-basement(down, S) ->
+basement(cast, down, S) ->
     {next_state, basement, S};
-basement({get_off,N}, S) ->
+basement(cast, {get_off,N}, S) ->
     People = S#state.people,
-    {next_state, basement, S#state{people = People-N}}.
+    {next_state, basement, S#state{people = People - N}};
+basement({call,From}, which_floor, S) ->
+    gen_statem:reply(From, S#state.floor),
+    {next_state, basement, S};
+basement({call,From}, {get_on,N}, S) ->
+    People = S#state.people,
+    MorePeople = People + N,
+    case MorePeople =< S#state.limit of
+	true ->
+	    gen_statem:reply(From, MorePeople),
+	    {next_state, basement, S#state{people = MorePeople}};
+	false ->
+	    gen_statem:reply(From, People),
+	    {next_state, basement, S}
+    end;
+basement({call,From}, Msg, Data) ->
+    handle_call(From, Msg, Data);
+basement({info,Msg}, StateName, Data) ->
+    handle_info(Msg, StateName, Data).
 
-floor(up, S) ->
+floor(cast, up, S) ->
     Floor = S#state.floor,
     NumFloors = S#state.num_floors,
     case NumFloors > Floor of
 	true ->
-	    {next_state, floor, S#state{floor = Floor+1}};
+	    {next_state, floor, S#state{floor = Floor + 1}};
 	false ->
 	    {next_state, floor, S}
     end;
-floor(down, S) ->
+floor(cast, down, S) ->
     case S#state.floor of
 	1 ->
 	    {next_state, basement, S#state{floor = 0}};
 	Floor when Floor > 1 ->
 	    {next_state, floor, S#state{floor = Floor-1}}
     end;
-floor({get_off,N}, S) ->
+floor(cast, {get_off,N}, S) ->
     People = S#state.people,
-    {next_state, floor, S#state{people = People-N}}.
-
-basement(which_floor, From, S) ->
-    gen_fsm:reply(From, S#state.floor),
-    {next_state, basement, S};
-basement({get_on,N}, From, S) ->
-    People = S#state.people,
-    case People+N =< S#state.limit of
-	true ->
-	    gen_fsm:reply(From, People+N),
-	    {next_state, basement, S#state{people = People+N}};
-	false ->
-	    gen_fsm:reply(From, People),
-	    {next_state, basement, S}
-    end.
-
-floor(which_floor, From, S) ->
-    gen_fsm:reply(From, S#state.floor),
-    {next_state, floor, S}.
-
-handle_event(_Event, StateName, State) ->
-    {next_state, StateName, State}.
-
-handle_sync_event(stop, _, _, _) ->
-    {stop,normal,ok,[]}.
-
-handle_info(_Info, StateName, State) ->
-    {next_state, StateName, State}.
+    {next_state, floor, S#state{people = People - N}};
+floor({call,From}, which_floor, S) ->
+    gen_statem:reply(From, S#state.floor),
+    {next_state, floor, S};
+floor({call,From}, Msg, Data) ->
+    handle_call(From, Msg, Data);
+floor({info,Msg}, StateName, Data) ->
+    handle_info(Msg, StateName, Data).
 
 terminate(_Reason, _StateName, _State) ->
     ok.
 
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
+
+handle_call(From, stop, Data) ->
+    {stop_and_reply, normal,  {reply, From, ok}, Data}.
+
+handle_info(Info, StateName, Data) ->
+    {stop, {shutdown, {unexpected, Info, StateName}}, StateName, Data}.
 
 %%--------------------------------------------------------------------
 %%% PropEr elevator specification
