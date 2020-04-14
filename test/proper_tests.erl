@@ -192,7 +192,7 @@ get_cexm() ->
 		   ?assert(state_is_clean())
 	       end)).
 %%
-%% Used when we are only interested ih checking that a property fails
+%% Used when we are only interested in checking that a property fails.
 %%
 -define(_failsCheck(Test, Opts),
 	?_assertEqual(false, proper:quickcheck(Test, Opts))).
@@ -748,7 +748,6 @@ dollar_data() ->
 %% TODO: spec_timeout option
 %% TODO: defined option precedence
 %% TODO: conversion of maybe_improper_list
-%% TODO: use demo_is_instance and demo_translate_type
 %% TODO: debug option to output tests passed, fail reason, etc.
 %% TODO: test expected distribution of random functions
 
@@ -1384,7 +1383,7 @@ example_level_props_test_() ->
 %%------------------------------------------------------------------------------
 
 max_size_test() ->
-    %% issue a call to load the test module and ensure the test exists
+    %% issue a call to load the test module and ensure that the test exists
     ?assert(lists:member({prop_identity,0},
 			 perf_max_size:module_info(exports))),
     %% run some tests with a small and a big max_size option
