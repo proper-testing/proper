@@ -1133,7 +1133,7 @@ options_test_() ->
      ?_failsWith([42], ?FORALL(T, any(), T < 42),
 		 [any_to_integer,verbose,nocolors]),
      ?_failsWith([42], ?FORALL(I, integer(), I < 42),
-		 [{on_output,fun print_in_magenta/2}]),
+		 [{numtests,4711}, {on_output,fun print_in_magenta/2}]),
      ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [noshrink]),
      ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [{max_shrinks,0}]),
      ?_fails(?FORALL(_, integer(), false), [fails]),
@@ -1371,7 +1371,7 @@ examples_are_ok_test_() ->
 example_level_props_test_() ->
     Level0 = level:level0(), Level1 = level:level1(), Level2 = level:level2(),
     [?_failsWith([[left,left,left,left,left,left]],
-		 level:prop_exit(Level0)),
+		 level:prop_exit(Level0), [500]), % run 500 tests, for safety
      ?_failsWith([[left,left,left,left,left,left]],
 		 level:prop_exit_user_targeted(Level0)),
      {timeout, 42, ?_failsCheck(level:prop_exit_user_targeted(Level1), [5000])},
