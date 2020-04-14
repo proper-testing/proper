@@ -26,6 +26,7 @@
 %%% @doc Simple fsm test for the process dictionary
 
 -module(pdict_fsm).
+-behaviour(proper_fsm).
 
 -export([test/0, test/1, sample_commands/0]).
 -export([initial_state/0, initial_state_data/0, precondition/4, weight/3,

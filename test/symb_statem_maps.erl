@@ -25,6 +25,7 @@
 %%% @author Pierre Fenoll (adapted from the code of test/symb_statem.erl)
 
 -module(symb_statem_maps).
+-behaviour(proper_statem).
 
 -include_lib("proper/include/proper.hrl").
 
