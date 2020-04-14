@@ -191,6 +191,11 @@ get_cexm() ->
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean())
 	       end)).
+%%
+%% Used when we are only interested ih checking that a property fails
+%%
+-define(_failsCheck(Test, Opts),
+	?_assertEqual(false, proper:quickcheck(Test, Opts))).
 
 inc_temp() ->
     inc_temp(1).
@@ -1370,9 +1375,9 @@ example_level_props_test_() ->
 		 level:prop_exit(Level0)),
      ?_failsWith([[left,left,left,left,left,left]],
 		 level:prop_exit_user_targeted(Level0)),
-     {timeout, 42, ?_fails(level:prop_exit_user_targeted(Level1), [5000])},
-     {timeout, 42, ?_fails(level:prop_exit_user_targeted(Level2), [5000])},
-     {timeout, 42, ?_fails(level:prop_exit_auto_targeted(Level2), [5000])}].
+     {timeout, 42, ?_failsCheck(level:prop_exit_user_targeted(Level1), [5000])},
+     {timeout, 42, ?_failsCheck(level:prop_exit_user_targeted(Level2), [5000])},
+     {timeout, 42, ?_failsCheck(level:prop_exit_auto_targeted(Level2), [5000])}].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
