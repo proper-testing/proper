@@ -1380,6 +1380,16 @@ example_labyrinth_props_test_() ->
      {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M2), [7500])},
      {timeout, 42, ?_failsCheck(labyrinth:prop_exit_auto_targeted(M2), [7500])}].
 
+%% test the unary properties of the `mastermind` example.
+example_mastermind_props_test_() ->
+    Properties = [prop_all_produced_solutions_are_valid,
+		  %% prop_secret_combination_is_not_discarded,
+		  prop_invalidated_instances_reject_original_secret],
+    Strategies = [heur, simple, stream],
+    [ ?_passes(mastermind:prop_secret_combination_is_not_discarded(heur)),
+      ?_passes(mastermind:prop_secret_combination_is_not_discarded(simple))
+    |[?_passes(mastermind:Prop(S)) || Prop <- Properties, S <- Strategies]].
+
 %%------------------------------------------------------------------------------
 %% Performance tests
 %%------------------------------------------------------------------------------
