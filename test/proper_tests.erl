@@ -1077,8 +1077,10 @@ false_props_test_() ->
      ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_outer()),
      ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner()),
      {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
-     ?_fails(post_false:prop_simple()),
-     ?_fails(error_statem:prop_simple())].
+     ?_fails(post_false:prop_simple())].
+
+exception_props_test_() ->
+     [?_fails(error_statem:prop_exception())].
 
 error_props_test_() ->
     [?_errorsOut({cant_generate,[{?MODULE,error_props_test_,0}]},
@@ -1316,7 +1318,7 @@ run_postcondition_false_test() ->
     ?_assertMatch({_H,_S,{postcondition,false}},
 		  run_commands(post_false, proper_statem:commands(post_false))).
 
-run_exception_test() ->
+run_statem_exceptions_test() ->
     ?_assertMatch(
        {_H,_S,{exception,throw,badarg,_}},
        run_commands(post_false, proper_statem:commands(error_statem))).
@@ -1365,18 +1367,18 @@ sampleshrink_test_() ->
 
 examples_are_ok_test_() ->
     [{timeout, 42, ?_assertEqual([], proper:module(M))}
-     || M <- [b64,elevator_fsm,ets_statem,level,mastermind,pdict_statem,stack]].
+     || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
 
-%% test the unary properties of the `level` example.
-example_level_props_test_() ->
-    Level0 = level:level0(), Level1 = level:level1(), Level2 = level:level2(),
+%% test the unary properties of the `labyrinth` example.
+example_labyrinth_props_test_() ->
+    M0 = labyrinth:maze(0), M1 = labyrinth:maze(1), M2 = labyrinth:maze(2),
     [?_failsWith([[left,left,left,left,left,left]],
-		 level:prop_exit(Level0), [500]), % run 500 tests, for safety
+		 labyrinth:prop_exit(M0), [500]),  % run 500 tests, for safety
      ?_failsWith([[left,left,left,left,left,left]],
-		 level:prop_exit_user_targeted(Level0)),
-     {timeout, 42, ?_failsCheck(level:prop_exit_user_targeted(Level1), [5000])},
-     {timeout, 42, ?_failsCheck(level:prop_exit_user_targeted(Level2), [5000])},
-     {timeout, 42, ?_failsCheck(level:prop_exit_auto_targeted(Level2), [5000])}].
+		 labyrinth:prop_exit_user_targeted(M0)),
+     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M1), [5000])},
+     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M2), [5000])},
+     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_auto_targeted(M2), [5000])}].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
