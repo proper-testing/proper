@@ -1389,7 +1389,8 @@ example_mastermind_props_test_() ->
     [ ?_passes(mastermind:prop_secret_combination_is_not_discarded(heur)),
      {timeout, 20,
       ?_passes(mastermind:prop_secret_combination_is_not_discarded(simple))}
-    |[?_passes(mastermind:Prop(S)) || Prop <- Properties, S <- Strategies]].
+    |[{timeout, 10,
+       ?_passes(mastermind:Prop(S))} || Prop <- Properties, S <- Strategies]].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
