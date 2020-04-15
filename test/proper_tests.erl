@@ -1387,7 +1387,8 @@ example_mastermind_props_test_() ->
 		  prop_invalidated_instances_reject_original_secret],
     Strategies = [heur, simple, stream],
     [ ?_passes(mastermind:prop_secret_combination_is_not_discarded(heur)),
-      ?_passes(mastermind:prop_secret_combination_is_not_discarded(simple))
+     {timeout, 20,
+      ?_passes(mastermind:prop_secret_combination_is_not_discarded(simple))}
     |[?_passes(mastermind:Prop(S)) || Prop <- Properties, S <- Strategies]].
 
 %%------------------------------------------------------------------------------
