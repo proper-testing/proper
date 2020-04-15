@@ -1377,8 +1377,8 @@ example_labyrinth_props_test_() ->
      ?_failsWith([[left,left,left,left,left,left]],
 		 labyrinth:prop_exit_user_targeted(M0)),
      {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M1), [5000])},
-     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M2), [5000])},
-     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_auto_targeted(M2), [5000])}].
+     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M2), [7500])},
+     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_auto_targeted(M2), [7500])}].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
