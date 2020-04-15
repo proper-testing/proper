@@ -244,7 +244,7 @@ prop_elevator() ->
 	   ?FORALL(
 	      Cmds, more_commands(5, proper_fsm:commands(?MODULE, Initial)),
 	      begin
-		  start_link({NumFloors,MaxPeople}),
+		  {ok,_} = start_link({NumFloors,MaxPeople}),
 		  {H,S,Res} = proper_fsm:run_commands(?MODULE, Cmds),
 		  stop(),
 		  ?WHENFAIL(
