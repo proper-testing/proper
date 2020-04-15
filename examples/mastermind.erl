@@ -653,15 +653,15 @@ prop_all_produced_solutions_are_valid(SolverName) ->
 	    instance(),
 	    begin
 		Solutions = Solver(Len, Colors, Guesses),
-		collect(lists:all(fun(Solution) ->
+		collect(Solutions =:= [],
+			lists:all(fun(Solution) ->
 				      lists:all(fun({C,Score}) ->
 						    compatible(C,Solution,
 							       Score,Colors)
 						end,
 						Guesses)
 				  end,
-				  Solutions),
-		       equals(Solutions, []))
+				  Solutions))
 	    end).
 
 instance() ->
