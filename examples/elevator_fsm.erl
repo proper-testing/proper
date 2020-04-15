@@ -29,9 +29,8 @@
 -behaviour(proper_fsm).
 
 -export([test/0, test/1]).
-%% gen_statem callbacks
--export([init/1, callback_mode/0, basement/3, floor/3,
-	 terminate/3, code_change/4]).
+%% gen_statem mandatory callbacks and state-handling functions
+-export([init/1, callback_mode/0, basement/3, floor/3]).
 %% proper_fsm callbacks
 -export([initial_state/0, initial_state_data/0, precondition/4,
 	 next_state_data/5, postcondition/5]).
@@ -97,6 +96,10 @@ init(Info) ->
 callback_mode() ->
     state_functions.
 
+%%--------------------------------------------------------------------
+%%% State-handling functions
+%%--------------------------------------------------------------------
+
 basement(cast, up, S) ->
     case S#state.num_floors > 0 of
 	true ->
@@ -154,12 +157,6 @@ floor({call,From}, Msg, Data) ->
     handle_call(From, Msg, Data);
 floor({info,Msg}, StateName, Data) ->
     handle_info(Msg, StateName, Data).
-
-terminate(_Reason, _StateName, _State) ->
-    ok.
-
-code_change(_OldVsn, StateName, State, _Extra) ->
-    {ok, StateName, State}.
 
 handle_call(From, stop, Data) ->
     {stop_and_reply, normal,  {reply, From, ok}, Data}.
@@ -235,7 +232,7 @@ postcondition(_, _, _, _, R) ->
 
 prop_elevator() ->
     ?FORALL(
-       {NumFloors,MaxPeople}, {num_floors(), max_people()},
+       {NumFloors,MaxPeople}, {num_floors(),max_people()},
        begin
 	   Initial = {initial_state(),
 		      #test_state{num_floors = NumFloors,
