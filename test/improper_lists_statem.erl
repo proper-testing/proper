@@ -15,6 +15,8 @@
 
 -include_lib("proper/include/proper.hrl").
 
+-dialyzer({no_improper_lists, command/1}).
+
 command(_State) ->
     return({call, ?MODULE, foo, [[a|b]]}).
 
