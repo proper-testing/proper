@@ -1080,7 +1080,7 @@ false_props_test_() ->
      ?_fails(post_false:prop_simple())].
 
 exception_props_test_() ->
-     [?_fails(error_statem:prop_exception())].
+     [?_fails(error_statem:prop_simple())].
 
 error_props_test_() ->
     [?_errorsOut({cant_generate,[{?MODULE,error_props_test_,0}]},
