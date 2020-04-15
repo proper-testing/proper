@@ -50,6 +50,7 @@
 		     max_people = 10 :: pos_integer()}).
 
 -define(NAME, elevator).
+-define(WRAP(T), proper:test_to_outer_test(T)).
 
 %%--------------------------------------------------------------------
 %%% API
@@ -59,7 +60,7 @@ test() ->
     test(100).
 
 test(Tests) ->
-    proper:quickcheck(prop_elevator(), [{numtests,Tests}]).
+    proper:quickcheck(?WRAP(prop_elevator()), [{numtests,Tests}]).
 
 start_link(Info) ->
     gen_statem:start_link({local,?NAME}, ?MODULE, Info, []).
@@ -248,7 +249,7 @@ prop_elevator() ->
 		     io:format("H: ~w~nS: ~w~nR: ~w~n", [H,S,Res]),
 		     aggregate(zip(proper_fsm:state_names(H),
 				   command_names(Cmds)),
-			       Res =:= ok))
+			       equals(Res, ok)))
 	      end)
        end).
 

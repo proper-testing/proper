@@ -602,7 +602,7 @@ prop_io_filters_are_symmetric() ->
     ?FORALL(L,
 	    list(digit()),
 	    collect(num_digits(length(L)),
-		    export(parse(L)) =:= L)).
+		    equals(export(parse(L)), L))).
 
 digit() -> union([range($0,$9), range($a,$z)]).
 
@@ -653,15 +653,15 @@ prop_all_produced_solutions_are_valid(SolverName) ->
 	    instance(),
 	    begin
 		Solutions = Solver(Len, Colors, Guesses),
-		collect(Solutions =:= [],
-			lists:all(fun(Solution) ->
+		collect(lists:all(fun(Solution) ->
 				      lists:all(fun({C,Score}) ->
 						    compatible(C,Solution,
 							       Score,Colors)
 						end,
 						Guesses)
 				  end,
-				  Solutions))
+				  Solutions),
+		       equals(Solutions, []))
 	    end).
 
 instance() ->

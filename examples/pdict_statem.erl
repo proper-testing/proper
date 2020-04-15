@@ -44,7 +44,7 @@ test() ->
     test(100).
 
 test(N) ->
-    proper:quickcheck(prop_pdict(), N).
+    proper:quickcheck(proper:test_to_outer_test(prop_pdict()), [{numtests,N}]).
 
 prop_pdict() ->
     ?FORALL(Cmds, commands(?MODULE),
@@ -54,7 +54,7 @@ prop_pdict() ->
 		?MODULE:clean_up(),
 		?WHENFAIL(
 		   io:format("History: ~w~nState: ~w~nRes: ~w~n", [H, S, Res]),
-		   aggregate(command_names(Cmds), Res =:= ok))
+		   aggregate(command_names(Cmds), equals(Res, ok)))
 	    end).
 
 set_up() -> ok.
