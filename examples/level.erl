@@ -162,10 +162,6 @@ step() ->
 path() ->
   list(step()).
 
-%% path_sa() ->
-%%   #{first => path(),
-%%     next => path_next()}.
-
 path_next() ->
   fun (PrevPath, _) ->
       ?LET(NextSteps, vector(20, step()), PrevPath ++ NextSteps)

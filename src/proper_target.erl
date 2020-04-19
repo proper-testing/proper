@@ -75,30 +75,24 @@
 -export([init_strategy/1, cleanup_strategy/0, init_target/1,
          update_uv/2, reset/0, targeted/1, get_shrinker/1]).
 
--export_type([strategy/0]).
-
 %% -----------------------------------------------------------------------------
 %% Type declarations
 %% -----------------------------------------------------------------------------
 
--type strategy() :: mod_name().
-
--type fitness() :: number().
--type tmap()    :: #{atom() => term()}.
-
--type threshold() :: fitness() | 'inf'.
+-type strategy()     :: mod_name().
+-type fitness()      :: number().
+-type search_steps() :: pos_integer().
+-type threshold()    :: fitness() | 'inf'.
 
 -type target_state()  :: term().
 -type strategy_data() :: term().
--type next_func()     :: fun ((target_state()) -> {target_state(), any()}).
--type fitness_func()  :: fun ((target_state(), fitness()) -> target_state())
+-type next_fun_ret()  :: proper_types:type() | proper_gen:instance().
+-type next_fun()      :: fun ((...) -> next_fun_ret()).
+-type fitness_fun()   :: fun ((target_state(), fitness()) -> target_state())
                        | none.
-
--type target()   :: {target_state(), next_func(), fitness_func()}.
--type opts()     :: strategy()
-                  | #{search_steps := integer(),
-                      search_strategy := strategy(),
-                      atom() => term()}.
+-type opts()          :: #{search_steps := search_steps(),
+                           search_strategy := strategy(),
+                           atom() => term()}.
 
 -record(state,
         {strategy           :: strategy(),
@@ -106,9 +100,9 @@
          data = undefined   :: strategy_data() | undefined}).
 -type state() :: #state{}.
 
--export_type([fitness/0, tmap/0]).
--export_type([target_state/0, strategy_data/0, next_func/0, fitness_func/0,
-              target/0, opts/0]).
+-export_type([strategy/0, fitness/0, search_steps/0]).
+-export_type([target_state/0, strategy_data/0, next_fun/0, fitness_fun/0,
+              opts/0]).
 
 
 %% -----------------------------------------------------------------------------
@@ -116,12 +110,12 @@
 %% -----------------------------------------------------------------------------
 
 %% strategy global initializer
--callback init_strategy(proper:setup_opts()) -> strategy_data().
+-callback init_strategy(search_steps()) -> strategy_data().
 %% target initializer
--callback init_target(tmap()) -> target_state().
+-callback init_target(proper_types:type(), next_fun()) -> target_state().
 %% next function
 -callback next(target_state(), strategy_data()) ->
-  {any(), target_state(), strategy_data()}.
+  {proper_gen:instance(), target_state(), strategy_data()}.
 %% shrinker
 -callback get_shrinker(target_state(), strategy_data()) -> proper_types:type().
 %% update the strategy with the fitness
@@ -137,17 +131,12 @@
 %% -----------------------------------------------------------------------------
 
 %% @doc Initializes targeted gen server based on a search strategy.
-%% Depending on the argument, the search steps will be taken from
-%% from the process dictionary or the setup options.
 
--spec init_strategy(Opts :: opts()) -> ok.
-init_strategy(Strat) when is_atom(Strat) ->
-  Steps = get('$search_steps'),
-  init_strategy(#{search_steps => Steps, search_strategy => Strat});
+-spec init_strategy(opts()) -> ok.
 init_strategy(#{search_steps := Steps, search_strategy := Strat}) ->
   Strategy = strategy(Strat),
   proper_gen_next:init(),
-  Data = Strategy:init_strategy(#{numtests => Steps}),
+  Data = Strategy:init_strategy(Steps),
   {ok, TargetserverPid} = gen_server:start_link(?MODULE, [{Strategy, Data}], []),
   put('$targetserver_pid', TargetserverPid),
   ok.
@@ -164,56 +153,46 @@ cleanup_strategy() ->
   end.
 
 %% This is used to create the targeted generator.
-%% ?SHRINK so that this can be used with a ?SETUP macro,
-%% in conjuction with ?FORALL.
 
 %% @private
--spec targeted(tmap()) -> proper_types:type().
-targeted(TMap) ->
-  Type = ?SHRINK(proper_types:exactly(?LAZY(targeted_gen(TMap))),
-                 [get_shrinker(TMap)]),
-  case TMap of
-    #{gen := Gen} ->
-      case proper_types:find_prop(user_nf, Gen) of
-        {ok, _} -> proper_types:add_prop(is_user_nf, true, Type);
-        error -> proper_types:add_prop(is_user_nf, false, Type)
-      end;
-    %% Old API.
-    _ -> proper_types:add_prop(is_user_nf, true, Type)
+-spec targeted(proper_types:type()) -> proper_types:type().
+targeted(RawType) ->
+  Type = proper_types:cook_outer(RawType),
+  TargetedType = ?SHRINK(proper_types:exactly(?LAZY(targeted_gen())),
+                         [get_shrinker(Type)]),
+  case proper_types:find_prop(user_nf, Type) of
+    {ok, _} -> proper_types:add_prop(is_user_nf, true, TargetedType);
+    error -> proper_types:add_prop(is_user_nf, false, TargetedType)
   end.
 
 %% @doc Initialize the target of the strategy.
 
--spec init_target(tmap()) -> ok.
-init_target(TMap) ->
+-spec init_target(proper_types:type()) -> ok.
+init_target(RawType) ->
+  Type = proper_types:cook_outer(RawType),
   TargetserverPid = get('$targetserver_pid'),
-  safe_call(TargetserverPid, {init_target, TMap}).
+  safe_call(TargetserverPid, {init_target, Type}).
 
 %% This produces the next gen instance from the next
 %% generator provided by the strategy. It will also
 %% update the state and data of the strategy.
 
 %% @private
--spec targeted_gen(tmap()) -> any().
-targeted_gen(TMap) ->
-  init_target(TMap),
+-spec targeted_gen() -> any().
+targeted_gen() ->
   TargetserverPid = get('$targetserver_pid'),
   gen_server:call(TargetserverPid, gen).
 
-%% @doc Get the shrinker for a tmap.
+%% @doc Get the shrinker for a Type.
 
--spec get_shrinker(tmap()) -> proper_types:type().
-get_shrinker(TMap) ->
-  init_target(TMap),
+-spec get_shrinker(proper_types:type()) -> proper_types:type().
+get_shrinker(Type) ->
   TargetserverPid = get('$targetserver_pid'),
   try
     gen_server:call(TargetserverPid, shrinker)
   catch
     _:{noproc, _} ->
-      case maps:is_key(gen, TMap) of
-        true -> maps:get(gen, TMap);
-        false -> maps:get(first, TMap)
-      end
+      Type
   end.
 
 %% This is used to update the fitness value.
@@ -245,7 +224,8 @@ reset() ->
 safe_call(Pid, Call) ->
   try
     gen_server:call(Pid, Call)
-  catch _:{noproc, _} ->
+  catch 
+    _:{noproc, _} ->
       ok
   end.
 
@@ -290,19 +270,10 @@ handle_call(shrinker, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,
   Shrinker = Strat:get_shrinker(Target, Data),
   {reply, Shrinker, State};
-handle_call({init_target, TMap}, _From, State) ->
-  #state{strategy = Strat, target = Target} = State,
-  NewTarget = case Target of
-                undefined ->
-                  case TMap of
-                    #{gen := Gen} ->
-                      NewTMap = proper_gen_next:from_proper_generator(Gen),
-                      Strat:init_target(NewTMap);
-                    #{first := _First, next := _Next} ->
-                      Strat:init_target(TMap)
-                  end;
-                _ -> Target
-              end,
+handle_call({init_target, Type}, _From, State) ->
+  #state{strategy = Strat} = State,
+  NextFun = proper_gen_next:from_proper_generator(Type),
+  NewTarget = Strat:init_target(Type, NextFun),
   {reply, ok, State#state{target = NewTarget}};
 handle_call({update_fitness, Fitness}, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,

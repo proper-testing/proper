@@ -71,11 +71,10 @@ update_caches(reject) ->
   put(?GEN_NEXT_CACHE, get(?GEN_NEXT_BACKUP)),
   ok.
 
--spec from_proper_generator(proper_types:type()) -> proper_target:tmap().
+-spec from_proper_generator(proper_types:type()) -> proper_target:next_fun().
 from_proper_generator(RawGenerator) ->
   ensure_initialized(),
-  Next = replace_generators(RawGenerator),
-  #{first => RawGenerator, next => Next}.
+  replace_generators(RawGenerator).
 
 ensure_initialized() ->
   L = [?GEN_NEXT_CACHE, ?GEN_NEXT_BACKUP, ?GEN_NEXT_DEPTH, ?SEED_NAME,
