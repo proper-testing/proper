@@ -23,21 +23,31 @@
 %%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Kresten Krab Thorup, edited by Eirini Arvaniti
-%%% @doc Simple statem test for the process dictionary
+%%% @doc Simple statem test for a modified API to the process dictionary
 
 -module(pdict_statem).
 -behaviour(proper_statem).
 
+-export([get/1, put/2, erase/1]).
 -export([test/0, test/1]).
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
-	 next_state/3]).
+         next_state/3]).
 
 -include_lib("proper/include/proper.hrl").
 
 -define(KEYS, [a,b,c,d]).
 
+%%% New API in which only get/1 returns an interesting value.
+get(K) -> erlang:get(K).
+put(K,V) ->
+    erlang:put(K,V),
+    ok.
+erase(K) ->
+    erlang:erase(K),
+    ok.
+
 %% A simple statem test for the process dictionary; tests the
-%% operations erlang:put/2, erlang:get/1, erlang:erase/1.
+%% operations ?MODULE:put/2, ?MODULE:get/1, ?MODULE:erase/1.
 
 test() ->
     test(100).
@@ -47,14 +57,17 @@ test(N) ->
 
 prop_pdict() ->
     ?FORALL(Cmds, commands(?MODULE),
-	    begin
-		{H,S,Res} = run_commands(?MODULE, Cmds),
-		clean_up(),
-		?WHENFAIL(
-		   io:format("History: ~w~nState: ~w~nRes: ~w~n",
-			     [H, S, Res]),
-		   aggregate(command_names(Cmds), Res =:= ok))
-	    end).
+            begin
+                {H,S,Res} = run_commands(?MODULE, Cmds),
+                clean_up(),
+                ?WHENFAIL(
+                   begin
+                       {_, _, Msg} = Res,
+                       io:format("History: ~p~nState: ~p~nMsg: ~s~n",
+                                 [H, S, Msg])
+                   end,
+                   aggregate(command_names(Cmds), Res =:= ok))
+            end).
 
 clean_up() ->
     lists:foreach(fun(Key) -> erlang:erase(Key) end, ?KEYS).
@@ -65,41 +78,51 @@ key() ->
 initial_state() -> [].
 
 command([]) ->
-    {call,erlang,put,[key(), integer()]};
+    {call,?MODULE,put,[key(), integer()]};
 command(Props) ->
     ?LET({Key,Value}, weighted_union([{2, elements(Props)},
-				      {1, {key(),integer()}}]),
-	 oneof([{call,erlang,put,[Key,Value]},
-		{call,erlang,get,[Key]},
-		{call,erlang,erase,[Key]}
-	       ])).
+                                      {1, {key(),integer()}}]),
+         oneof([{call,?MODULE,put,[Key,Value]},
+                {call,?MODULE,get,[Key]},
+                {call,?MODULE,erase,[Key]}
+               ])).
 
-precondition(_, {call,erlang,put,[_,_]}) ->
+precondition(_Props, {call,?MODULE,put,[_Key,_Val]}) ->
     true;
-precondition(Props, {call,erlang,get,[Key]}) ->
-    proplists:is_defined(Key, Props);
-precondition(Props, {call,erlang,erase,[Key]}) ->
+precondition(_Props, {call,?MODULE,get,[_Key]}) ->
+    true;
+precondition(Props, {call,?MODULE,erase,[Key]}) ->
     proplists:is_defined(Key, Props);
 precondition(_, _) ->
     false.
 
-postcondition(Props, {call,erlang,put,[Key,_]}, undefined) ->
-    not proplists:is_defined(Key, Props);
-postcondition(Props, {call,erlang,put,[Key,_]}, Old) ->
-    {Key,Old} =:= proplists:lookup(Key, Props);
-postcondition(Props, {call,erlang,get,[Key]}, Val) ->
-    {Key,Val} =:= proplists:lookup(Key, Props);
-postcondition(Props, {call,erlang,erase,[Key]}, Val) ->
-    {Key,Val} =:= proplists:lookup(Key, Props);
+postcondition(_Props, {call,?MODULE,put,[Key,Val]}, Result) ->
+    Want = ok,
+    Pred = (Result =:= Want),
+    Msg = io_lib:format("Want put(~p, ~p) to return ~p, got ~p\n", [Key, Val, Want, Result]),
+    {Pred, Msg};
+postcondition(Props, {call,?MODULE,get,[Key]}, Result) ->
+    Want = case proplists:lookup(Key, Props) of
+                none -> undefined;
+                {Key, Val} -> Val
+           end,
+    Pred = (Result =:= Want),
+    Msg = io_lib:format("Want get(~p) to return ~p, got ~p\n", [Key, Want, Result]),
+    {Pred, Msg};
+postcondition(_Props, {call,?MODULE,erase,[_Key]}, Result) ->
+    Want = ok,
+    Pred = (Result =:= Want),
+    Msg = io_lib:format("Want Result to be ~p, got ~p\n", [Want, Result]),
+    {Pred, Msg};
 postcondition(_, _, _) ->
-    false.
+    Msg = "Default case",
+    {false, Msg}.
 
-next_state(Props, _Var, {call,erlang,put,[Key,Value]}) ->
-    %% correct model
-    [{Key,Value}|proplists:delete(Key, Props)];
-    %% wrong model
-    %% Props ++ [{Key,Value}];
-next_state(Props, _Var, {call,erlang,erase,[Key]}) ->
-    proplists:delete(Key, Props);
-next_state(Props, _Var, {call,erlang,get,[_]}) ->
+next_state(Props, _Var, {call,?MODULE,put,[Key,Value]}) ->
+    NewProps = [{Key,Value}|proplists:delete(Key, Props)],
+    NewProps;
+next_state(Props, _Var, {call,?MODULE,erase,[Key]}) ->
+    NewProps = proplists:delete(Key, Props),
+    NewProps;
+next_state(Props, _Var, {call,?MODULE,get,[_]}) ->
     Props.
