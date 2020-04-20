@@ -44,7 +44,7 @@
 %% Exports
 %% -----------------------------------------------------------------------------
 
--export([init_strategy/1, init_target/1, next/2,
+-export([init_strategy/1, init_target/2, next/2,
          get_shrinker/2, update_fitness/3, reset/2]).
 
 %% -----------------------------------------------------------------------------
@@ -58,7 +58,7 @@
 %% Types
 %% -----------------------------------------------------------------------------
 
--type k() :: integer().
+-type k() :: non_neg_integer().
 -type temp_fun() :: fun((%% old temperature
                          proper_gen_next:temperature(),
                          %% old energy level
@@ -73,7 +73,6 @@
                          boolean()) -> {proper_gen_next:temperature(), k()}).
 -type accept_fun() :: fun((proper_target:fitness(), proper_target:fitness(),
                            proper_gen_next:temperature()) -> boolean()).
--type next_fun_ret() :: proper_types:type() | proper_gen:instance().
 
 %% -----------------------------------------------------------------------------
 %% Records
@@ -81,7 +80,7 @@
 
 -record(sa_target,
         {first             = null :: proper_types:type(),
-         next              = null :: fun((_, _) -> next_fun_ret()),
+         next              = null :: proper_target:next_fun(),
          current_generated = null :: proper_gen:instance(),
          last_generated    = null :: proper_gen:instance()}).
 -type sa_target() :: #sa_target{}.
@@ -109,8 +108,8 @@
 %% number of the search steps and the strategy.
 
 %% @private
--spec init_strategy(proper:setup_opts()) -> sa_data().
-init_strategy(#{numtests := Steps}) ->
+-spec init_strategy(proper_target:search_steps()) -> sa_data().
+init_strategy(Steps) ->
   #sa_data{k_max = Steps,
            p = get_acceptance_function(),
            temp_func = get_temperature_function()}.
@@ -119,8 +118,8 @@ init_strategy(#{numtests := Steps}) ->
 %% and the neighbourhood function.
 
 %% @private
--spec init_target(proper_target:tmap()) -> sa_target().
-init_target(#{first := First, next := Next}) ->
+-spec init_target(proper_types:type(), proper_target:next_fun()) -> sa_target().
+init_target(First, Next) ->
   {ok, InitialValue} = proper_gen:safe_generate(First),
   #sa_target{first = First, next = Next, last_generated = InitialValue}.
 
@@ -128,7 +127,8 @@ init_target(#{first := First, next := Next}) ->
 %% the targeted generator. It also updates the target state.
 
 %% @private
--spec next(sa_target(), sa_data()) -> {any(), sa_target(), sa_data()}.
+-spec next(sa_target(), sa_data()) ->
+        {proper_gen:instance(), sa_target(), sa_data()}.
 next(#sa_target{next = Next, last_generated = LastGen} = Target, Data) ->
   NextGenerator = Next(LastGen, Data#sa_data.temperature),
   {ok, Generated} = proper_gen:safe_generate(NextGenerator),
@@ -138,11 +138,11 @@ next(#sa_target{next = Next, last_generated = LastGen} = Target, Data) ->
 
 %% @private
 -spec get_shrinker(sa_target(), sa_data()) -> proper_types:type().
-get_shrinker(#sa_target{first = RawType, current_generated = Generated}, Data) ->
+get_shrinker(#sa_target{first = Type, current_generated = Generated}, Data) ->
   CleanGenerated = proper_gen:clean_instance(Generated),
-  case proper_types:find_prop(user_nf, RawType) of
+  case proper_types:find_prop(user_nf, Type) of
     {ok, NF} ->
-      NextType = NF(CleanGenerated, Data#sa_data.temperature),
+      NextType = NF(CleanGenerated, {1, Data#sa_data.temperature}),
       %% Check for shrinkers provided by user with ?SHRINK macro.
       case proper_types:find_prop(alt_gens, NextType) of
         %% User provided ?SHRINK, so we keep it.
@@ -150,17 +150,17 @@ get_shrinker(#sa_target{first = RawType, current_generated = Generated}, Data) -
         %% Try to find which is the best shrinker.
         %% We try to keep the original generator whenever possible.
         error ->
-          case proper_types:safe_is_instance(Generated, RawType) of
+          case proper_types:safe_is_instance(Generated, Type) of
             false ->
-              case proper_types:safe_is_instance(CleanGenerated, RawType) of
-                true -> RawType;
+              case proper_types:safe_is_instance(CleanGenerated, Type) of
+                true -> Type;
                 false -> NextType
               end;
-            true -> RawType
+            true -> Type
           end
       end;
     error ->
-      RawType
+      Type
   end.
 
 %% Update state and data based on current fitness.
