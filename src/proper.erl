@@ -1166,7 +1166,6 @@ multi_test(Mod, RawTestKind,
 	   #opts{long_result = ReturnLong, output_fun = Print,
 		 skip_mfas = SkipMFAs} = Opts) ->
     global_state_init(Opts),
-    Finalizers = setup_test(Opts),
     MaybeMFAs =
 	case RawTestKind of
 	    test -> {ok, [{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
@@ -1188,7 +1187,6 @@ multi_test(Mod, RawTestKind,
 		Error = {error,Reason},
 		{Error, Error}
 	end,
-    ok = finalize_test(Finalizers),
     global_state_erase(),
     case ReturnLong of
 	true  -> LongResult;
@@ -1208,7 +1206,9 @@ mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
 	end,
     global_state_reset(Opts),
     Print("Testing ~w:~w/~b~n", [Mod,Fun,Arity]),
+    Finalizers = setup_test(Opts),
     LongResult = inner_test(RawTest, Opts#opts{long_result = true}),
+    ok = finalize_test(Finalizers),
     Print("~n", []),
     LongResult.
 
