@@ -602,7 +602,7 @@ prop_io_filters_are_symmetric() ->
     ?FORALL(L,
 	    list(digit()),
 	    collect(num_digits(length(L)),
-		    equals(export(parse(L)), L))).
+		    export(parse(L)) =:= L)).
 
 digit() -> union([range($0,$9), range($a,$z)]).
 

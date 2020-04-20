@@ -249,7 +249,7 @@ prop_elevator() ->
 		     io:format("H: ~w~nS: ~w~nR: ~w~n", [H,S,Res]),
 		     aggregate(zip(proper_fsm:state_names(H),
 				   command_names(Cmds)),
-			       equals(Res, ok)))
+			       Res =:= ok))
 	      end)
        end).
 

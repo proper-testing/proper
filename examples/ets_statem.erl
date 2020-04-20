@@ -204,7 +204,7 @@ prop_ets() ->
 		    ?WHENFAIL(
 		       io:format("History: ~p~nState: ~p~nRes: ~p~n",
 				 [H,S,Res]),
-		       collect(Type, equals(Res, ok)))
+		       collect(Type, Res =:= ok))
 		end)).
 
 prop_parallel_ets() ->
@@ -217,7 +217,7 @@ prop_parallel_ets() ->
 		    ?WHENFAIL(
 		       io:format("Sequential: ~p~nParallel: ~p~nRes: ~p~n",
 				 [Seq,P,Res]),
-		       collect(Type, equals(Res, ok)))
+		       collect(Type, Res =:= ok))
 		end)).
 
 %%% Demo commands

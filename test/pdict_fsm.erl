@@ -57,7 +57,7 @@ prop_pdict() ->
 		   io:format("History: ~w\nState: ~w\nRes: ~w\n", [H, S, Res]),
 		   aggregate(zip(proper_fsm:state_names(H),
 				 command_names(Cmds)),
-			     equals(Res, ok)))
+			     Res =:= ok))
 	    end).
 
 set_up() -> ok.

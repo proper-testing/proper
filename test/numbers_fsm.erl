@@ -162,7 +162,7 @@ prop_target_states_atom() ->
 			     foo ->
 				 []
 			 end,
-		collect({From,Action}, equals(Target, Res))
+		collect({From,Action}, Target =:= Res)
 	    end).
 
 prop_target_states_tuple() ->
@@ -183,5 +183,5 @@ prop_target_states_tuple() ->
 			     foo ->
 				 []
 			 end,
-		collect({From,Action}, equals(Target, Res))
+		collect({From,Action}, Target =:= Res)
 	    end).
