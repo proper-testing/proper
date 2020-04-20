@@ -1367,9 +1367,9 @@ sampleshrink_test_() ->
 
 examples_are_ok_test_() ->
     [{timeout, 42, ?_assertEqual([], proper:module(M))}
-     || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
+     || M <- [b64,elevator_fsm,ets_statem,magic,mastermind,pdict_statem,stack]].
 
-%% test the unary properties of the `labyrinth` example.
+%% test the unary properties of the `labyrinth' example.
 example_labyrinth_props_test_() ->
     M0 = labyrinth:maze(0), M1 = labyrinth:maze(1), M2 = labyrinth:maze(2),
     [?_failsWith([[left,left,left,left,left,left]],
@@ -1380,7 +1380,7 @@ example_labyrinth_props_test_() ->
      {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M2), [7500])},
      {timeout, 42, ?_failsCheck(labyrinth:prop_exit_auto_targeted(M2), [7500])}].
 
-%% test the unary properties of the `mastermind` example.
+%% test the unary properties of the `mastermind' example.
 example_mastermind_props_test_() ->
     Properties = [prop_all_produced_solutions_are_valid,
 		  %% prop_secret_combination_is_not_discarded,
