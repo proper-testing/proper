@@ -25,7 +25,9 @@
 
 -module(labyrinth).
 -export([maze/1]).
--export([prop_exit/1, prop_exit_user_targeted/1, prop_exit_auto_targeted/1]).
+-export([prop_exit_random/1,
+	 prop_exit_targeted_user/1,
+	 prop_exit_targeted_auto/1]).
 
 -include_lib("proper/include/proper.hrl").
 
@@ -165,7 +167,7 @@ path_next() ->
 %% Properties
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-prop_exit(Maze) ->
+prop_exit_random(Maze) ->
   MazeMap = draw_map(Maze),
   #{entrance := Entrance} = MazeMap,
   ?FORALL(Path, path(),
@@ -174,7 +176,7 @@ prop_exit(Maze) ->
             _ -> true
           end).
 
-prop_exit_user_targeted(Maze) ->
+prop_exit_targeted_user(Maze) ->
   MazeMap = draw_map(Maze),
   #{entrance := Entrance, exit := Exit} = MazeMap,
   ?FORALL_TARGETED(Path, ?USERNF(path(), path_next()),
@@ -192,7 +194,7 @@ prop_exit_user_targeted(Maze) ->
                        end
                    end).
 
-prop_exit_auto_targeted(Maze) ->
+prop_exit_targeted_auto(Maze) ->
   MazeMap = draw_map(Maze),
   #{entrance := Entrance, exit := Exit} = MazeMap,
   ?FORALL_TARGETED(Path, path(),

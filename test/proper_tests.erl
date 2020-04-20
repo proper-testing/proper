@@ -1374,20 +1374,20 @@ example_magic_props_test_() ->
     %% no point shrinking testx executed only for checking that they fail
     FailOpts = [{numtests,10000}, noshrink],
     [?_passes(magic:prop_spells_random(), [500]),  % let's hope we are unlucky
-     {timeout, 120, ?_failsChk(magic:prop_spells_targeted_auto(), FailOpts)},
-     {timeout, 120, ?_failsChk(magic:prop_spells_targeted_hand(), FailOpts)}].
+     {timeout, 180, ?_failsChk(magic:prop_spells_targeted_auto(), FailOpts)},
+     {timeout, 180, ?_failsChk(magic:prop_spells_targeted_user(), FailOpts)}].
 
 %% test the unary properties of the `labyrinth' example.
 example_labyrinth_props_test_() ->
     FailOpts = [{numtests,7500}, noshrink],        % see comment above
     M0 = labyrinth:maze(0), M1 = labyrinth:maze(1), M2 = labyrinth:maze(2),
-    [?_failsWith([[left,left,left,left,left,left]],
-		 labyrinth:prop_exit(M0), [500]),  % run 500 tests, for safety
+    [?_failsWith([[left,left,left,left,left,left]],       % run 500 tests,
+		 labyrinth:prop_exit_random(M0), [500]),  % for safety
      ?_failsWith([[left,left,left,left,left,left]],
 		 labyrinth:prop_exit_user_targeted(M0)),
-     {timeout, 42, ?_failsChk(labyrinth:prop_exit_user_targeted(M1), FailOpts)},
-     {timeout, 42, ?_failsChk(labyrinth:prop_exit_user_targeted(M2), FailOpts)},
-     {timeout, 42, ?_failsChk(labyrinth:prop_exit_auto_targeted(M2), FailOpts)}].
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_user(M1), FailOpts)},
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_user(M2), FailOpts)},
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_auto(M2), FailOpts)}].
 
 %% test the unary properties of the `mastermind' example.
 example_mastermind_props_test_() ->

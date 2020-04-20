@@ -24,7 +24,7 @@
 
 -module(magic).
 -export([spells/0, cast_spell/2, cast_spells/2, count_spells/1]).
--export([run_random/1, run_targeted_auto/1, run_targeted_hand/1]).
+-export([run_random/1, run_targeted_auto/1, run_targeted_user/1]).
 
 
 -include_lib("proper/include/proper.hrl").
@@ -141,7 +141,7 @@ prop_spells_targeted_auto() ->
                                SumAttr < 2 * sum_attr(InitialAttr))
                    end).
 
-prop_spells_targeted_hand() ->
+prop_spells_targeted_user() ->
   ?FORALL_TARGETED(Spells, ?USERNF(list_of_spells(), list_of_spells_next()),
                    begin
                      InitialAttr = initial_attr(),
@@ -223,8 +223,8 @@ run_random(N) ->
 run_targeted_auto(N) ->
   proper:quickcheck(prop_spells_targeted_auto(), [{numtests, N}, noshrink]).
 
-run_targeted_hand(N) ->
-  proper:quickcheck(prop_spells_targeted_hand(), [{numtests, N}, noshrink]).
+run_targeted_user(N) ->
+  proper:quickcheck(prop_spells_targeted_user(), [{numtests, N}, noshrink]).
 
 count_spells(Spells) ->
   CountedSpells = maps:to_list(count_spells(Spells, #{})),
