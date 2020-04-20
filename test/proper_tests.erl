@@ -1372,8 +1372,8 @@ examples_are_ok_test_() ->
 %% test the properties of the `magic' example.
 example_magic_props_test_() ->
     [?_passes(magic:prop_spells_random(), [500]),  % let's hope we are unlucky
-     {timeout, 42, ?_failsCheck(magic:prop_spells_targeted_auto(), [7500])},
-     {timeout, 42, ?_failsCheck(magic:prop_spells_targeted_hand(), [7500])}].
+     {timeout, 100, ?_failsCheck(magic:prop_spells_targeted_auto(), [7500])},
+     {timeout, 100, ?_failsCheck(magic:prop_spells_targeted_hand(), [7500])}].
 
 %% test the unary properties of the `labyrinth' example.
 example_labyrinth_props_test_() ->
