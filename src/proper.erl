@@ -473,7 +473,7 @@
 %% <a href="#external-wrappers">external wrapper</a>.
 -opaque test() :: boolean()
 	        | {'forall', proper_types:raw_type(), dependent_test()}
-	        | {'exists', proper_target:tmap(), dependent_test(), boolean()}
+	        | {'exists', proper_types:raw_type(), dependent_test(), boolean()}
 	        | {'conjunction', [{tag(),test()}]}
 	        | {'implies', boolean(), delayed_test()}
 	        | {'sample', sample(), stats_printer(), test()}
@@ -1017,18 +1017,19 @@ forall(RawType, DTest) ->
 %% @private
 -spec exists(proper_types:raw_type(), dependent_test(), boolean()) -> test().
 exists(RawType, DTest, Not) ->
-    {exists, #{gen => RawType}, DTest, Not}.
+    {exists, RawType, DTest, Not}.
 
 %% @private
 -spec targeted(proper_types:raw_type(), dependent_test()) -> outer_test().
 targeted(RawType, DTest) ->
-  setup(fun(#{numtests := Numtests} = Opts) ->
+  setup(fun (#{numtests := Numtests} = Opts) ->
+            put('$search_steps', Numtests),
             NewOpts = Opts#{search_steps => Numtests},
             proper_target:init_strategy(NewOpts),
-            proper_target:init_target(#{gen => RawType}),
+            proper_target:init_target(RawType),
             fun proper_target:cleanup_strategy/0
         end,
-        forall(proper_target:targeted(#{gen => RawType}), DTest)).
+        forall(proper_target:targeted(RawType), DTest)).
 
 %% @doc Returns a property that is true only if all of the sub-properties
 %% `SubProps' are true. Each sub-property should be tagged with a distinct atom.
@@ -1165,7 +1166,6 @@ multi_test(Mod, RawTestKind,
 	   #opts{long_result = ReturnLong, output_fun = Print,
 		 skip_mfas = SkipMFAs} = Opts) ->
     global_state_init(Opts),
-    Finalizers = setup_test(Opts),
     MaybeMFAs =
 	case RawTestKind of
 	    test -> {ok, [{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
@@ -1187,7 +1187,6 @@ multi_test(Mod, RawTestKind,
 		Error = {error,Reason},
 		{Error, Error}
 	end,
-    ok = finalize_test(Finalizers),
     global_state_erase(),
     case ReturnLong of
 	true  -> LongResult;
@@ -1207,7 +1206,9 @@ mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
 	end,
     global_state_reset(Opts),
     Print("Testing ~w:~w/~b~n", [Mod,Fun,Arity]),
+    Finalizers = setup_test(Opts),
     LongResult = inner_test(RawTest, Opts#opts{long_result = true}),
+    ok = finalize_test(Finalizers),
     Print("~n", []),
     LongResult.
 
@@ -1388,27 +1389,29 @@ run(Result, #ctx{mode = Mode, bound = Bound} = Ctx, _Opts) when is_boolean(Resul
 	false ->
 	    {error, too_many_instances}
     end;
-run({exists, TMap, Prop, Not}, #ctx{mode = new} = Ctx,
+run({exists, RawType, Prop, Not}, #ctx{mode = new} = Ctx,
     #opts{search_strategy = Strat, search_steps = Steps,
           output_fun = Print, start_size = StartSize} = Opts) ->
-    proper_target:init_strategy(Strat),
-    Target = proper_target:targeted(TMap),
-    Print("[", []),
+    InitOpts = #{search_steps => Steps, search_strategy => Strat},
+    proper_target:init_strategy(InitOpts),
+    proper_target:init_target(RawType),
+    Target = proper_target:targeted(RawType),
     BackupSize = get('$size'),
     put('$size', StartSize - 1),
+    Print("[", []),
     SR = perform_search(Steps, Target, Prop, Ctx, Opts, Not),
-    put('$size', BackupSize),
     Print("]", []),
+    put('$size', BackupSize),
     proper_target:cleanup_strategy(),
     SR;
 run({exists, _, _, _} = Exists, #ctx{mode = try_shrunk, bound = []}, Opts) ->
     run(Exists, #ctx{mode = new, bound = []}, Opts#opts{output_fun = fun (_, _) -> ok end});
-run({exists, _TMap, _Prop, _Not}, #ctx{bound = []} = Ctx, _Opts) ->
+run({exists, _RawType, _Prop, _Not}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
-run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk,
+run({exists, RawType, Prop, Not}, #ctx{mode = try_shrunk,
 				    bound = [ImmInstance | Rest]} = Ctx, Opts) ->
-    RawType = proper_target:get_shrinker(TMap),
-    case proper_types:safe_is_instance(ImmInstance, RawType) of
+    ShrinkerType = proper_target:get_shrinker(RawType),
+    case proper_types:safe_is_instance(ImmInstance, ShrinkerType) of
 	true ->
 	    Instance = proper_gen:clean_instance(ImmInstance),
 	    case {force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts), Not} of
@@ -1422,7 +1425,7 @@ run({exists, TMap, Prop, Not}, #ctx{mode = try_shrunk,
 	{error, _Reason} = Error ->
 	    Error
     end;
-run({exists, _TMap, Prop, Not}, #ctx{mode = try_cexm,
+run({exists, _RawType, Prop, Not}, #ctx{mode = try_cexm,
 				     bound = [Instance | Rest]} = Ctx, Opts) ->
     case {force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts), Not} of
 	{#fail{}, true} -> create_pass_result(Ctx, true_prop);
@@ -1873,14 +1876,14 @@ same_sub_reason(_, _) ->
 -spec skip_to_next(test()) -> stripped_test().
 skip_to_next(Result) when is_boolean(Result) ->
     Result;
-skip_to_next({exists, TMap, Prop, true}) ->
-    RawType = proper_target:get_shrinker(TMap),
-    Type = proper_types:cook_outer(RawType),
+skip_to_next({exists, RawType, Prop, true}) ->
+    ShrinkerType = proper_target:get_shrinker(proper_types:cook_outer(RawType)),
+    Type = proper_types:cook_outer(ShrinkerType),
     {Type, fun (X) -> not force_skip(X, Prop) end};
-skip_to_next({exists, TMap, Prop, false}) ->
+skip_to_next({exists, RawType, Prop, false}) ->
     %% false;
-    RawType = proper_target:get_shrinker(TMap),
-    Type = proper_types:cook_outer(RawType),
+    ShrinkerType = proper_target:get_shrinker(proper_types:cook_outer(RawType)),
+    Type = proper_types:cook_outer(ShrinkerType),
     %% negate the property result around for ?NOT_EXISTS
     {Type, fun (X) -> not Prop(X) end};
 skip_to_next({forall,RawType,Prop}) ->

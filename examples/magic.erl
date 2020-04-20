@@ -133,50 +133,46 @@ prop_spells() ->
           end).
 
 prop_spells_gen() ->
-  ?FORALL_SA(Spells, ?TARGET(#{gen => list_of_spells()}),
-             begin
-               InitialAttr = #attr{strength     = 5,
-                                   constitution = 5,
-                                   defense      = 5,
-                                   dexterity    = 5,
-                                   intelligence = 5,
-                                   charisma     = 5,
-                                   wisdom       = 5,
-                                   willpower    = 5,
-                                   perception   = 5,
-                                   luck         = 5},
-               BuffedAttr = cast_spells(InitialAttr, Spells),
-               SumAttr = sum_attr(BuffedAttr),
-               ?MAXIMIZE(SumAttr),
-               ?WHENFAIL(io:format("Number of Spells: ~p~nTotal Attr: ~p~n",
-                                   [length(Spells), SumAttr]),
-                         SumAttr < 2 * sum_attr(InitialAttr))
-             end).
+  ?FORALL_TARGETED(Spells, list_of_spells(),
+                   begin
+                     InitialAttr = #attr{strength     = 5,
+                                         constitution = 5,
+                                         defense      = 5,
+                                         dexterity    = 5,
+                                         intelligence = 5,
+                                         charisma     = 5,
+                                         wisdom       = 5,
+                                         willpower    = 5,
+                                         perception   = 5,
+                                         luck         = 5},
+                     BuffedAttr = cast_spells(InitialAttr, Spells),
+                     SumAttr = sum_attr(BuffedAttr),
+                     ?MAXIMIZE(SumAttr),
+                     ?WHENFAIL(io:format("Number of Spells: ~p~nTotal Attr: ~p~n",
+                                         [length(Spells), SumAttr]),
+                               SumAttr < 2 * sum_attr(InitialAttr))
+                   end).
 
 prop_spells_hw() ->
-  ?FORALL_SA(Spells, ?TARGET(list_of_spells_sa()),
-             begin
-               InitialAttr = #attr{strength     = 5,
-                                   constitution = 5,
-                                   defense      = 5,
-                                   dexterity    = 5,
-                                   intelligence = 5,
-                                   charisma     = 5,
-                                   wisdom       = 5,
-                                   willpower    = 5,
-                                   perception   = 5,
-                                   luck         = 5},
-               BuffedAttr = cast_spells(InitialAttr, Spells),
-               SumAttr = sum_attr(BuffedAttr),
-               ?MAXIMIZE(SumAttr),
-               ?WHENFAIL(io:format("Number of Spells: ~p~nTotal Attr: ~p~n",
-                                   [length(Spells), SumAttr]),
-                         SumAttr < 2 * sum_attr(InitialAttr))
-             end).
-
-list_of_spells_sa() ->
-  #{first => list_of_spells(),
-    next => list_of_spells_next()}.
+  ?FORALL_TARGETED(Spells, ?USERNF(list_of_spells(), list_of_spells_next()),
+                   begin
+                     InitialAttr = #attr{strength     = 5,
+                                         constitution = 5,
+                                         defense      = 5,
+                                         dexterity    = 5,
+                                         intelligence = 5,
+                                         charisma     = 5,
+                                         wisdom       = 5,
+                                         willpower    = 5,
+                                         perception   = 5,
+                                         luck         = 5},
+                     BuffedAttr = cast_spells(InitialAttr, Spells),
+                     SumAttr = sum_attr(BuffedAttr),
+                     ?MAXIMIZE(SumAttr),
+                     ?WHENFAIL(io:format("Number of Spells: ~p~nTotal Attr: ~p~n",
+                                         [length(Spells), SumAttr]),
+                               SumAttr < 2 * sum_attr(InitialAttr))
+                   end).
 
 list_of_spells_next() ->
   Del = 10,
