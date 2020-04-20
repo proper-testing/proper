@@ -194,7 +194,7 @@ get_cexm() ->
 %%
 %% Used when we are only interested in checking that a property fails.
 %%
--define(_failsCheck(Test, Opts),
+-define(_failsChk(Test, Opts),
 	?_assertEqual(false, proper:quickcheck(Test, Opts))).
 
 inc_temp() ->
@@ -1371,20 +1371,23 @@ examples_are_ok_test_() ->
 
 %% test the properties of the `magic' example.
 example_magic_props_test_() ->
+    %% no point shrinking testx executed only for checking that they fail
+    FailOpts = [{numtests,10000}, noshrink],
     [?_passes(magic:prop_spells_random(), [500]),  % let's hope we are unlucky
-     {timeout, 100, ?_failsCheck(magic:prop_spells_targeted_auto(), [7500])},
-     {timeout, 100, ?_failsCheck(magic:prop_spells_targeted_hand(), [7500])}].
+     {timeout, 120, ?_failsChk(magic:prop_spells_targeted_auto(), FailOpts)},
+     {timeout, 120, ?_failsChk(magic:prop_spells_targeted_hand(), FailOpts)}].
 
 %% test the unary properties of the `labyrinth' example.
 example_labyrinth_props_test_() ->
+    FailOpts = [{numtests,7500}, noshrink],        % see comment above
     M0 = labyrinth:maze(0), M1 = labyrinth:maze(1), M2 = labyrinth:maze(2),
     [?_failsWith([[left,left,left,left,left,left]],
 		 labyrinth:prop_exit(M0), [500]),  % run 500 tests, for safety
      ?_failsWith([[left,left,left,left,left,left]],
 		 labyrinth:prop_exit_user_targeted(M0)),
-     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M1), [5000])},
-     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_user_targeted(M2), [7500])},
-     {timeout, 42, ?_failsCheck(labyrinth:prop_exit_auto_targeted(M2), [7500])}].
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_user_targeted(M1), FailOpts)},
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_user_targeted(M2), FailOpts)},
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_auto_targeted(M2), FailOpts)}].
 
 %% test the unary properties of the `mastermind' example.
 example_mastermind_props_test_() ->
