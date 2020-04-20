@@ -23,8 +23,8 @@
 %%% @author Andreas Löscher
 
 -module(magic).
--export([spells/0, cast_spell/2, cast_spells/2]).
--export([run_random/1, run_generated/1, run_handwritten/1, count_spells/1]).
+-export([spells/0, cast_spell/2, cast_spells/2, count_spells/1]).
+-export([run_random/1, run_targeted_auto/1, run_targeted_hand/1]).
 
 
 -include_lib("proper/include/proper.hrl").
@@ -102,6 +102,12 @@ cast_spells(Attrs, [Spell | LeftSpells]) ->
 
 %% Properties
 %% ----------
+
+initial_attr() ->
+    #attr{strength  = 5, constitution = 5, defense    = 5,
+	  dexterity = 5, intelligence = 5, charisma   = 5,
+	  wisdom    = 5, willpower    = 5, perception = 5, luck = 5}.
+
 sum_attr(Attrs) ->
   Attrs#attr.strength + Attrs#attr.constitution +
     Attrs#attr.defense + Attrs#attr.dexterity +
@@ -112,19 +118,10 @@ sum_attr(Attrs) ->
 list_of_spells() ->
   list(proper_types:noshrink(oneof(spells()))).
 
-prop_spells() ->
+prop_spells_random() ->
   ?FORALL(Spells, list_of_spells(),
           begin
-            InitialAttr = #attr{strength     = 5,
-                                constitution = 5,
-                                defense      = 5,
-                                dexterity    = 5,
-                                intelligence = 5,
-                                charisma     = 5,
-                                wisdom       = 5,
-                                willpower    = 5,
-                                perception   = 5,
-                                luck         = 5},
+            InitialAttr = initial_attr(),
             BuffedAttr = cast_spells(InitialAttr, Spells),
             SumAttr = sum_attr(BuffedAttr),
             ?WHENFAIL(io:format("Number of Spells: ~p~nTotal Attr: ~p~n",
@@ -132,19 +129,10 @@ prop_spells() ->
                       SumAttr < 2 * sum_attr(InitialAttr))
           end).
 
-prop_spells_gen() ->
+prop_spells_targeted_auto() ->
   ?FORALL_TARGETED(Spells, list_of_spells(),
                    begin
-                     InitialAttr = #attr{strength     = 5,
-                                         constitution = 5,
-                                         defense      = 5,
-                                         dexterity    = 5,
-                                         intelligence = 5,
-                                         charisma     = 5,
-                                         wisdom       = 5,
-                                         willpower    = 5,
-                                         perception   = 5,
-                                         luck         = 5},
+                     InitialAttr = initial_attr(),
                      BuffedAttr = cast_spells(InitialAttr, Spells),
                      SumAttr = sum_attr(BuffedAttr),
                      ?MAXIMIZE(SumAttr),
@@ -153,19 +141,10 @@ prop_spells_gen() ->
                                SumAttr < 2 * sum_attr(InitialAttr))
                    end).
 
-prop_spells_hw() ->
+prop_spells_targeted_hand() ->
   ?FORALL_TARGETED(Spells, ?USERNF(list_of_spells(), list_of_spells_next()),
                    begin
-                     InitialAttr = #attr{strength     = 5,
-                                         constitution = 5,
-                                         defense      = 5,
-                                         dexterity    = 5,
-                                         intelligence = 5,
-                                         charisma     = 5,
-                                         wisdom       = 5,
-                                         willpower    = 5,
-                                         perception   = 5,
-                                         luck         = 5},
+                     InitialAttr = initial_attr(),
                      BuffedAttr = cast_spells(InitialAttr, Spells),
                      SumAttr = sum_attr(BuffedAttr),
                      ?MAXIMIZE(SumAttr),
@@ -239,13 +218,13 @@ index(Low, High, Blacklist) ->
 
 %% utility functions
 run_random(N) ->
-  proper:quickcheck(prop_spells(), N).
+  proper:quickcheck(prop_spells_random(), [{numtests, N}]).
 
-run_generated(N) ->
-  proper:quickcheck(prop_spells_gen(), [{numtests, N}, noshrink]).
+run_targeted_auto(N) ->
+  proper:quickcheck(prop_spells_targeted_auto(), [{numtests, N}, noshrink]).
 
-run_handwritten(N) ->
-  proper:quickcheck(prop_spells_hw(), [{numtests, N}, noshrink]).
+run_targeted_hand(N) ->
+  proper:quickcheck(prop_spells_targeted_hand(), [{numtests, N}, noshrink]).
 
 count_spells(Spells) ->
   CountedSpells = maps:to_list(count_spells(Spells, #{})),
