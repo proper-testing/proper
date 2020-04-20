@@ -1367,7 +1367,13 @@ sampleshrink_test_() ->
 
 examples_are_ok_test_() ->
     [{timeout, 42, ?_assertEqual([], proper:module(M))}
-     || M <- [b64,elevator_fsm,ets_statem,magic,mastermind,pdict_statem,stack]].
+     || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
+
+%% test the properties of the `magic' example.
+example_magic_props_test_() ->
+    [?_passes(magic:prop_spells_random(), [500]),  % let's hope we are unlucky
+     {timeout, 42, ?_failsCheck(magic:prop_spells_targeted_auto(), [7500])},
+     {timeout, 42, ?_failsCheck(magic:prop_spells_targeted_hand(), [7500])}].
 
 %% test the unary properties of the `labyrinth' example.
 example_labyrinth_props_test_() ->
