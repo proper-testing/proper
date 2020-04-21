@@ -8,10 +8,14 @@
 %%% improper lists, I made this little fix (#102).
 %%%---------------------------------------------------------------------
 -module(improper_lists_statem).
+-behaviour(proper_statem).
+
 -export([command/1, initial_state/0, next_state/3,
 	 precondition/2, postcondition/3, foo/1]).
 
 -include_lib("proper/include/proper.hrl").
+
+-dialyzer({no_improper_lists, command/1}).
 
 command(_State) ->
     return({call, ?MODULE, foo, [[a|b]]}).

@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2020-     Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,39 +20,33 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
-%%% @author Eirini Arvaniti
+%%% @author Kostis Sagonas
 
--module(nogen_statem).
--behaviour(proper_statem).
-
--export([command/1, initial_state/0, next_state/3,
-	 precondition/2, postcondition/3, foo/1, bar/0]).
+%%
+%% Contains some tests for function generators
+%%
+-module(fun_tests).
 
 -include_lib("proper/include/proper.hrl").
 
-initial_state() -> [].
+%%----------------------
+%% Properties that pass
+%%----------------------
 
-command(_S) ->
-    oneof([{call,?MODULE,foo,[impossible_arg()]},
-	   {call,?MODULE,bar,[]}]).
+prop_fun_bool() ->
+  ?FORALL({F, X}, {function(1,boolean()), any()}, is_boolean(F(X))).
 
-impossible_arg() ->
-    ?SUCHTHAT(X, non_neg_integer(), X < 0).
+%%-----------------------------
+%% Properties that should fail
+%%-----------------------------
 
-precondition(_, _) -> true.
+prop_fun_int_int() ->
+  ?FORALL({F, X}, {function([integer()],integer()), integer()}, F(X) < 42).
 
-next_state(S, _, _) -> S.
-
-postcondition(_, _, _) -> true.
-
-foo(_) -> ok.
-bar() -> 42.
-
-prop_simple() ->
-    ?FORALL(Cmds, commands(?MODULE),
-	    begin
-		{_H,_S,Res} = run_commands(?MODULE, Cmds),
-		equals(Res, ok)
-	    end).
+prop_lists_map_filter() ->
+  ?FORALL({MapFun, FilterFun, List},
+	  {function([int()],any()), function([int()],bool()), list(int())},
+	  lists:map(MapFun, lists:filter(FilterFun, List)) =:=
+	    lists:filter(FilterFun, lists:map(MapFun, List))).

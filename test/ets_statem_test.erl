@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2014 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,20 +20,23 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2014 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
-%%% @doc Simple statem test for ets tables
+%%% @doc Simple statem test for ets tables.
+%%% This module is a variant of the similar module in the examples directory.
 
--module(ets_statem).
+-module(ets_statem_test).
+-behaviour(proper_statem).
+-compile([debug_info]).
 
--export([initial_state/1, command/1, precondition/2,
+-export([initial_state/0, command/1, precondition/2,
 	 postcondition/3, next_state/3]).
 -export([set_up/0, clean_up/0]).
 
 -include_lib("proper/include/proper.hrl").
 
--type object() :: tuple().
+-type object()     :: tuple().
 -type table_type() :: 'set' | 'ordered_set' | 'bag' | 'duplicate_bag'.
 
 -record(state, {stored = []  :: [object()],     %% list of objects
@@ -75,6 +78,9 @@ small_int() ->
 
 
 %%% Abstract state machine for ets table
+
+initial_state() ->
+    initial_state(set).
 
 initial_state(Type) ->
     #state{type = Type}.

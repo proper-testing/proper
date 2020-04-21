@@ -26,6 +26,7 @@
 %%% @doc Tests for fsm transition targets
 
 -module(numbers_fsm).
+-behaviour(proper_fsm).
 
 -export([zero/1, one/1, two/1, three/1, four/1, num/4]).
 -export([idle/0, inc/0, dec/0, insert/1, delete/1]).

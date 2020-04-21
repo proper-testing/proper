@@ -26,6 +26,7 @@
 %%% @doc This module tests the use of symbolic calls in next_state/3.
 
 -module(symb_statem).
+-behaviour(proper_statem).
 
 -export([command/1,
 	 initial_state/0, next_state/3,

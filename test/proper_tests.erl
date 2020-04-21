@@ -152,6 +152,12 @@ assertEqualsOneOf(X, List) ->
 		   ?checkCExm(LongResult, AllCExms, Test, Opts, ExpCExm)
 	       end)).
 
+-define(_cexmMatchesWith(Pattern, Test),
+	?_test(begin
+		   ?assertEqual(false, proper:quickcheck(Test)),
+		   ?assertMatch(Pattern, get_cexm())
+	       end)).
+
 get_cexm() ->
     CExm = proper:counterexample(),
     proper:clean_garbage(),
@@ -185,6 +191,11 @@ get_cexm() ->
 		   proper:clean_garbage(),
 		   ?assert(state_is_clean())
 	       end)).
+%%
+%% Used when we are only interested in checking that a property fails.
+%%
+-define(_failsChk(Test, Opts),
+	?_assertEqual(false, proper:quickcheck(Test, Opts))).
 
 inc_temp() ->
     inc_temp(1).
@@ -272,7 +283,7 @@ assert_cant_translate(Mod, TypeStr) ->
     ?assert(state_is_clean()),
     ?assertMatch({error,_}, Result).
 
-%% TODO: after fixing the typesystem, use generic reverse function.
+%% TODO: after fixing the type system, use generic reverse function.
 assert_is_instance(X, Type) ->
     ?assert(proper_types:is_inst(X, Type) andalso state_is_clean()).
 
@@ -381,6 +392,8 @@ simple_types_with_data() ->
       [skill,pain,pleasure], luck, [clear,20,50], none},
      {{integer(0,42),list(atom())}, [{42,[a,b]},{21,[c,de,f]},{0,[]}], {0,[]},
       [{-1,[a]},{12},{21,[b,c],12}], "{0..42,[atom()]}"},
+     {tuple(), [{a,42},{2.56,<<42>>,{a}},{},{a,{a,17},3.14,{{}}}], {},
+      [#{a => 17},[{}],42], "tuple()"},
      {tuple([atom(),integer()]), [{the,1}], {'',0}, [{"a",0.0}],
       "{atom(),integer()}"},
      {{}, [{}], {}, [[],{1,2}], "{}"},
@@ -404,6 +417,8 @@ simple_types_with_data() ->
      {number(), [12,32.3,-9,-77.7], 0, [manolis,papadakis], "number()"},
      {boolean(), [true,false], false, [unknown], "boolean()"},
      {string(), ["hello","","world"], "", ['hello'], "string()"},
+     {arity(), [0,2,17,42,255], 0, [-1,256], "arity()"},
+     {timeout(), [0,42,infinity,666], 0, [-1,infinite,3.14], "timeout()"},
      {?LAZY(integer()), [0,2,99], 0, [1.1], "integer()"},
      {?LAZY(list(float())), [[0.0,1.2,1.99],[]], [], [1.1,[1,2]], "[float()]"},
      {zerostream(10), [[0,0,0],[],[0,0,0,0,0,0,0]], [], [[1,0,0],[0.1]], none},
@@ -733,7 +748,6 @@ dollar_data() ->
 %% TODO: spec_timeout option
 %% TODO: defined option precedence
 %% TODO: conversion of maybe_improper_list
-%% TODO: use demo_is_instance and demo_translate_type
 %% TODO: debug option to output tests passed, fail reason, etc.
 %% TODO: test expected distribution of random functions
 
@@ -747,19 +761,20 @@ constructed_types_test_() ->
 %% TODO: specific test-starting instances would be useful here
 %%	 (start from valid Xs)
 shrinks_to_test_() ->
+    All = simple_types_with_data() ++ constructed_types_with_data(),
     [?_shrinksTo(Target, Type)
-     || {Type,_Xs,Target,_Ys,_TypeStr} <- simple_types_with_data()
-					  ++ constructed_types_with_data(),
-	Type =/= none].
+     || {Type,_Xs,Target,_Ys,_TypeStr} <- All, Type =/= none].
 
 native_shrinks_to_test_() ->
+    All = simple_types_with_data() ++ constructed_types_with_data(),
     [?_nativeShrinksTo(Target, TypeStr)
-     || {_Type,_Xs,Target,_Ys,TypeStr} <- simple_types_with_data()
-					  ++ constructed_types_with_data(),
-	TypeStr =/= none].
+     || {_Type,_Xs,Target,_Ys,TypeStr} <- All, TypeStr =/= none].
 
 cant_generate_test_() ->
     [?_test(assert_cant_generate(Type)) || Type <- impossible_types()].
+
+proper_exported_types_test_() ->
+    [?_assertEqual({[],11}, proper_exported_types_test:not_handled())].
 
 %%------------------------------------------------------------------------------
 %% Verify that failing constraints are correctly reported
@@ -773,10 +788,12 @@ cant_generate_constraints_test_() ->
    ?_errorsOut({cant_generate, [{?MODULE, impossible, 0}]},
                ?FORALL(_X, impossible(), true)),
    %% An impossible generator in presence of multiple constraints
-   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},{?MODULE, possible_made_impossible, 0}]},
+   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},
+				{?MODULE, possible_made_impossible, 0}]},
                ?FORALL(_X, possible_made_impossible(), true)),
    %% An impossible generator in presence of multiple, duplicated constraints
-   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},{?MODULE, possible_made_impossible_2, 0}]},
+   ?_errorsOut({cant_generate, [{?MODULE, possible, 0},
+				{?MODULE, possible_made_impossible_2, 0}]},
                ?FORALL(_X, possible_made_impossible_2(), true))
   ].
 
@@ -959,17 +976,17 @@ true_props_test_() ->
 		  {three, conjunction([{a,true},{b,true}])}
 	      ])),
      ?_passes(?FORALL(X, untyped(), is_record(X, untyped))),
-     ?_passes(improper_lists_statem:prop_simple()),
-     ?_passes(pdict_statem:prop_pdict()),
-     ?_passes(symb_statem:prop_simple()),
-     ?_passes(more_commands_test:prop_commands_passes(), [{numtests,42}]),
-     {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
-     {timeout, 10, ?_passes(ets_statem:prop_ets())},
-     {timeout, 20, ?_passes(ets_statem:prop_parallel_ets())},
-     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())}].
+     ?_passes(fun_tests:prop_fun_bool())].
 
-map_in_nextstate3_test_() ->
-    [?_passes(symb_statem_maps:prop_simple()),
+true_stateful_test_() ->
+    [?_passes(improper_lists_statem:prop_simple()),
+     ?_passes(symb_statem:prop_simple()),
+     ?_passes(symb_statem_maps:prop_simple()),
+     ?_passes(more_commands_test:prop_commands_passes(), [{numtests,42}]),
+     {timeout, 10, ?_passes(ets_statem_test:prop_ets())},
+     {timeout, 20, ?_passes(ets_statem_test:prop_parallel_ets())},
+     {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
+     {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())}].
 
 false_props_test_() ->
@@ -993,6 +1010,9 @@ false_props_test_() ->
 					true  -> erlang:exit(you_got_it);
 					false -> true
 				    end)),
+     %% TODO: Check that the following two tests shrink properly on _N
+     ?_cexmMatchesWith([{_,_N}], fun_tests:prop_fun_int_int()),
+     ?_cexmMatchesWith([{_,_,[_N]}], fun_tests:prop_lists_map_filter()),
      ?_fails(?FORALL(_, integer(), ?TIMEOUT(100,timer:sleep(150) =:= ok))),
      ?_failsWith([20], ?FORALL(X, pos_integer(), ?TRAPEXIT(creator(X) =:= ok))),
      ?_assertTempBecomesN(7, false,
@@ -1003,7 +1023,7 @@ false_props_test_() ->
      %% and one when the minimal input is rechecked
      ?_assertTempBecomesN(2, false,
 			  ?FORALL(L, list(atom()),
-				  ?WHENFAIL(inc_temp(),length(L) < 5))),
+				  ?WHENFAIL(inc_temp(), length(L) < 5))),
      ?_assertTempBecomesN(3, false,
 			  ?FORALL(S, ?SIZED(Size,Size),
 				  begin inc_temp(), S =< 20 end),
@@ -1057,8 +1077,10 @@ false_props_test_() ->
      ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_outer()),
      ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner()),
      {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
-     ?_fails(post_false:prop_simple()),
-     ?_fails(error_statem:prop_simple())].
+     ?_fails(post_false:prop_simple())].
+
+exception_props_test_() ->
+     [?_fails(error_statem:prop_simple())].
 
 error_props_test_() ->
     [?_errorsOut({cant_generate,[{?MODULE,error_props_test_,0}]},
@@ -1110,15 +1132,22 @@ options_test_() ->
      ?_assertTempBecomesN(300, true,
 			  ?FORALL(_, 1, begin inc_temp(), true end),
 			  [300]),
-     ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [noshrink]),
-     ?_failsWith([42], ?FORALL(_,?SHRINK(42,[0,1]),false), [{max_shrinks,0}]),
-     ?_fails(?FORALL(_,integer(),false), [fails]),
+     ?_failsWith([42], ?FORALL(T, any(), T < 42),
+		 [any_to_integer,verbose,nocolors]),
+     ?_failsWith([42], ?FORALL(I, integer(), I < 42),
+		 [{numtests,4711}, {on_output,fun print_in_magenta/2}]),
+     ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [noshrink]),
+     ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [{max_shrinks,0}]),
+     ?_fails(?FORALL(_, integer(), false), [fails]),
      ?_assertRun({error,{cant_generate,[{?MODULE,options_test_,0}]}},
-		 ?FORALL(_,?SUCHTHAT(X,pos_integer(),X > 0),true),
+		 ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X > 0), true),
 		 [{constraint_tries,0}], true),
      ?_failsWith([12],
-		 ?FORALL(_,?SIZED(Size,integer(Size,Size)),false),
+		 ?FORALL(_, ?SIZED(Size, integer(Size, Size)), false),
 		 [{start_size,12}])].
+
+print_in_magenta(S, L) ->
+   io:format("\033[1;35m"++S++"\033[0m", L).
 
 setup_prop() ->
     ?SETUP(fun () ->
@@ -1155,7 +1184,8 @@ double_setup_prop() ->
 				  ok
 			  end
 		  end,
-		  ?FORALL(_, exactly(ok), get(setup_token) andalso get(setup_token2)))).
+		  ?FORALL(_, exactly(ok),
+			  get(setup_token) andalso get(setup_token2)))).
 
 setup_test_() ->
     [?_passes(setup_prop(), [10]),
@@ -1184,10 +1214,11 @@ adts1_test_() ->
       ?_passes(?FORALL({X,S},{integer(),sets:set(integer())},
 		       sets:is_element(X,sets:add_element(X,S))), [20])}.
 
-%% adts2_test_() -> {timeout, 60,	% for 18.x (and onwards?)
-%%       ?_passes(?FORALL({X,Y,D},
-%% 		       {integer(),float(),dict:dict(integer(),float())},
-%% 		       dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])}.
+adts2_test_() ->
+    {timeout, 60,	% for 18.x (and onwards?)
+     ?_passes(?FORALL({X,Y,D},
+		      {integer(),float(),dict:dict(integer(),float())},
+		      dict:fetch(X,dict:store(X,Y,eval(D))) =:= Y), [30])}.
 
 adts3_test_() ->
      {timeout, 60,
@@ -1287,7 +1318,7 @@ run_postcondition_false_test() ->
     ?_assertMatch({_H,_S,{postcondition,false}},
 		  run_commands(post_false, proper_statem:commands(post_false))).
 
-run_exception_test() ->
+run_statem_exceptions_test() ->
     ?_assertMatch(
        {_H,_S,{exception,throw,badarg,_}},
        run_commands(post_false, proper_statem:commands(error_statem))).
@@ -1323,24 +1354,59 @@ dollar_only_cp_test_() ->
 	     is_atom(K),
 	     re:run(atom_to_list(K), ["^[$]"], [{capture,none}]) =:= match]).
 
-
 sampleshrink_test_() ->
+    Gen = non_empty(?LET({N,Lst}, {range(0,5),list(a)}, lists:sublist(Lst, N))),
     [{"Test type with restrain",
       [{"Try another way to call shrinking (not sampleshrink)",
-        ?_shrinksTo([a], non_empty(?LET({Len,List},
-                                        {range(0,5), list(a)},
-                                        lists:sublist(List, Len))))},
-       ?_test(proper_gen:sampleshrink(non_empty(?LET({Len,List},
-                                       {range(0,5), list(a)},
-                                       lists:sublist(List, Len)))))]}].
+        ?_shrinksTo([a], Gen)},
+       ?_test(proper_gen:sampleshrink(Gen))]}].
 
+%%------------------------------------------------------------------------------
+%% Test that the examples work
+%%------------------------------------------------------------------------------
+
+examples_are_ok_test_() ->
+    [{timeout, 42, ?_assertEqual([], proper:module(M))}
+     || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
+
+%% test the properties of the `magic' example.
+example_magic_props_test_() ->
+    %% no point shrinking testx executed only for checking that they fail
+    FailOpts = [{numtests,10000}, noshrink],
+    [?_passes(magic:prop_spells_random(), [500]),  % let's hope we are unlucky
+     {timeout, 180, ?_failsChk(magic:prop_spells_targeted_auto(), FailOpts)},
+     {timeout, 180, ?_failsChk(magic:prop_spells_targeted_user(), FailOpts)}].
+
+%% test the unary properties of the `labyrinth' example.
+example_labyrinth_props_test_() ->
+    FailOpts = [{numtests,7500}, noshrink],        % see comment above
+    M0 = labyrinth:maze(0), M1 = labyrinth:maze(1), M2 = labyrinth:maze(2),
+    [?_failsWith([[left,left,left,left,left,left]],       % run 500 tests,
+		 labyrinth:prop_exit_random(M0), [500]),  % for safety
+     ?_failsWith([[left,left,left,left,left,left]],
+		 labyrinth:prop_exit_targeted_user(M0)),
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_user(M1), FailOpts)},
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_user(M2), FailOpts)},
+     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_auto(M2), FailOpts)}].
+
+%% test the unary properties of the `mastermind' example.
+example_mastermind_props_test_() ->
+    Properties = [prop_all_produced_solutions_are_valid,
+		  %% prop_secret_combination_is_not_discarded,
+		  prop_invalidated_instances_reject_original_secret],
+    Strategies = [heur, simple, stream],
+    [ ?_passes(mastermind:prop_secret_combination_is_not_discarded(heur)),
+     {timeout, 20,
+      ?_passes(mastermind:prop_secret_combination_is_not_discarded(simple))}
+    |[{timeout, 10,
+       ?_passes(mastermind:Prop(S))} || Prop <- Properties, S <- Strategies]].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
 %%------------------------------------------------------------------------------
 
 max_size_test() ->
-    %% issue a call to load the test module and ensure the test exists
+    %% issue a call to load the test module and ensure that the test exists
     ?assert(lists:member({prop_identity,0},
 			 perf_max_size:module_info(exports))),
     %% run some tests with a small and a big max_size option

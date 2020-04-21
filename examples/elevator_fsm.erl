@@ -28,18 +28,17 @@
 -behaviour(gen_statem).
 -behaviour(proper_fsm).
 
--include_lib("proper/include/proper.hrl").
-
 -export([test/0, test/1]).
-%% gen_statem callbacks
--export([init/1, callback_mode/0, basement/3, floor/3,
-	 terminate/3, code_change/4]).
+%% gen_statem mandatory callbacks and state-handling functions
+-export([init/1, callback_mode/0, basement/3, floor/3]).
 %% proper_fsm callbacks
 -export([initial_state/0, initial_state_data/0, precondition/4,
 	 next_state_data/5, postcondition/5]).
 %% functions used as proper_fsm commands
 -export([up/0, down/0, which_floor/0, get_on/1, get_off/1,
 	 fsm_basement/1, fsm_floor/2]).
+
+-include_lib("proper/include/proper.hrl").
 
 -record(state, {floor  = 0 :: non_neg_integer(), %% current floor
 		people = 0 :: non_neg_integer(), %% people inside the elevator
@@ -51,6 +50,7 @@
 		     max_people = 10 :: pos_integer()}).
 
 -define(NAME, elevator).
+-define(WRAP(T), proper:test_to_outer_test(T)).
 
 %%--------------------------------------------------------------------
 %%% API
@@ -60,7 +60,7 @@ test() ->
     test(100).
 
 test(Tests) ->
-    proper:quickcheck(prop_elevator(), [{numtests,Tests}]).
+    proper:quickcheck(?WRAP(prop_elevator()), [{numtests,Tests}]).
 
 start_link(Info) ->
     gen_statem:start_link({local,?NAME}, ?MODULE, Info, []).
@@ -96,6 +96,10 @@ init(Info) ->
 
 callback_mode() ->
     state_functions.
+
+%%--------------------------------------------------------------------
+%%% State-handling functions
+%%--------------------------------------------------------------------
 
 basement(cast, up, S) ->
     case S#state.num_floors > 0 of
@@ -154,12 +158,6 @@ floor({call,From}, Msg, Data) ->
     handle_call(From, Msg, Data);
 floor({info,Msg}, StateName, Data) ->
     handle_info(Msg, StateName, Data).
-
-terminate(_Reason, _StateName, _State) ->
-    ok.
-
-code_change(_OldVsn, StateName, State, _Extra) ->
-    {ok, StateName, State}.
 
 handle_call(From, stop, Data) ->
     {stop_and_reply, normal,  {reply, From, ok}, Data}.
@@ -235,7 +233,7 @@ postcondition(_, _, _, _, R) ->
 
 prop_elevator() ->
     ?FORALL(
-       {NumFloors,MaxPeople}, {num_floors(), max_people()},
+       {NumFloors,MaxPeople}, {num_floors(),max_people()},
        begin
 	   Initial = {initial_state(),
 		      #test_state{num_floors = NumFloors,
@@ -244,7 +242,7 @@ prop_elevator() ->
 	   ?FORALL(
 	      Cmds, more_commands(5, proper_fsm:commands(?MODULE, Initial)),
 	      begin
-		  start_link({NumFloors,MaxPeople}),
+		  {ok,_} = start_link({NumFloors,MaxPeople}),
 		  {H,S,Res} = proper_fsm:run_commands(?MODULE, Cmds),
 		  stop(),
 		  ?WHENFAIL(

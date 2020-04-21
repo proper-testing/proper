@@ -26,6 +26,7 @@
 %%% @doc Simple fsm test for the process dictionary
 
 -module(pdict_fsm).
+-behaviour(proper_fsm).
 
 -export([test/0, test/1, sample_commands/0]).
 -export([initial_state/0, initial_state_data/0, precondition/4, weight/3,
@@ -35,6 +36,7 @@
 -include_lib("proper/include/proper.hrl").
 
 -define(KEYS, [a,b,c,d]).
+-define(WRAP(T), proper:test_to_outer_test(T)).
 
 %% A simple fsm test for the process dictionary; tests the
 %% operations erlang:put/2, erlang:get/1, erlang:erase/1
@@ -43,7 +45,7 @@ test() ->
     test(100).
 
 test(N) ->
-    proper:quickcheck(?MODULE:prop_pdict(), N).
+    proper:quickcheck(?WRAP(prop_pdict()), N).
 
 prop_pdict() ->
     ?FORALL(Cmds, proper_fsm:commands(?MODULE),
@@ -55,7 +57,7 @@ prop_pdict() ->
 		   io:format("History: ~w\nState: ~w\nRes: ~w\n", [H, S, Res]),
 		   aggregate(zip(proper_fsm:state_names(H),
 				 command_names(Cmds)),
-			     Res == ok))
+			     Res =:= ok))
 	    end).
 
 set_up() -> ok.
