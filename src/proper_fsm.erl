@@ -153,8 +153,11 @@
 
 -export([commands/1, commands/2, run_commands/2, run_commands/3,
 	 state_names/1]).
--export([command/1, precondition/2, next_state/3, postcondition/3]).
+-export([targeted_commands/1, targeted_commands/2]).
+-export([command/1, precondition/2, next_state/3, postcondition/3,
+         all_commands/1]).
 -export([target_states/4]).
+-export([select_command/2]).
 
 -include("proper_internal.hrl").
 
@@ -179,6 +182,8 @@
 -type history()      :: [{fsm_state(),cmd_result()}].
 -type tmp_command()  :: {'init',state()}
 		      | {'set',symbolic_var(),symbolic_call()}.
+-type weights()      :: #{{state_name(), state_name(), term()} =>
+                            pos_integer()}.
 
 -record(state, {name :: state_name(),
 		data :: state_data(),
@@ -188,7 +193,7 @@
 
 %% -----------------------------------------------------------------------------
 %% Proper_fsm behaviour callback functions
-%% ----------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------
 
 -callback initial_state() -> state_name().
 
@@ -236,6 +241,33 @@ commands(Mod, {Name,Data} = InitialState) ->
     ?LET([_|Cmds],
 	 proper_statem:commands(?MODULE, State),
 	 [{init,InitialState}|Cmds]).
+
+%% @doc A special PropEr type which generates targeted command sequences,
+%% according to a finite state machine specification and taking into
+%% consideration a utility value. The functiona takes as input the name of
+%% the callback module, which contains the fsm specification.
+%% The initial state is computed by <br/>
+%% `{Mod:initial_state/0, Mod:initial_state_data/0}'.
+
+-spec targeted_commands(mod_name()) -> proper_types:type().
+targeted_commands(Mod) ->
+  proper_types:add_prop(is_user_nf_stateful, true,
+                        ?USERNF(targeted_commands_gen(Mod),
+                                next_commands_gen(Mod))).
+
+%% @doc Similar to {@link targeted_commands/1}, but generated command
+%% sequences always start at a given state. In this case, the first
+%% command is always <br/>
+%% `{init, InitialState = {Name, Data}}' and is used to correctly
+%% initialize the state every time the command sequence is run (i.e.
+%% during normal execution, while shrinking and when checking a
+%% counterexample).
+
+-spec targeted_commands(mod_name(), fsm_state()) -> proper_types:type().
+targeted_commands(Mod, InitialState) ->
+  proper_types:add_prop(is_user_nf_stateful, true,
+                        ?USERNF(targeted_commands_gen(Mod, InitialState),
+                                next_commands_gen(Mod, InitialState))).
 
 %% @doc Evaluates a given symbolic command sequence `Cmds' according to the
 %% finite state machine specified in `Mod'. The result is a triple of the
@@ -316,6 +348,119 @@ next_state(S = #state{name = From, data = Data, mod = Mod} , Var, Call) ->
 postcondition(#state{name = From, data = Data, mod = Mod}, Call, Res) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     Mod:postcondition(From, To, Data, Call, Res).
+
+%% @private
+-spec all_commands(state()) -> [symbolic_call()].
+all_commands(#state{name = From, data = Data, mod = Mod}) ->
+  [CallGen || {_, CallGen} <- get_transitions(Mod, From, Data)].
+
+
+%% -----------------------------------------------------------------------------
+%% Targeted command generation
+%% -----------------------------------------------------------------------------
+
+
+%% @private
+-spec targeted_commands_gen(mod_name()) -> proper_types:type().
+targeted_commands_gen(Mod) ->
+  State = initial_state(Mod),
+  ?LET([_ | Cmds], proper_statem:commands(?MODULE, State),
+       {finalize_weights(State, Cmds, maps:new()), Cmds}).
+
+%% @private
+-spec targeted_commands_gen(mod_name(), fsm_state()) -> proper_types:type().
+targeted_commands_gen(Mod, {Name, Data} = InitialState) ->
+  State = #state{name = Name, data = Data, mod = Mod},
+  ?LET([_ | Cmds], proper_statem:commands(?MODULE, State),
+       {finalize_weights(State, Cmds, maps:new()),
+        [{init, InitialState} | Cmds]}).
+
+%% @private
+-spec next_commands_gen(mod_name()) -> fun((_, _) -> proper_types:type()).
+next_commands_gen(Mod) ->
+  fun ({Weights, _Cmds}, {_D, _T}) ->
+      State = initial_state(Mod),
+      NewWeights = proper_statem:next_weights(Weights),
+      CmdsGen = ?LET([_ | Cmds],
+                     proper_statem:next_gen(?MODULE, State, NewWeights),
+                     Cmds),
+      ?SHRINK(
+         ?LET(Cmds, ?LAZY(CmdsGen),
+              {finalize_weights(State, Cmds, NewWeights), Cmds}),
+         [CmdsGen])
+  end.
+
+%% @private
+-spec next_commands_gen(mod_name(), fsm_state()) ->
+        fun((_, _) -> proper_types:type()).
+next_commands_gen(Mod, {Name, Data} = InitialState) ->
+  fun ({Weights, _Cmds}, {_D, _T}) ->
+      State = #state{name = Name, data = Data, mod = Mod},
+      NewWeights = proper_statem:next_weights(Weights),
+      CmdsGen = ?LET([_ | Cmds],
+                     proper_statem:next_gen(?MODULE, State, NewWeights),
+                     [{init, InitialState} | Cmds]),
+      ?SHRINK(
+         ?LET(Cmds, ?LAZY(CmdsGen),
+              {finalize_weights(State, Cmds, NewWeights), Cmds}),
+         [CmdsGen])
+  end.
+
+%% Commands are selected according to the weights found in the
+%% map provided, or from a `weight/3' callback.
+
+%% @private
+-spec select_command(state(), weights()) -> proper_types:type().
+select_command(State, Weights) ->
+  #state{name = From, data = Data, mod = Mod} = State,
+  SelectAux =
+    fun ({To, {call, _Mod, Call, _Args} = SymbCall}) ->
+        RealTo = cook_history(From, To),
+        Key = {From, RealTo, Call},
+        case maps:is_key(Key, Weights) of
+          true -> {maps:get(Key, Weights), SymbCall};
+          false ->
+            case is_exported(Mod, {weight, 3}) of
+              true -> {Mod:weight(From, RealTo, SymbCall), SymbCall};
+              false -> {1, SymbCall}
+            end
+        end
+    end,
+  ?LET(Transitions,
+       ?LAZY(get_transitions(Mod, From, Data)),
+       begin
+         ValidTransitions = [{To, Cmd} || {To, Cmd} <- Transitions,
+                                          precondition(State, Cmd)],
+         WeightedCmds = lists:map(SelectAux, ValidTransitions),
+         proper_types:frequency(WeightedCmds)
+       end).
+
+%% Track all the state transitions and add these to the weights map.
+
+%% @private
+-spec finalize_weights(state(), command_list(), weights()) -> weights().
+finalize_weights(_S, [], Weights) -> Weights;
+finalize_weights(InitialState, Cmds, Weights) ->
+  FinWeightsAux =
+    fun ({init, _InitialState}, Acc) -> Acc;
+        ({set, Var, {call, _Mod, Call, _Args} = SymbCall}, {State, Ws}) ->
+        NextState = next_state(State, Var, SymbCall),
+        From = State#state.name,
+        To = NextState#state.name,
+        Key = {From, To, Call},
+        case maps:is_key(Key, Ws) of
+          true -> {NextState, Ws};
+          false ->
+            Mod = State#state.mod,
+            case is_exported(Mod, {weight, 3}) of
+              true -> {NextState,
+                       maps:put(Key, Mod:weight(From, To, SymbCall), Ws)};
+              false -> {NextState, maps:put(Key, 1, Ws)}
+            end
+        end
+    end,
+  {_S, NewWeights} = lists:foldl(FinWeightsAux, {InitialState, Weights}, Cmds),
+  NewWeights.
 
 
 %% -----------------------------------------------------------------------------

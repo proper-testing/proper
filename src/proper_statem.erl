@@ -225,6 +225,8 @@
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
 	 more_commands/2]).
+-export([targeted_commands/1, targeted_commands/2, next_weights/1,
+         next_gen/2, next_gen/3]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
@@ -240,6 +242,11 @@
 
 -define(COMMANDS_SZ_FACTOR, '$commands_size_factor').
 -define(RESIZE_FACTOR, proper_types:parameter(?COMMANDS_SZ_FACTOR, 1)).
+-define(SELECT_COMMAND(M, S, W),
+        case M of
+          proper_fsm -> proper_fsm:select_command(S, W);
+          _ -> select_command(M, S, W)
+        end).
 
 %% -----------------------------------------------------------------------------
 %% Exported only for testing purposes
@@ -278,11 +285,12 @@
 -type indices()     :: [index()].
 -type combination() :: [{pos_integer(),indices()}].
 -type lookup()      :: orddict:orddict(index(),command()).
+-type weights()     :: #{term() => pos_integer()}.
 
 
 %% -----------------------------------------------------------------------------
 %% Proper_statem behaviour callback functions
-%% ----------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------
 
 -callback initial_state() -> symbolic_state().
 
@@ -294,6 +302,12 @@
 
 -callback next_state(symbolic_state() | dynamic_state(), term(),
 		     symbolic_call()) -> symbolic_state() | dynamic_state().
+
+-callback all_commands(symbolic_state()) -> [symbolic_call()].
+
+-callback weight(term()) -> integer().
+
+-optional_callbacks([weight/1, all_commands/1]).
 
 
 %% -----------------------------------------------------------------------------
@@ -461,6 +475,191 @@ move_shrinker(Seq, Par, I) ->
 		 [{Seq ++ Slice, remove_slice(I, Slice, Par)}
 		  || Slice <- get_slices(lists:nth(I, Par))]),
 	 move_shrinker(NewSeq, NewPar, I-1)).
+
+
+%% -----------------------------------------------------------------------------
+%% Targeted command generation
+%% -----------------------------------------------------------------------------
+
+
+%% @doc A special PropEr type which generates random command sequences,
+%% according to an abstract state machine specification and taking into
+%% consideration a utility value. The function takes as input the name of
+%% a callback module, which contains the state machine specification. The
+%% initial state is computed by `Mod:initial_state/0'.
+
+-spec targeted_commands(mod_name()) -> proper_types:type().
+targeted_commands(Mod) ->
+  proper_types:add_prop(is_user_nf_stateful, true,
+                        ?USERNF(targeted_commands_gen(Mod),
+                                next_commands_gen(Mod))).
+
+%% @doc Similar to {@link targeted_commands/1}, but generated command sequences
+%% always start at a given state. In this case, the first command is always
+%% `{init, InitialState}' and is used to correctly initialize the state
+%% every time the command sequence is run (i.e. during normal execution,
+%% while shrinking and when checking a counterexample). In this case,
+%% `Mod:initial_state/0' is never called.
+
+-spec targeted_commands(mod_name(), symbolic_state()) -> proper_types:type().
+targeted_commands(Mod, InitialState) ->
+  proper_types:add_prop(is_user_nf_stateful, true,
+                        ?USERNF(targeted_commands_gen(Mod, InitialState),
+                                next_commands_gen(Mod, InitialState))).
+
+%% @private
+-spec targeted_commands_gen(mod_name()) -> proper_types:type().
+targeted_commands_gen(Mod) ->
+  ?LET(Cmds,
+       ?LAZY(commands(Mod)),
+       {finalize_weights(Mod, Cmds, maps:new()), Cmds}).
+
+%% @private
+-spec targeted_commands_gen(mod_name(), symbolic_state()) ->
+        proper_types:type().
+targeted_commands_gen(Mod, InitialState) ->
+  ?LET(Cmds,
+       ?LAZY(commands(Mod, InitialState)),
+       {finalize_weights(Mod, Cmds, maps:new()), Cmds}).
+
+%% @private
+-spec next_commands_gen(mod_name()) -> fun((_, _) -> proper_types:type()).
+next_commands_gen(Mod) ->
+  fun ({Weights, _Cmds}, {_D, _T}) ->
+      NewWeights = next_weights(Weights),
+      CmdsGen = next_gen(Mod, NewWeights),
+      ?SHRINK(
+         ?LET(Cmds, ?LAZY(CmdsGen),
+              {finalize_weights(Mod, Cmds, NewWeights), Cmds}),
+         [CmdsGen])
+  end.
+
+%% @private
+-spec next_commands_gen(mod_name(), symbolic_state()) ->
+        fun((_, _) -> proper_types:type()).
+next_commands_gen(Mod, InitialState) ->
+  fun ({Weights, _Cmds}, {_D, _T}) ->
+      NewWeights = next_weights(Weights),
+      CmdsGen = next_gen(Mod, InitialState, NewWeights),
+      ?SHRINK(
+         ?LET(Cmds, ?LAZY(CmdsGen),
+              {finalize_weights(Mod, Cmds, NewWeights), Cmds}),
+         [CmdsGen])
+  end.
+
+%% Produce the new random weights by adding or removing an integer
+%% value to the existing weights.
+
+%% @private
+-spec next_weights(weights()) -> weights().
+next_weights(Weights) ->
+  Min = -?RESIZE_FACTOR,
+  Max = ?RESIZE_FACTOR,
+  maps:map(fun (_Key, W) ->
+               Random = rand:uniform(1 + (Max - Min)) - (1 - Min),
+               NW = W + Random,
+               case NW >= 1 of
+                 true -> NW;
+                 false -> 1
+               end
+           end, Weights).
+
+%% Used to return the generator the commands of the targeted
+%% generation.
+
+%% @private
+-spec next_gen(mod_name(), weights()) -> proper_types:type().
+next_gen(Mod, Weights) ->
+  ?LET(InitialState, ?LAZY(Mod:initial_state()),
+       ?SUCHTHAT(
+          Cmds,
+          ?LET(List,
+               ?SIZED(Size,
+                      proper_types:noshrink(
+                        next_gen(Size * ?RESIZE_FACTOR, Mod,
+                                 InitialState, 1, Weights))),
+               proper_types:shrink_list(List)),
+          is_valid(Mod, InitialState, Cmds, []))).
+
+%% Used to return the generator the commands of the targeted
+%% generation with an initial state provided by the user.
+
+%% @private
+-spec next_gen(mod_name(), symbolic_state(), weights()) -> proper_types:type().
+next_gen(Mod, InitialState, Weights) ->
+  ?SUCHTHAT(Cmds,
+            ?LET(CmdTail,
+                 ?LET(List,
+                      ?SIZED(Size,
+                             proper_types:noshrink(
+                               next_gen(Size * ?RESIZE_FACTOR, Mod,
+                                        InitialState, 1, Weights))),
+                      proper_types:shrink_list(List)),
+                 [{init, InitialState} | CmdTail]),
+            is_valid(Mod, InitialState, Cmds, [])).
+
+%% @private
+-spec next_gen(proper_gen:size(), mod_name(), symbolic_state(), pos_integer(),
+               weights()) -> proper_types:type().
+next_gen(Size, Mod, State, Count, Weights) ->
+  ?LAZY(proper_types:frequency(
+          [{1, []},
+           {Size, ?LET(Call,
+                       ?SELECT_COMMAND(Mod, State, Weights),
+                       begin
+                         Var = {var, Count},
+                         NextState = Mod:next_state(State, Var, Call),
+                         ?LET(Cmds,
+                              next_gen(Size - 1, Mod, NextState,
+                                       Count + 1, Weights),
+                              [{set, Var, Call} | Cmds])
+                       end)}])).
+
+%% Commands are selected according to the weights found in the
+%% map provided, or from a `weight/1' callback.
+
+%% @private
+-spec select_command(mod_name(), symbolic_state(), weights()) ->
+        proper_types:type().
+select_command(Mod, State, Weights) ->
+  SelectAux =
+    fun ({call, _Mod, Call, _Args} = SymbCall) ->
+        case maps:is_key(Call, Weights) of
+          true -> {maps:get(Call, Weights), SymbCall};
+          false ->
+            case is_exported(Mod, {weight, 1}) of
+              true -> {Mod:weight(Call), SymbCall};
+              false -> {1, SymbCall}
+            end
+        end
+    end,
+  ?LET(Cmds,
+       ?LAZY(Mod:all_commands(State)),
+       begin
+         ValidCmds = [Cmd || Cmd <- Cmds, Mod:precondition(State, Cmd)],
+         WeightedCmds = lists:map(SelectAux, ValidCmds),
+         proper_types:frequency(WeightedCmds)
+       end).
+
+%% Track all the commands and add unknown to the weights map.
+
+%% @private
+-spec finalize_weights(mod_name(), command_list(), weights()) -> weights().
+finalize_weights(_Mod, [], Weights) -> Weights;
+finalize_weights(Mod, Cmds, Weights) ->
+  FinWeightsAux =
+    fun ({init, _InitialState}, Ws) -> Ws;
+        ({set, {var, _Count}, {call, _Mod, Call, _Args}}, Ws) ->
+        case maps:is_key(Call, Ws) of
+          true -> Ws;
+          false ->
+            case is_exported(Mod, {weight, 1}) of
+              true -> maps:put(Call, Mod:weight(Call), Ws);
+              false -> maps:put(Call, 1, Ws)
+            end
+        end
+    end,
+  lists:foldl(FinWeightsAux, Weights, Cmds).
 
 
 %% -----------------------------------------------------------------------------
@@ -981,3 +1180,7 @@ spawn_link_cp(ActualFun) ->
 	      ActualFun()
 	  end,
     spawn_link(Fun).
+
+-spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
+is_exported(Mod, Fun) ->
+    lists:member(Fun, Mod:module_info(exports)).

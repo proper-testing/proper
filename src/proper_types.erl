@@ -241,7 +241,7 @@
 			| 'get_length' | 'split' | 'join' | 'get_indices'
 			| 'remove' | 'retrieve' | 'update' | 'constraints'
 			| 'parameters' | 'env' | 'subenv'
-			| 'user_nf' | 'is_user_nf' | 'matcher'.
+			| 'user_nf' | 'is_user_nf' | 'is_user_nf_stateful' | 'matcher'.
 
 -type type_prop_value() :: term().
 -type type_prop() ::
@@ -291,7 +291,8 @@
     | {'env', term()}
     | {'subenv', term()}
     | {'user_nf', proper_gen_next:nf()}
-    | {'is_user_nf', boolean()}.
+    | {'is_user_nf', boolean()}
+    | {'is_user_nf_stateful', boolean()}.
 
 
 %%------------------------------------------------------------------------------

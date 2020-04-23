@@ -94,6 +94,7 @@
 
 -import(proper_statem, [commands/1, commands/2, parallel_commands/1,
 			parallel_commands/2, more_commands/2]).
+-import(proper_statem, [targeted_commands/1, targeted_commands/2]).
 -import(proper_statem, [run_commands/2, run_commands/3,  state_after/2,
 			command_names/1, zip/2, run_parallel_commands/2,
 			run_parallel_commands/3]).
