@@ -1396,11 +1396,8 @@ sampleshrink_test_() ->
 
 examples_are_ok_test_() ->
     %% No need to test more in order to check that the examples work.
-    TargetedOpts = [{numtests,10}],
     [{timeout, 42, ?_assertEqual([], proper:module(M))}
-     || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]] ++
-      [{timeout, 42, ?_assertEqual([], proper:module(M, TargetedOpts))}
-       || M <- [car_statem, car_fsm]].
+     || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
 
 %% test the properties of the `magic' example.
 example_magic_props_test_() ->
@@ -1433,6 +1430,20 @@ example_mastermind_props_test_() ->
       ?_passes(mastermind:prop_secret_combination_is_not_discarded(simple))}
     |[{timeout, 10,
        ?_passes(mastermind:Prop(S))} || Prop <- Properties, S <- Strategies]].
+
+%% test the properties of `car_statem' example.
+example_car_statem_props_test_() ->
+  FailOpts = [{numtests,2000}, noshrink],
+  [?_passes(car_statem:prop_distance(), [500]),
+   {timeout, 42, ?_failsChk(car_statem:prop_distance_targeted(), FailOpts)},
+   {timeout, 42, ?_failsChk(car_statem:prop_distance_targeted_init(), FailOpts)}].
+
+%% test the properties of `car_fsm' example.
+example_car_fsm_props_test_() ->
+  FailOpts = [{numtests,2000}, noshrink],
+  [?_passes(car_fsm:prop_distance(), [500]),
+   {timeout, 42, ?_failsChk(car_fsm:prop_distance_targeted(), FailOpts)},
+   {timeout, 42, ?_failsChk(car_fsm:prop_distance_targeted_init(), FailOpts)}].
 
 %%------------------------------------------------------------------------------
 %% Performance tests

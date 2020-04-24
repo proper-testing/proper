@@ -340,8 +340,8 @@ postcondition(stopped, stopped, _, {call, _, refuel, _}, {0.0, 0.0}) ->
 postcondition(_, _, _, _, {Distance, Burnt}) ->
   Distance >= 0.0 andalso Burnt >= 0.0.
 
-%% Uncomment the following line to make the search faster.
-% weight(_, _, {call, _, travel, _}) -> 10;
+weight(_, _, {call, _, brake, _}) -> 2;
+weight(_, _, {call, _, travel, _}) -> 4;
 weight(_, _, _) -> 1.
 
 
@@ -402,7 +402,7 @@ prop_distance() ->
 %% `proper:quickcheck(car_fsm:prop_targeted_distance(), 1000).'
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, more_commands(2, proper_fsm:targeted_commands(?MODULE)),
+     Cmds, more_commands(3, proper_fsm:targeted_commands(?MODULE)),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -413,10 +413,7 @@ prop_distance_targeted() ->
                           true -> 100 * Burnt / Distance;
                           false -> 0
                         end,
-          UV = case Consumption > ?CONSUMPTION of
-                 true -> Distance * 0.1;
-                 false -> Distance
-               end,
+          UV = Distance,
           ?MAXIMIZE(UV),
           ?WHENFAIL(
              io:format("Distance: ~p~nConsumption: ~p~n",
@@ -431,7 +428,7 @@ prop_distance_targeted() ->
 prop_distance_targeted_init() ->
   State = {initial_state(), initial_state_data()},
   ?FORALL_TARGETED(
-     Cmds, more_commands(2, proper_fsm:targeted_commands(?MODULE, State)),
+     Cmds, more_commands(3, proper_fsm:targeted_commands(?MODULE, State)),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -442,10 +439,7 @@ prop_distance_targeted_init() ->
                           true -> 100 * Burnt / Distance;
                           false -> 0
                         end,
-          UV = case Consumption > ?CONSUMPTION of
-                 true -> Distance * 0.1;
-                 false -> Distance
-               end,
+          UV = Distance,
           ?MAXIMIZE(UV),
           ?WHENFAIL(
              io:format("Distance: ~p~nConsumption: ~p~n",

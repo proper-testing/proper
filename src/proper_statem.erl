@@ -225,7 +225,7 @@
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
 	 more_commands/2]).
--export([targeted_commands/1, targeted_commands/2, next_weights/1,
+-export([targeted_commands/1, targeted_commands/2, next_weights/2,
          next_gen/2, next_gen/3]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).
@@ -528,8 +528,8 @@ targeted_commands_gen(Mod, InitialState) ->
 %% @private
 -spec next_commands_gen(mod_name()) -> next_fun().
 next_commands_gen(Mod) ->
-  fun ({Weights, _Cmds}, {_D, _T}) ->
-      NewWeights = next_weights(Weights),
+  fun ({Weights, _Cmds}, {_D, T}) ->
+      NewWeights = next_weights(Weights, T),
       CmdsGen = next_gen(Mod, NewWeights),
       ?SHRINK(
          ?LET(Cmds, ?LAZY(CmdsGen),
@@ -540,8 +540,8 @@ next_commands_gen(Mod) ->
 %% @private
 -spec next_commands_gen(mod_name(), symbolic_state()) -> next_fun().
 next_commands_gen(Mod, InitialState) ->
-  fun ({Weights, _Cmds}, {_D, _T}) ->
-      NewWeights = next_weights(Weights),
+  fun ({Weights, _Cmds}, {_D, T}) ->
+      NewWeights = next_weights(Weights, T),
       CmdsGen = next_gen(Mod, NewWeights, InitialState),
       ?SHRINK(
          ?LET(Cmds, ?LAZY(CmdsGen),
@@ -553,10 +553,12 @@ next_commands_gen(Mod, InitialState) ->
 %% value to the existing weights.
 
 %% @private
--spec next_weights(weights()) -> weights().
-next_weights(Weights) ->
-  Min = -?RESIZE_FACTOR,
-  Max = ?RESIZE_FACTOR,
+-spec next_weights(weights(), proper_gen_next:temperature()) -> weights().
+next_weights(Weights, Temp) ->
+  Factor = round(Temp * 5),
+  Base = ?RESIZE_FACTOR,
+  Min = -Base - Factor,
+  Max = Base + Factor,
   maps:map(fun (_Key, W) ->
                Random = rand:uniform(1 + (Max - Min)) - (1 - Min),
                NW = W + Random,

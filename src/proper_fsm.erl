@@ -376,9 +376,9 @@ targeted_commands_gen(Mod, {Name, Data} = InitialState) ->
 
 -spec next_commands_gen(mod_name()) -> next_fun().
 next_commands_gen(Mod) ->
-  fun ({Weights, _Cmds}, {_D, _T}) ->
+  fun ({Weights, _Cmds}, {_D, T}) ->
       State = initial_state(Mod),
-      NewWeights = proper_statem:next_weights(Weights),
+      NewWeights = proper_statem:next_weights(Weights, T),
       CmdsGen = ?LET([_ | Cmds],
                      proper_statem:next_gen(?MODULE, NewWeights, State),
                      Cmds),
@@ -390,9 +390,9 @@ next_commands_gen(Mod) ->
 
 -spec next_commands_gen(mod_name(), fsm_state()) -> next_fun().
 next_commands_gen(Mod, {Name, Data} = InitialState) ->
-  fun ({Weights, _Cmds}, {_D, _T}) ->
+  fun ({Weights, _Cmds}, {_D, T}) ->
       State = #state{name = Name, data = Data, mod = Mod},
-      NewWeights = proper_statem:next_weights(Weights),
+      NewWeights = proper_statem:next_weights(Weights, T),
       CmdsGen = ?LET([_ | Cmds],
                      proper_statem:next_gen(?MODULE, NewWeights, State),
                      [{init, InitialState} | Cmds]),
