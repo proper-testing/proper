@@ -1395,7 +1395,6 @@ sampleshrink_test_() ->
 %%------------------------------------------------------------------------------
 
 examples_are_ok_test_() ->
-    %% No need to test more in order to check that the examples work.
     [{timeout, 42, ?_assertEqual([], proper:module(M))}
      || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
 
