@@ -232,7 +232,7 @@
 -export([state_after/2, command_names/1, zip/2]).
 
 
--export_type([symbolic_var/0, symbolic_call/0, statem_result/0]).
+-export_type([symbolic_var/0, symbolic_call/0, statem_result/0, next_fun/0]).
 
 
 -include("proper_internal.hrl").
@@ -286,6 +286,9 @@
 -type combination() :: [{pos_integer(),indices()}].
 -type lookup()      :: orddict:orddict(index(),command()).
 -type weights()     :: #{term() => pos_integer()}.
+-type next_base()   :: {weights(), command_list()}.
+-type next_temp()   :: {proper_gen_next:depth(), proper_gen_next:temperature()}.
+-type next_fun()    :: fun((next_base(), next_temp()) -> proper_types:type()).
 
 
 %% -----------------------------------------------------------------------------
@@ -307,7 +310,7 @@
 
 -callback weight(term()) -> integer().
 
--optional_callbacks([weight/1, all_commands/1]).
+-optional_callbacks([all_commands/1, weight/1]).
 
 
 %% -----------------------------------------------------------------------------
@@ -523,7 +526,7 @@ targeted_commands_gen(Mod, InitialState) ->
        {finalize_weights(Mod, Cmds, maps:new()), Cmds}).
 
 %% @private
--spec next_commands_gen(mod_name()) -> fun((_, _) -> proper_types:type()).
+-spec next_commands_gen(mod_name()) -> next_fun().
 next_commands_gen(Mod) ->
   fun ({Weights, _Cmds}, {_D, _T}) ->
       NewWeights = next_weights(Weights),
@@ -535,12 +538,11 @@ next_commands_gen(Mod) ->
   end.
 
 %% @private
--spec next_commands_gen(mod_name(), symbolic_state()) ->
-        fun((_, _) -> proper_types:type()).
+-spec next_commands_gen(mod_name(), symbolic_state()) -> next_fun().
 next_commands_gen(Mod, InitialState) ->
   fun ({Weights, _Cmds}, {_D, _T}) ->
       NewWeights = next_weights(Weights),
-      CmdsGen = next_gen(Mod, InitialState, NewWeights),
+      CmdsGen = next_gen(Mod, NewWeights, InitialState),
       ?SHRINK(
          ?LET(Cmds, ?LAZY(CmdsGen),
               {finalize_weights(Mod, Cmds, NewWeights), Cmds}),
@@ -564,7 +566,7 @@ next_weights(Weights) ->
                end
            end, Weights).
 
-%% Used to return the generator the commands of the targeted
+%% Used to return the generator for the commands of the targeted
 %% generation.
 
 %% @private
@@ -581,12 +583,12 @@ next_gen(Mod, Weights) ->
                proper_types:shrink_list(List)),
           is_valid(Mod, InitialState, Cmds, []))).
 
-%% Used to return the generator the commands of the targeted
+%% Used to return the generator for the commands of the targeted
 %% generation with an initial state provided by the user.
 
 %% @private
--spec next_gen(mod_name(), symbolic_state(), weights()) -> proper_types:type().
-next_gen(Mod, InitialState, Weights) ->
+-spec next_gen(mod_name(), weights(), symbolic_state()) -> proper_types:type().
+next_gen(Mod, Weights, InitialState) ->
   ?SUCHTHAT(Cmds,
             ?LET(CmdTail,
                  ?LET(List,
@@ -598,7 +600,6 @@ next_gen(Mod, InitialState, Weights) ->
                  [{init, InitialState} | CmdTail]),
             is_valid(Mod, InitialState, Cmds, [])).
 
-%% @private
 -spec next_gen(proper_gen:size(), mod_name(), symbolic_state(), pos_integer(),
                weights()) -> proper_types:type().
 next_gen(Size, Mod, State, Count, Weights) ->
@@ -618,7 +619,6 @@ next_gen(Size, Mod, State, Count, Weights) ->
 %% Commands are selected according to the weights found in the
 %% map provided, or from a `weight/1' callback.
 
-%% @private
 -spec select_command(mod_name(), symbolic_state(), weights()) ->
         proper_types:type().
 select_command(Mod, State, Weights) ->
@@ -643,7 +643,6 @@ select_command(Mod, State, Weights) ->
 
 %% Track all the commands and add unknown to the weights map.
 
-%% @private
 -spec finalize_weights(mod_name(), command_list(), weights()) -> weights().
 finalize_weights(_Mod, [], Weights) -> Weights;
 finalize_weights(Mod, Cmds, Weights) ->
@@ -1182,5 +1181,5 @@ spawn_link_cp(ActualFun) ->
     spawn_link(Fun).
 
 -spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
-is_exported(Mod, Fun) ->
-    lists:member(Fun, Mod:module_info(exports)).
+is_exported(Mod, FA) ->
+    lists:member(FA, Mod:module_info(exports)).

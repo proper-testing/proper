@@ -287,7 +287,7 @@ strategy(Strat) ->
 
 %% @private
 get_stateful_cmds({'$used', Used, {Weights, Cmds}})
-  when is_map(Weights) andalso is_list(Cmds) ->
+  when is_map(Weights), is_list(Cmds) ->
   get_stateful_cmds(Used);
 get_stateful_cmds(Cmds) -> Cmds.
 

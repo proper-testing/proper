@@ -1396,10 +1396,11 @@ sampleshrink_test_() ->
 
 examples_are_ok_test_() ->
     %% No need to test more in order to check that the examples work.
-    Opts = [{numtests,42}],
-    [{timeout, 42, ?_assertEqual([], proper:module(M, Opts))}
-     || M <- [b64,car_statem,car_fsm,elevator_fsm,ets_statem,mastermind,
-              pdict_statem,stack]].
+    TargetedOpts = [{numtests,10}],
+    [{timeout, 42, ?_assertEqual([], proper:module(M))}
+     || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]] ++
+      [{timeout, 42, ?_assertEqual([], proper:module(M, TargetedOpts))}
+       || M <- [car_statem, car_fsm]].
 
 %% test the properties of the `magic' example.
 example_magic_props_test_() ->

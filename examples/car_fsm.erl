@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2020-     Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2020 Spiros Dontas and Kostis Sagonas
 %%% @version {@version}
 %%% @author Spiros Dontas
 
@@ -29,8 +29,6 @@
 -behaviour(proper_fsm).
 
 -include_lib("proper/include/proper.hrl").
-
--compile([export_all, nowarn_export_all]).
 
 
 %% -----------------------------------------------------------------------------
@@ -47,9 +45,6 @@
 -export([initial_state/0, initial_state_data/0, next_state_data/5,
          precondition/4, postcondition/5, weight/3]).
 -export([stopped/1, slow/1, normal/1, fast/1, too_fast/1]).
-%% Properties
--export([prop_distance/0, prop_distance_targeted/0,
-         prop_distance_targeted_init/0]).
 
 
 %% -----------------------------------------------------------------------------
@@ -164,12 +159,6 @@ too_fast({call, From}, {travel, Value}, S) ->
 too_fast({call, From}, {refuel, Value}, S) ->
   refuel_helper(From, Value, S).
 
-handle_call(From, stop, Data) ->
-  {stop_and_reply, normal, {reply, From, ok}, Data}.
-
-handle_info(Info, StateName, Data) ->
-  {stop, {shutdown, {unexpected, Info, StateName}}, StateName, Data}.
-
 terminate(_Reason, _StateName, _State) ->
   ok.
 
@@ -260,29 +249,29 @@ slow(S) ->
   #state{fuel = Fuel, speed = Speed} = S,
   accelerate_commands(Speed) ++
     brake_commands(Speed) ++
-    [{history, ?CALL(travel, [traveler()])}] ++
-    [{stopped, ?CALL(refuel, [refueler(Fuel)])}].
+    [{history, ?CALL(travel, [traveler()])},
+     {stopped, ?CALL(refuel, [refueler(Fuel)])}].
 
 normal(S) ->
   #state{fuel = Fuel, speed = Speed} = S,
   accelerate_commands(Speed) ++
     brake_commands(Speed) ++
-    [{history, ?CALL(travel, [traveler()])}] ++
-    [{stopped, ?CALL(refuel, [refueler(Fuel)])}].
+    [{history, ?CALL(travel, [traveler()])},
+     {stopped, ?CALL(refuel, [refueler(Fuel)])}].
 
 fast(S) ->
   #state{fuel = Fuel, speed = Speed} = S,
   accelerate_commands(Speed) ++
     brake_commands(Speed) ++
-    [{history, ?CALL(travel, [traveler()])}] ++
-    [{stopped, ?CALL(refuel, [refueler(Fuel)])}].
+    [{history, ?CALL(travel, [traveler()])},
+     {stopped, ?CALL(refuel, [refueler(Fuel)])}].
 
 too_fast(S) ->
   #state{fuel = Fuel, speed = Speed} = S,
   accelerate_commands(Speed) ++
     brake_commands(Speed) ++
-    [{history, ?CALL(travel, [traveler()])}] ++
-    [{stopped, ?CALL(refuel, [refueler(Fuel)])}].
+    [{history, ?CALL(travel, [traveler()])},
+     {stopped, ?CALL(refuel, [refueler(Fuel)])}].
 
 precondition(stopped, stopped, _S, {call, _, refuel, _}) ->
   true;
@@ -354,6 +343,7 @@ postcondition(_, _, _, _, {Distance, Burnt}) ->
 %% Uncomment the following line to make the search faster.
 % weight(_, _, {call, _, travel, _}) -> 10;
 weight(_, _, _) -> 1.
+
 
 %% -----------------------------------------------------------------------------
 %% proper_fsm helpers

@@ -184,6 +184,7 @@
 		      | {'set',symbolic_var(),symbolic_call()}.
 -type weights()      :: #{{state_name(), state_name(), term()} =>
                             pos_integer()}.
+-type next_fun()     :: proper_statem:next_fun().
 
 -record(state, {name :: state_name(),
 		data :: state_data(),
@@ -244,7 +245,7 @@ commands(Mod, {Name,Data} = InitialState) ->
 
 %% @doc A special PropEr type which generates targeted command sequences,
 %% according to a finite state machine specification and taking into
-%% consideration a utility value. The functiona takes as input the name of
+%% consideration a utility value. The function takes as input the name of
 %% the callback module, which contains the fsm specification.
 %% The initial state is computed by <br/>
 %% `{Mod:initial_state/0, Mod:initial_state_data/0}'.
@@ -360,14 +361,12 @@ all_commands(#state{name = From, data = Data, mod = Mod}) ->
 %% -----------------------------------------------------------------------------
 
 
-%% @private
 -spec targeted_commands_gen(mod_name()) -> proper_types:type().
 targeted_commands_gen(Mod) ->
   State = initial_state(Mod),
   ?LET([_ | Cmds], proper_statem:commands(?MODULE, State),
        {finalize_weights(State, Cmds, maps:new()), Cmds}).
 
-%% @private
 -spec targeted_commands_gen(mod_name(), fsm_state()) -> proper_types:type().
 targeted_commands_gen(Mod, {Name, Data} = InitialState) ->
   State = #state{name = Name, data = Data, mod = Mod},
@@ -375,14 +374,13 @@ targeted_commands_gen(Mod, {Name, Data} = InitialState) ->
        {finalize_weights(State, Cmds, maps:new()),
         [{init, InitialState} | Cmds]}).
 
-%% @private
--spec next_commands_gen(mod_name()) -> fun((_, _) -> proper_types:type()).
+-spec next_commands_gen(mod_name()) -> next_fun().
 next_commands_gen(Mod) ->
   fun ({Weights, _Cmds}, {_D, _T}) ->
       State = initial_state(Mod),
       NewWeights = proper_statem:next_weights(Weights),
       CmdsGen = ?LET([_ | Cmds],
-                     proper_statem:next_gen(?MODULE, State, NewWeights),
+                     proper_statem:next_gen(?MODULE, NewWeights, State),
                      Cmds),
       ?SHRINK(
          ?LET(Cmds, ?LAZY(CmdsGen),
@@ -390,15 +388,13 @@ next_commands_gen(Mod) ->
          [CmdsGen])
   end.
 
-%% @private
--spec next_commands_gen(mod_name(), fsm_state()) ->
-        fun((_, _) -> proper_types:type()).
+-spec next_commands_gen(mod_name(), fsm_state()) -> next_fun().
 next_commands_gen(Mod, {Name, Data} = InitialState) ->
   fun ({Weights, _Cmds}, {_D, _T}) ->
       State = #state{name = Name, data = Data, mod = Mod},
       NewWeights = proper_statem:next_weights(Weights),
       CmdsGen = ?LET([_ | Cmds],
-                     proper_statem:next_gen(?MODULE, State, NewWeights),
+                     proper_statem:next_gen(?MODULE, NewWeights, State),
                      [{init, InitialState} | Cmds]),
       ?SHRINK(
          ?LET(Cmds, ?LAZY(CmdsGen),
@@ -435,9 +431,8 @@ select_command(State, Weights) ->
          proper_types:frequency(WeightedCmds)
        end).
 
-%% Track all the state transitions and add these to the weights map.
+%% Track all the state transitions and add them to the weights map.
 
-%% @private
 -spec finalize_weights(state(), command_list(), weights()) -> weights().
 finalize_weights(_S, [], Weights) -> Weights;
 finalize_weights(InitialState, Cmds, Weights) ->

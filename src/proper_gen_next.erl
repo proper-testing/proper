@@ -28,7 +28,7 @@
 -export([init/0, cleanup/0, from_proper_generator/1,
 	 match/3, set_matcher/2, set_user_nf/2, update_caches/1]).
 
--export_type([matcher/0, temperature/0, nf/0]).
+-export_type([matcher/0, temperature/0, depth/0, nf/0]).
 
 -include("proper_internal.hrl").
 

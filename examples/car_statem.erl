@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2020-     Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2020 Spiros Dontas and Kostis Sagonas
 %%% @version {@version}
 %%% @author Spiros Dontas
 
@@ -60,9 +60,6 @@
 %% proper_statem
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
          next_state/3, all_commands/1, weight/1]).
-%% properties
--export([prop_distance/0, prop_distance_targeted/0,
-         prop_distance_targeted_init/0]).
 
 
 %% -----------------------------------------------------------------------------
@@ -252,6 +249,7 @@ next_state(S, _V, {call, _, refuel, [Amount]}) ->
 % weight(travel) -> 5;
 weight(_) -> 1.
 
+
 %% -----------------------------------------------------------------------------
 %% Properties
 %% -----------------------------------------------------------------------------
@@ -283,57 +281,59 @@ prop_distance() ->
 %% This should fail most of the times with:<br/>
 %% `proper:quickcheck(car_fsm:prop_targeted_distance(), 1000).'
 prop_distance_targeted() ->
-  ?FORALL_TARGETED(Cmds, targeted_commands(?MODULE),
-                   ?TRAPEXIT(
-                      begin
-                        start_link(),
-                        {_H, S, R} = run_commands(?MODULE, Cmds),
-                        stop(),
-                        #state{distance = Distance, burnt = Burnt} = S,
-                        Consumption = case Distance > 0 of
-                                        true -> 100 * Burnt / Distance;
-                                        false -> 0
-                                      end,
-                        UV = case Consumption > ?CONSUMPTION of
-                               true -> Distance * 0.1;
-                               false -> Distance
-                             end,
-                        ?MAXIMIZE(UV),
-                        ?WHENFAIL(
-                           io:format("Distance: ~p~nConsumption: ~p~n",
-                                     [Distance, Consumption]),
-                           aggregate(command_names(Cmds),
-                                     R =:= ok andalso (Distance < ?DISTANCE orelse
-                                                       Consumption > ?CONSUMPTION)))
-                      end)).
+  ?FORALL_TARGETED(
+     Cmds, targeted_commands(?MODULE),
+     ?TRAPEXIT(
+        begin
+          start_link(),
+          {_H, S, R} = run_commands(?MODULE, Cmds),
+          stop(),
+          #state{distance = Distance, burnt = Burnt} = S,
+          Consumption = case Distance > 0 of
+                          true -> 100 * Burnt / Distance;
+                          false -> 0
+                        end,
+          UV = case Consumption > ?CONSUMPTION of
+                 true -> Distance * 0.1;
+                 false -> Distance
+               end,
+          ?MAXIMIZE(UV),
+          ?WHENFAIL(
+             io:format("Distance: ~p~nConsumption: ~p~n",
+                       [Distance, Consumption]),
+             aggregate(command_names(Cmds),
+                       R =:= ok andalso (Distance < ?DISTANCE orelse
+                                         Consumption > ?CONSUMPTION)))
+        end)).
 
 %% This should fail most of the times with:<br/>
 %% `proper:quickcheck(car_fsm:prop_targeted_distance_init(), 1000).'
 prop_distance_targeted_init() ->
   State = initial_state(),
-  ?FORALL_TARGETED(Cmds, targeted_commands(?MODULE, State),
-                   ?TRAPEXIT(
-                      begin
-                        start_link(),
-                        {_H, S, R} = run_commands(?MODULE, Cmds),
-                        stop(),
-                        #state{distance = Distance, burnt = Burnt} = S,
-                        Consumption = case Distance > 0 of
-                                        true -> 100 * Burnt / Distance;
-                                        false -> 0
-                                      end,
-                        UV = case Consumption > ?CONSUMPTION of
-                               true -> Distance * 0.1;
-                               false -> Distance
-                             end,
-                        ?MAXIMIZE(UV),
-                        ?WHENFAIL(
-                           io:format("Distance: ~p~nConsumption: ~p~n",
-                                     [Distance, Consumption]),
-                           aggregate(command_names(Cmds),
-                                     R =:= ok andalso (Distance < ?DISTANCE orelse
-                                                       Consumption > ?CONSUMPTION)))
-                      end)).
+  ?FORALL_TARGETED(
+     Cmds, targeted_commands(?MODULE, State),
+     ?TRAPEXIT(
+        begin
+          start_link(),
+          {_H, S, R} = run_commands(?MODULE, Cmds),
+          stop(),
+          #state{distance = Distance, burnt = Burnt} = S,
+          Consumption = case Distance > 0 of
+                          true -> 100 * Burnt / Distance;
+                          false -> 0
+                        end,
+          UV = case Consumption > ?CONSUMPTION of
+                 true -> Distance * 0.1;
+                 false -> Distance
+               end,
+          ?MAXIMIZE(UV),
+          ?WHENFAIL(
+             io:format("Distance: ~p~nConsumption: ~p~n",
+                       [Distance, Consumption]),
+             aggregate(command_names(Cmds),
+                       R =:= ok andalso (Distance < ?DISTANCE orelse
+                                         Consumption > ?CONSUMPTION)))
+        end)).
 
 %% -----------------------------------------------------------------------------
 %% Calculation Functions
