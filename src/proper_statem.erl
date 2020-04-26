@@ -276,7 +276,7 @@
 -type index()       :: pos_integer().
 -type indices()     :: [index()].
 -type combination() :: [{pos_integer(),indices()}].
--type lookup()      :: orddict:orddict().
+-type lookup()      :: orddict:orddict(index(),command()).
 
 
 %% -----------------------------------------------------------------------------
