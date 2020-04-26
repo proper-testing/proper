@@ -241,7 +241,7 @@ setup_run_commands(Module, Cmds, Env) ->
 
 
 %%------------------------------------------------------------------------------
-%% Helper Functions
+%% Helper functions
 %%------------------------------------------------------------------------------
 
 assert_type_works({Type,Are,_Target,Arent,TypeStr}, IsSimple) ->
@@ -1321,7 +1321,7 @@ run_postcondition_false_test() ->
 run_statem_exceptions_test() ->
     ?_assertMatch(
        {_H,_S,{exception,throw,badarg,_}},
-       run_commands(post_false, proper_statem:commands(error_statem))).
+       run_commands(error_statem, proper_statem:commands(error_statem))).
 
 get_next_test_() ->
     [?_assertEqual(Expected,
@@ -1421,7 +1421,7 @@ max_size_test_aux(Size) ->
 
 
 %%------------------------------------------------------------------------------
-%% Helper Predicates
+%% Helper predicates
 %%------------------------------------------------------------------------------
 
 no_duplicates(L) ->
