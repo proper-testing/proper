@@ -32,34 +32,27 @@
 
 
 %% -----------------------------------------------------------------------------
-%% Definitions
-%% -----------------------------------------------------------------------------
-
-
--define(DISTANCE, 1000).
--define(CONSUMPTION, 10).
--define(HOUR, 3600).
--define(ACCELERATION, 5).
--define(DECELERATION, 20).
--define(MAX_FUEL, 70).
--define(MAX_SPEED, 200).
--define(AVG(X), lists:sum(X) / length(X)).
--define(NAME, car).
-
-
-%% -----------------------------------------------------------------------------
 %% Exports
 %% -----------------------------------------------------------------------------
 
 
 %% api
 -export([start_link/0, stop/0, accelerate/1, brake/1, travel/1, refuel/1]).
-%% gen_server
+%% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
-%% proper_statem
+%% proper_statem callbacks
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
          next_state/3, all_commands/1, weight/1]).
+
+
+%% -----------------------------------------------------------------------------
+%% Definitions
+%% -----------------------------------------------------------------------------
+
+
+-define(DISTANCE, 1000).
+-define(CONSUMPTION, 10).
 
 
 %% -----------------------------------------------------------------------------
@@ -67,15 +60,23 @@
 %% -----------------------------------------------------------------------------
 
 
--record(gen_state,
+-record(state,
         {fuel  :: float(),
          speed :: non_neg_integer()}).
 
--record(state,
+-record(test_state,
         {fuel     :: float(),
          speed    :: non_neg_integer(),
          distance :: float(),
          burnt    :: float()}).
+
+
+%% -----------------------------------------------------------------------------
+%% Common Imports
+%% -----------------------------------------------------------------------------
+
+
+-include("car.inc").
 
 
 %% -----------------------------------------------------------------------------
@@ -108,33 +109,34 @@ refuel(Amount) ->
 
 
 init([]) ->
-  {ok, #gen_state{fuel = ?MAX_FUEL, speed = 0}}.
+  {ok, #state{fuel = ?MAX_FUEL, speed = 0}}.
 
 handle_call({accelerate, Value}, _From, S) ->
-  #gen_state{fuel = Fuel, speed = Speed} = S,
-  {Distance, Acceleration, Burnt} =
-    acceleration_calculations({Speed, Value}, Fuel),
-  {reply, {Distance, Burnt}, S#gen_state{fuel = Fuel - Burnt,
-                                         speed = Speed + Acceleration}};
+  #state{fuel = Fuel, speed = Speed} = S,
+  Calc = acceleration_calculations(Speed, Value, Fuel),
+  {Distance, Acceleration, Burnt} = Calc,
+  NS = S#state{fuel = Fuel - Burnt, speed = Speed + Acceleration},
+  {reply, {Distance, Burnt}, NS};
 
 handle_call({brake, Value}, _From, S) ->
-  #gen_state{fuel = Fuel, speed = Speed} = S,
-  {Distance, Deceleration, Burnt} =
-    acceleration_calculations({Speed, -Value}, Fuel),
-  {reply, {Distance, Burnt}, S#gen_state{fuel = Fuel - Burnt,
-                                         speed = Speed + Deceleration}};
+  #state{fuel = Fuel, speed = Speed} = S,
+  Calc = acceleration_calculations(Speed, -Value, Fuel),
+  {Distance, Deceleration, Burnt} = Calc,
+  NS = S#state{fuel = Fuel - Burnt, speed = Speed + Deceleration},
+  {reply, {Distance, Burnt}, NS};
 
 handle_call({travel, Distance}, _From, S) ->
-  #gen_state{fuel = Fuel, speed = Speed} = S,
+  #state{fuel = Fuel, speed = Speed} = S,
   {RealDistance, Burnt} = travel_calculations(Distance, Speed, Fuel),
-  {reply, {RealDistance, Burnt}, S#gen_state{fuel = Fuel - Burnt}};
+  NS = S#state{fuel = Fuel - Burnt},
+  {reply, {RealDistance, Burnt}, NS};
 
-handle_call({refuel, Amount}, _From, S) ->
-  #gen_state{fuel = Fuel, speed = Speed} = S,
-  {Distance, _Deceleration, Burnt} =
-    acceleration_calculations({Speed, -Speed}, Fuel),
-  {reply, {Distance, Burnt}, S#gen_state{fuel = Fuel - Burnt + Amount,
-                                         speed = 0}}.
+handle_call({refuel, Value}, _From, S) ->
+  #state{fuel = Fuel, speed = Speed} = S,
+  Calc = acceleration_calculations(Speed, -Speed, Fuel),
+  {Distance, _, Burnt} = Calc,
+  NS = S#state{fuel = min(?MAX_FUEL, Fuel - Burnt + Value), speed = 0},
+  {reply, {Distance, Burnt}, NS}.
 
 handle_cast(_Msg, S) ->
   {noreply, S}.
@@ -173,80 +175,83 @@ refueler(Fuel) ->
 
 
 initial_state() ->
-  #state{fuel     = ?MAX_FUEL,
-         speed    = 0,
-         burnt    = 0,
-         distance = 0}.
+  #test_state{fuel     = ?MAX_FUEL,
+              speed    = 0,
+              burnt    = 0,
+              distance = 0}.
 
 command(S) ->
   oneof(all_commands(S)).
 
 all_commands(S) ->
-  #state{fuel = Fuel, speed = Speed} = S,
+  #test_state{fuel = Fuel, speed = Speed} = S,
   [{call, ?MODULE, accelerate, [accelerator(Speed)]} || Speed < ?MAX_SPEED] ++
     [{call, ?MODULE, brake, [braker(Speed)]} || Speed > 1] ++
     [{call, ?MODULE, travel, [traveler()]}] ++
     [{call, ?MODULE, refuel, [refueler(Fuel)]} || Fuel < ?MAX_FUEL].
 
-precondition(#state{fuel = Fuel, speed = Speed}, {call, _, accelerate, _}) ->
+precondition(State, {call, _, accelerate, _}) ->
+  #test_state{fuel = Fuel, speed = Speed} = State,
   Fuel > ?MAX_FUEL * 0.1 andalso Speed < 200;
-precondition(#state{speed = Speed}, {call, _, brake, _}) ->
+precondition(#test_state{speed = Speed}, {call, _, brake, _}) ->
   Speed > 0;
-precondition(#state{speed = Speed}, {call, _, travel, _}) ->
+precondition(#test_state{speed = Speed}, {call, _, travel, _}) ->
   Speed > 20;
-precondition(#state{fuel = Fuel}, {call, _, refuel, _}) ->
+precondition(#test_state{fuel = Fuel}, {call, _, refuel, _}) ->
   Fuel < ?MAX_FUEL * 0.8;
 precondition(_, _) ->
   true.
 
-postcondition(_S, _, {Distance, Burnt}) ->
-  Distance >= 0.0 andalso Burnt >= 0.0.
+postcondition(#test_state{distance = Distance, burnt = Burnt}, _, {D, B}) ->
+  Consumption = calculate_consumption(Distance + D, Burnt + B),
+  Wanted = Distance + D >= ?DISTANCE andalso Consumption =< ?CONSUMPTION,
+  D >= 0.0 andalso B >= 0.0 andalso not Wanted.
 
 next_state(S, _V, {call, _, accelerate, [Value]}) ->
-  #state{fuel = Fuel,
-         speed = Speed,
-         distance = Distance,
-         burnt = B} = S,
-  {Travelled, Acceleration, Burnt} =
-    acceleration_calculations({Speed, Value}, Fuel),
-  S#state{fuel = Fuel - Burnt,
-          speed = Speed + Acceleration,
-          distance = Distance + Travelled,
-          burnt = B + Burnt};
+  #test_state{fuel = Fuel,
+              speed = Speed,
+              distance = Distance,
+              burnt = B} = S,
+  Calc = acceleration_calculations(Speed, Value, Fuel),
+  {Travelled, Acceleration, Burnt} = Calc,
+  S#test_state{fuel = Fuel - Burnt,
+               speed = Speed + Acceleration,
+               distance = Distance + Travelled,
+               burnt = B + Burnt};
 next_state(S, _V, {call, _, brake, [Value]}) ->
-  #state{fuel = Fuel,
-         speed = Speed,
-         distance = Distance,
-         burnt = B} = S,
-  {Travelled, Acceleration, Burnt} =
-    acceleration_calculations({Speed, -Value}, Fuel),
-  S#state{fuel = Fuel - Burnt,
-          speed = Speed + Acceleration,
-          distance = Distance + Travelled,
-          burnt = B + Burnt};
+  #test_state{fuel = Fuel,
+              speed = Speed,
+              distance = Distance,
+              burnt = B} = S,
+  Calc = acceleration_calculations(Speed, -Value, Fuel),
+  {Travelled, Acceleration, Burnt} = Calc,
+  S#test_state{fuel = Fuel - Burnt,
+               speed = Speed + Acceleration,
+               distance = Distance + Travelled,
+               burnt = B + Burnt};
 next_state(S, _V, {call, _, travel, [Value]}) ->
-  #state{fuel = Fuel,
-         speed = Speed,
-         distance = Distance,
-         burnt = B} = S,
+  #test_state{fuel = Fuel,
+              speed = Speed,
+              distance = Distance,
+              burnt = B} = S,
   {Travelled, Burnt} = travel_calculations(Value, Speed, Fuel),
-  S#state{fuel = Fuel - Burnt,
-          distance = Distance + Travelled,
-          burnt = B + Burnt};
-next_state(S, _V, {call, _, refuel, [Amount]}) ->
-  #state{fuel = Fuel,
-         speed = Speed,
-         distance = Distance,
-         burnt = B} = S,
-  {Travelled, Acceleration, Burnt} =
-    acceleration_calculations({Speed, -Speed}, Fuel),
-  S#state{fuel = Fuel - Burnt + Amount,
-          speed = Speed + Acceleration,
-          distance = Distance + Travelled,
-          burnt = B + Burnt}.
+  S#test_state{fuel = Fuel - Burnt,
+               distance = Distance + Travelled,
+               burnt = B + Burnt};
+next_state(S, _V, {call, _, refuel, [Value]}) ->
+  #test_state{fuel = Fuel,
+              speed = Speed,
+              distance = Distance,
+              burnt = B} = S,
+  Calc = acceleration_calculations(Speed, -Speed, Fuel),
+  {Travelled, Acceleration, Burnt} = Calc,
+  S#test_state{fuel = min(?MAX_FUEL, Fuel - Burnt + Value),
+               speed = Speed + Acceleration,
+               distance = Distance + Travelled,
+               burnt = B + Burnt}.
 
-weight(brake) -> 2;
-weight(travel) -> 4;
+weight({call, _, brake, _}) -> 2;
+weight({call, _, travel, _}) -> 4;
 weight(_) -> 1.
 
 
@@ -255,31 +260,21 @@ weight(_) -> 1.
 %% -----------------------------------------------------------------------------
 
 
-%% This should "never" fail:
-%% `proper:quickcheck(car_statem:prop_normal_distance(), 1000).'
+%% Vanilla property based testing. This should not fail consistently.
 prop_distance() ->
   ?FORALL(Cmds, commands(?MODULE),
           ?TRAPEXIT(
              begin
                start_link(),
-               {_H, S, R} = run_commands(?MODULE, Cmds),
+               {_H, _S, R} = run_commands(?MODULE, Cmds),
                stop(),
-               #state{distance = Distance, burnt = Burnt} = S,
-               Consumption = case Distance > 0 of
-                               true -> 100 * Burnt / Distance;
-                               false -> 0
-                             end,
                ?WHENFAIL(
-                  io:format("Distance: ~p~nConsumption: ~p~n",
-                            [Distance, Consumption]),
-                  aggregate(command_names(Cmds),
-                            R =:= ok andalso (Distance < ?DISTANCE orelse
-                                              Consumption > ?CONSUMPTION)))
+                  on_failure(R, Cmds),
+                  aggregate(command_names(Cmds), R =:= ok))
              end)).
 
-
-%% This should fail most of the times with:<br/>
-%% `proper:quickcheck(car_fsm:prop_targeted_distance(), 1000).'
+%% Targeted property based testing, where maximizing the distance travelled
+%% provides failing command sequencies more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
      Cmds, more_commands(2, targeted_commands(?MODULE)),
@@ -288,23 +283,14 @@ prop_distance_targeted() ->
           start_link(),
           {_H, S, R} = run_commands(?MODULE, Cmds),
           stop(),
-          #state{distance = Distance, burnt = Burnt} = S,
-          Consumption = case Distance > 0 of
-                          true -> 100 * Burnt / Distance;
-                          false -> 0
-                        end,
-          UV = Distance,
-          ?MAXIMIZE(UV),
+          #test_state{distance = Distance} = S,
+          ?MAXIMIZE(Distance),
           ?WHENFAIL(
-             io:format("Distance: ~p~nConsumption: ~p~n",
-                       [Distance, Consumption]),
-             aggregate(command_names(Cmds),
-                       R =:= ok andalso (Distance < ?DISTANCE orelse
-                                         Consumption > ?CONSUMPTION)))
+             on_failure(R, Cmds),
+             aggregate(command_names(Cmds), R =:= ok))
         end)).
 
-%% This should fail most of the times with:<br/>
-%% `proper:quickcheck(car_fsm:prop_targeted_distance_init(), 1000).'
+%% This is the same as the above but manually providing the initial state.
 prop_distance_targeted_init() ->
   State = initial_state(),
   ?FORALL_TARGETED(
@@ -314,61 +300,12 @@ prop_distance_targeted_init() ->
           start_link(),
           {_H, S, R} = run_commands(?MODULE, Cmds),
           stop(),
-          #state{distance = Distance, burnt = Burnt} = S,
-          Consumption = case Distance > 0 of
-                          true -> 100 * Burnt / Distance;
-                          false -> 0
-                        end,
-          UV = Distance,
-          ?MAXIMIZE(UV),
+          #test_state{distance = Distance} = S,
+          ?MAXIMIZE(Distance),
           ?WHENFAIL(
-             io:format("Distance: ~p~nConsumption: ~p~n",
-                       [Distance, Consumption]),
-             aggregate(command_names(Cmds),
-                       R =:= ok andalso (Distance < ?DISTANCE orelse
-                                         Consumption > ?CONSUMPTION)))
+             on_failure(R, Cmds),
+             aggregate(command_names(Cmds), R =:= ok))
         end)).
-
-%% -----------------------------------------------------------------------------
-%% Calculation Functions
-%% -----------------------------------------------------------------------------
-
-
-travel_calculations(Distance, Speed, Fuel) when Speed > 0 ->
-  Consumption = fuel_consumption(Speed),
-  Burn = Consumption * Distance / 100,
-  case Burn > Fuel of
-    true -> {Fuel * 100 / Consumption, Fuel};
-    false -> {Distance, Burn}
-  end;
-travel_calculations(_D, _S, _F) ->
-  {0, 0.0}.
-
-acceleration_calculations({Speed, Accel}, Fuel) when Accel > 0 ->
-  Acceleration = case Speed + Accel > ?MAX_SPEED of
-                   true -> ?MAX_SPEED - Speed;
-                   false -> Accel
-                 end,
-  Consumption = fuel_consumption(Speed, Acceleration),
-  Distance = calculate_distance(Speed, Acceleration),
-  Burn = Consumption * Distance / 100,
-  case Burn > Fuel of
-    true -> acceleration_calculations({Speed, Acceleration - ?ACCELERATION},
-                                      Fuel);
-    false -> {Distance, Acceleration, Burn}
-  end;
-acceleration_calculations({Speed, Accel}, Fuel) ->
-  Acceleration = case Speed + Accel < 0 of
-                   true -> -Speed;
-                   false -> Accel
-                 end,
-  Consumption = fuel_consumption(Speed, Acceleration),
-  Distance = calculate_distance(Speed, Acceleration),
-  Burn = Consumption * Distance / 100,
-  case Burn > Fuel of
-    true -> {Distance, Acceleration, Fuel};
-    false -> {Distance, Acceleration, Burn}
-  end.
 
 
 %% -----------------------------------------------------------------------------
@@ -376,41 +313,10 @@ acceleration_calculations({Speed, Accel}, Fuel) ->
 %% -----------------------------------------------------------------------------
 
 
-%% Calculate distance driven when accelerating - decelerating.
-calculate_distance(Speed, Acceleration) when Acceleration > 0 ->
-  T = Acceleration / ?ACCELERATION,
-  Speed / ?HOUR * T + 1 / 2 * ?ACCELERATION / ?HOUR * T * T;
-calculate_distance(Speed, Acceleration)->
-  T = -Acceleration / ?DECELERATION,
-  Speed / ?HOUR * T - 1 / 2 * ?DECELERATION / ?HOUR * T * T.
-
-%% Low speeds give rewards to consumption.
-%% High speed give penalty to consumption.
-fuel_speed_penalty(Speed) when Speed =< 50 -> 0.7;
-fuel_speed_penalty(Speed) when Speed =< 100 -> 0.9;
-fuel_speed_penalty(Speed) when Speed =< 150 -> 1.1;
-fuel_speed_penalty(_) -> 1.5.
-
-%% Acceleration penalty.
-%% Deceleration reward.
-fuel_acceleration_penalty(Acceleration) when Acceleration > 0 -> 2.0;
-fuel_acceleration_penalty(_) -> 0.1.
-
-%% Fuel Consumption (stable speed).
-fuel_consumption(Speed) ->
-  Speed * fuel_speed_penalty(Speed) / 10.
-
-%% Fuel Consumption (acc - dec).
-fuel_consumption(Speed, Acceleration) ->
-  Consumptions = [fuel_consumption(S) *
-                    fuel_acceleration_penalty(Acceleration)
-                  || S <- intermediate_speeds(Speed, Acceleration)],
-  ?AVG(Consumptions).
-
-%% Intermediate speeds from accelerating - decelerating.
-intermediate_speeds(Speed, Acceleration) when Acceleration > 0 ->
-  T = Acceleration / ?ACCELERATION,
-  [Speed + X / 10 * ?ACCELERATION || X <- lists:seq(0, round(T * 10))];
-intermediate_speeds(Speed, Acceleration) ->
-  T = -Acceleration / ?DECELERATION,
-  [Speed - X / 10 * ?DECELERATION || X <- lists:seq(0, round(T * 10))].
+%% Function to be called when the property fails.
+on_failure({postcondition, false}, Cmds) ->
+  #test_state{distance = Distance, burnt = Burnt} = state_after(?MODULE, Cmds),
+  Consumption = calculate_consumption(Distance, Burnt),
+  io:format("Distance: ~w~nConsumption: ~w~n", [Distance, Consumption]);
+on_failure(Result, _Cmds) ->
+  io:format("Result: ~w~n", [Result]).

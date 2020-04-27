@@ -147,6 +147,26 @@
 %%%                    cleanup(),
 %%%                    Result =:= ok
 %%%                end).'''
+%%%
+%%% == Targeted Testing ==
+%%% During testing of the system's behavior, there may be some failing command
+%%% sequencies that the default property based testing does not find with ease,
+%%% or at all. In these cases, targeted property based testing can help find
+%%% such edge cases, provided a utility value.
+%%%
+%%% ```prop_targeted_testing() ->
+%%%        ?FORALL_TARGETED(Cmds, proper_fsm:targeted_commands(?MODULE),
+%%%                         begin
+%%%                             {History, State, Result} = proper_fsm:run_commands(?MODULE, Cmds),
+%%%                             UV = uv(History, State, Result),
+%%%                             ?MAXIMIZE(UV),
+%%%                             cleanup(),
+%%%                             Result =:= ok
+%%%                         end).'''
+%%%
+%%% Please note that the `UV' value can be computed in any way fit, depending
+%%% on the use case. `uv' is used here as a dummy function which computes the
+%%% utility value.
 %%% @end
 
 -module(proper_fsm).
@@ -154,9 +174,9 @@
 -export([commands/1, commands/2, run_commands/2, run_commands/3,
 	 state_names/1]).
 -export([targeted_commands/1, targeted_commands/2]).
--export([command/1, precondition/2, next_state/3, postcondition/3,
-         all_commands/1]).
+-export([command/1, precondition/2, next_state/3, postcondition/3]).
 -export([target_states/4]).
+%% Exported for PropEr internal usage.
 -export([select_command/2]).
 
 -include("proper_internal.hrl").
@@ -349,11 +369,6 @@ next_state(S = #state{name = From, data = Data, mod = Mod} , Var, Call) ->
 postcondition(#state{name = From, data = Data, mod = Mod}, Call, Res) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     Mod:postcondition(From, To, Data, Call, Res).
-
-%% @private
--spec all_commands(state()) -> [symbolic_call()].
-all_commands(#state{name = From, data = Data, mod = Mod}) ->
-  [CallGen || {_, CallGen} <- get_transitions(Mod, From, Data)].
 
 
 %% -----------------------------------------------------------------------------

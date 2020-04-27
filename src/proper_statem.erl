@@ -139,6 +139,16 @@
 %%%   function is called both at command generation and command execution time
 %%%   in order to update the model state, therefore the state `S' and the
 %%%   result `Res' can be either symbolic or dynamic.</p></li>
+%%% <li>`all_commands(S::'{@type symbolic_state()}`) ->' {@type [symbolic_call()]}
+%%%   <p>This is an optional callback normally, however it is required for targeted
+%%%   property based testing. Lists all valid symbolic calls, given the current
+%%%   state `S' of the abstract state machine. This list is then filtered based on
+%%%   the preconditions.</p></li>
+%%% <li>`weight(Call::'{@type symbolic_call()}`) -> integer()'
+%%%   <p>This is an optional callback for targeted property based testing. When
+%%%   it is not defined (or not exported), commands are are given a default
+%%%   weight of 1. When it is defined, it is used to initialize the weight of
+%%%   the command during targeted property based testing.</p></li>
 %%% </ul>
 %%%
 %%% === The property used ===
@@ -219,17 +229,37 @@
 %%% For PropEr to be able to detect race conditions, the code of the system
 %%% under test should be instrumented with `erlang:yield/0' calls to the
 %%% scheduler.
+%%%
+%%% == Targeted Testing ==
+%%% During testing of the system's behavior, there may be some failing command
+%%% sequencies that the default property based testing does not find with ease,
+%%% or at all. In these cases, targeted property based testing can help find
+%%% such edge cases, provided a utility value.
+%%%
+%%% ```prop_targeted_testing() ->
+%%%        ?FORALL_TARGETED(Cmds, proper_statem:targeted_commands(?MODULE),
+%%%                         begin
+%%%                             {History, State, Result} = proper_statem:run_commands(?MODULE, Cmds),
+%%%                             UV = uv(History, State, Result),
+%%%                             ?MAXIMIZE(UV),
+%%%                             cleanup(),
+%%%                             Result =:= ok
+%%%                         end).'''
+%%%
+%%% Please note that the `UV' value can be computed in any way fit, depending
+%%% on the use case. `uv' is used here as a dummy function which computes the
+%%% utility value.
 %%% @end
 
 -module(proper_statem).
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
-	 more_commands/2]).
--export([targeted_commands/1, targeted_commands/2, next_weights/2,
-         next_gen/2, next_gen/3]).
+	       targeted_commands/1, targeted_commands/2, more_commands/2]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
+%% Exported for PropEr internal usage.
+-export([next_weights/2, next_gen/2, next_gen/3]).
 
 
 -export_type([symbolic_var/0, symbolic_call/0, statem_result/0, next_fun/0]).
@@ -580,8 +610,8 @@ next_gen(Mod, Weights) ->
           ?LET(List,
                ?SIZED(Size,
                       proper_types:noshrink(
-                        next_gen(Size * ?RESIZE_FACTOR, Mod,
-                                 InitialState, 1, Weights))),
+                        next_gen(Mod, Weights, InitialState,
+                                 Size * ?RESIZE_FACTOR, 1))),
                proper_types:shrink_list(List)),
           is_valid(Mod, InitialState, Cmds, []))).
 
@@ -596,15 +626,15 @@ next_gen(Mod, Weights, InitialState) ->
                  ?LET(List,
                       ?SIZED(Size,
                              proper_types:noshrink(
-                               next_gen(Size * ?RESIZE_FACTOR, Mod,
-                                        InitialState, 1, Weights))),
+                               next_gen(Mod, Weights, InitialState,
+                                        Size * ?RESIZE_FACTOR, 1))),
                       proper_types:shrink_list(List)),
                  [{init, InitialState} | CmdTail]),
             is_valid(Mod, InitialState, Cmds, [])).
 
--spec next_gen(proper_gen:size(), mod_name(), symbolic_state(), pos_integer(),
-               weights()) -> proper_types:type().
-next_gen(Size, Mod, State, Count, Weights) ->
+-spec next_gen(mod_name(), weights(), symbolic_state(), proper_gen:size(),
+               pos_integer()) -> proper_types:type().
+next_gen(Mod, Weights, State, Size, Count) ->
   ?LAZY(proper_types:frequency(
           [{1, []},
            {Size, ?LET(Call,
@@ -613,8 +643,8 @@ next_gen(Size, Mod, State, Count, Weights) ->
                          Var = {var, Count},
                          NextState = Mod:next_state(State, Var, Call),
                          ?LET(Cmds,
-                              next_gen(Size - 1, Mod, NextState,
-                                       Count + 1, Weights),
+                              next_gen(Mod, Weights, NextState,
+                                       Size - 1, Count + 1),
                               [{set, Var, Call} | Cmds])
                        end)}])).
 
@@ -630,7 +660,7 @@ select_command(Mod, State, Weights) ->
           true -> {maps:get(Call, Weights), SymbCall};
           false ->
             case is_exported(Mod, {weight, 1}) of
-              true -> {Mod:weight(Call), SymbCall};
+              true -> {Mod:weight(SymbCall), SymbCall};
               false -> {1, SymbCall}
             end
         end
