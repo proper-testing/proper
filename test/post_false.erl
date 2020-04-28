@@ -25,6 +25,8 @@
 %%% @author Eirini Arvaniti
 
 -module(post_false).
+-behavior(proper_statem).
+
 -export([command/1, initial_state/0, next_state/3,
          precondition/2, postcondition/3, foo/0, bar/0]).
 
