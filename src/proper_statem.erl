@@ -273,6 +273,7 @@
 		       | {'postcondition', 'false' | proper:exception()}
 		       | proper:exception()
 		       | 'no_possible_interleaving'.
+-type len()         :: non_neg_integer().
 -type index()       :: pos_integer().
 -type indices()     :: [index()].
 -type combination() :: [{pos_integer(),indices()}].
@@ -606,8 +607,9 @@ safe_apply(M, F, A) ->
 %% <li>`Parallel_history' contains the execution history of each of the
 %%   concurrent tasks.</li>
 %% <li>`Result' specifies the outcome of the attemp to serialize command
-%%   execution, based on the results observed. It can be one of the following:
-%%   <ul><li> `ok' </li><li> `no_possible_interleaving' </li></ul> </li>
+%%   execution, based on the results observed. In addition to results
+%%   returned by {@link run_commands/2}, it can also be the atom
+%%   `no_possible_interleaving'.</li>
 %% </ul>
 
 -spec run_parallel_commands(mod_name(), parallel_testcase()) ->
@@ -665,7 +667,7 @@ await([]) -> [];
 await([H|T]) ->
     receive
 	{H, {ok, Res}} ->
-        [Res|await(T)];
+	    [Res|await(T)];
 	{H, {'EXIT',_} = Err} ->
 	    _ = [exit(Pid, kill) || Pid <- T],
 	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
@@ -785,7 +787,7 @@ get_initial_state(Mod, Cmds) when is_list(Cmds) ->
     Mod:initial_state().
 
 %% @private
--spec fix_parallel(index(), non_neg_integer(), combination() | 'done',
+-spec fix_parallel(index(), len(), combination() | 'done',
 		   lookup(), mod_name(), symbolic_state(), [symbolic_var()],
 		   pos_integer()) -> [command_list()].
 fix_parallel(_, 0, done, _, _, _, _, _) ->
@@ -812,9 +814,9 @@ fix_parallel(MaxIndex, Len, Comb, LookUp, Mod, State, SymbEnv, W) ->
 -spec can_parallelize([command_list()], mod_name(), symbolic_state(),
 		      [symbolic_var()]) -> boolean().
 can_parallelize(CmdLists, Mod, State, SymbEnv) ->
-    lists:all(fun(C) -> is_valid(Mod, State, C, SymbEnv) end, CmdLists)
-	andalso lists:all(fun(C) -> is_valid(Mod, State, C, SymbEnv) end,
-			  possible_interleavings(CmdLists)).
+    F = fun(C) -> is_valid(Mod, State, C, SymbEnv) end,
+    lists:all(F, CmdLists) andalso
+	lists:all(F, possible_interleavings(CmdLists)).
 
 %% @private
 -spec possible_interleavings([command_list()]) -> [command_list()].
@@ -843,7 +845,7 @@ insert_all([X|[Y|Rest]], List) ->
 all_insertions(X, Limit, List) ->
     all_insertions_tr(X, Limit, 0, [], List, []).
 
--spec all_insertions_tr(term(), pos_integer(), non_neg_integer(),
+-spec all_insertions_tr(term(), pos_integer(), len(),
 			[term()], [term()], [[term()]]) -> [[term()]].
 all_insertions_tr(X, Limit, LengthFront, Front, [], Acc) ->
     case LengthFront < Limit of
@@ -876,12 +878,11 @@ mk_dict([{init,_}|T], N) -> mk_dict(T, N);
 mk_dict([H|T], N)        -> [{N,H}|mk_dict(T, N+1)].
 
 %% @private
--spec mk_first_comb(pos_integer(), non_neg_integer(), pos_integer()) ->
-         combination().
+-spec mk_first_comb(pos_integer(), len(), pos_integer()) -> combination().
 mk_first_comb(N, Len, W) ->
     mk_first_comb_tr(1, N, Len, [], W).
 
--spec mk_first_comb_tr(pos_integer(), pos_integer(), non_neg_integer(),
+-spec mk_first_comb_tr(pos_integer(), pos_integer(), len(),
 		       combination(), pos_integer()) -> combination().
 mk_first_comb_tr(Start, N, _Len, Accum, 1) ->
     [{1,lists:seq(Start, N)}|Accum];
@@ -898,7 +899,7 @@ lookup_cmd_lists(Combination, LookUp) ->
     [lookup_cmds(Indices, LookUp) || {_, Indices} <- Combination].
 
 %% @private
--spec get_next(combination(), non_neg_integer(), index(), indices(),
+-spec get_next(combination(), len(), index(), indices(),
 	       pos_integer(), pos_integer()) -> combination() | 'done'.
 get_next(L, _Len, _MaxIndex, Available, _Workers, 1) ->
     [{1,Available}|proplists:delete(1, L)];

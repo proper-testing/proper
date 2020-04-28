@@ -1327,8 +1327,7 @@ run_postcondition_false_test_() ->
 
 run_statem_exceptions_test_() ->
     Mod = error_statem,
-    Cmds = [{set,{var,1},{call,Mod,foo,[17]}},
-	    {set,{var,2},{call,Mod,foo,[42]}}],
+    Cmds = [{set,{var,1},{call,Mod,foo,[42]}}],
     State = {state,0},
     [?_assertMatch({_H,State,{exception,throw,badarg,_}},
 		   run_commands(Mod, Cmds))].
