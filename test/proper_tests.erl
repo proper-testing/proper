@@ -1298,30 +1298,40 @@ can_generate_parallel_commands1_test_() ->
 
 seeded_runs_return_same_result_test_() ->
     [?_test(assert_seeded_runs_return_same_result(proper_statem:commands(Mod)))
-      || Mod <- [pdict_statem]].
+     || Mod <- [pdict_statem]].
 
 run_valid_commands_test_() ->
     [?_assertMatch({_H,DynState,ok}, setup_run_commands(Mod, Cmds, Env))
      || {Mod,_,Cmds,_,DynState,Env} <- valid_command_sequences()].
-
-run_invalid_precondition_test_() ->
-     [?_assertMatch({_H,_S,{precondition,false}},
-		    setup_run_commands(Mod, Cmds, Env))
-      || {Mod,Cmds,Env,_Shrunk} <- invalid_precondition()].
 
 run_init_error_test_() ->
     [?_assertMatch({_H,_S,initialization_error},
 		   setup_run_commands(Mod, Cmds, Env))
      || {Mod,Cmds,Env,_Shrunk} <- symbolic_init_invalid_sequences()].
 
-run_postcondition_false_test() ->
-    ?_assertMatch({_H,_S,{postcondition,false}},
-		  run_commands(post_false, proper_statem:commands(post_false))).
+run_precondition_false_test_() ->
+    [?_assertMatch({_H,_S,{precondition,false}},
+		   setup_run_commands(Mod, Cmds, Env))
+     || {Mod,Cmds,Env,_Shrunk} <- invalid_precondition()].
 
-run_statem_exceptions_test() ->
-    ?_assertMatch(
-       {_H,_S,{exception,throw,badarg,_}},
-       run_commands(error_statem, proper_statem:commands(error_statem))).
+run_postcondition_false_test_() ->
+    Mod = post_false,
+    Cmds = [{set,{var,1},{call,Mod,foo,[]}},
+	    {set,{var,2},{call,Mod,bar,[]}},
+	    {set,{var,3},{call,Mod,foo,[]}},
+	    {set,{var,4},{call,Mod,bar,[]}},
+	    {set,{var,5},{call,Mod,bar,[]}},
+	    {set,{var,6},{call,Mod,foo,[]}}],
+    State = {state,5}, PostF = {postcondition,false},
+    [?_assertMatch({_H1,State,PostF}, run_commands(Mod, Cmds))].
+
+run_statem_exceptions_test_() ->
+    Mod = error_statem,
+    Cmds = [{set,{var,1},{call,Mod,foo,[17]}},
+	    {set,{var,2},{call,Mod,foo,[42]}}],
+    State = {state,0},
+    [?_assertMatch({_H,State,{exception,throw,badarg,_}},
+		   run_commands(Mod, Cmds))].
 
 get_next_test_() ->
     [?_assertEqual(Expected,
@@ -1329,8 +1339,8 @@ get_next_test_() ->
      || {L, Len, MaxIndex, Available, W, N, Expected} <- combinations()].
 
 mk_first_comb_test_() ->
-     [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
-      || {N, Len, W, Expected} <- first_comb()].
+    [?_assertEqual(Expected, proper_statem:mk_first_comb(N, Len, W))
+     || {N, Len, W, Expected} <- first_comb()].
 
 args_not_defined_test() ->
     [?_assertNot(proper_statem:args_defined(Args, SymbEnv))
