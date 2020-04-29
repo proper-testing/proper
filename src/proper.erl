@@ -943,8 +943,8 @@ parse_opt(UserOpt, Opts) ->
 	{on_output,Print}    -> Opts#opts{output_fun = Print, nocolors = true};
 	long_result          -> Opts#opts{long_result = true};
 	{numtests,N}         -> Opts#opts{numtests = N};
-	{search_steps, N}    -> Opts#opts{search_steps = N};
-	{search_strategy, S} -> Opts#opts{search_strategy = S};
+	{search_steps,N}     -> Opts#opts{search_steps = N};
+	{search_strategy,S}  -> Opts#opts{search_strategy = S};
 	N when is_integer(N) -> Opts#opts{numtests = N};
 	{start_size,Size}    -> Opts#opts{start_size = Size};
 	{max_size,Size}      -> Opts#opts{max_size = Size};
@@ -1138,14 +1138,14 @@ test(RawTest, Opts) ->
     Result.
 
 -spec inner_test(raw_test(), opts()) -> result().
-inner_test(RawTest, #opts{numtests = NumTests, long_result = ReturnLong,
-			  output_fun = Print} = Opts) ->
+inner_test(RawTest, Opts) ->
+    #opts{numtests = NumTests, long_result = Long, output_fun = Print} = Opts,
     Test = cook_test(RawTest, Opts),
     ImmResult = perform(NumTests, Test, Opts),
     Print("~n", []),
     report_imm_result(ImmResult, Opts),
     {ShortResult,LongResult} = get_result(ImmResult, Test, Opts),
-    case ReturnLong of
+    case Long of
 	true  -> LongResult;
 	false -> ShortResult
     end.
@@ -1162,16 +1162,17 @@ retry(Test, CExm, Opts) ->
     ShortResult.
 
 -spec multi_test(mod_name(), raw_test_kind(), opts()) -> module_result().
-multi_test(Mod, RawTestKind,
-	   #opts{long_result = ReturnLong, output_fun = Print,
-		 skip_mfas = SkipMFAs} = Opts) ->
+multi_test(Mod, RawTestKind, Opts) ->
+    #opts{long_result = Long, output_fun = Print, skip_mfas = SkipMFAs} = Opts,
     global_state_init(Opts),
     MaybeMFAs =
 	case RawTestKind of
-	    test -> {ok, [{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
-					  lists:prefix(?PROPERTY_PREFIX,
-						       atom_to_list(Name))]};
-	    spec -> proper_typeserver:get_exp_specced(Mod)
+	    test ->
+		{ok,[{Mod,Name,0} || {Name,0} <- Mod:module_info(exports),
+				     lists:prefix(?PROPERTY_PREFIX,
+						  atom_to_list(Name))]};
+	    spec ->
+		proper_typeserver:get_exp_specced(Mod)
 	end,
     {ShortResult, LongResult} =
 	case MaybeMFAs of
@@ -1188,7 +1189,7 @@ multi_test(Mod, RawTestKind,
 		{Error, Error}
 	end,
     global_state_erase(),
-    case ReturnLong of
+    case Long of
 	true  -> LongResult;
 	false -> ShortResult
     end.
@@ -1297,7 +1298,8 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
     end.
 
 perform_search(NumSteps, Target, DTest, Ctx, Opts, Not) ->
-    perform_search(0, NumSteps, ?MAX_TRIES_FACTOR * NumSteps, Target, DTest, Ctx, Opts, Not).
+    NumTries = ?MAX_TRIES_FACTOR * NumSteps,
+    perform_search(0, NumSteps, NumTries, Target, DTest, Ctx, Opts, Not).
 
 perform_search(_Steps, _NumSteps, 0, _Target, _Ctx, _DTest, _Opts, _Not) ->
   {error, cant_satisfy};
@@ -1306,33 +1308,37 @@ perform_search(NumSteps, NumSteps, _TriesLeft, _Target, _DTest, Ctx, _Opts, true
 perform_search(NumSteps, NumSteps, _TriesLeft, _Target, _DTest, Ctx, _Opts, false) ->
     create_fail_result(Ctx, not_found);
 perform_search(Steps, NumSteps, TriesLeft, Target, DTest,
-               #ctx{bound = Bound} = Ctx, #opts{output_fun = Print} = Opts, Not) ->
+	       #ctx{bound = Bound} = Ctx,
+	       #opts{output_fun = Print} = Opts, Not) ->
     %% Search Step
     case proper_gen:safe_generate(Target) of
 	{ok, ImmInstance} ->
 	    Instance = proper_gen:clean_instance(ImmInstance),
 	    NewBound = [ImmInstance | Bound],
 	    case force(Instance, DTest, Ctx#ctx{bound = NewBound}, Opts) of
-		#pass{reason=true_prop, actions = Actions} ->
+		#pass{reason = true_prop, actions = Actions} ->
 		    %% the search is finished
 		    Print("!", []),
 		    case Not of
 			true ->
-			    create_fail_result(Ctx#ctx{bound = NewBound, actions = Actions}, false_prop);
+			    NCtx = Ctx#ctx{bound = NewBound, actions = Actions},
+			    create_fail_result(NCtx, false_prop);
 			false ->
 			    create_pass_result(Ctx, true_prop)
 		    end;
-		#fail{reason=false_prop} ->
+		#fail{reason = false_prop} ->
 		    Print(".", []),
 		    grow_size(Opts),
-		    perform_search(Steps + 1, NumSteps, TriesLeft - 1, Target, DTest, Ctx, Opts, Not);
+		    perform_search(Steps + 1, NumSteps, TriesLeft - 1,
+				   Target, DTest, Ctx, Opts, Not);
 		#fail{} = FailResult -> %% TODO check that fails in the EXIST macros trigger a bug
 		    Print("!", []),
 		    FailResult#fail{performed = Steps + 1};
 		{error, rejected} ->
 		    Print("x", []),
 		    grow_size(Opts),
-		    perform_search(Steps, NumSteps, TriesLeft - 1, Target, DTest, Ctx, Opts, Not);
+		    perform_search(Steps, NumSteps, TriesLeft - 1,
+				   Target, DTest, Ctx, Opts, Not);
 		{error, _} = Error ->
 		    Error;
 		Other ->
@@ -1408,8 +1414,8 @@ run({exists, _, _, _} = Exists, #ctx{mode = try_shrunk, bound = []}, Opts) ->
     run(Exists, #ctx{mode = new, bound = []}, Opts#opts{output_fun = fun (_, _) -> ok end});
 run({exists, _RawType, _Prop, _Not}, #ctx{bound = []} = Ctx, _Opts) ->
     create_pass_result(Ctx, didnt_crash);
-run({exists, RawType, Prop, Not}, #ctx{mode = try_shrunk,
-				    bound = [ImmInstance | Rest]} = Ctx, Opts) ->
+run({exists, RawType, Prop, Not},
+    #ctx{mode = try_shrunk, bound = [ImmInstance | Rest]} = Ctx, Opts) ->
     ShrinkerType = proper_target:get_shrinker(RawType),
     case proper_types:safe_is_instance(ImmInstance, ShrinkerType) of
 	true ->
@@ -1425,8 +1431,8 @@ run({exists, RawType, Prop, Not}, #ctx{mode = try_shrunk,
 	{error, _Reason} = Error ->
 	    Error
     end;
-run({exists, _RawType, Prop, Not}, #ctx{mode = try_cexm,
-				     bound = [Instance | Rest]} = Ctx, Opts) ->
+run({exists, _RawType, Prop, Not},
+    #ctx{mode = try_cexm, bound = [Instance | Rest]} = Ctx, Opts) ->
     case {force(Instance, Prop, Ctx#ctx{bound = Rest}, Opts), Not} of
 	{#fail{}, true} -> create_pass_result(Ctx, true_prop);
 	{#pass{}, true} -> create_fail_result(Ctx, false_prop);
@@ -1706,19 +1712,16 @@ shrink(ImmTestCase, Test, Reason,
 	{Shrinks,MinImmTestCase} ->
 	    case rerun(Test, true, MinImmTestCase) of
 		#fail{actions = MinActions} ->
-                    report_shrinking(Shrinks, MinImmTestCase, MinActions,
-                                     Print, NoColors),
+                    report_shrinking(Shrinks, MinImmTestCase, MinActions, Opts),
 		    {ok, MinImmTestCase};
 		%% The cases below should never occur for deterministic tests.
 		%% When they do happen, we have no choice but to silently
 		%% skip the fail actions.
 		#pass{} ->
-                    report_shrinking(Shrinks, MinImmTestCase, [], Print,
-                                     NoColors),
+                    report_shrinking(Shrinks, MinImmTestCase, [], Opts),
 		    {ok, MinImmTestCase};
 		{error,_Reason} ->
-                    report_shrinking(Shrinks, MinImmTestCase, [], Print,
-                                     NoColors),
+                    report_shrinking(Shrinks, MinImmTestCase, [], Opts),
 		    {ok, MinImmTestCase}
 	    end
     catch
@@ -2074,9 +2077,10 @@ execute_actions(Actions) ->
     lists:foreach(fun(A) -> ?FORCE(A) end, Actions).
 
 -spec report_shrinking(non_neg_integer(), imm_testcase(), fail_actions(),
-                       output_fun(), boolean()) -> 'ok'.
-report_shrinking(Shrinks, MinImmTestCase, MinActions, Print, NoColors) ->
-    ?PRINT(NoColors, ?BOLD_BLUE, Print, "(~b time(s))~n", [Shrinks]),
+                       opts()) -> 'ok'.
+report_shrinking(NumShrinks, MinImmTestCase, MinActions, Opts) ->
+    #opts{output_fun = Print, nocolors = NoColors} = Opts,
+    ?PRINT(NoColors, ?BOLD_BLUE, Print, "(~b time(s))~n", [NumShrinks]),
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
