@@ -148,11 +148,11 @@
 %%%                    Result =:= ok
 %%%                end).'''
 %%%
-%%% == Targeted Testing ==
+%%% == Stateful Targeted Testing ==
 %%% During testing of the system's behavior, there may be some failing command
 %%% sequencies that the default property based testing does not find with ease,
-%%% or at all. In these cases, targeted property based testing can help find
-%%% such edge cases, provided a utility value.
+%%% or at all. In these cases, stateful targeted property based testing can help
+%%% find such edge cases, provided a utility value.
 %%%
 %%% ```prop_targeted_testing() ->
 %%%        ?FORALL_TARGETED(Cmds, proper_fsm:targeted_commands(?MODULE),
@@ -164,8 +164,8 @@
 %%%                             Result =:= ok
 %%%                         end).'''
 %%%
-%%% Please note that the `UV' value can be computed in any way fit, depending
-%%% on the use case. `uv' is used here as a dummy function which computes the
+%%% Νote that the `UV' value can be computed in any way fit, depending on the
+%%% use case. `uv/3' is used here as a dummy function which computes the
 %%% utility value.
 %%% @end
 
@@ -428,23 +428,19 @@ select_command(State, Weights) ->
     fun ({To, {call, _Mod, Call, _Args} = SymbCall}) ->
         RealTo = cook_history(From, To),
         Key = {From, RealTo, Call},
-        case maps:is_key(Key, Weights) of
-          true -> {maps:get(Key, Weights), SymbCall};
-          false ->
-            case is_exported(Mod, {weight, 3}) of
-              true -> {Mod:weight(From, RealTo, SymbCall), SymbCall};
-              false -> {1, SymbCall}
-            end
-        end
+        Weight = case maps:is_key(Key, Weights) of
+                   true -> maps:get(Key, Weights);
+                   false ->
+                     case is_exported(Mod, {weight, 3}) of
+                       true -> Mod:weight(From, RealTo, SymbCall);
+                       false -> 1
+                     end
+                 end,
+        {Weight, SymbCall}
     end,
-  ?LET(Transitions,
-       ?LAZY(get_transitions(Mod, From, Data)),
-       begin
-         ValidTransitions = [{To, Cmd} || {To, Cmd} <- Transitions,
-                                          precondition(State, Cmd)],
-         WeightedCmds = lists:map(SelectAux, ValidTransitions),
-         proper_types:frequency(WeightedCmds)
-       end).
+  Transitions = get_transitions(Mod, From, Data),
+  WeightedCmds = lists:map(SelectAux, Transitions),
+  proper_types:frequency(WeightedCmds).
 
 %% Track all the state transitions and add them to the weights map.
 
@@ -453,21 +449,27 @@ finalize_weights(_S, [], Weights) -> Weights;
 finalize_weights(InitialState, Cmds, Weights) ->
   FinWeightsAux =
     fun ({init, _InitialState}, Acc) -> Acc;
-        ({set, Var, {call, _Mod, Call, _Args} = SymbCall}, {State, Ws}) ->
+        ({set, Var, SymbCall}, {State, Ws}) ->
+        #state{name = From, data = Data, mod = Mod} = State,
+        FoldAux =
+          fun ({To, {call, _M, Call, _A} = SC}, Acc) ->
+              RealTo = cook_history(From, To),
+              Key = {From, RealTo, Call},
+              case maps:is_key(Key, Acc) of
+                true -> Acc;
+                false ->
+                  case is_exported(Mod, {weight, 3}) of
+                    true ->
+                      maps:put(Key, Mod:weight(From, RealTo, SC), Acc);
+                    false ->
+                      maps:put(Key, 1, Acc)
+                  end
+              end
+          end,
         NextState = next_state(State, Var, SymbCall),
-        From = State#state.name,
-        To = NextState#state.name,
-        Key = {From, To, Call},
-        case maps:is_key(Key, Ws) of
-          true -> {NextState, Ws};
-          false ->
-            Mod = State#state.mod,
-            case is_exported(Mod, {weight, 3}) of
-              true -> {NextState,
-                       maps:put(Key, Mod:weight(From, To, SymbCall), Ws)};
-              false -> {NextState, maps:put(Key, 1, Ws)}
-            end
-        end
+        Transitions = get_transitions(Mod, From, Data),
+        NewWs = lists:foldl(FoldAux, Ws, Transitions),
+        {NextState, NewWs}
     end,
   {_S, NewWeights} = lists:foldl(FinWeightsAux, {InitialState, Weights}, Cmds),
   NewWeights.

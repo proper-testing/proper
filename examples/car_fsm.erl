@@ -52,8 +52,8 @@
 %% -----------------------------------------------------------------------------
 
 
--define(DISTANCE, 1000).
--define(CONSUMPTION, 10).
+-define(DISTANCE, 800).
+-define(CONSUMPTION, 12).
 -define(SLOW_THRESHOLD, 50).
 -define(NORMAL_THRESHOLD, 100).
 -define(FAST_THRESHOLD, 150).
@@ -342,8 +342,6 @@ postcondition(_, _, S, _, {D, B}) ->
   Wanted = Distance + D >= ?DISTANCE andalso Consumption =< ?CONSUMPTION,
   D >= 0.0 andalso B >= 0.0 andalso not Wanted.
 
-weight(_, _, ?CALL(brake, _)) -> 2;
-weight(_, _, ?CALL(travel, _)) -> 4;
 weight(_, _, _) -> 1.
 
 
@@ -396,7 +394,7 @@ prop_distance() ->
 %% provides failing command sequencies more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, more_commands(3, proper_fsm:targeted_commands(?MODULE)),
+     Cmds, proper_fsm:targeted_commands(?MODULE),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -414,7 +412,7 @@ prop_distance_targeted() ->
 prop_distance_targeted_init() ->
   State = {initial_state(), initial_state_data()},
   ?FORALL_TARGETED(
-     Cmds, more_commands(3, proper_fsm:targeted_commands(?MODULE, State)),
+     Cmds, proper_fsm:targeted_commands(?MODULE, State),
      ?TRAPEXIT(
         begin
           start_link(),

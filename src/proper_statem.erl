@@ -139,16 +139,6 @@
 %%%   function is called both at command generation and command execution time
 %%%   in order to update the model state, therefore the state `S' and the
 %%%   result `Res' can be either symbolic or dynamic.</p></li>
-%%% <li>`all_commands(S::'{@type symbolic_state()}`) ->' {@type [symbolic_call()]}
-%%%   <p>This is an optional callback normally, however it is required for targeted
-%%%   property based testing. Lists all valid symbolic calls, given the current
-%%%   state `S' of the abstract state machine. This list is then filtered based on
-%%%   the preconditions.</p></li>
-%%% <li>`weight(Call::'{@type symbolic_call()}`) -> integer()'
-%%%   <p>This is an optional callback for targeted property based testing. When
-%%%   it is not defined (or not exported), commands are are given a default
-%%%   weight of 1. When it is defined, it is used to initialize the weight of
-%%%   the command during targeted property based testing.</p></li>
 %%% </ul>
 %%%
 %%% === The property used ===
@@ -230,11 +220,11 @@
 %%% under test should be instrumented with `erlang:yield/0' calls to the
 %%% scheduler.
 %%%
-%%% == Targeted Testing ==
+%%% == Stateful Targeted Testing ==
 %%% During testing of the system's behavior, there may be some failing command
 %%% sequencies that the default property based testing does not find with ease,
-%%% or at all. In these cases, targeted property based testing can help find
-%%% such edge cases, provided a utility value.
+%%% or at all. In these cases, stateful targeted property based testing can help
+%%% find such edge cases, provided a utility value.
 %%%
 %%% ```prop_targeted_testing() ->
 %%%        ?FORALL_TARGETED(Cmds, proper_statem:targeted_commands(?MODULE),
@@ -246,8 +236,8 @@
 %%%                             Result =:= ok
 %%%                         end).'''
 %%%
-%%% Please note that the `UV' value can be computed in any way fit, depending
-%%% on the use case. `uv' is used here as a dummy function which computes the
+%%% Νote that the `UV' value can be computed in any way fit, depending on the
+%%% use case. `uv/3' is used here as a dummy function which computes the
 %%% utility value.
 %%% @end
 
@@ -335,13 +325,6 @@
 
 -callback next_state(symbolic_state() | dynamic_state(), term(),
 		     symbolic_call()) -> symbolic_state() | dynamic_state().
-
--callback all_commands(symbolic_state()) -> [symbolic_call()].
-
--callback weight(term()) -> integer().
-
--optional_callbacks([all_commands/1, weight/1]).
-
 
 %% -----------------------------------------------------------------------------
 %% Sequential command generation
@@ -532,7 +515,7 @@ targeted_commands(Mod) ->
 %% `{init, InitialState}' and is used to correctly initialize the state
 %% every time the command sequence is run (i.e. during normal execution,
 %% while shrinking and when checking a counterexample). In this case,
-%% `Mod:initial_state/0' is never called.
+%% `Mod:initial_state/0' is not called.
 
 -spec targeted_commands(mod_name(), symbolic_state()) -> proper_types:type().
 targeted_commands(Mod, InitialState) ->
@@ -543,17 +526,16 @@ targeted_commands(Mod, InitialState) ->
 %% @private
 -spec targeted_commands_gen(mod_name()) -> proper_types:type().
 targeted_commands_gen(Mod) ->
-  ?LET(Cmds,
-       ?LAZY(commands(Mod)),
-       {finalize_weights(Mod, Cmds, maps:new()), Cmds}).
+  InitialState = Mod:initial_state(),
+  ?LET(Cmds, ?LAZY(commands(Mod)),
+       {finalize_weights(Mod, InitialState, Cmds, maps:new()), Cmds}).
 
 %% @private
 -spec targeted_commands_gen(mod_name(), symbolic_state()) ->
         proper_types:type().
 targeted_commands_gen(Mod, InitialState) ->
-  ?LET(Cmds,
-       ?LAZY(commands(Mod, InitialState)),
-       {finalize_weights(Mod, Cmds, maps:new()), Cmds}).
+  ?LET(Cmds, ?LAZY(commands(Mod, InitialState)),
+       {finalize_weights(Mod, InitialState, Cmds, maps:new()), Cmds}).
 
 %% @private
 -spec next_commands_gen(mod_name()) -> next_fun().
@@ -561,9 +543,10 @@ next_commands_gen(Mod) ->
   fun ({Weights, _Cmds}, {_D, T}) ->
       NewWeights = next_weights(Weights, T),
       CmdsGen = next_gen(Mod, NewWeights),
+      InitialState = Mod:initial_state(),
       ?SHRINK(
          ?LET(Cmds, ?LAZY(CmdsGen),
-              {finalize_weights(Mod, Cmds, NewWeights), Cmds}),
+              {finalize_weights(Mod, InitialState, Cmds, NewWeights), Cmds}),
          [CmdsGen])
   end.
 
@@ -575,7 +558,7 @@ next_commands_gen(Mod, InitialState) ->
       CmdsGen = next_gen(Mod, NewWeights, InitialState),
       ?SHRINK(
          ?LET(Cmds, ?LAZY(CmdsGen),
-              {finalize_weights(Mod, Cmds, NewWeights), Cmds}),
+              {finalize_weights(Mod, InitialState, Cmds, NewWeights), Cmds}),
          [CmdsGen])
   end.
 
@@ -585,17 +568,12 @@ next_commands_gen(Mod, InitialState) ->
 %% @private
 -spec next_weights(weights(), proper_gen_next:temperature()) -> weights().
 next_weights(Weights, Temp) ->
-  Factor = round(Temp * 5),
+  Factor = round(Temp),
   Base = ?RESIZE_FACTOR,
-  Min = -Base - Factor,
-  Max = Base + Factor,
+  Low = -Base - Factor,
+  High = Base + Factor,
   maps:map(fun (_Key, W) ->
-               Random = rand:uniform(1 + (Max - Min)) - (1 - Min),
-               NW = W + Random,
-               case NW >= 1 of
-                 true -> NW;
-                 false -> 1
-               end
+               max(1, W + proper_arith:rand_int(Low, High))
            end, Weights).
 
 %% Used to return the generator for the commands of the targeted
@@ -638,7 +616,8 @@ next_gen(Mod, Weights, State, Size, Count) ->
   ?LAZY(proper_types:frequency(
           [{1, []},
            {Size, ?LET(Call,
-                       ?SELECT_COMMAND(Mod, State, Weights),
+                       ?SUCHTHAT(X, ?SELECT_COMMAND(Mod, State, Weights),
+                                 Mod:precondition(State, X)),
                        begin
                          Var = {var, Count},
                          NextState = Mod:next_state(State, Var, Call),
@@ -656,41 +635,44 @@ next_gen(Mod, Weights, State, Size, Count) ->
 select_command(Mod, State, Weights) ->
   SelectAux =
     fun ({call, _Mod, Call, _Args} = SymbCall) ->
-        case maps:is_key(Call, Weights) of
-          true -> {maps:get(Call, Weights), SymbCall};
-          false ->
-            case is_exported(Mod, {weight, 1}) of
-              true -> {Mod:weight(SymbCall), SymbCall};
-              false -> {1, SymbCall}
-            end
-        end
+        Weight = maps:get(Call, Weights, 1),
+        {Weight, SymbCall};
+        ({Freq, {call, _Mod, Call, _Args} = SymbCall}) ->
+        Weight = max(Freq, maps:get(Call, Weights, Freq)),
+        {Weight, SymbCall}
     end,
-  ?LET(Cmds,
-       ?LAZY(Mod:all_commands(State)),
-       begin
-         ValidCmds = [Cmd || Cmd <- Cmds, Mod:precondition(State, Cmd)],
-         WeightedCmds = lists:map(SelectAux, ValidCmds),
-         proper_types:frequency(WeightedCmds)
-       end).
+  Cmds = get_commands(Mod:command(State)),
+  WeightedCmds = lists:map(SelectAux, Cmds),
+  proper_types:frequency(WeightedCmds).
 
 %% Track all the commands and add unknown to the weights map.
 
--spec finalize_weights(mod_name(), command_list(), weights()) -> weights().
-finalize_weights(_Mod, [], Weights) -> Weights;
-finalize_weights(Mod, Cmds, Weights) ->
+-spec finalize_weights(mod_name(), symbolic_state(), command_list(),
+                       weights()) -> weights().
+finalize_weights(_Mod, _State, [], Weights) -> Weights;
+finalize_weights(Mod, InitialState, Cmds, Weights) ->
   FinWeightsAux =
-    fun ({init, _InitialState}, Ws) -> Ws;
-        ({set, {var, _Count}, {call, _Mod, Call, _Args}}, Ws) ->
-        case maps:is_key(Call, Ws) of
-          true -> Ws;
-          false ->
-            case is_exported(Mod, {weight, 1}) of
-              true -> maps:put(Call, Mod:weight(Call), Ws);
-              false -> maps:put(Call, 1, Ws)
-            end
-        end
+    fun ({init, _InitialState}, Acc) -> Acc;
+        ({set, Var, SymbCall}, {State, Ws}) ->
+        FoldAux =
+          fun ({call, _Mod, Call, _Args}, Acc) ->
+              case maps:is_key(Call, Acc) of
+                true -> Acc;
+                false -> maps:put(Call, 1, Acc)
+              end;
+              ({Freq, {call, _Mod, Call, _Args}}, Acc) ->
+              case maps:is_key(Call, Acc) of
+                true -> Acc;
+                false -> maps:put(Call, Freq, Acc)
+              end
+          end,
+        NextState = Mod:next_state(State, Var, SymbCall),
+        AllCmds = get_commands(Mod:command(State)),
+        NewWs = lists:foldl(FoldAux, Ws, AllCmds),
+        {NextState, NewWs}
     end,
-  lists:foldl(FinWeightsAux, Weights, Cmds).
+  {_S, NewWeights} = lists:foldl(FinWeightsAux, {InitialState, Weights}, Cmds),
+  NewWeights.
 
 
 %% -----------------------------------------------------------------------------
@@ -1212,6 +1194,64 @@ spawn_link_cp(ActualFun) ->
 	  end,
     spawn_link(Fun).
 
--spec is_exported(mod_name(), {fun_name(),arity()}) -> boolean().
-is_exported(Mod, FA) ->
-    lists:member(FA, Mod:module_info(exports)).
+-spec get_commands(proper_types:type()) ->
+        [symbolic_call()] | [{proper_types:frequency(), symbolic_call()}].
+get_commands(RawType) ->
+  Matchers = [{fun is_tuple_type/1, fun get_commands_tuple/1},
+              {fun is_oneof_type/1, fun get_commands_oneof/1},
+              {fun is_frequency_type/1, fun get_commands_frequency/1}],
+  (fun Aux([]) -> throw(type_not_supported);
+       Aux([{Guard, Getter} | Rest]) ->
+       case Guard(RawType) of
+         true -> Getter(RawType);
+         false -> Aux(Rest)
+       end
+  end)(Matchers).
+
+-spec has_same_generator(proper_types:type(), proper_types:type()) -> boolean().
+has_same_generator(RawType, RefType) ->
+  Type = proper_types:cook_outer(RawType),
+  MaybeGen = proper_types:find_prop(generator, Type),
+  MaybeRefGen = proper_types:find_prop(generator, RefType),
+  case {MaybeGen, MaybeRefGen} of
+    {{ok, Gen}, {ok, Gen}} -> true;
+    _ -> false
+  end.
+
+-spec is_tuple_type(proper_types:type()) -> boolean().
+is_tuple_type(RawType) ->
+  has_same_generator(RawType, proper_types:tuple([])).
+
+-spec get_commands_tuple(proper_types:type()) -> [symbolic_call()].
+get_commands_tuple(RawType) ->
+  Type = proper_types:cook_outer(RawType),
+  InternalTypes = proper_types:get_prop(internal_types, Type),
+  {CallType, ModType, CmdType, Args} = InternalTypes,
+  call = proper_types:get_prop(env, CallType),
+  Mod = proper_types:get_prop(env, ModType),
+  Cmd = proper_types:get_prop(env, CmdType),
+  [{call, Mod, Cmd, Args}].
+
+-spec is_oneof_type(proper_types:type()) -> boolean().
+is_oneof_type(RawType) ->
+  has_same_generator(RawType, proper_types:union([undefined])).
+
+-spec get_commands_oneof(proper_types:type()) -> [symbolic_call()].
+get_commands_oneof(RawType) ->
+  Type = proper_types:cook_outer(RawType),
+  Env = proper_types:get_prop(env, Type),
+  lists:flatmap(fun get_commands_tuple/1, Env).
+
+-spec is_frequency_type(proper_types:type()) -> boolean().
+is_frequency_type(RawType) ->
+  has_same_generator(RawType, proper_types:frequency([{1, undefined}])).
+
+-spec get_commands_frequency(proper_types:type()) ->
+        [{proper_types:frequency(), symbolic_call()}].
+get_commands_frequency(RawType) ->
+  Type = proper_types:cook_outer(RawType),
+  Env = proper_types:get_prop(env, Type),
+  SubEnv = proper_types:get_prop(subenv, Type),
+  Cmds = lists:flatmap(fun get_commands_tuple/1, Env),
+  Freqs = lists:map(fun (X) -> element(1, X) end, SubEnv),
+  lists:zip(Freqs, Cmds).

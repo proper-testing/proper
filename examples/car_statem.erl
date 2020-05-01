@@ -43,7 +43,7 @@
          code_change/3]).
 %% proper_statem callbacks
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
-         next_state/3, all_commands/1, weight/1]).
+         next_state/3]).
 
 
 %% -----------------------------------------------------------------------------
@@ -157,10 +157,10 @@ code_change(_OldVsn, S, _Extra) ->
 
 
 accelerator(Speed) ->
-  integer(1, ?MAX_SPEED - Speed).
+  integer(0, ?MAX_SPEED - Speed).
 
 braker(Speed) ->
-  integer(1, Speed).
+  integer(0, Speed).
 
 traveler() ->
   integer(1, 100).
@@ -180,21 +180,17 @@ initial_state() ->
               burnt    = 0,
               distance = 0}.
 
-command(S) ->
-  oneof(all_commands(S)).
+command(#test_state{fuel = Fuel, speed = Speed}) ->
+  oneof([{call, ?MODULE, accelerate, [accelerator(Speed)]},
+         {call, ?MODULE, brake, [braker(Speed)]},
+         {call, ?MODULE, travel, [traveler()]},
+         {call, ?MODULE, refuel, [refueler(Fuel)]}]).
 
-all_commands(S) ->
-  #test_state{fuel = Fuel, speed = Speed} = S,
-  [{call, ?MODULE, accelerate, [accelerator(Speed)]} || Speed < ?MAX_SPEED] ++
-    [{call, ?MODULE, brake, [braker(Speed)]} || Speed > 1] ++
-    [{call, ?MODULE, travel, [traveler()]}] ++
-    [{call, ?MODULE, refuel, [refueler(Fuel)]} || Fuel < ?MAX_FUEL].
-
-precondition(State, {call, _, accelerate, _}) ->
+precondition(State, {call, _, accelerate, [Value]}) ->
   #test_state{fuel = Fuel, speed = Speed} = State,
-  Fuel > ?MAX_FUEL * 0.1 andalso Speed < 200;
-precondition(#test_state{speed = Speed}, {call, _, brake, _}) ->
-  Speed > 0;
+  Fuel > ?MAX_FUEL * 0.1 andalso Speed < ?MAX_SPEED andalso Value > 0;
+precondition(#test_state{speed = Speed}, {call, _, brake, [Value]}) ->
+  Speed > 0 andalso Value > 0;
 precondition(#test_state{speed = Speed}, {call, _, travel, _}) ->
   Speed > 20;
 precondition(#test_state{fuel = Fuel}, {call, _, refuel, _}) ->
@@ -250,10 +246,6 @@ next_state(S, _V, {call, _, refuel, [Value]}) ->
                distance = Distance + Travelled,
                burnt = B + Burnt}.
 
-weight({call, _, brake, _}) -> 2;
-weight({call, _, travel, _}) -> 4;
-weight(_) -> 1.
-
 
 %% -----------------------------------------------------------------------------
 %% Properties
@@ -277,7 +269,7 @@ prop_distance() ->
 %% provides failing command sequencies more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, more_commands(2, targeted_commands(?MODULE)),
+     Cmds, targeted_commands(?MODULE),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -294,7 +286,7 @@ prop_distance_targeted() ->
 prop_distance_targeted_init() ->
   State = initial_state(),
   ?FORALL_TARGETED(
-     Cmds, more_commands(2, targeted_commands(?MODULE, State)),
+     Cmds, targeted_commands(?MODULE, State),
      ?TRAPEXIT(
         begin
           start_link(),
