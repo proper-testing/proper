@@ -97,10 +97,10 @@
 %%%   has similar beaviour to `StateName/1', described above.</p></li>
 %%% <li> `weight(From::'{@type state_name()}`,
 %%%              Target::'{@type state_name()}`,
-%%%              Call::'{@type symbolic_call()}`) -> integer()'
+%%%              Call::'{@type symbolic_call()}`) -> non_neg_integer()'
 %%%   <p>This is an optional callback. When it is not defined (or not exported),
 %%%   transitions are chosen with equal probability. When it is defined, it
-%%%   assigns an integer weight to transitions from `From' to `Target'
+%%%   assigns a non-negative integer weight to transitions from `From' to `Target'
 %%%   triggered by symbolic call `Call'. In this case, each transition is chosen
 %%%   with probability proportional to the weight assigned.</p></li>
 %%% <li> `precondition(From::'{@type state_name()}`,
@@ -202,6 +202,10 @@
 
 -callback next_state_data(state_name(), state_name(), state_data(),
 			  cmd_result(), symbolic_call()) -> state_data().
+
+-callback weight(state_name(), state_name(), symbolic_call()) -> non_neg_integer().
+
+-optional_callbacks([weight/3]).
 
 
 %% -----------------------------------------------------------------------------
