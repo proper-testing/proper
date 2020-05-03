@@ -238,30 +238,30 @@
 %%% <dt>`long_result'</dt>
 %%% <dd>Enables long-result mode (see the {@section Counterexamples} section
 %%%   for details).</dd>
-%%% <dt>`{numtests, <Positive_number>}' or simply `<Positive_number>'</dt>
+%%% <dt>`{numtests, <Positive_integer>}' or simply `<Positive_integer>'</dt>
 %%% <dd>This is equivalent to the {@link numtests/1} property wrapper. Any
 %%%   {@link numtests/1} wrappers in the actual property will overwrite this
-%%%   setting.</dd>
+%%%   user option.</dd>
 %%% <dt>`{start_size, <Size>}'</dt>
 %%% <dd>Specifies the initial value of the `size' parameter (default is 1), see
 %%%   the documentation of the {@link proper_types} module for details.</dd>
 %%% <dt>`{max_size, <Size>}'</dt>
 %%% <dd>Specifies the maximum value of the `size' parameter (default is 42), see
 %%%   the documentation of the {@link proper_types} module for details.</dd>
-%%% <dt>`{max_shrinks, <Non_negative_number>}'</dt>
+%%% <dt>`{max_shrinks, <Non_negative_integer>}'</dt>
 %%% <dd>Specifies the maximum number of times a failing test case should be
 %%%   shrunk before returning. Note that the shrinking may stop before so many
 %%%   shrinks are achieved if the shrinking subsystem deduces that it cannot
 %%%   shrink the failing test case further. Default is 500.</dd>
 %%% <dt>`noshrink'</dt>
 %%% <dd>Instructs PropEr to not attempt to shrink any failing test cases.</dd>
-%%% <dt>`{constraint_tries, <Positive_number>}'</dt>
+%%% <dt>`{constraint_tries, <Positive_integer>}'</dt>
 %%% <dd>Specifies the maximum number of tries before the generator subsystem
 %%%   gives up on producing an instance that satisfies a `?SUCHTHAT'
 %%%   constraint. Default is 50.</dd>
 %%% <dt>`fails'</dt>
 %%% <dd>This is equivalent to the {@link fails/1} property wrapper.</dd>
-%%% <dt>`{spec_timeout, infinity | <Non_negative_number>}'</dt>
+%%% <dt>`{spec_timeout, infinity | <Non_negative_integer>}'</dt>
 %%% <dd>When testing a spec, PropEr will consider an input to be failing if the
 %%%   function under test takes more than the specified amount of milliseconds
 %%%   to return for that input.</dd>
@@ -370,6 +370,9 @@
 %%%   - please send an error report to the maintainers and remember to include
 %%%   both the failing test case and the output of the program, if possible.
 %%%   </dd>
+%%% <dt>`{erroneous_option, <Option>}'</dt>
+%%% <dd>There is something wrong in how `<Option>' is specified by the user;
+%%%   most likely a value was supplied for it that is not what is expected.</dd>
 %%% <dt>`{unrecognized_option, <Option>}'</dt>
 %%% <dd>`<Option>' is not an option that PropEr understands.</dd>
 %%% </dl>
@@ -502,26 +505,26 @@
 %%-----------------------------------------------------------------------------
 
 %% TODO: Rename this to 'options()'?
--type user_opt() :: 'quiet'
-		  | 'verbose'
-		  | {'to_file',io:device()}
-		  | {'on_output',output_fun()}
+-type user_opt() :: 'any_to_integer'
+		  | 'fails'
 		  | 'long_result'
+		  | 'nocolors'
+		  | 'noshrink'
+		  | 'quiet'
+		  | 'verbose'
+		  | pos_integer()
+		  | {'constraint_tries',pos_integer()}
+		  | {'false_positive_mfas',false_positive_mfas()}
+		  | {'max_shrinks',non_neg_integer()}
+		  | {'max_size',proper_gen:size()}
 		  | {'numtests',pos_integer()}
+		  | {'on_output',output_fun()}
 		  | {'search_steps',pos_integer()}
 		  | {'search_strategy',proper_target:strategy()}
-		  | pos_integer()
-		  | {'start_size',proper_gen:size()}
-		  | {'max_size',proper_gen:size()}
-		  | {'max_shrinks',non_neg_integer()}
-		  | 'noshrink'
-		  | {'constraint_tries',pos_integer()}
-		  | 'fails'
-		  | 'any_to_integer'
-		  | {'spec_timeout',timeout()}
 		  | {'skip_mfas',[mfa()]}
-		  | {'false_positive_mfas',false_positive_mfas()}
-                  | 'nocolors'.
+		  | {'spec_timeout',timeout()}
+		  | {'start_size',proper_gen:size()}
+		  | {'to_file',io:device()}.
 
 -type user_opts() :: [user_opt()] | user_opt().
 -record(opts, {output_fun       = fun io:format/2 :: output_fun(),
@@ -588,7 +591,8 @@
                       | 'cant_satisfy'
                       | 'non_boolean_result' | 'rejected' | 'too_many_instances'
                       | 'type_mismatch' | 'wrong_type' | {'typeserver',term()}
-                      | {'unexpected',any()} | {'unrecognized_option',term()}.
+                      | {'unexpected',any()} | {'erroneous_option',user_opt()}
+                      | {'unrecognized_option',term()}.
 
 -type run_result() :: #pass{performed :: 'undefined'}
 		    | #fail{performed :: 'undefined'}
@@ -798,7 +802,8 @@ quickcheck(OuterTest, UserOpts) ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
 	    test({test,Test}, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Reason ->
+	throw:{Err,_Opt} = Reason when Err =:= erroneous_option;
+				       Err =:= unrecognized_option ->
 	    report_error(Reason, fun io:format/2),
 	    {error, Reason}
     end.
@@ -844,7 +849,8 @@ check_spec(MFA, UserOpts) ->
 	Opts ->
 	    test({spec,MFA}, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Reason ->
+	throw:{Err,_Opt} = Reason when Err =:= erroneous_option;
+				       Err =:= unrecognized_option ->
 	    report_error(Reason, fun io:format/2),
 	    {error, Reason}
     end.
@@ -863,7 +869,8 @@ check(OuterTest, CExm, UserOpts) ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
 	    retry(Test, CExm, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Reason ->
+	throw:{Err,_Opt} = Reason when Err =:= erroneous_option;
+				       Err =:= unrecognized_option ->
 	    report_error(Reason, fun io:format/2),
 	    {error, Reason}
     end.
@@ -897,7 +904,8 @@ multi_test_prep(Mod, Kind, UserOpts) ->
 	Opts ->
 	    multi_test(Mod, Kind, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Reason ->
+	throw:{Err,_Opt} = Reason when Err =:= erroneous_option;
+				       Err =:= unrecognized_option ->
 	    report_error(Reason, fun io:format/2),
 	    {error, Reason}
     end.
@@ -932,36 +940,63 @@ parse_opts([], Opts) ->
 parse_opts([UserOpt | Rest], Opts) ->
     parse_opts(Rest, parse_opt(UserOpt,Opts)).
 
+-define(POS_INTEGER(N),     (is_integer(N) andalso N > 0)).
+-define(NON_NEG_INTEGER(N), (is_integer(N) andalso N >= 0)).
+-define(VALIDATE_OPT(Check, NewOpts),
+	try Check of
+	    true  -> NewOpts;
+	    false -> throw({erroneous_option,UserOpt})
+	catch _:_ -> throw({erroneous_option,UserOpt})
+	end).
+
 -spec parse_opt(user_opt(), opts()) -> opts().
 parse_opt(UserOpt, Opts) ->
     case UserOpt of
-	quiet                -> Opts#opts{output_fun = fun(_,_) -> ok end};
-	verbose              -> Opts#opts{output_fun = fun io:format/2};
-	{to_file,IoDev}      -> Opts#opts{output_fun =
-				    fun(S,F) -> io:format(IoDev, S, F) end
-				};
-	{on_output,Print}    -> Opts#opts{output_fun = Print, nocolors = true};
-	long_result          -> Opts#opts{long_result = true};
-	{numtests,N}         -> Opts#opts{numtests = N};
-	{search_steps,N}     -> Opts#opts{search_steps = N};
-	{search_strategy,S}  -> Opts#opts{search_strategy = S};
-	N when is_integer(N) -> Opts#opts{numtests = N};
-	{start_size,Size}    -> Opts#opts{start_size = Size};
-	{max_size,Size}      -> Opts#opts{max_size = Size};
-	{max_shrinks,N}      -> Opts#opts{max_shrinks = N};
-	noshrink             -> Opts#opts{noshrink = true};
-	{constraint_tries,N} -> Opts#opts{constraint_tries = N};
-	fails                -> Opts#opts{expect_fail = true};
-	any_to_integer       -> Opts#opts{any_type =
-				    {type,proper_types:integer()}
-				};
-	{spec_timeout,N}     -> Opts#opts{spec_timeout = N};
-	{skip_mfas,L} when is_list(L)
-	                     -> Opts#opts{skip_mfas = L};
-	{false_positive_mfas,F} when is_function(F); F =:= undefined
-	                     -> Opts#opts{false_positive_mfas = F};
-        nocolors             -> Opts#opts{nocolors = true};
-	_                    -> throw({unrecognized_option,UserOpt})
+	%% atom options, alphabetically
+	any_to_integer -> Opts#opts{any_type = {type,proper_types:integer()}};
+	fails          -> Opts#opts{expect_fail = true};
+	long_result    -> Opts#opts{long_result = true};
+        nocolors       -> Opts#opts{nocolors = true};
+	noshrink       -> Opts#opts{noshrink = true};
+	quiet          -> Opts#opts{output_fun = fun(_,_) -> ok end};
+	verbose        -> Opts#opts{output_fun = fun io:format/2};
+	%% integer
+	N when is_integer(N) ->
+	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
+	%% tuple options, sorted on tag
+	{constraint_tries,N} ->
+	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{constraint_tries = N});
+	{false_positive_mfas,F} ->
+	    ?VALIDATE_OPT(is_function(F, 3) orelse F =:= undefined,
+			  Opts#opts{false_positive_mfas = F});
+	{max_shrinks,N} ->
+	    ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{max_shrinks = N});
+	{max_size,Size} ->
+	    ?VALIDATE_OPT(?NON_NEG_INTEGER(Size), Opts#opts{max_size = Size});
+	{numtests,N} ->
+	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
+	{on_output,Print} ->
+	    ?VALIDATE_OPT(is_function(Print, 2),
+			  Opts#opts{output_fun = Print, nocolors = true});
+	{search_steps,N} ->
+	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{search_steps = N});
+	{search_strategy,S} ->
+	    ?VALIDATE_OPT(is_atom(S), Opts#opts{search_strategy = S});
+	{skip_mfas,L} ->
+	    IsMFA = fun ({M,F,A}) when is_atom(M), is_atom(F),
+				       is_integer(A), 0 =< A, A =< 255 -> true;
+			(_) -> false
+		    end,
+	    ?VALIDATE_OPT(lists:all(IsMFA, L), Opts#opts{skip_mfas = L});
+	{spec_timeout,T} ->
+	    ?VALIDATE_OPT(?NON_NEG_INTEGER(T) orelse (T =:= infinity),
+			  Opts#opts{spec_timeout = T});
+	{start_size,Size} ->
+	    ?VALIDATE_OPT(?NON_NEG_INTEGER(Size), Opts#opts{start_size = Size});
+	{to_file,IoDev} ->
+	    Opts#opts{output_fun = fun (S, F) -> io:format(IoDev, S, F) end};
+	_OTHER ->
+	    throw({unrecognized_option,UserOpt})
     end.
 
 -spec peel_test(outer_test(), opts()) -> {test(),opts()}.
@@ -2024,6 +2059,8 @@ report_error({typeserver,SubReason}, Print) ->
 report_error({unexpected,Unexpected}, Print) ->
     Print("Internal error: The last run returned an unexpected result:~n~w~n"
 	  "Please notify the maintainers about this error.~n", [Unexpected]);
+report_error({erroneous_option,UserOpt}, Print) ->
+    Print("Error: Erroneous option: ~w.~n", [UserOpt]);
 report_error({unrecognized_option,UserOpt}, Print) ->
     Print("Error: Unrecognized option: ~w.~n", [UserOpt]).
 
