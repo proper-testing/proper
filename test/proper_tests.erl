@@ -1126,7 +1126,11 @@ not_defined_test_() ->
      || SymbCall <- undefined_symb_calls()].
 
 options_test_() ->
-    [?_assertTempBecomesN(300, true,
+    [?_assertEqual({error,{erroneous_option,{numtests,0}}},
+		   proper:module(command_props, [{numtests,0}])),
+     ?_assertEqual({error,{unrecognized_option,gazonk}},
+		   proper:quickcheck(rec_props_test1:prop_1(), [42,gazonk])),
+     ?_assertTempBecomesN(300, true,
 			  ?FORALL(_, 1, begin inc_temp(), true end),
 			  [{numtests,300}]),
      ?_assertTempBecomesN(300, true,

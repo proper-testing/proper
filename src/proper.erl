@@ -849,7 +849,8 @@ check_spec(MFA, UserOpts) ->
 	Opts ->
 	    test({spec,MFA}, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Reason ->
+	throw:{Err,_Opt} = Reason when Err =:= erroneous_option;
+				       Err =:= unrecognized_option ->
 	    report_error(Reason, fun io:format/2),
 	    {error, Reason}
     end.
@@ -868,7 +869,8 @@ check(OuterTest, CExm, UserOpts) ->
 	    {Test,Opts} = peel_test(OuterTest, ImmOpts),
 	    retry(Test, CExm, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Reason ->
+	throw:{Err,_Opt} = Reason when Err =:= erroneous_option;
+				       Err =:= unrecognized_option ->
 	    report_error(Reason, fun io:format/2),
 	    {error, Reason}
     end.
@@ -902,7 +904,8 @@ multi_test_prep(Mod, Kind, UserOpts) ->
 	Opts ->
 	    multi_test(Mod, Kind, Opts)
     catch
-	throw:{unrecognized_option,_UserOpt} = Reason ->
+	throw:{Err,_Opt} = Reason when Err =:= erroneous_option;
+				       Err =:= unrecognized_option ->
 	    report_error(Reason, fun io:format/2),
 	    {error, Reason}
     end.
@@ -986,7 +989,7 @@ parse_opt(UserOpt, Opts) ->
 		    end,
 	    ?VALIDATE_OPT(lists:all(IsMFA, L), Opts#opts{skip_mfas = L});
 	{spec_timeout,T} ->
-	    ?VALIDATE_OPT((?NON_NEG_INTEGER(T)) orelse (T =:= infinity),
+	    ?VALIDATE_OPT(?NON_NEG_INTEGER(T) orelse (T =:= infinity),
 			  Opts#opts{spec_timeout = T});
 	{start_size,Size} ->
 	    ?VALIDATE_OPT(?NON_NEG_INTEGER(Size), Opts#opts{start_size = Size});
