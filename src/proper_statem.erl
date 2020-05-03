@@ -1253,5 +1253,5 @@ get_commands_frequency(RawType) ->
   Env = proper_types:get_prop(env, Type),
   SubEnv = proper_types:get_prop(subenv, Type),
   Cmds = lists:flatmap(fun get_commands_tuple/1, Env),
-  Freqs = lists:map(fun (X) -> element(1, X) end, SubEnv),
+  Freqs = [element(1, X) || X <- SubEnv],
   lists:zip(Freqs, Cmds).

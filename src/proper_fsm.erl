@@ -455,15 +455,13 @@ finalize_weights(InitialState, Cmds, Weights) ->
           fun ({To, {call, _M, Call, _A} = SC}, Acc) ->
               RealTo = cook_history(From, To),
               Key = {From, RealTo, Call},
+              W = case is_exported(Mod, {weight, 3}) of
+                    true -> Mod:weight(From, RealTo, SC);
+                    false -> 1
+                  end,
               case maps:is_key(Key, Acc) of
                 true -> Acc;
-                false ->
-                  case is_exported(Mod, {weight, 3}) of
-                    true ->
-                      maps:put(Key, Mod:weight(From, RealTo, SC), Acc);
-                    false ->
-                      maps:put(Key, 1, Acc)
-                  end
+                false -> maps:put(Key, W, Acc)
               end
           end,
         NextState = next_state(State, Var, SymbCall),

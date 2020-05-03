@@ -223,9 +223,8 @@ targeted_gen() ->
 
 -spec get_shrinker(proper_types:type()) -> proper_types:type().
 get_shrinker(Type) ->
+  TargetserverPid = get('$targetserver_pid'),
   try
-    update_pdict(['$left', '$size']),
-    TargetserverPid = get('$targetserver_pid'),
     gen_server:call(TargetserverPid, shrinker)
   catch
     _:{noproc, _} ->

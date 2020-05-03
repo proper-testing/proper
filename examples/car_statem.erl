@@ -51,8 +51,7 @@
 %% -----------------------------------------------------------------------------
 
 
--define(DISTANCE, 1000).
--define(CONSUMPTION, 10).
+-define(DISTANCE, 1500).
 
 
 %% -----------------------------------------------------------------------------
@@ -198,10 +197,11 @@ precondition(#test_state{fuel = Fuel}, {call, _, refuel, _}) ->
 precondition(_, _) ->
   true.
 
-postcondition(#test_state{distance = Distance, burnt = Burnt}, _, {D, B}) ->
-  Consumption = calculate_consumption(Distance + D, Burnt + B),
-  Wanted = Distance + D >= ?DISTANCE andalso Consumption =< ?CONSUMPTION,
-  D >= 0.0 andalso B >= 0.0 andalso not Wanted.
+postcondition(S, _, {D, B}) when D >= 0, B >= 0 ->
+  #test_state{distance = Distance} = S,
+  Distance + D < ?DISTANCE;
+postcondition(_S, _, _R) ->
+  false.
 
 next_state(S, _V, {call, _, accelerate, [Value]}) ->
   #test_state{fuel = Fuel,
@@ -254,7 +254,7 @@ next_state(S, _V, {call, _, refuel, [Value]}) ->
 
 %% Vanilla property based testing. This should not fail consistently.
 prop_distance() ->
-  ?FORALL(Cmds, commands(?MODULE),
+  ?FORALL(Cmds, more_commands(2, commands(?MODULE)),
           ?TRAPEXIT(
              begin
                start_link(),
@@ -269,7 +269,7 @@ prop_distance() ->
 %% provides failing command sequencies more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, targeted_commands(?MODULE),
+     Cmds, more_commands(2, targeted_commands(?MODULE)),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -286,7 +286,7 @@ prop_distance_targeted() ->
 prop_distance_targeted_init() ->
   State = initial_state(),
   ?FORALL_TARGETED(
-     Cmds, targeted_commands(?MODULE, State),
+     Cmds, more_commands(2, targeted_commands(?MODULE, State)),
      ?TRAPEXIT(
         begin
           start_link(),

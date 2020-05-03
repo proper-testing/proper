@@ -39,12 +39,12 @@
 %% API
 -export([start_link/0, stop/0, accelerate/1, brake/1, travel/1, refuel/1]).
 %% gen_statem callbacks
--export([init/1, callback_mode/0, stopped/3, slow/3, normal/3, fast/3,
-         too_fast/3, terminate/3, code_change/4]).
+-export([init/1, callback_mode/0, stopped/3, slow/3, fast/3, terminate/3,
+         code_change/4]).
 %% proper_fsm callbacks
 -export([initial_state/0, initial_state_data/0, next_state_data/5,
-         precondition/4, postcondition/5, weight/3]).
--export([stopped/1, slow/1, normal/1, fast/1, too_fast/1]).
+         precondition/4, postcondition/5]).
+-export([stopped/1, slow/1, fast/1]).
 
 
 %% -----------------------------------------------------------------------------
@@ -52,11 +52,8 @@
 %% -----------------------------------------------------------------------------
 
 
--define(DISTANCE, 800).
--define(CONSUMPTION, 12).
--define(SLOW_THRESHOLD, 50).
--define(NORMAL_THRESHOLD, 100).
--define(FAST_THRESHOLD, 150).
+-define(DISTANCE, 1000).
+-define(SLOW_THRESHOLD, 100).
 
 
 %% -----------------------------------------------------------------------------
@@ -132,15 +129,6 @@ slow({call, From}, {travel, Value}, S) ->
 slow({call, From}, {refuel, Value}, S) ->
   refuel_helper(From, Value, S).
 
-normal({call, From}, {accelerate, Value}, S) ->
-  accelerate_helper(From, Value, S);
-normal({call, From}, {brake, Value}, S) ->
-  accelerate_helper(From, -Value, S);
-normal({call, From}, {travel, Value}, S) ->
-  travel_helper(From, Value, S);
-normal({call, From}, {refuel, Value}, S) ->
-  refuel_helper(From, Value, S).
-
 fast({call, From}, {accelerate, Value}, S) ->
   accelerate_helper(From, Value, S);
 fast({call, From}, {brake, Value}, S) ->
@@ -148,15 +136,6 @@ fast({call, From}, {brake, Value}, S) ->
 fast({call, From}, {travel, Value}, S) ->
   travel_helper(From, Value, S);
 fast({call, From}, {refuel, Value}, S) ->
-  refuel_helper(From, Value, S).
-
-too_fast({call, From}, {accelerate, Value}, S) ->
-  accelerate_helper(From, Value, S);
-too_fast({call, From}, {brake, Value}, S) ->
-  accelerate_helper(From, -Value, S);
-too_fast({call, From}, {travel, Value}, S) ->
-  travel_helper(From, Value, S);
-too_fast({call, From}, {refuel, Value}, S) ->
   refuel_helper(From, Value, S).
 
 terminate(_Reason, _StateName, _State) ->
@@ -204,23 +183,15 @@ refuel_helper(From, Value, S) ->
 
 accelerator(Speed, slow) ->
   integer(1, ?SLOW_THRESHOLD - Speed);
-accelerator(Speed, normal) ->
-  integer(max(1, ?SLOW_THRESHOLD - Speed + 1), ?NORMAL_THRESHOLD - Speed);
 accelerator(Speed, fast) ->
-  integer(max(1, ?NORMAL_THRESHOLD - Speed + 1), ?FAST_THRESHOLD - Speed);
-accelerator(Speed, too_fast) ->
-  integer(max(1, ?FAST_THRESHOLD - Speed + 1), ?MAX_SPEED - Speed).
+  integer(max(1, ?SLOW_THRESHOLD - Speed + 1), ?MAX_SPEED - Speed).
 
 braker(Speed, stopped) ->
   exactly(Speed);
 braker(Speed, slow) ->
   integer(max(1, Speed - ?SLOW_THRESHOLD + 1), Speed - 1);
-braker(Speed, normal) ->
-  integer(max(1, Speed - ?NORMAL_THRESHOLD + 1), Speed - ?SLOW_THRESHOLD - 1);
 braker(Speed, fast) ->
-  integer(max(1, Speed - ?FAST_THRESHOLD + 1), Speed - ?NORMAL_THRESHOLD - 1);
-braker(Speed, too_fast) ->
-  integer(1, Speed - ?FAST_THRESHOLD - 1).
+  integer(1, Speed - ?SLOW_THRESHOLD - 1).
 
 traveler() -> integer(1, 100).
 
@@ -253,21 +224,7 @@ slow(S) ->
     [{history, ?CALL(travel, [traveler()])},
      {stopped, ?CALL(refuel, [refueler(Fuel)])}].
 
-normal(S) ->
-  #test_state{fuel = Fuel, speed = Speed} = S,
-  accelerate_commands(Speed) ++
-    brake_commands(Speed) ++
-    [{history, ?CALL(travel, [traveler()])},
-     {stopped, ?CALL(refuel, [refueler(Fuel)])}].
-
 fast(S) ->
-  #test_state{fuel = Fuel, speed = Speed} = S,
-  accelerate_commands(Speed) ++
-    brake_commands(Speed) ++
-    [{history, ?CALL(travel, [traveler()])},
-     {stopped, ?CALL(refuel, [refueler(Fuel)])}].
-
-too_fast(S) ->
   #test_state{fuel = Fuel, speed = Speed} = S,
   accelerate_commands(Speed) ++
     brake_commands(Speed) ++
@@ -336,13 +293,11 @@ next_state_data(_, _, S, _, ?CALL(refuel, [Value])) ->
                distance = Distance + Travelled,
                burnt = B + Burnt}.
 
-postcondition(_, _, S, _, {D, B}) ->
-  #test_state{distance = Distance, burnt = Burnt} = S,
-  Consumption = calculate_consumption(Distance + D, Burnt + B),
-  Wanted = Distance + D >= ?DISTANCE andalso Consumption =< ?CONSUMPTION,
-  D >= 0.0 andalso B >= 0.0 andalso not Wanted.
-
-weight(_, _, _) -> 1.
+postcondition(_, _, S, _, {D, B}) when D >= 0, B >= 0 ->
+  #test_state{distance = Distance} = S,
+  Distance + D < ?DISTANCE;
+postcondition(_, _, _S, _, _R) ->
+  false.
 
 
 %% -----------------------------------------------------------------------------
@@ -353,22 +308,14 @@ weight(_, _, _) -> 1.
 accelerate_commands(Speed) ->
   [{slow, ?CALL(accelerate, [accelerator(Speed, slow)])}
    || Speed < ?SLOW_THRESHOLD] ++
-    [{normal, ?CALL(accelerate, [accelerator(Speed, normal)])}
-     || Speed < ?NORMAL_THRESHOLD] ++
     [{fast, ?CALL(accelerate, [accelerator(Speed, fast)])}
-     || Speed < ?FAST_THRESHOLD] ++
-    [{too_fast, ?CALL(accelerate, [accelerator(Speed, too_fast)])}
      || Speed < ?MAX_SPEED].
 
 brake_commands(Speed) ->
   [{stopped, ?CALL(brake, [braker(Speed, stopped)])}] ++
     [{slow, ?CALL(brake, [braker(Speed, slow)])} || Speed > 1] ++
-    [{normal, ?CALL(brake, [braker(Speed, normal)])}
-     || Speed > ?SLOW_THRESHOLD + 1] ++
     [{fast, ?CALL(brake, [braker(Speed, fast)])}
-     || Speed > ?NORMAL_THRESHOLD + 1] ++
-    [{too_fast, ?CALL(brake, [braker(Speed, too_fast)])}
-     || Speed > ?FAST_THRESHOLD + 1].
+     || Speed > ?SLOW_THRESHOLD + 1].
 
 
 %% -----------------------------------------------------------------------------
@@ -378,23 +325,24 @@ brake_commands(Speed) ->
 
 %% Vanilla property based testing. This should not fail consistently.
 prop_distance() ->
-  ?FORALL(Cmds, proper_fsm:commands(?MODULE),
-          ?TRAPEXIT(
-             begin
-               start_link(),
-               {H, {_, S}, R} = proper_fsm:run_commands(?MODULE, Cmds),
-               stop(),
-               ?WHENFAIL(
-                  on_failure(H, S, R),
-                  aggregate(zip(proper_fsm:state_names(H), command_names(Cmds)),
-                            R =:= ok))
-             end)).
+  ?FORALL(
+     Cmds, more_commands(2, proper_fsm:commands(?MODULE)),
+     ?TRAPEXIT(
+        begin
+          start_link(),
+          {H, {_, S}, R} = proper_fsm:run_commands(?MODULE, Cmds),
+          stop(),
+          ?WHENFAIL(
+             on_failure(H, S, R),
+             aggregate(zip(proper_fsm:state_names(H), command_names(Cmds)),
+                       R =:= ok))
+        end)).
 
 %% Targeted property based testing, where maximizing the distance travelled
 %% provides failing command sequencies more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, proper_fsm:targeted_commands(?MODULE),
+     Cmds, more_commands(2, proper_fsm:targeted_commands(?MODULE)),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -412,7 +360,7 @@ prop_distance_targeted() ->
 prop_distance_targeted_init() ->
   State = {initial_state(), initial_state_data()},
   ?FORALL_TARGETED(
-     Cmds, proper_fsm:targeted_commands(?MODULE, State),
+     Cmds, more_commands(2, proper_fsm:targeted_commands(?MODULE, State)),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -435,9 +383,7 @@ prop_distance_targeted_init() ->
 %% Get state names based on speed.
 state_name(0) -> stopped;
 state_name(S) when S =< ?SLOW_THRESHOLD -> slow;
-state_name(S) when S =< ?NORMAL_THRESHOLD -> normal;
-state_name(S) when S =< ?FAST_THRESHOLD -> fast;
-state_name(_S) -> too_fast.
+state_name(_S) -> fast.
 
 %% Function to be called when the property fails.
 on_failure(History, State, {postcondition, false}) ->
