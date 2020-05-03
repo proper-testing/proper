@@ -40,7 +40,7 @@
 %%
 %% Still, the test is currently not 100% there.
 %% TODOs:
-%%   - Eliminate the 11 errors that `proper_typeserver:demo_translate_type/2`
+%%   - Eliminate the 12 errors that `proper_typeserver:demo_translate_type/2`
 %%     currently returns. (Three of these errors are due to the incomplete
 %%     handling of maps.)
 %%   - Handle symbolic instances (the {'$call', ...} case below).
@@ -69,7 +69,7 @@ pick_instance({M,T,A,{ok,Gen}}) ->
   end.
 
 type_translation_is_ok({_M,_T,_A,{error,_}}) -> false;
-type_translation_is_ok({_M,_T,_A,{ok,{'$type',_}}}) -> true. 
+type_translation_is_ok({_M,_T,_A,{ok,{'$type',_}}}) -> true.
 
 %% Assumes that polymorphic types have at most two parameters.
 stringify(T, 0) -> atom_to_list(T)++"()";
