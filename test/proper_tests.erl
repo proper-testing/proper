@@ -1140,8 +1140,8 @@ options_test_() ->
      ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [{max_shrinks,0}]),
      ?_fails(?FORALL(_, integer(), false), [fails]),
      ?_assertRun({error,{cant_generate,[{?MODULE,options_test_,0}]}},
-		 ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X > 0), true),
-		 [{constraint_tries,0}], true),
+		 ?FORALL(_, ?SUCHTHAT(X, pos_integer(), X > 42), true),
+		 [{constraint_tries,1}], true),
      ?_failsWith([12],
 		 ?FORALL(_, ?SIZED(Size, integer(Size, Size)), false),
 		 [{start_size,12}])].
@@ -1229,7 +1229,7 @@ adts3_test_() ->
 parameter_test_() ->
     ?_passes(?FORALL(List, [zero1(),zero2(),zero3(),zero4()],
 		     begin
-			 [?assertMatch(undefined, proper_types:parameter(P))
+			 [?assertEqual(undefined, proper_types:parameter(P))
 			  || P <- [x1,x2,y2,x3,y3,x4,y4,v,w,z]],
 			 lists:all(fun is_zero/1, List)
 		     end)).
