@@ -60,7 +60,9 @@
 -define(GEN_NEXT_DEPTH,  proper_gen_next_cache_depth).
 
 -type temperature() :: float().
--type nf() :: fun((pos_integer(), temperature()) -> term()).
+-type depth() :: pos_integer().
+-type nf_temp() :: temperature() | {depth(), temperature()} | null.
+-type nf() :: fun((term(), nf_temp()) -> proper_types:type()).
 -type matcher() :: fun((term(), proper_types:raw_type(), temperature()) -> term()).
 
 -spec update_caches('accept' | 'reject') -> 'ok'.
@@ -78,7 +80,7 @@ from_proper_generator(RawGenerator) ->
 
 ensure_initialized() ->
   L = [?GEN_NEXT_CACHE, ?GEN_NEXT_BACKUP, ?GEN_NEXT_DEPTH, ?SEED_NAME,
-       '$any_type', '$left', '$constraint_tries', '$typeserver_pid'],
+       '$left', '$constraint_tries', '$typeserver_pid'],
   case lists:any(fun(X) -> get(X) =:= undefined end, L) of
     true ->
       %% not correctly initialized
@@ -131,7 +133,8 @@ replace_generators(RawGen) ->
       %% replaced generator
       UnrestrictedGenerator = Replacer(Gen),
       RestrictedGenerator = apply_constraints(UnrestrictedGenerator, Gen),
-      apply_temperature_scaling(RestrictedGenerator);
+      TemperaturedGenerator = apply_temperature_scaling(RestrictedGenerator),
+      apply_parameters(TemperaturedGenerator, Gen);
     _ ->
       %% fallback
       case proper_types:is_type(Gen) of
@@ -195,12 +198,25 @@ restrict_generation(Gen, B, T, TriesLeft, Type, WeakInstance) ->
 
 apply_temperature_scaling(Generator) ->
   fun (Base, Temp) ->
-      %%     Generator(Base, Temp)
       case Temp of
         {Depth, Temperature} -> Generator(Base, {Depth + 1, Temperature});
         null -> Generator(Base, null);
         _ -> Generator(Base, {1, Temp})
       end
+  end.
+
+apply_parameters(Generator, RawType) ->
+  MaybeParameters = proper_types:find_prop(parameters, RawType),
+  fun (Base, Temp) ->
+      BaseType = ?LAZY(Generator(Base, Temp)),
+      Type = case MaybeParameters of
+               {ok, Parameters} ->
+                 proper_types:with_parameters(Parameters, BaseType);
+               error ->
+                 BaseType
+             end,
+      {ok, Generated} = proper_gen:safe_generate(Type),
+      Generated
   end.
 
 adjust_temperature({Depth, Temperature}) ->

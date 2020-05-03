@@ -139,6 +139,7 @@ init_strategy(#{search_steps := Steps, search_strategy := Strat}) ->
   Data = Strategy:init_strategy(Steps),
   {ok, TargetserverPid} = gen_server:start_link(?MODULE, [{Strategy, Data}], []),
   put('$targetserver_pid', TargetserverPid),
+  update_pdict(),
   ok.
 
 %% @doc Cleans up proper_gen_next as well as stopping the gen_server.
@@ -165,10 +166,28 @@ targeted(RawType) ->
     error -> proper_types:add_prop(is_user_nf, false, TargetedType)
   end.
 
+%% Update the gen_server's process dictionary with some of
+%% PropEr's values in its process dictionary.
+
+update_pdict() ->
+  TargetserverPid = get('$targetserver_pid'),
+  gen_server:call(TargetserverPid, {update_pdict, get()}).
+
+-spec update_pdict([atom()]) -> ok.
+update_pdict(Keys) ->
+  update_pdict(Keys, []).
+
+update_pdict([], KVs) ->
+  TargetserverPid = get('$targetserver_pid'),
+  gen_server:call(TargetserverPid, {update_pdict, KVs});
+update_pdict([Key | Keys], KVs) ->
+  update_pdict(Keys, [{Key, get(Key)} | KVs]).
+
 %% @doc Initialize the target of the strategy.
 
 -spec init_target(proper_types:type()) -> ok.
 init_target(RawType) ->
+  update_pdict(['$left', '$size']),
   Type = proper_types:cook_outer(RawType),
   TargetserverPid = get('$targetserver_pid'),
   safe_call(TargetserverPid, {init_target, Type}).
@@ -180,6 +199,7 @@ init_target(RawType) ->
 %% @private
 -spec targeted_gen() -> any().
 targeted_gen() ->
+  update_pdict(['$left', '$size']),
   TargetserverPid = get('$targetserver_pid'),
   gen_server:call(TargetserverPid, gen).
 
@@ -224,7 +244,7 @@ reset() ->
 safe_call(Pid, Call) ->
   try
     gen_server:call(Pid, Call)
-  catch 
+  catch
     _:{noproc, _} ->
       ok
   end.
@@ -266,19 +286,27 @@ handle_call(gen, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,
   {NextValue, NewTarget, NewData} = Strat:next(Target, Data),
   {reply, NextValue, State#state{target = NewTarget, data = NewData}};
+
 handle_call(shrinker, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,
   Shrinker = Strat:get_shrinker(Target, Data),
   {reply, Shrinker, State};
+
 handle_call({init_target, Type}, _From, State) ->
   #state{strategy = Strat} = State,
   NextFun = proper_gen_next:from_proper_generator(Type),
   NewTarget = Strat:init_target(Type, NextFun),
   {reply, ok, State#state{target = NewTarget}};
+
+handle_call({update_pdict, KVs}, _From, State) ->
+  lists:foreach(fun ({K, V}) -> put(K, V) end, KVs),
+  {reply, ok, State};
+
 handle_call({update_fitness, Fitness}, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,
   {NewTarget, NewData} = Strat:update_fitness(Fitness, Target, Data),
   {reply, ok, State#state{target = NewTarget, data = NewData}};
+
 handle_call(reset, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,
   {NewTarget, NewData} = Strat:reset(Target, Data),

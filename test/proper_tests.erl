@@ -774,7 +774,7 @@ cant_generate_test_() ->
     [?_test(assert_cant_generate(Type)) || Type <- impossible_types()].
 
 proper_exported_types_test_() ->
-    [?_assertEqual({[],11}, proper_exported_types_test:not_handled())].
+    [?_assertEqual({[],12}, proper_exported_types_test:not_handled())].
 
 %%------------------------------------------------------------------------------
 %% Verify that failing constraints are correctly reported
@@ -965,6 +965,16 @@ true_props_test_() ->
 			  ?FORALL(X, ?SIZED(Size,Size),
 				  begin inc_temp(X),true end),
 			  [{numtests,3},{start_size,4},{max_size,4}]),
+     ?_assertTempBecomesN(30, true,
+                          ?FORALL_TARGETED(X, ?USERNF(?SIZED(Size,Size),
+                                                      fun (_, _) -> ?SIZED(Size, Size) end),
+                                           begin inc_temp(X),true end),
+                          [{numtests,12},{max_size,4}]),
+     ?_assertTempBecomesN(12, true,
+                          ?FORALL_TARGETED(X, ?USERNF(?SIZED(Size,Size),
+                                                      fun (_, _) -> ?SIZED(Size, Size) end),
+                                           begin inc_temp(X),true end),
+                          [{numtests,3},{start_size,4},{max_size,4}]),
      ?_passes(?FORALL(X, integer(), ?IMPLIES(abs(X) > 1, X * X > X))),
      ?_passes(?FORALL(X, integer(), ?IMPLIES(X >= 0, true))),
      ?_passes(?FORALL({X,Lim}, {int(),?SIZED(Size,Size)}, abs(X) =< Lim)),
@@ -1237,6 +1247,12 @@ parameter_test_() ->
 			  || P <- [x1,x2,y2,x3,y3,x4,y4,v,w,z]],
 			 lists:all(fun is_zero/1, List)
 		     end)).
+
+parameter_targeted_test_() ->
+  BaseType = ?LAZY(proper_types:parameter(param)),
+  UserNF = ?USERNF(BaseType, fun (_, _) -> BaseType end),
+  Type = proper_types:with_parameter(param, 1, UserNF),
+  ?_passes(?FORALL_TARGETED(X, Type, X =:= 1)).
 
 zip_test_() ->
     [?_assertEqual(proper_statem:zip(X, Y), Expected)
