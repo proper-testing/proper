@@ -222,7 +222,7 @@
 %%%
 %%% == Stateful Targeted Testing ==
 %%% During testing of the system's behavior, there may be some failing command
-%%% sequencies that the default property based testing does not find with ease,
+%%% sequences that the random property based testing does not find with ease,
 %%% or at all. In these cases, stateful targeted property based testing can help
 %%% find such edge cases, provided a utility value.
 %%%
@@ -244,7 +244,7 @@
 -module(proper_statem).
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
-	       targeted_commands/1, targeted_commands/2, more_commands/2]).
+         targeted_commands/1, targeted_commands/2, more_commands/2]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).

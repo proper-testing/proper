@@ -150,7 +150,7 @@
 %%%
 %%% == Stateful Targeted Testing ==
 %%% During testing of the system's behavior, there may be some failing command
-%%% sequencies that the default property based testing does not find with ease,
+%%% sequences that the random property based testing does not find with ease,
 %%% or at all. In these cases, stateful targeted property based testing can help
 %%% find such edge cases, provided a utility value.
 %%%

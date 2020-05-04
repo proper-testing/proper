@@ -144,7 +144,7 @@ handle_info(_Msg, S) ->
   {noreply, S}.
 
 terminate(_Reason, _S) ->
-  {ok}.
+  ok.
 
 code_change(_OldVsn, S, _Extra) ->
   {ok, S}.
