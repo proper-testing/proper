@@ -219,18 +219,40 @@
 %%% For PropEr to be able to detect race conditions, the code of the system
 %%% under test should be instrumented with `erlang:yield/0' calls to the
 %%% scheduler.
+%%%
+%%% == Stateful Targeted Testing ==
+%%% During testing of the system's behavior, there may be some failing command
+%%% sequences that the random property based testing does not find with ease,
+%%% or at all. In these cases, stateful targeted property based testing can help
+%%% find such edge cases, provided a utility value.
+%%%
+%%% ```prop_targeted_testing() ->
+%%%        ?FORALL_TARGETED(Cmds, proper_statem:targeted_commands(?MODULE),
+%%%                         begin
+%%%                             {History, State, Result} = proper_statem:run_commands(?MODULE, Cmds),
+%%%                             UV = uv(History, State, Result),
+%%%                             ?MAXIMIZE(UV),
+%%%                             cleanup(),
+%%%                             Result =:= ok
+%%%                         end).'''
+%%%
+%%% Νote that the `UV' value can be computed in any way fit, depending on the
+%%% use case. `uv/3' is used here as a dummy function which computes the
+%%% utility value.
 %%% @end
 
 -module(proper_statem).
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
-	 more_commands/2]).
+         targeted_commands/1, targeted_commands/2, more_commands/2]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
+%% Exported for PropEr internal usage.
+-export([next_weights/2, next_gen/2, next_gen/3]).
 
 
--export_type([symbolic_var/0, symbolic_call/0, statem_result/0]).
+-export_type([symbolic_var/0, symbolic_call/0, statem_result/0, next_fun/0]).
 
 
 -include("proper_internal.hrl").
@@ -240,6 +262,11 @@
 
 -define(COMMANDS_SZ_FACTOR, '$commands_size_factor').
 -define(RESIZE_FACTOR, proper_types:parameter(?COMMANDS_SZ_FACTOR, 1)).
+-define(SELECT_COMMAND(M, S, W),
+        case M of
+          proper_fsm -> proper_fsm:select_command(S, W);
+          _ -> select_command(M, S, W)
+        end).
 
 %% -----------------------------------------------------------------------------
 %% Exported only for testing purposes
@@ -278,11 +305,15 @@
 -type indices()     :: [index()].
 -type combination() :: [{pos_integer(),indices()}].
 -type lookup()      :: orddict:orddict(index(),command()).
+-type weights()     :: #{term() => pos_integer()}.
+-type next_base()   :: {weights(), command_list()}.
+-type next_temp()   :: {proper_gen_next:depth(), proper_gen_next:temperature()}.
+-type next_fun()    :: fun((next_base(), next_temp()) -> proper_types:type()).
 
 
 %% -----------------------------------------------------------------------------
 %% Proper_statem behaviour callback functions
-%% ----------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------
 
 -callback initial_state() -> symbolic_state().
 
@@ -294,7 +325,6 @@
 
 -callback next_state(symbolic_state() | dynamic_state(), term(),
 		     symbolic_call()) -> symbolic_state() | dynamic_state().
-
 
 %% -----------------------------------------------------------------------------
 %% Sequential command generation
@@ -461,6 +491,188 @@ move_shrinker(Seq, Par, I) ->
 		 [{Seq ++ Slice, remove_slice(I, Slice, Par)}
 		  || Slice <- get_slices(lists:nth(I, Par))]),
 	 move_shrinker(NewSeq, NewPar, I-1)).
+
+
+%% -----------------------------------------------------------------------------
+%% Targeted command generation
+%% -----------------------------------------------------------------------------
+
+
+%% @doc A special PropEr type which generates random command sequences,
+%% according to an abstract state machine specification and taking into
+%% consideration a utility value. The function takes as input the name of
+%% a callback module, which contains the state machine specification. The
+%% initial state is computed by `Mod:initial_state/0'.
+
+-spec targeted_commands(mod_name()) -> proper_types:type().
+targeted_commands(Mod) ->
+  proper_types:add_prop(is_user_nf_stateful, true,
+                        ?USERNF(targeted_commands_gen(Mod),
+                                next_commands_gen(Mod))).
+
+%% @doc Similar to {@link targeted_commands/1}, but generated command sequences
+%% always start at a given state. In this case, the first command is always
+%% `{init, InitialState}' and is used to correctly initialize the state
+%% every time the command sequence is run (i.e. during normal execution,
+%% while shrinking and when checking a counterexample). In this case,
+%% `Mod:initial_state/0' is not called.
+
+-spec targeted_commands(mod_name(), symbolic_state()) -> proper_types:type().
+targeted_commands(Mod, InitialState) ->
+  proper_types:add_prop(is_user_nf_stateful, true,
+                        ?USERNF(targeted_commands_gen(Mod, InitialState),
+                                next_commands_gen(Mod, InitialState))).
+
+%% @private
+-spec targeted_commands_gen(mod_name()) -> proper_types:type().
+targeted_commands_gen(Mod) ->
+  InitialState = Mod:initial_state(),
+  ?LET(Cmds, ?LAZY(commands(Mod)),
+       {finalize_weights(Mod, InitialState, Cmds, maps:new()), Cmds}).
+
+%% @private
+-spec targeted_commands_gen(mod_name(), symbolic_state()) ->
+        proper_types:type().
+targeted_commands_gen(Mod, InitialState) ->
+  ?LET(Cmds, ?LAZY(commands(Mod, InitialState)),
+       {finalize_weights(Mod, InitialState, Cmds, maps:new()), Cmds}).
+
+%% @private
+-spec next_commands_gen(mod_name()) -> next_fun().
+next_commands_gen(Mod) ->
+  fun ({Weights, _Cmds}, {_D, T}) ->
+      NewWeights = next_weights(Weights, T),
+      CmdsGen = next_gen(Mod, NewWeights),
+      InitialState = Mod:initial_state(),
+      ?SHRINK(
+         ?LET(Cmds, ?LAZY(CmdsGen),
+              {finalize_weights(Mod, InitialState, Cmds, NewWeights), Cmds}),
+         [CmdsGen])
+  end.
+
+%% @private
+-spec next_commands_gen(mod_name(), symbolic_state()) -> next_fun().
+next_commands_gen(Mod, InitialState) ->
+  fun ({Weights, _Cmds}, {_D, T}) ->
+      NewWeights = next_weights(Weights, T),
+      CmdsGen = next_gen(Mod, NewWeights, InitialState),
+      ?SHRINK(
+         ?LET(Cmds, ?LAZY(CmdsGen),
+              {finalize_weights(Mod, InitialState, Cmds, NewWeights), Cmds}),
+         [CmdsGen])
+  end.
+
+%% Produce the new random weights by adding or removing an integer
+%% value to the existing weights.
+
+%% @private
+-spec next_weights(weights(), proper_gen_next:temperature()) -> weights().
+next_weights(Weights, Temp) ->
+  Factor = round(Temp),
+  Base = ?RESIZE_FACTOR,
+  Low = -Base - Factor,
+  High = Base + Factor,
+  maps:map(fun (_Key, W) ->
+               max(1, W + proper_arith:rand_int(Low, High))
+           end, Weights).
+
+%% Used to return the generator for the commands of the targeted
+%% generation.
+
+%% @private
+-spec next_gen(mod_name(), weights()) -> proper_types:type().
+next_gen(Mod, Weights) ->
+  ?LET(InitialState, ?LAZY(Mod:initial_state()),
+       ?SUCHTHAT(
+          Cmds,
+          ?LET(List,
+               ?SIZED(Size,
+                      proper_types:noshrink(
+                        next_gen(Mod, Weights, InitialState,
+                                 Size * ?RESIZE_FACTOR, 1))),
+               proper_types:shrink_list(List)),
+          is_valid(Mod, InitialState, Cmds, []))).
+
+%% Used to return the generator for the commands of the targeted
+%% generation with an initial state provided by the user.
+
+%% @private
+-spec next_gen(mod_name(), weights(), symbolic_state()) -> proper_types:type().
+next_gen(Mod, Weights, InitialState) ->
+  ?SUCHTHAT(Cmds,
+            ?LET(CmdTail,
+                 ?LET(List,
+                      ?SIZED(Size,
+                             proper_types:noshrink(
+                               next_gen(Mod, Weights, InitialState,
+                                        Size * ?RESIZE_FACTOR, 1))),
+                      proper_types:shrink_list(List)),
+                 [{init, InitialState} | CmdTail]),
+            is_valid(Mod, InitialState, Cmds, [])).
+
+-spec next_gen(mod_name(), weights(), symbolic_state(), proper_gen:size(),
+               pos_integer()) -> proper_types:type().
+next_gen(Mod, Weights, State, Size, Count) ->
+  ?LAZY(proper_types:frequency(
+          [{1, []},
+           {Size, ?LET(Call,
+                       ?SUCHTHAT(X, ?SELECT_COMMAND(Mod, State, Weights),
+                                 Mod:precondition(State, X)),
+                       begin
+                         Var = {var, Count},
+                         NextState = Mod:next_state(State, Var, Call),
+                         ?LET(Cmds,
+                              next_gen(Mod, Weights, NextState,
+                                       Size - 1, Count + 1),
+                              [{set, Var, Call} | Cmds])
+                       end)}])).
+
+%% Commands are selected according to the weights found in the
+%% map provided, or from a `weight/1' callback.
+
+-spec select_command(mod_name(), symbolic_state(), weights()) ->
+        proper_types:type().
+select_command(Mod, State, Weights) ->
+  SelectAux =
+    fun ({call, _Mod, Call, _Args} = SymbCall) ->
+        Weight = maps:get(Call, Weights, 1),
+        {Weight, SymbCall};
+        ({Freq, {call, _Mod, Call, _Args} = SymbCall}) ->
+        Weight = max(Freq, maps:get(Call, Weights, Freq)),
+        {Weight, SymbCall}
+    end,
+  Cmds = get_commands(Mod:command(State)),
+  WeightedCmds = lists:map(SelectAux, Cmds),
+  proper_types:frequency(WeightedCmds).
+
+%% Track all the commands and add unknown to the weights map.
+
+-spec finalize_weights(mod_name(), symbolic_state(), command_list(),
+                       weights()) -> weights().
+finalize_weights(_Mod, _State, [], Weights) -> Weights;
+finalize_weights(Mod, InitialState, Cmds, Weights) ->
+  FinWeightsAux =
+    fun ({init, _InitialState}, Acc) -> Acc;
+        ({set, Var, SymbCall}, {State, Ws}) ->
+        FoldAux =
+          fun ({call, _Mod, Call, _Args}, Acc) ->
+              case maps:is_key(Call, Acc) of
+                true -> Acc;
+                false -> maps:put(Call, 1, Acc)
+              end;
+              ({Freq, {call, _Mod, Call, _Args}}, Acc) ->
+              case maps:is_key(Call, Acc) of
+                true -> Acc;
+                false -> maps:put(Call, Freq, Acc)
+              end
+          end,
+        NextState = Mod:next_state(State, Var, SymbCall),
+        AllCmds = get_commands(Mod:command(State)),
+        NewWs = lists:foldl(FoldAux, Ws, AllCmds),
+        {NextState, NewWs}
+    end,
+  {_S, NewWeights} = lists:foldl(FinWeightsAux, {InitialState, Weights}, Cmds),
+  NewWeights.
 
 
 %% -----------------------------------------------------------------------------
@@ -981,3 +1193,65 @@ spawn_link_cp(ActualFun) ->
 	      ActualFun()
 	  end,
     spawn_link(Fun).
+
+-spec get_commands(proper_types:type()) ->
+        [symbolic_call()] | [{proper_types:frequency(), symbolic_call()}].
+get_commands(RawType) ->
+  Matchers = [{fun is_tuple_type/1, fun get_commands_tuple/1},
+              {fun is_oneof_type/1, fun get_commands_oneof/1},
+              {fun is_frequency_type/1, fun get_commands_frequency/1}],
+  (fun Aux([]) -> throw(type_not_supported);
+       Aux([{Guard, Getter} | Rest]) ->
+       case Guard(RawType) of
+         true -> Getter(RawType);
+         false -> Aux(Rest)
+       end
+  end)(Matchers).
+
+-spec has_same_generator(proper_types:type(), proper_types:type()) -> boolean().
+has_same_generator(RawType, RefType) ->
+  Type = proper_types:cook_outer(RawType),
+  MaybeGen = proper_types:find_prop(generator, Type),
+  MaybeRefGen = proper_types:find_prop(generator, RefType),
+  case {MaybeGen, MaybeRefGen} of
+    {{ok, Gen}, {ok, Gen}} -> true;
+    _ -> false
+  end.
+
+-spec is_tuple_type(proper_types:type()) -> boolean().
+is_tuple_type(RawType) ->
+  has_same_generator(RawType, proper_types:tuple([])).
+
+-spec get_commands_tuple(proper_types:type()) -> [symbolic_call()].
+get_commands_tuple(RawType) ->
+  Type = proper_types:cook_outer(RawType),
+  InternalTypes = proper_types:get_prop(internal_types, Type),
+  {CallType, ModType, CmdType, Args} = InternalTypes,
+  call = proper_types:get_prop(env, CallType),
+  Mod = proper_types:get_prop(env, ModType),
+  Cmd = proper_types:get_prop(env, CmdType),
+  [{call, Mod, Cmd, Args}].
+
+-spec is_oneof_type(proper_types:type()) -> boolean().
+is_oneof_type(RawType) ->
+  has_same_generator(RawType, proper_types:union([undefined])).
+
+-spec get_commands_oneof(proper_types:type()) -> [symbolic_call()].
+get_commands_oneof(RawType) ->
+  Type = proper_types:cook_outer(RawType),
+  Env = proper_types:get_prop(env, Type),
+  lists:flatmap(fun get_commands_tuple/1, Env).
+
+-spec is_frequency_type(proper_types:type()) -> boolean().
+is_frequency_type(RawType) ->
+  has_same_generator(RawType, proper_types:frequency([{1, undefined}])).
+
+-spec get_commands_frequency(proper_types:type()) ->
+        [{proper_types:frequency(), symbolic_call()}].
+get_commands_frequency(RawType) ->
+  Type = proper_types:cook_outer(RawType),
+  Env = proper_types:get_prop(env, Type),
+  SubEnv = proper_types:get_prop(subenv, Type),
+  Cmds = lists:flatmap(fun get_commands_tuple/1, Env),
+  Freqs = [element(1, X) || X <- SubEnv],
+  lists:zip(Freqs, Cmds).

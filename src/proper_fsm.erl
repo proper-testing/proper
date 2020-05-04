@@ -147,14 +147,37 @@
 %%%                    cleanup(),
 %%%                    Result =:= ok
 %%%                end).'''
+%%%
+%%% == Stateful Targeted Testing ==
+%%% During testing of the system's behavior, there may be some failing command
+%%% sequences that the random property based testing does not find with ease,
+%%% or at all. In these cases, stateful targeted property based testing can help
+%%% find such edge cases, provided a utility value.
+%%%
+%%% ```prop_targeted_testing() ->
+%%%        ?FORALL_TARGETED(Cmds, proper_fsm:targeted_commands(?MODULE),
+%%%                         begin
+%%%                             {History, State, Result} = proper_fsm:run_commands(?MODULE, Cmds),
+%%%                             UV = uv(History, State, Result),
+%%%                             ?MAXIMIZE(UV),
+%%%                             cleanup(),
+%%%                             Result =:= ok
+%%%                         end).'''
+%%%
+%%% Νote that the `UV' value can be computed in any way fit, depending on the
+%%% use case. `uv/3' is used here as a dummy function which computes the
+%%% utility value.
 %%% @end
 
 -module(proper_fsm).
 
 -export([commands/1, commands/2, run_commands/2, run_commands/3,
 	 state_names/1]).
+-export([targeted_commands/1, targeted_commands/2]).
 -export([command/1, precondition/2, next_state/3, postcondition/3]).
 -export([target_states/4]).
+%% Exported for PropEr internal usage.
+-export([select_command/2]).
 
 -include("proper_internal.hrl").
 
@@ -179,6 +202,9 @@
 -type history()      :: [{fsm_state(),cmd_result()}].
 -type tmp_command()  :: {'init',state()}
 		      | {'set',symbolic_var(),symbolic_call()}.
+-type weights()      :: #{{state_name(), state_name(), term()} =>
+                            pos_integer()}.
+-type next_fun()     :: proper_statem:next_fun().
 
 -record(state, {name :: state_name(),
 		data :: state_data(),
@@ -188,7 +214,7 @@
 
 %% -----------------------------------------------------------------------------
 %% Proper_fsm behaviour callback functions
-%% ----------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------
 
 -callback initial_state() -> state_name().
 
@@ -236,6 +262,33 @@ commands(Mod, {Name,Data} = InitialState) ->
     ?LET([_|Cmds],
 	 proper_statem:commands(?MODULE, State),
 	 [{init,InitialState}|Cmds]).
+
+%% @doc A special PropEr type which generates targeted command sequences,
+%% according to a finite state machine specification and taking into
+%% consideration a utility value. The function takes as input the name of
+%% the callback module, which contains the fsm specification.
+%% The initial state is computed by <br/>
+%% `{Mod:initial_state/0, Mod:initial_state_data/0}'.
+
+-spec targeted_commands(mod_name()) -> proper_types:type().
+targeted_commands(Mod) ->
+  proper_types:add_prop(is_user_nf_stateful, true,
+                        ?USERNF(targeted_commands_gen(Mod),
+                                next_commands_gen(Mod))).
+
+%% @doc Similar to {@link targeted_commands/1}, but generated command
+%% sequences always start at a given state. In this case, the first
+%% command is always <br/>
+%% `{init, InitialState = {Name, Data}}' and is used to correctly
+%% initialize the state every time the command sequence is run (i.e.
+%% during normal execution, while shrinking and when checking a
+%% counterexample).
+
+-spec targeted_commands(mod_name(), fsm_state()) -> proper_types:type().
+targeted_commands(Mod, InitialState) ->
+  proper_types:add_prop(is_user_nf_stateful, true,
+                        ?USERNF(targeted_commands_gen(Mod, InitialState),
+                                next_commands_gen(Mod, InitialState))).
 
 %% @doc Evaluates a given symbolic command sequence `Cmds' according to the
 %% finite state machine specified in `Mod'. The result is a triple of the
@@ -316,6 +369,108 @@ next_state(S = #state{name = From, data = Data, mod = Mod} , Var, Call) ->
 postcondition(#state{name = From, data = Data, mod = Mod}, Call, Res) ->
     To = cook_history(From, transition_target(Mod, From, Data, Call)),
     Mod:postcondition(From, To, Data, Call, Res).
+
+
+%% -----------------------------------------------------------------------------
+%% Targeted command generation
+%% -----------------------------------------------------------------------------
+
+
+-spec targeted_commands_gen(mod_name()) -> proper_types:type().
+targeted_commands_gen(Mod) ->
+  State = initial_state(Mod),
+  ?LET([_ | Cmds], proper_statem:commands(?MODULE, State),
+       {finalize_weights(State, Cmds, maps:new()), Cmds}).
+
+-spec targeted_commands_gen(mod_name(), fsm_state()) -> proper_types:type().
+targeted_commands_gen(Mod, {Name, Data} = InitialState) ->
+  State = #state{name = Name, data = Data, mod = Mod},
+  ?LET([_ | Cmds], proper_statem:commands(?MODULE, State),
+       {finalize_weights(State, Cmds, maps:new()),
+        [{init, InitialState} | Cmds]}).
+
+-spec next_commands_gen(mod_name()) -> next_fun().
+next_commands_gen(Mod) ->
+  fun ({Weights, _Cmds}, {_D, T}) ->
+      State = initial_state(Mod),
+      NewWeights = proper_statem:next_weights(Weights, T),
+      CmdsGen = ?LET([_ | Cmds],
+                     proper_statem:next_gen(?MODULE, NewWeights, State),
+                     Cmds),
+      ?SHRINK(
+         ?LET(Cmds, ?LAZY(CmdsGen),
+              {finalize_weights(State, Cmds, NewWeights), Cmds}),
+         [CmdsGen])
+  end.
+
+-spec next_commands_gen(mod_name(), fsm_state()) -> next_fun().
+next_commands_gen(Mod, {Name, Data} = InitialState) ->
+  fun ({Weights, _Cmds}, {_D, T}) ->
+      State = #state{name = Name, data = Data, mod = Mod},
+      NewWeights = proper_statem:next_weights(Weights, T),
+      CmdsGen = ?LET([_ | Cmds],
+                     proper_statem:next_gen(?MODULE, NewWeights, State),
+                     [{init, InitialState} | Cmds]),
+      ?SHRINK(
+         ?LET(Cmds, ?LAZY(CmdsGen),
+              {finalize_weights(State, Cmds, NewWeights), Cmds}),
+         [CmdsGen])
+  end.
+
+%% Commands are selected according to the weights found in the
+%% map provided, or from a `weight/3' callback.
+
+%% @private
+-spec select_command(state(), weights()) -> proper_types:type().
+select_command(State, Weights) ->
+  #state{name = From, data = Data, mod = Mod} = State,
+  SelectAux =
+    fun ({To, {call, _Mod, Call, _Args} = SymbCall}) ->
+        RealTo = cook_history(From, To),
+        Key = {From, RealTo, Call},
+        Weight = case maps:is_key(Key, Weights) of
+                   true -> maps:get(Key, Weights);
+                   false ->
+                     case is_exported(Mod, {weight, 3}) of
+                       true -> Mod:weight(From, RealTo, SymbCall);
+                       false -> 1
+                     end
+                 end,
+        {Weight, SymbCall}
+    end,
+  Transitions = get_transitions(Mod, From, Data),
+  WeightedCmds = lists:map(SelectAux, Transitions),
+  proper_types:frequency(WeightedCmds).
+
+%% Track all the state transitions and add them to the weights map.
+
+-spec finalize_weights(state(), command_list(), weights()) -> weights().
+finalize_weights(_S, [], Weights) -> Weights;
+finalize_weights(InitialState, Cmds, Weights) ->
+  FinWeightsAux =
+    fun ({init, _InitialState}, Acc) -> Acc;
+        ({set, Var, SymbCall}, {State, Ws}) ->
+        #state{name = From, data = Data, mod = Mod} = State,
+        FoldAux =
+          fun ({To, {call, _M, Call, _A} = SC}, Acc) ->
+              RealTo = cook_history(From, To),
+              Key = {From, RealTo, Call},
+              W = case is_exported(Mod, {weight, 3}) of
+                    true -> Mod:weight(From, RealTo, SC);
+                    false -> 1
+                  end,
+              case maps:is_key(Key, Acc) of
+                true -> Acc;
+                false -> maps:put(Key, W, Acc)
+              end
+          end,
+        NextState = next_state(State, Var, SymbCall),
+        Transitions = get_transitions(Mod, From, Data),
+        NewWs = lists:foldl(FoldAux, Ws, Transitions),
+        {NextState, NewWs}
+    end,
+  {_S, NewWeights} = lists:foldl(FinWeightsAux, {InitialState, Weights}, Cmds),
+  NewWeights.
 
 
 %% -----------------------------------------------------------------------------

@@ -257,7 +257,7 @@ temperature_function_standard_sa(_OldTemperature,
                                  K_Max,
                                  K_Current,
                                  _Accepted) ->
-  {1.0 - (K_Current / K_Max), K_Current + 1}.
+  {1.0 - min(1, K_Current / K_Max), K_Current + 1}.
 
 get_temperature_function() ->
   case get(proper_sa_tempfunc) of
