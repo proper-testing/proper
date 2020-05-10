@@ -51,12 +51,15 @@ dialyzer: .plt/proper_plt compile
 check_escripts:
 	./scripts/check_escripts.sh make_doc
 
-test:
+test: compile
 ifeq ($(COVER), true)
 	$(REBAR3) do eunit -c, cover, covertool generate
 else
 	$(REBAR3) eunit
 endif
+
+test-examples:
+	$(REBAR3) eunit --dir=examples_test
 
 doc: compile
 	./scripts/make_doc

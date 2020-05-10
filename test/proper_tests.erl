@@ -1390,59 +1390,10 @@ sampleshrink_test_() ->
         ?_shrinksTo([a], Gen)},
        ?_test(proper_gen:sampleshrink(Gen))]}].
 
-%%------------------------------------------------------------------------------
-%% Test that the examples work
-%%------------------------------------------------------------------------------
-
 examples_are_ok_test_() ->
-    [{timeout, 42, ?_assertEqual([], proper:module(M))}
-     || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
+  [{timeout, 42, ?_assertEqual([], proper:module(M))}
+   || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
 
-%% test the properties of the `magic' example.
-example_magic_props_test_() ->
-    %% no point shrinking testx executed only for checking that they fail
-    FailOpts = [{numtests,10000}, noshrink],
-    [?_passes(magic:prop_spells_random(), [500]),  % let's hope we are unlucky
-     {timeout, 180, ?_failsChk(magic:prop_spells_targeted_auto(), FailOpts)},
-     {timeout, 180, ?_failsChk(magic:prop_spells_targeted_user(), FailOpts)}].
-
-%% test the unary properties of the `labyrinth' example.
-example_labyrinth_props_test_() ->
-    FailOpts = [{numtests,7500}, noshrink],        % see comment above
-    M0 = labyrinth:maze(0), M1 = labyrinth:maze(1), M2 = labyrinth:maze(2),
-    [?_failsWith([[left,left,left,left,left,left]],       % run 500 tests,
-		 labyrinth:prop_exit_random(M0), [500]),  % for safety
-     ?_failsWith([[left,left,left,left,left,left]],
-		 labyrinth:prop_exit_targeted_user(M0)),
-     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_user(M1), FailOpts)},
-     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_user(M2), FailOpts)},
-     {timeout, 42, ?_failsChk(labyrinth:prop_exit_targeted_auto(M2), FailOpts)}].
-
-%% test the unary properties of the `mastermind' example.
-example_mastermind_props_test_() ->
-    Properties = [prop_all_produced_solutions_are_valid,
-		  %% prop_secret_combination_is_not_discarded,
-		  prop_invalidated_instances_reject_original_secret],
-    Strategies = [heur, simple, stream],
-    [ ?_passes(mastermind:prop_secret_combination_is_not_discarded(heur)),
-     {timeout, 20,
-      ?_passes(mastermind:prop_secret_combination_is_not_discarded(simple))}
-    |[{timeout, 10,
-       ?_passes(mastermind:Prop(S))} || Prop <- Properties, S <- Strategies]].
-
-%% test the properties of `car_statem' example.
-example_car_statem_props_test_() ->
-  FailOpts = [{numtests,1000}, {constraint_tries,1000}, noshrink],
-  [{timeout, 42, ?_passes(car_statem:prop_distance(), [500])},
-   {timeout, 600, ?_failsChk(car_statem:prop_distance_targeted(), FailOpts)},
-   {timeout, 600, ?_failsChk(car_statem:prop_distance_targeted_init(), FailOpts)}].
-
-%% test the properties of `car_fsm' example.
-example_car_fsm_props_test_() ->
-  FailOpts = [{numtests,1000}, {constraint_tries,1000}, noshrink],
-  [{timeout, 42, ?_passes(car_fsm:prop_distance(), [500])},
-   {timeout, 600, ?_failsChk(car_fsm:prop_distance_targeted(), FailOpts)},
-   {timeout, 600, ?_failsChk(car_fsm:prop_distance_targeted_init(), FailOpts)}].
 
 %%------------------------------------------------------------------------------
 %% Performance tests
