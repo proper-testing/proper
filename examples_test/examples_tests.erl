@@ -110,14 +110,14 @@ example_mastermind_props_test_() ->
 
 %% test the properties of `car_statem' example.
 example_car_statem_props_test_() ->
-  FailOpts = [{numtests,1000}, {constraint_tries,1000}, noshrink],
+  FailOpts = [{numtests,1000}, noshrink],
   [{timeout, 42, ?_passes(car_statem:prop_distance(), [500])},
-   {timeout, 600, ?_fails(car_statem:prop_distance_targeted(), FailOpts)},
-   {timeout, 600, ?_fails(car_statem:prop_distance_targeted_init(), FailOpts)}].
+   {timeout, 42, ?_fails(car_statem:prop_distance_targeted(), FailOpts)},
+   {timeout, 42, ?_fails(car_statem:prop_distance_targeted_init(), FailOpts)}].
 
 %% test the properties of `car_fsm' example.
 example_car_fsm_props_test_() ->
-  FailOpts = [{numtests,1000}, {constraint_tries,1000}, noshrink],
+  FailOpts = [{numtests,1000}, noshrink],
   [{timeout, 42, ?_passes(car_fsm:prop_distance(), [500])},
-   {timeout, 600, ?_fails(car_fsm:prop_distance_targeted(), FailOpts)},
-   {timeout, 600, ?_fails(car_fsm:prop_distance_targeted_init(), FailOpts)}].
+   {timeout, 42, ?_fails(car_fsm:prop_distance_targeted(), FailOpts)},
+   {timeout, 42, ?_fails(car_fsm:prop_distance_targeted_init(), FailOpts)}].
