@@ -997,7 +997,9 @@ true_stateful_test_() ->
      {timeout, 20, ?_passes(ets_statem_test:prop_parallel_ets())},
      {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
      {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
-     {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())}].
+     {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())},
+     {timeout, 42, ?_passes(targeted_statem:prop_random(), [{numtests,500}])},
+     {timeout, 42, ?_passes(targeted_fsm:prop_random(), [{numtests,500}])}].
 
 false_props_test_() ->
     [?_failsWith([[_Same,_Same]],
@@ -1088,6 +1090,13 @@ false_props_test_() ->
      ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner()),
      {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
      ?_fails(post_false:prop_simple())].
+
+false_stateful_test_() ->
+  Opts = [{numtests,1000}],
+  [{timeout, 42, ?_fails(targeted_statem:prop_targeted(), Opts)},
+   {timeout, 42, ?_fails(targeted_statem:prop_targeted_init(), Opts)},
+   {timeout, 42, ?_fails(targeted_fsm:prop_targeted(), Opts)},
+   {timeout, 42, ?_fails(targeted_fsm:prop_targeted_init(), Opts)}].
 
 exception_props_test_() ->
      [?_fails(error_statem:prop_simple())].

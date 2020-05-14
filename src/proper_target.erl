@@ -97,8 +97,7 @@
 -record(state,
         {strategy           :: strategy(),
          target = undefined :: target_state() | undefined,
-         data = undefined   :: strategy_data() | undefined,
-         stateful = false   :: boolean()}).
+         data = undefined   :: strategy_data() | undefined}).
 -type state() :: #state{}.
 
 -export_type([strategy/0, fitness/0, search_steps/0]).
@@ -155,7 +154,6 @@ cleanup_strategy() ->
       gen_server:stop(TargetserverPid)
   end.
 
-
 %% This is used to create the targeted generator.
 
 %% @private
@@ -192,21 +190,8 @@ update_pdict([Key | Keys], KVs) ->
 init_target(RawType) ->
   update_pdict(['$left', '$size']),
   Type = proper_types:cook_outer(RawType),
-  case proper_types:find_prop(is_user_nf_stateful, Type) of
-    {ok, true} -> init_stateful();
-    {ok, false} -> ok;
-    error -> ok
-  end,
   TargetserverPid = get('$targetserver_pid'),
   safe_call(TargetserverPid, {init_target, Type}).
-
-%% Initialize stateful configuration.
-
-%% @private
--spec init_stateful() -> ok.
-init_stateful() ->
-  TargetserverPid = get('$targetserver_pid'),
-  safe_call(TargetserverPid, init_stateful).
 
 %% This produces the next gen instance from the next
 %% generator provided by the strategy. It will also
@@ -284,12 +269,6 @@ strategy(Strat) ->
       Strat
   end.
 
-%% @private
-get_stateful_cmds({'$used', Used, {Weights, Cmds}})
-  when is_map(Weights), is_list(Cmds) ->
-  get_stateful_cmds(Used);
-get_stateful_cmds(Cmds) -> Cmds.
-
 %% -----------------------------------------------------------------------------
 %% gen_server callbacks
 %% -----------------------------------------------------------------------------
@@ -306,11 +285,7 @@ init([{Strategy, Data}]) ->
 handle_call(gen, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,
   {NextValue, NewTarget, NewData} = Strat:next(Target, Data),
-  Ret = case State#state.stateful of
-          true -> get_stateful_cmds(NextValue);
-          false -> NextValue
-        end,
-  {reply, Ret, State#state{target = NewTarget, data = NewData}};
+  {reply, NextValue, State#state{target = NewTarget, data = NewData}};
 
 handle_call(shrinker, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,
@@ -326,9 +301,6 @@ handle_call({init_target, Type}, _From, State) ->
 handle_call({update_pdict, KVs}, _From, State) ->
   lists:foreach(fun ({K, V}) -> put(K, V) end, KVs),
   {reply, ok, State};
-
-handle_call(init_stateful, _From, State) ->
-  {reply, ok, State#state{stateful = true}};
 
 handle_call({update_fitness, Fitness}, _From, State) ->
   #state{strategy = Strat, target = Target, data = Data} = State,

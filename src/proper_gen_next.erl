@@ -184,7 +184,8 @@ restrict_generation(_, _, T, 0, Type, none) ->
 restrict_generation(_, _, _, 0, _, {ok, WeakInstance}) -> WeakInstance;
 restrict_generation(Gen, B, T, TriesLeft, Type, WeakInstance) ->
   Instance = Gen(B, T),
-  case proper_types:satisfies_all(Instance, Type) of
+  CleanInstance = proper_gen:clean_instance(Instance),
+  case proper_types:satisfies_all(CleanInstance, Type) of
     {true, true} ->
       %% strong
       Instance;

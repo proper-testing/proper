@@ -51,7 +51,7 @@
 %% -----------------------------------------------------------------------------
 
 
--define(DISTANCE, 1500).
+-define(DISTANCE, 1000).
 
 
 %% -----------------------------------------------------------------------------
@@ -254,7 +254,7 @@ next_state(S, _V, {call, _, refuel, [Value]}) ->
 
 %% Vanilla property based testing. This should not fail consistently.
 prop_distance() ->
-  ?FORALL(Cmds, more_commands(2, commands(?MODULE)),
+  ?FORALL(Cmds, commands(?MODULE),
           ?TRAPEXIT(
              begin
                start_link(),
@@ -269,7 +269,7 @@ prop_distance() ->
 %% provides failing command sequencies more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, more_commands(2, targeted_commands(?MODULE)),
+     Cmds, targeted_commands(?MODULE),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -286,7 +286,7 @@ prop_distance_targeted() ->
 prop_distance_targeted_init() ->
   State = initial_state(),
   ?FORALL_TARGETED(
-     Cmds, more_commands(2, targeted_commands(?MODULE, State)),
+     Cmds, targeted_commands(?MODULE, State),
      ?TRAPEXIT(
         begin
           start_link(),
