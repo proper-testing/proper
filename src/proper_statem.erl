@@ -556,12 +556,17 @@ next_commands(Mod, InitialState) ->
 -spec next_commands(mod_name(), symbolic_state(), command_list(),
                     proper_gen:size(), threshold()) ->
         proper_types:type().
-next_commands(Mod, InitialState, [_H | _T] = Cmds, Size, 0) ->
+next_commands(Mod, InitialState, [_ | _] = Cmds, Size, 0) ->
   next_commands(Mod, InitialState, Cmds, Size, 1);
 next_commands(Mod, InitialState, Cmds, Size, MaxRemovals) ->
+  %% Try to remove commands after the maximum current size is reached.
+  Threshold = case Size > length(Cmds) of
+                true -> 0;
+                false -> MaxRemovals
+              end,
   ?LET(LessCmds,
        ?LET(LessRCmds,
-            remove_cmds(lists:reverse(Cmds), MaxRemovals),
+            remove_cmds(lists:reverse(Cmds), Threshold),
             lists:reverse(LessRCmds)),
        ?LET(CmdsTail,
             begin
@@ -575,10 +580,9 @@ next_commands(Mod, InitialState, Cmds, Size, MaxRemovals) ->
 
 -spec remove_cmds(command_list(), threshold()) -> proper_types:type().
 remove_cmds(Cmds, Threshold) ->
-  Freq = max(0, min(1, Threshold)),
   ?LAZY(proper_types:frequency(
           [{1, proper_types:exactly(Cmds)},
-           {Freq, ?LAZY(remove_cmds(tl(Cmds), Threshold - 1))}])).
+           {Threshold, ?LAZY(remove_cmds(tl(Cmds), Threshold - 1))}])).
 
 
 %% -----------------------------------------------------------------------------

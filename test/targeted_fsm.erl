@@ -78,8 +78,8 @@ postcondition(_, _, S, {call, ets, lookup, [_, Key]}, R) ->
   proplists:lookup_all(Key, S) =:= R;
 postcondition(_, _, _S, _C, _R) -> true.
 
-empty_ets(_S) ->
-  [{non_empty_ets, {call, ets, insert, [?TAB, {unique_key([]), value()}]}}].
+empty_ets(S) ->
+  [{non_empty_ets, {call, ets, insert, [?TAB, {unique_key(S), value()}]}}].
 
 non_empty_ets(S) ->
   [{empty_ets, {call, ets, delete_all_objects, [?TAB]}},
