@@ -548,7 +548,7 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-		   num_workers      = 2               :: non_neg_integer(),
+		   num_workers      = 1               :: non_neg_integer(),
 		   parent           = self()          :: pid(),
                nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
@@ -987,7 +987,7 @@ parse_opt(UserOpt, Opts) ->
 	    ?VALIDATE_OPT(?NON_NEG_INTEGER(Size), Opts#opts{max_size = Size});
 	{numtests,N} ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
-    {num_workers, N} ->
+    {num_workers,N} ->
         ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{num_workers = N});
 	{on_output,Print} ->
 	    ?VALIDATE_OPT(is_function(Print, 2),
@@ -1336,7 +1336,7 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
--spec check_if_early_fail(non_neg_integer()) -> ok.
+-spec check_if_early_fail(non_neg_integer()) -> 'ok'.
 check_if_early_fail(Passed) ->
     Id = get('$property_id'),
     receive
@@ -2313,8 +2313,15 @@ start_node(SlaveName) ->
             Node
     end.
 
+code_load(Node, Module) ->
+    case code:get_object_code(Module) of
+        {Module, Binary, Filename} ->
+            rpc:call(Node, code, load_binary, [Module, Filename, Binary]);
+        error -> error
+    end.
+
 %% @private
--spec ensure_code_loaded(node()) -> ok.
+-spec ensure_code_loaded(node()) -> 'ok'.
 ensure_code_loaded(Node) ->
     %% get all the files that need to be loaded from the current directory
     Files = filelib:wildcard("**/*.beam"),
@@ -2324,6 +2331,10 @@ ensure_code_loaded(Node) ->
     Modules = lists:map(fun(File) ->
                   erlang:list_to_atom(erlang:binary_to_list(File))
               end, lists:flatten(FilesNoExt)),
+
+    lists:foreach(fun(Module) ->
+                  code_load(Node, Module)
+              end, Modules),
 
     %% spawn the functions needed to ensure that
     %% all modules are available on the node
@@ -2345,7 +2356,7 @@ start_nodes(NumNodes) ->
 
 %% @private
 %% @doc Stops all the registered (started) nodes.
--spec stop_nodes() -> ok.
+-spec stop_nodes() -> 'ok'.
 stop_nodes() ->
     Nodes = get(slave_node),
     NodesToStop = lists:filter(fun({_N, {already_running, Bool}}) -> not Bool end, Nodes),

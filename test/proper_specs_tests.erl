@@ -60,7 +60,7 @@ check3_specs_test_() ->
 %%------------------------------------------------------------------------------
 
 check1_specs_test() ->
-    Options = [quiet, long_result,
+    Options = [quiet, long_result, {num_workers, 0},
                {skip_mfas, [{?MODULE, check1_specs_test_, 0},
                             {?MODULE, check2_specs_test_, 0},
                             {?MODULE, check3_specs_test_, 0},
@@ -78,7 +78,7 @@ check1_specs_test() ->
     end.
 
 check2_specs_test() ->
-    Options = [quiet, long_result,
+    Options = [quiet, long_result, {num_workers, 0},
                {skip_mfas, [{?MODULE, check1_specs_test_, 0},
                             {?MODULE, check2_specs_test_, 0},
                             {?MODULE, check3_specs_test_, 0},

@@ -114,6 +114,10 @@ assertEqualsOneOf(X, List) ->
 	?_assertFailRun(none, ?FORALL(_X,Type,false),
 			?SHRINK_TEST_OPTS, [ExpShrunk])).
 
+-define(_shrinksTo(ExpShrunk, Type, Opts),
+	?_assertFailRun(none, ?FORALL(_X,Type,false),
+			?SHRINK_TEST_OPTS ++ Opts, [ExpShrunk])).
+
 -define(_shrinksToOneOf(AllShrunk, Type),
 	?_assertFailRun([[X] || X <- AllShrunk], ?FORALL(_X,Type,false),
 			?SHRINK_TEST_OPTS)).
@@ -761,7 +765,7 @@ constructed_types_test_() ->
 %%	 (start from valid Xs)
 shrinks_to_test_() ->
     All = simple_types_with_data() ++ constructed_types_with_data(),
-    [?_shrinksTo(Target, Type)
+    [?_shrinksTo(Target, Type, [{num_workers,0}])
      || {Type,_Xs,Target,_Ys,_TypeStr} <- All, Type =/= none].
 
 native_shrinks_to_test_() ->
