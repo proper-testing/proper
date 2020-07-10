@@ -1221,22 +1221,24 @@ perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers} = 
         {kind, Type} when Type =:= constructed; Type =:= wrapper ->
             % stateful or simulated annealing
             Nodes = start_nodes(NumWorkers),
+            ensure_code_loaded(Nodes),
             lists:zip(Nodes, TestsPerProcess);
         _ ->
             % stateless
             [Node] = start_nodes(1),
+            ensure_code_loaded([Node]),
             lists:map(fun(N) -> {Node, N} end, TestsPerProcess)
     end,
     {ok, _} = maybe_start_cover_server(NodeList),
     SpawnFun = fun({Node,N}) ->
         spawn_link_migrate(Node, fun() -> perform(N, Test, Opts) end)
     end,
-    ProcList = lists:map(SpawnFun, NodeList),
+    WorkerList = lists:map(SpawnFun, NodeList),
     InitialResult = #pass{samples = [], printers = [], actions = []},
-    Aggregate = aggregate_imm_result(ProcList, InitialResult),
+    AggregatedImmResult = aggregate_imm_result(WorkerList, InitialResult),
     ok = maybe_stop_cover_server(NodeList),
     ok = stop_nodes(),
-    Aggregate.
+    AggregatedImmResult.
 
 -spec retry(test(), counterexample(), opts()) -> short_result().
 retry(Test, CExm, Opts) ->
@@ -1338,12 +1340,12 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
--spec check_if_early_fail(non_neg_integer()) -> 'ok'.
-check_if_early_fail(Passed) ->
+-spec check_if_early_fail(non_neg_integer(), sample()) -> 'ok'.
+check_if_early_fail(Passed, Samples) ->
     Id = get('$property_id'),
     receive
-        {run_output, {failed_test, From}, Id} ->
-            From ! {performed, Passed, Id},
+        {worker_msg, {failed_test, From}, Id} ->
+            From ! {worker_msg, {performed, {Passed, Samples}, Id}},
             ok
         after 0 -> ok
     end.
@@ -1360,7 +1362,7 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers,
         0 -> {error, cant_satisfy};
         _ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
     end,
-    From ! {run_output, R, self(), get('$property_id')},
+    From ! {worker_msg, R, self(), get('$property_id')},
     ok;
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
     case Passed of
@@ -1369,16 +1371,15 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
     end;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
         #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
-    check_if_early_fail(ToPass),
     R = #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []},
-    From ! {run_output, R, self(), get('$property_id')},
+    check_if_early_fail(ToPass, Samples),
+    From ! {worker_msg, R, self(), get('$property_id')},
     ok;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
-        #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts)
-        when NumWorkers > 0 ->
-    check_if_early_fail(Passed),
+        #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts) when NumWorkers > 0 ->
+    check_if_early_fail(Passed, Samples),
     case run(Test, Opts) of
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
@@ -1394,7 +1395,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 	#fail{} = FailResult ->
 	    Print("!", []),
         R = FailResult#fail{performed = Passed + 1},
-        From ! {run_output, R, self(), get('$property_id')},
+        From ! {worker_msg, R, self(), get('$property_id')},
         ok;
     {error, rejected} ->
 	    Print("x", []),
@@ -1404,16 +1405,16 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
     {error, Reason} = Error when Reason =:= arity_limit
 			      orelse Reason =:= non_boolean_result
 			      orelse Reason =:= type_mismatch ->
-	    From ! {run_output, Error, self(), get('$property_id')},
+	    From ! {worker_msg, Error, self(), get('$property_id')},
         ok;
 	{error, {cant_generate,_MFAs}} = Error ->
-	    From ! {run_output, Error, self(), get('$property_id')},
+	    From ! {worker_msg, Error, self(), get('$property_id')},
         ok;
 	{error, {typeserver,_SubReason}} = Error ->
-	    From ! {run_output, Error, self(), get('$property_id')},
+	    From ! {worker_msg, Error, self(), get('$property_id')},
         ok;
 	Other ->
-        From ! {run_output, {error, {unexpected,Other}}, self(), get('$property_id')},
+        From ! {worker_msg, {error, {unexpected, Other}}, self(), get('$property_id')},
         ok
     end;
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
@@ -2092,33 +2093,34 @@ apply_skip(Args, Prop) ->
 -spec aggregate_imm_result(list(pid()), imm_result()) -> imm_result().
 aggregate_imm_result([], ImmResult) ->
     ImmResult;
-aggregate_imm_result(ProcList, #pass{performed = Passed} = ImmResult) ->
+aggregate_imm_result(WorkerList, #pass{performed = Passed, samples = Samples} = ImmResult) ->
     Id = get('$property_id'),
     receive
-        % in case we didnt receive anything yet we use the first pass
-        {run_output, #pass{} = Received, From, Id} when Passed == undefined ->
-                aggregate_imm_result(ProcList -- [From], Received);
-        % from that moment on, we accumulate the count of tests passed
-        {run_output, #pass{performed = PassedRcvd} = _Received, From, Id} ->
-            NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd},
-            aggregate_imm_result(ProcList -- [From], NewImmResult);
-        {run_output, #fail{performed = FailedOn} = Received, From, Id} ->
-            lists:foreach(fun(P) -> P ! {run_output, {failed_test, self()}, Id} end, ProcList -- [From]),
-            ToSum = lists:map(fun(_Proccess) ->
+        % if we haven't received anything yet we use the first pass
+        {worker_msg, #pass{} = Received, From, Id} when Passed == undefined ->
+            aggregate_imm_result(WorkerList -- [From], Received);
+        % from that moment on, we accumulate the count of passed tests
+        {worker_msg, #pass{performed = PassedRcvd, samples = SamplesRcvd}, From, Id} ->
+            NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd,
+                                          samples = Samples ++ SamplesRcvd},
+            aggregate_imm_result(WorkerList -- [From], NewImmResult);
+        {worker_msg, #fail{performed = FailedOn} = Received, From, Id} ->
+            lists:foreach(fun(P) ->
+                            P ! {worker_msg, {failed_test, self()}, Id} end,
+                    WorkerList -- [From]),
+            Sum = lists:foldl(fun(Process, Sum) ->
                                 receive
-                                    {performed, P, Id} -> P;
-                                    {run_output, #fail{performed = FailedOn2} = _Received2, _From2, Id} -> FailedOn2
+                                    {worker_msg, {performed, P, Id}} -> P + Sum;
+                                    {worker_msg, #fail{performed = FailedOn2}, Process, Id} -> FailedOn2 + Sum
                                 end
-                             end,
-                    ProcList -- [From]),
-            Sum = lists:sum(ToSum),
-            kill_workers(ProcList),
+                             end, 0, WorkerList -- [From]),
+            kill_workers(WorkerList),
             aggregate_imm_result([], Received#fail{performed = Sum + FailedOn});
-        {run_output, {error, _Reason} = Error, _From, Id} ->
-            kill_workers(ProcList),
+        {worker_msg, {error, _Reason} = Error, _From, Id} ->
+            kill_workers(WorkerList),
             aggregate_imm_result([], Error);
         {'EXIT', From, _ExcReason} ->
-            aggregate_imm_result(ProcList -- [From], ImmResult)
+            aggregate_imm_result(WorkerList -- [From], ImmResult)
     end.
 
 -spec report_imm_result(imm_result(), opts()) -> 'ok'.
@@ -2307,11 +2309,9 @@ start_node(SlaveName) ->
     case slave:start_link(HostName, SlaveName) of
         {ok, Node} ->
             _ = update_slave_node_ref({Node, {already_running, false}}),
-            ensure_code_loaded(Node),
             Node;
         {error, {already_running, Node}} ->
             _ = update_slave_node_ref({Node, {already_running, true}}),
-            ensure_code_loaded(Node),
             Node
     end.
 
@@ -2333,34 +2333,37 @@ maybe_stop_cover_server(NodeList) ->
             cover:stop(Nodes)
     end.
 
-code_load(Node, Module) ->
-    case code:get_object_code(Module) of
-        {Module, Binary, Filename} ->
-            rpc:call(Node, code, load_binary, [Module, Filename, Binary]);
-        error -> error
+%% @private
+-spec maybe_load_binary([node()], module()) -> 'ok' | 'error'.
+maybe_load_binary(Nodes, Module) ->
+    %% we check if the module was either preloaded or cover_compiled
+    %% and in such cases ignore those
+    case code:is_loaded(Module) of
+        {file, Loaded} when is_list(Loaded) ->
+            case code:get_object_code(Module) of
+                {Module, Binary, Filename} ->
+                    _ = rpc:multicall(Nodes, code, load_binary, [Module, Filename, Binary]),
+                    ok;
+                error -> error
+            end;
+        _ -> ok
     end.
 
 %% @private
--spec ensure_code_loaded(node()) -> 'ok'.
-ensure_code_loaded(Node) ->
+-spec ensure_code_loaded([node()]) -> 'ok'.
+ensure_code_loaded(Nodes) ->
     %% get all the files that need to be loaded from the current directory
     Files = filelib:wildcard("**/*.beam"),
     Filenames = lists:map(fun filename:basename/1, Files),
     %% but we only need the filename without the .beam extension
-    FilesNoExt = lists:map(fun(File) -> re:replace(File, ".beam", "") end, Filenames),
     Modules = lists:map(fun(File) ->
-                  erlang:list_to_atom(erlang:binary_to_list(File))
-              end, lists:flatten(FilesNoExt)),
+                  erlang:list_to_atom(re:replace(File, ".beam", "", [{return,list}]))
+              end, Filenames),
 
-    lists:foreach(fun(Module) ->
-                  code_load(Node, Module)
-              end, Modules),
-
-    %% spawn the functions needed to ensure that
-    %% all modules are available on the node
-    Path = code:get_path(),
-    spawn(Node, fun() -> lists:foreach(fun code:add_patha/1, Path) end),
-    spawn(Node, fun() -> code:ensure_modules_loaded(Modules) end),
+    %% call the functions needed to ensure that all modules are available on the nodes
+    lists:foreach(fun(Module) -> maybe_load_binary(Nodes, Module) end, Modules),
+    lists:foreach(fun(P) -> rpc:multicall(Nodes, code, add_patha, [P]) end, code:get_path()),
+    _ = rpc:multicall(Nodes, code, ensure_modules_loaded, [Modules]),
     ok.
 
 %% @private
@@ -2386,15 +2389,15 @@ stop_nodes() ->
     ok.
 
 %% @private
-%% @doc Kills, not before unlinking them, all the workers.
+%% @doc Unlinks and kills all the workers.
 -spec kill_workers(list(pid())) -> ok.
-kill_workers(ProcList) ->
+kill_workers(WorkerList) ->
     UnlinkAndKill =
     fun(P) ->
         unlink(P),
         exit(P, kill)
     end,
-    lists:foreach(UnlinkAndKill, ProcList).
+    lists:foreach(UnlinkAndKill, WorkerList).
 
 %%-----------------------------------------------------------------------------
 %% Stats printing functions
