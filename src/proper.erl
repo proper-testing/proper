@@ -404,6 +404,9 @@
 
 -include("proper_internal.hrl").
 
+% No need to warn of this for now
+-dialyzer({no_unused, [size_at_nth_test/2, perform/4]}).
+
 %%-----------------------------------------------------------------------------
 %% Macros
 %%-----------------------------------------------------------------------------
@@ -521,7 +524,7 @@
 		  | {'max_shrinks',non_neg_integer()}
 		  | {'max_size',proper_gen:size()}
 		  | {'numtests',pos_integer()}
-          | {'num_workers', non_neg_integer()}
+		  | {'num_workers', non_neg_integer()}
 		  | {'on_output',output_fun()}
 		  | {'search_steps',pos_integer()}
 		  | {'search_strategy',proper_target:strategy()}
@@ -548,9 +551,9 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-		   num_workers      = 1               :: non_neg_integer(),
-		   parent           = self()          :: pid(),
-               nocolors         = false           :: boolean()}).
+	       num_workers      = 1               :: non_neg_integer(),
+	       parent           = self()          :: pid(),
+	       nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
 -record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
 	      bound    = []  :: imm_testcase() | counterexample(),
@@ -666,6 +669,33 @@ tests_at_next_size(Size, #opts{numtests = NumTests, start_size = StartSize,
 	    {1, NextSize}
     end.
 
+-spec size_at_nth_test(non_neg_integer(), opts()) -> proper_gen:size().
+size_at_nth_test(NumTest, #opts{max_size = MaxSize, start_size = StartSize,
+                 numtests = NumTests}) ->
+    SizesToTest = MaxSize - StartSize + 1,
+    Size = case NumTests >= SizesToTest of
+        true ->
+            Div = NumTests div SizesToTest,
+            Rem = NumTests rem SizesToTest,
+            case NumTest < Rem * (Div + 1) of
+                true ->
+                    NumTest div (Div + 1) + StartSize;
+                false ->
+                    (NumTest div 2) - (Rem div Div) + StartSize
+            end;
+        false ->
+            case NumTest == 0 of
+                true -> StartSize;
+                false ->
+                    Diff = (SizesToTest - 1) div (NumTests - 1),
+                    NumTest * Diff + StartSize
+            end
+    end,
+    case Size >= MaxSize of
+        true -> MaxSize;
+        false -> Size
+    end.
+
 %% @private
 -spec get_size(proper_types:type()) -> proper_gen:size() | 'undefined'.
 get_size(Type) ->
@@ -701,7 +731,7 @@ global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
     grow_size(Opts),
     put('$constraint_tries', CTries),
     put('$any_type', AnyType),
-    put('$property_id', erlang:system_time()),
+    put('$property_id', erlang:unique_integer()),
     {_, _, _} = Seed, % just an assertion
     proper_arith:rand_restart(Seed),
     proper_typeserver:restart(),
@@ -757,10 +787,10 @@ finalize_test(Finalizers) ->
 spawn_link_migrate(Node, ActualFun) ->
     PDictStuff = get(),
     Fun = fun() ->
-	      lists:foreach(fun({K,V}) -> put(K,V) end, PDictStuff),
-	      proper_arith:rand_reseed(),
-	      ok = ActualFun()
-	  end,
+            lists:foreach(fun({K,V}) -> put(K,V) end, PDictStuff),
+            proper_arith:rand_reseed(),
+            ok = ActualFun()
+          end,
     case Node of
         undefined ->
             spawn_link(Fun);
@@ -1198,6 +1228,7 @@ inner_test(RawTest, Opts) ->
 	false -> ShortResult
     end.
 
+%% @private
 -spec property_type(test()) -> tuple() | false.
 property_type({forall, {_, {'$type', TList}}, _}) when is_list(TList) ->
    lists:keyfind(kind, 1, TList);
@@ -1215,19 +1246,18 @@ property_type(_) -> {}.
 %% avoid test collisions between them.
 -spec perform_with_nodes(test(), opts()) -> imm_result().
 perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers} = Opts) ->
-    TestsPerProcess = tests_per_worker(NumTests, NumWorkers),
-    NodeList =
-    case property_type(Test) of
+    TestsPerWorker = tests_per_worker(NumTests, NumWorkers),
+    NodeList = case property_type(Test) of
         {kind, Type} when Type =:= constructed; Type =:= wrapper ->
             % stateful or simulated annealing
             Nodes = start_nodes(NumWorkers),
             ensure_code_loaded(Nodes),
-            lists:zip(Nodes, TestsPerProcess);
+            lists:zip(Nodes, TestsPerWorker);
         _ ->
             % stateless
             [Node] = start_nodes(1),
             ensure_code_loaded([Node]),
-            lists:map(fun(N) -> {Node, N} end, TestsPerProcess)
+            lists:map(fun(N) -> {Node, N} end, TestsPerWorker)
     end,
     {ok, _} = maybe_start_cover_server(NodeList),
     SpawnFun = fun({Node,N}) ->
@@ -1340,22 +1370,29 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
--spec check_if_early_fail(non_neg_integer(), sample()) -> 'ok'.
-check_if_early_fail(Passed, Samples) ->
+-spec check_if_early_fail(non_neg_integer()) -> 'ok'.
+check_if_early_fail(Passed) ->
     Id = get('$property_id'),
     receive
         {worker_msg, {failed_test, From}, Id} ->
-            From ! {worker_msg, {performed, {Passed, Samples}, Id}},
+            From ! {worker_msg, {performed, Passed, Id}},
             ok
         after 0 -> ok
     end.
 
+-spec perform(non_neg_integer(), test(), opts()) -> imm_result().
 perform(NumTests, Test, Opts) ->
     perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
+-spec perform(non_neg_integer(), pos_integer(), test(), opts()) -> imm_result() | 'ok'.
+perform(Passed, NumTests, Test, Opts) ->
+    Size = size_at_nth_test(Passed, Opts),
+    put('$size', Size),
+    perform(0, NumTests, 3 * ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
+
 -spec perform(non_neg_integer(), pos_integer(), non_neg_integer(), test(),
 	      [sample()] | 'none', [stats_printer()] | 'none', opts()) ->
-      imm_result() | ok.
+      imm_result() | 'ok'.
 perform(Passed, _ToPass, 0, _Test, Samples, Printers,
         #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
     R = case Passed of
@@ -1372,14 +1409,14 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
         #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
     R = #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []},
-    check_if_early_fail(ToPass, Samples),
+    check_if_early_fail(ToPass),
     From ! {worker_msg, R, self(), get('$property_id')},
     ok;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
         #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts) when NumWorkers > 0 ->
-    check_if_early_fail(Passed, Samples),
+    check_if_early_fail(Passed),
     case run(Test, Opts) of
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
@@ -2100,6 +2137,11 @@ aggregate_imm_result(WorkerList, #pass{performed = Passed, samples = Samples} = 
         {worker_msg, #pass{} = Received, From, Id} when Passed == undefined ->
             aggregate_imm_result(WorkerList -- [From], Received);
         % from that moment on, we accumulate the count of passed tests
+        {worker_msg, #pass{performed = PassedRcvd, samples = SamplesRcvd}, From, Id}
+                when Samples == [none] ->
+            NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd,
+                                          samples = SamplesRcvd},
+            aggregate_imm_result(WorkerList -- [From], NewImmResult);
         {worker_msg, #pass{performed = PassedRcvd, samples = SamplesRcvd}, From, Id} ->
             NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd,
                                           samples = Samples ++ SamplesRcvd},
@@ -2108,14 +2150,14 @@ aggregate_imm_result(WorkerList, #pass{performed = Passed, samples = Samples} = 
             lists:foreach(fun(P) ->
                             P ! {worker_msg, {failed_test, self()}, Id} end,
                     WorkerList -- [From]),
-            Sum = lists:foldl(fun(Process, Sum) ->
+            Performed = lists:foldl(fun(Worker, Acc) ->
                                 receive
-                                    {worker_msg, {performed, P, Id}} -> P + Sum;
-                                    {worker_msg, #fail{performed = FailedOn2}, Process, Id} -> FailedOn2 + Sum
+                                    {worker_msg, {performed, P, Id}} -> P + Acc;
+                                    {worker_msg, #fail{performed = FailedOn2}, Worker, Id} -> FailedOn2 + Acc
                                 end
                              end, 0, WorkerList -- [From]),
             kill_workers(WorkerList),
-            aggregate_imm_result([], Received#fail{performed = Sum + FailedOn});
+            aggregate_imm_result([], Received#fail{performed = Performed + FailedOn});
         {worker_msg, {error, _Reason} = Error, _From, Id} ->
             kill_workers(WorkerList),
             aggregate_imm_result([], Error);
@@ -2352,13 +2394,13 @@ maybe_load_binary(Nodes, Module) ->
 %% @private
 -spec ensure_code_loaded([node()]) -> 'ok'.
 ensure_code_loaded(Nodes) ->
-    %% get all the files that need to be loaded from the current directory
+    %% we get all the files that need to be loaded from the current directory
     Files = filelib:wildcard("**/*.beam"),
-    Filenames = lists:map(fun filename:basename/1, Files),
-    %% but we only need the filename without the .beam extension
-    Modules = lists:map(fun(File) ->
-                  erlang:list_to_atom(re:replace(File, ".beam", "", [{return,list}]))
-              end, Filenames),
+    %% but we only care about the filename, without the .beam extension
+    Modules =
+        lists:map(fun(File) ->
+                    erlang:list_to_atom(filename:basename(File, ".beam"))
+                  end, Files),
 
     %% call the functions needed to ensure that all modules are available on the nodes
     lists:foreach(fun(Module) -> maybe_load_binary(Nodes, Module) end, Modules),
