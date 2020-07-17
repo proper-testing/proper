@@ -404,9 +404,6 @@
 
 -include("proper_internal.hrl").
 
-% No need to warn of this for now
--dialyzer({no_unused, [size_at_nth_test/2, perform/4]}).
-
 %%-----------------------------------------------------------------------------
 %% Macros
 %%-----------------------------------------------------------------------------
@@ -722,7 +719,7 @@ global_state_init_size_seed(Size, Seed) ->
 -spec global_state_init(opts()) -> 'ok'.
 global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
 			search_strategy = Strategy, search_steps = SearchSteps,
-			any_type = AnyType, seed = Seed} = Opts) ->
+			any_type = AnyType, seed = Seed, num_workers = NumWorkers} = Opts) ->
     clean_garbage(),
     put('$size', StartSize - 1),
     put('$left', 0),
@@ -732,6 +729,7 @@ global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
     put('$constraint_tries', CTries),
     put('$any_type', AnyType),
     put('$property_id', erlang:unique_integer()),
+    put('$proper_test_incr', NumWorkers),
     {_, _, _} = Seed, % just an assertion
     proper_arith:rand_restart(Seed),
     proper_typeserver:restart(),
@@ -757,6 +755,7 @@ global_state_erase() ->
     erase('$search_strategy'),
     erase('$search_steps'),
     erase('$property_id'),
+    erase('$proper_test_incr'),
     ok.
 
 -spec setup_test(opts()) -> [finalize_fun()].
@@ -1246,7 +1245,7 @@ property_type(_) -> {}.
 %% avoid test collisions between them.
 -spec perform_with_nodes(test(), opts()) -> imm_result().
 perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers} = Opts) ->
-    TestsPerWorker = tests_per_worker(NumTests, NumWorkers),
+    TestsPerWorker = test_list_per_worker(NumTests, NumWorkers),
     NodeList = case property_type(Test) of
         {kind, Type} when Type =:= constructed; Type =:= wrapper ->
             % stateful or simulated annealing
@@ -1260,8 +1259,8 @@ perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers} = 
             lists:map(fun(N) -> {Node, N} end, TestsPerWorker)
     end,
     {ok, _} = maybe_start_cover_server(NodeList),
-    SpawnFun = fun({Node,N}) ->
-        spawn_link_migrate(Node, fun() -> perform(N, Test, Opts) end)
+    SpawnFun = fun({Node, {Start, ToPass}}) ->
+        spawn_link_migrate(Node, fun() -> perform(Start, ToPass, Test, Opts) end)
     end,
     WorkerList = lists:map(SpawnFun, NodeList),
     InitialResult = #pass{samples = [], printers = [], actions = []},
@@ -1370,17 +1369,25 @@ get_rerun_result(#fail{}) ->
 get_rerun_result({error,_Reason} = ErrorResult) ->
     ErrorResult.
 
--spec check_if_early_fail(non_neg_integer()) -> 'ok'.
-check_if_early_fail(Passed) ->
+-spec check_if_early_fail() -> 'ok'.
+check_if_early_fail() ->
     Id = get('$property_id'),
     receive
         {worker_msg, {failed_test, From}, Id} ->
+            Passed = get('$tests_passed'),
             From ! {worker_msg, {performed, Passed, Id}},
             ok
         after 0 -> ok
     end.
 
--spec perform(non_neg_integer(), test(), opts()) -> imm_result().
+-spec update_tests_passed(non_neg_integer()) -> non_neg_integer().
+update_tests_passed(Passed) ->
+    case get('$tests_passed') of
+        undefined -> put('$tests_passed', Passed);
+        Passed2 -> put('$tests_passed', Passed + Passed2)
+    end.
+
+-spec perform(non_neg_integer(), test(), opts()) -> imm_result() | 'ok'.
 perform(NumTests, Test, Opts) ->
     perform(0, NumTests, ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
@@ -1388,7 +1395,7 @@ perform(NumTests, Test, Opts) ->
 perform(Passed, NumTests, Test, Opts) ->
     Size = size_at_nth_test(Passed, Opts),
     put('$size', Size),
-    perform(0, NumTests, 3 * ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
+    perform(Passed, NumTests, 3 * ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
 -spec perform(non_neg_integer(), pos_integer(), non_neg_integer(), test(),
 	      [sample()] | 'none', [stats_printer()] | 'none', opts()) ->
@@ -1399,6 +1406,7 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers,
         0 -> {error, cant_satisfy};
         _ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
     end,
+    update_tests_passed(Passed),
     From ! {worker_msg, R, self(), get('$property_id')},
     ok;
 perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
@@ -1409,14 +1417,14 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
         #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
     R = #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []},
-    check_if_early_fail(ToPass),
-    From ! {worker_msg, R, self(), get('$property_id')},
+    check_if_early_fail(),
+    From ! {worker_msg, R#pass{performed = floor(ToPass div NumWorkers + 1)}, self(), get('$property_id')},
     ok;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
         #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts) when NumWorkers > 0 ->
-    check_if_early_fail(Passed),
+    check_if_early_fail(),
     case run(Test, Opts) of
 	#pass{reason = true_prop, samples = MoreSamples,
 	      printers = MorePrinters} ->
@@ -1427,11 +1435,12 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 			      _    -> Printers
 			  end,
 	    grow_size(Opts),
-	    perform(Passed + 1, ToPass, TriesLeft - 1, Test,
+        update_tests_passed(floor((Passed + 1) div NumWorkers + 1)),
+	    perform(Passed + get('$proper_test_incr'), ToPass, TriesLeft - 1, Test,
 		    NewSamples, NewPrinters, Opts);
 	#fail{} = FailResult ->
 	    Print("!", []),
-        R = FailResult#fail{performed = Passed + 1},
+        R = FailResult#fail{performed = (Passed + 1) div NumWorkers + 1},
         From ! {worker_msg, R, self(), get('$property_id')},
         ok;
     {error, rejected} ->
@@ -2315,21 +2324,17 @@ report_shrinking(NumShrinks, MinImmTestCase, MinActions, Opts) ->
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
--spec tests_per_worker(list(pos_integer()), non_neg_integer(), list(pos_integer())) -> list(pos_integer()).
-tests_per_worker(L, 0, []) -> L;
-tests_per_worker(L, 0, Acc) -> Acc ++ L;
-tests_per_worker([], Extras, Acc) -> tests_per_worker(Acc, Extras, []);
-tests_per_worker([H|T], Extras, Acc) -> tests_per_worker(T, Extras - 1, Acc ++ [H + 1]).
-
--spec tests_per_worker(pos_integer(), non_neg_integer()) -> list(pos_integer()).
-tests_per_worker(NumTests, NumWorkers) when NumTests < NumWorkers ->
-    BaseList = lists:map(fun(_X) -> 1 end, lists:seq(1, NumTests)),
-    tests_per_worker(BaseList, 0, []);
-tests_per_worker(NumTests, NumWorkers) ->
-    Const = NumTests div NumWorkers,
-    Extras = NumTests rem NumWorkers,
-    BaseList = lists:map(fun(_X) -> Const end, lists:seq(1, NumWorkers)),
-    tests_per_worker(BaseList, Extras, []).
+-spec test_list_per_worker(pos_integer(), non_neg_integer()) -> [{non_neg_integer(), non_neg_integer()}].
+test_list_per_worker(NumTests, NumWorkers) ->
+    Decr = case NumTests of
+        1 -> 0;
+        _ -> 1
+    end,
+    Seq = lists:seq(1, NumWorkers),
+    lists:map(fun(X) ->
+                  L2 = lists:seq(X - 1, NumTests - Decr, NumWorkers),
+                  {_Start, _NumTests} = {hd(L2), lists:last(L2)}
+              end, Seq).
 
 %% @private
 -spec update_slave_node_ref({node(), {already_running, boolean()}}) -> list(node()).
