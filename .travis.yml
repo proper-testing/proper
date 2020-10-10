@@ -4,7 +4,7 @@ language: erlang
 script: make all
 
 _latest_otp_release: &latest_otp_release
-  otp_release: 23.1
+  otp_release: 23.1.1
 
 jobs:
   include:
@@ -20,7 +20,7 @@ jobs:
       language: erlang
       <<: *latest_otp_release
       script: make test-examples
-    - otp_release: 23.1
+    - otp_release: 23.1.1
     - otp_release: 23.0
     - otp_release: 22.3
     - otp_release: 22.0
