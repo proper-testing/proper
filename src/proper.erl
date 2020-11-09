@@ -2146,11 +2146,12 @@ plain_stats_printer(SortedSample, Print, Title) ->
     print_title(Title, Print),
     Total = length(SortedSample),
     PrFun = fun ({Cmd,Fr}) ->
-        case Fr =:= Total of
-          true  -> Print("100.0\% ~w~n", [Cmd]);
-          false -> Print("~5.2f\% ~w~n", [100 * Fr / Total,Cmd])
-        end
-    end,
+		%% ensure frequencies are always printed using five characters
+	        case Fr =:= Total of
+		    true  -> Print("100.0\% ~w~n", [Cmd]);
+		    false -> Print("~5.2f\% ~w~n", [100 * Fr / Total,Cmd])
+		end
+	    end,
     lists:foreach(PrFun, process_sorted_sample(SortedSample)).
 
 -spec print_title(title(), output_fun()) -> 'ok'.
