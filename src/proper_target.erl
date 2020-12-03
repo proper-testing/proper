@@ -63,7 +63,7 @@
 -module(proper_target).
 -behaviour(gen_server).
 
--include_lib("proper_internal.hrl").
+-include("proper_internal.hrl").
 
 
 %% -----------------------------------------------------------------------------
