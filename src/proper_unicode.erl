@@ -45,31 +45,14 @@
 %%% utf8 generators and {@link unicode} module in OTP.
 -module(proper_unicode).
 
+-export([utf8/0, utf8/1, utf8/2]).
+
 -include("proper_common.hrl").
 
 %% @private_type
 %% @alias
 -type nonnegextint()  :: non_neg_integer() | 'inf'.
 
--import(proper_types, [integer/2, union/1, vector/2]).
-
--export([utf8/0, utf8/1, utf8/2]).
-
-%% @doc Codepoint which is no more than N bytes in utf8
--spec unicode_codepoint(1..4) -> proper_types:type().
-unicode_codepoint(1) ->
-    integer(0, 16#7F);
-unicode_codepoint(2) ->
-    integer(16#80, 16#7FF);
-unicode_codepoint(3) ->
-    union([integer(16#800, 16#D7FF), integer(16#E000, 16#FFFD)]);
-unicode_codepoint(4) ->
-    integer(16#10000, 16#10FFFF).
-
-%% @doc codepoint up to N bytes in utf8
--spec unicode_codepoint_upto(1..4) -> proper_types:type().
-unicode_codepoint_upto(N) ->
-    union([unicode_codepoint(X) || X <- lists:seq(1, N)]).
 
 %% @doc utf8-encoded unbounded size binary.
 -spec utf8() -> proper_types:type().
@@ -92,8 +75,29 @@ utf8(N) ->
 utf8(N, MaxCodePointSize) ->
     ?LET(Str,
          vector_upto(N, unicode_codepoint_upto(MaxCodePointSize)),
-         unicode:characters_to_binary(Str)
-        ).
+         unicode:characters_to_binary(Str)).
+
+
+%% =============================================================================
+%% Internal functions
+%% =============================================================================
+
+%% @doc codepoint up to N bytes in utf8
+-spec unicode_codepoint_upto(1..4) -> proper_types:type().
+unicode_codepoint_upto(N) ->
+    proper_types:union([unicode_codepoint(X) || X <- lists:seq(1, N)]).
+
+%% @doc Codepoint which is no more than N bytes in utf8
+-spec unicode_codepoint(1..4) -> proper_types:type().
+unicode_codepoint(1) ->
+    proper_types:integer(0, 16#7F);
+unicode_codepoint(2) ->
+    proper_types:integer(16#80, 16#7FF);
+unicode_codepoint(3) ->
+    proper_types:union([proper_types:integer(16#800, 16#D7FF),
+			proper_types:integer(16#E000, 16#FFFD)]);
+unicode_codepoint(4) ->
+    proper_types:integer(16#10000, 16#10FFFF).
 
 %% =============================================================================
 %% Helpers
@@ -101,4 +105,4 @@ utf8(N, MaxCodePointSize) ->
 
 %% @doc List of no more than N elements
 vector_upto(N, What) ->
-    ?LET(X, integer(0, N), vector(X, What)).
+    ?LET(X, proper_types:integer(0, N), proper_types:vector(X, What)).
