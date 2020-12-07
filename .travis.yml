@@ -27,7 +27,6 @@ jobs:
     - otp_release: 21.0
     - otp_release: 20.3
     - otp_release: 20.0
-    - otp_release: 19.3
 
 cache:
    directories:

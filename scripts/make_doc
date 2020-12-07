@@ -3,7 +3,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -316,15 +316,9 @@ continue_after_header(CommLine, RevForms, [Form|Rest], TopFileName) ->
 	    continue_after_header(CommLine, [Form|RevForms], Rest, TopFileName)
     end.
 
--ifdef(AT_LEAST_20).
--define(CONTAINS_TEST(Str, Tag), string:find(Str, Tag) =/= nomatch).
--else.
--define(CONTAINS_TEST(Str, Tag), string:str(Str, Tag) =/= 0).
--endif.
-
 -spec contains_tag([string()], string()) -> boolean().
 contains_tag(Text, Tag) ->
-    StrContainsTag = fun(Str) -> ?CONTAINS_TEST(Str, Tag) end,
+    StrContainsTag = fun(Str) -> string:find(Str, Tag) =/= nomatch end,
     lists:any(StrContainsTag, Text).
 
 -spec replace(abs_form() | abs_type() | abs_rec_field() | abs_clause(),
