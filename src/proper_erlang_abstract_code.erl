@@ -53,7 +53,7 @@
 %%% test() ->
 %%%     ?FORALL(Abstr, proper_abstr:module(),
 %%%             ?WHENFAIL(
-%%%                begin 
+%%%                begin
 %%%                    io:format("~ts\n", [[erl_pp:form(F) || F <- Abstr]]),
 %%%                    compile(Abstr, [report_errors])
 %%%                end,
@@ -91,37 +91,43 @@
 %%% A function that generates atoms. The default function chooses
 %%% from 100 common English words.
 
+-type weight() :: non_neg_integer().
+-type limit() :: non_neg_integer().
+
 -type option() ::
         {'variables', [atom()]} |
-        {'weight', {Key :: atom(), Weight :: non_neg_integer()}} |
+        {'weight', {Key :: atom(), Weight :: weight()}} |
         {'function', [{FunctionName :: atom(), Arity :: arity()}]} |
         {'types', [{TypeName :: atom(), NumOfParms :: arity()}]} |
         {'records', [{RecordName:: atom(), [FieldName :: atom()]}]} |
-        {'limit', [{Name :: atom(), Limit :: pos_integer()}]} |
+        {'limit', [{Name :: atom(), Limit :: limit()}]} |
         {'char', char_fun()} |
         {'atom', atom_fun()} |
-        {'set_all_weights', non_neg_integer()}.
+        {'set_all_weights', weight()}.
 %%% See description below.
+
+-type fa() :: {atom(), arity()}.   % function+arity
+-type ta() :: {atom(), arity()}.   % type+arity
+-type rec() :: {RecordName :: atom(), [FieldName :: atom()]}.
 
 -record(gen_state,
         {
          size = 0 :: proper_gen:size(),
          result_type = 'program' :: 'program' | 'guard' | 'expr' | 'term',
-         functions = [] :: [{atom(), arity()}],
-         functions_and_auto_imported = []
-                    :: [{pos_integer(), {atom(), arity()}}],
-         expr_bifs = [] :: [{atom(), arity()}],
-         guard_bifs = [] :: [{atom(), arity()}],
-         named_funs = [] :: [{atom(), arity()}],
-         records = [] :: [{atom(), [atom()]}],
-         guard_records = [] :: [{atom(), [atom()]}],
-         types = [] :: [{atom(), non_neg_integer()}],
-         predef_types = [] :: [{atom(), non_neg_integer()}],
+         functions = [] :: [fa()],
+         functions_and_auto_imported = [] :: [{weight(), fa()}],
+         expr_bifs = [] :: [fa()],
+         guard_bifs = [] :: [fa()],
+         named_funs = [] :: [fa()],
+         records = [] :: [rec()],
+         guard_records = [] :: [rec()],
+         types = [] :: [ta()],
+         predef_types = [] :: [ta()],
          module :: module(),
          options = [] :: [option()],
-         weights = #{} :: #{Key :: atom() => Weight :: non_neg_integer()},
-         limits = #{} :: #{Key :: atom() => Limit :: non_neg_integer()},
-         variables = ordsets:new() :: [atom()],
+         weights = #{} :: #{Key :: atom() => Weight :: weight()},
+         limits = #{} :: #{Key :: atom() => Limit :: limit()},
+         variables = ordsets:new() :: ordsets:ordset(atom()),
          simple_char = fun default_simple_char/0 :: char_fun(),
          atom = fun default_atom/0 :: atom_fun(),
          resize = 'false' :: boolean()
@@ -130,10 +136,10 @@
 -record(post_state,
         {
          context = 'expr' :: 'expr' | 'type' | 'record' | 'pattern',
-         vars = ordsets:new() :: [atom()],
+         vars = ordsets:new() :: ordsets:ordset(atom()),
          vindex = 0 :: non_neg_integer(),
-         forbidden = ordsets:new() :: [atom()],
-         known_functions = [] :: [{atom(), arity()}],
+         forbidden = ordsets:new() :: ordsets:ordset(atom()),
+         known_functions = [] :: [fa()],
          atom = fun default_atom/0 :: atom_fun()
         }).
 
@@ -211,8 +217,8 @@ term() ->
 %%%    keys of the same group. The weight of <code>small</code> needs
 %%%    to quite high to avoid generating too deeply nested abstract
 %%%    code.</li> <ul>
-%%%      <li>Atomic expressions (<code>small</code>): <code>atom, bool, int,
-%%%        string, char, float, nil</code></li>
+%%%      <li>Atomic expressions (<code>small</code>): <code>atom, boolean,
+%%%        integer, string, char, float, nil</code></li>
 %%%      <li>Compound terms: <code>small, bitstring, list, tuple,
 %%%        map, 'fun'</code></li>
 %%%      <li>Map expressions (<code>map</code>): <code>build_map</code></li>
@@ -229,7 +235,7 @@ term() ->
 term(Opts) ->
     PreOpts = [{set_all_weights, 0}],
     Tags = [compound, small, bitstring, list, tuple, map, 'fun',
-            atom, bool, int, string, char, float, nil,
+            atom, boolean, integer, string, char, float, nil,
             bits, bytes,
             plain_list, cons,
             build_map,
@@ -340,8 +346,8 @@ module() ->
 %%%      <li>Declarations: <code>record_decl, type_decl, function_decl,
 %%%        function_spec</code> (<code>type_decl</code> and
 %%%        <code>function_spec</code> are off by default)</li>
-%%%      <li>Atomic expressions (<code>small</code>): <code>atom, bool, int,
-%%%        string, char, float, nil, pat_var, var</code></li>
+%%%      <li>Atomic expressions (<code>small</code>): <code>atom, boolean,
+%%%        integer, string, char, float, nil, pat_var, var</code></li>
 %%%      <li>Compound expressions: <code>small, bitstring, list, tuple,
 %%%        map, match, binop, unop, record, 'case', block, 'if', 'fun',
 %%%        'receive', 'try', 'catch', try_of, termcall, varcall, localcall,
@@ -383,7 +389,7 @@ module() ->
 %%%      <li>Overloaded function specifications: <code>
 %%%         no_overloaded, yes_overloaded</code></li>
 %%%      <li>Singleton integer type (<code>singleton_integer_type</code>):
-%%%         <code>int, char, unop, binop</code></li>
+%%%         <code>integer, char, unop, binop</code></li>
 %%%    </ul>
 %%% </ul>
 
@@ -398,8 +404,7 @@ module(Opts)  when is_list(Opts) ->
             TagWeights = get_weights(TopTags, State0),
             ?DEBUG(" TagWeights ~p\n", [TagWeights]),
             State = set_up(State0),
-            FormsL = lists:map(fun(TW) -> form(TW, TagWeights, State)
-                               end, TagWeights),
+            FormsL = [form(TW, TagWeights, State) || TW <- TagWeights],
             Fs = ([{attribute, anno(), module, State#gen_state.module}]
                   ++ lists:append(FormsL)),
             #gen_state{functions = Funs, atom = AtomGen} = State,
@@ -634,7 +639,7 @@ type_parameter() ->
     a_variable(type_parameter).
 
 type_attr() ->
-    proper_types:oneof(['opaque', 'type']).
+    proper_types:oneof(['type', 'opaque']).
 
 function_spec(S0, {F, N}) ->
     ?SIZED(Size,
@@ -660,12 +665,11 @@ abstract_expr(S) ->
 
 compound(#gen_state{size = 0}=S) ->
     wunion([small], S, ?FUNCTION_NAME); % assume weight(small) > 0
-compound(S0) ->
-    S = resize(S0),
-    wunion([small, bitstring, list, tuple, map, match, binop, unop,
+compound(S) ->
+    Tags = [small, bitstring, list, tuple, map, match, binop, unop,
             record, 'case', block, 'if', 'fun', 'receive', 'try',
             'catch', try_of, termcall, varcall, localcall, extcall],
-           S, ?FUNCTION_NAME).
+    wunion(Tags, resize(S), ?FUNCTION_NAME).
 
 a_map(S, abstract_type) ->
     map_type(S);
@@ -679,11 +683,9 @@ a_list(S, Where) ->
 plain_list(S, T) ->
     ?LET(L,
          list_of_gen(T, get_limit(list, S)),
-         begin
-             lists:foldr(fun(E, A) ->
-                                 {'cons', anno(), E, A}
-                         end, nil(), L)
-         end).
+         lists:foldr(fun(E, A) ->
+                             {'cons', anno(), E, A}
+                     end, nil(), L)).
 
 cons(_S, T) ->
     {'cons', anno(), T, T}.
@@ -717,9 +719,7 @@ varcall(S, T) ->
 localcall(S) ->
     ?LET({F, N},
          local_function_or_auto_imported(S),
-         begin
-             {'call', anno(), F, n_args(S, N)}
-         end).
+         {'call', anno(), F, n_args(S, N)}).
 
 extcall(S) ->
     proper_types:weighted_union(
@@ -782,8 +782,8 @@ qualifier_seq(S) ->
     non_empty_list_of_gen(qualifier(S), get_limit(qualifiers, S)).
 
 qualifier(S) ->
-    wunion([lc_gen, blc_gen, lc_any_filter, lc_guard_filter],
-           S, ?FUNCTION_NAME).
+    Tags = [lc_gen, blc_gen, lc_any_filter, lc_guard_filter],
+    wunion(Tags, S, ?FUNCTION_NAME).
 
 lc_gen(S) ->
     {'generate', anno(), pattern(S), abstract_expr(S)}.
@@ -797,9 +797,7 @@ blc_gen(S) ->
             [{WildBitsW, ?LAZY(abstract_expr(S))},
              {LiteralW, ?LAZY(bits(S, compound))}
             ])},
-         begin
-             {'b_generate', anno(), Pattern, Expr}
-         end).
+         {'b_generate', anno(), Pattern, Expr}).
 
 lc_any_filter(S) ->
     abstract_expr(S).
@@ -826,43 +824,27 @@ if_guard_seq(S) ->
     {'case', anno(), abstract_expr(S), clause_seq(S)}.
 
 'try'(S) ->
+    NESeq = non_empty_catch_clause_seq(S),
+    Seq = catch_clause_seq(S),
     ?LET(After,
          wunion([no_try_after, try_after], S, ?FUNCTION_NAME),
          case After of
              [] ->
-                 {'try',
-                  anno(),
-                  body(S),
-                  [],
-                  non_empty_catch_clause_seq(S),
-                  After};
+                 {'try', anno(), body(S), [], NESeq, After};
              _ ->
-                 {'try',
-                  anno(),
-                  body(S),
-                  [],
-                  catch_clause_seq(S),
-                  After}
+                 {'try', anno(), body(S), [], Seq, After}
          end).
 
 try_of(S) ->
+    NESeq = non_empty_catch_clause_seq(S),
+    Seq = catch_clause_seq(S),
     ?LET(After,
          wunion([no_try_after, try_after], S, ?FUNCTION_NAME),
          case After of
              [] ->
-                 {'try',
-                  anno(),
-                  body(S),
-                  clause_seq(S),
-                  non_empty_catch_clause_seq(S),
-                  After};
+                 {'try', anno(), body(S), clause_seq(S), NESeq, After};
              _ ->
-                 {'try',
-                  anno(),
-                  body(S),
-                  clause_seq(S),
-                  catch_clause_seq(S),
-                  After}
+                 {'try', anno(), body(S), clause_seq(S), Seq, After}
          end).
 
 no_try_after(_S) ->
@@ -878,10 +860,9 @@ non_empty_catch_clause_seq(S) ->
     non_empty_list_of_gen(catch_clause(S), get_limit(catch_clauses, S)).
 
 catch_clause(S) ->
+    Tags = [no_eclass, any_eclass, lit_eclass, var_eclass, bad_eclass],
     ?LET({EClass, St},
-         {wunion([no_eclass, any_eclass, lit_eclass, var_eclass, bad_eclass],
-                 S, ?FUNCTION_NAME),
-          stacktrace_variable(S)},
+         {wunion(Tags, S, ?FUNCTION_NAME), stacktrace_variable(S)},
          {'clause', anno(),
           [{'tuple', anno(), [EClass, pattern(S), St]}],
           clause_guard_seq(S),
@@ -942,8 +923,8 @@ var_timeout(S) ->
 'fun'(S, abstract_type) ->
     fun_type(S);
 'fun'(S, Where) ->
-    wunion([lambda, rec_lambda, local_mfa, ext_mfa, any_mfa],
-           S, Where).
+    Tags = [lambda, rec_lambda, local_mfa, ext_mfa, any_mfa],
+    wunion(Tags, S, Where).
 
 lambda(S) ->
     ?LET({_F, N},
@@ -1045,15 +1026,10 @@ a_guard(S) ->
 
 guard_test(#gen_state{size = 0}=S) ->
     wunion([small], S, ?FUNCTION_NAME); % assume weight(small) > 0
-guard_test(S0) ->
-    S = resize(S0),
-    ?LET(Gt,
-         wunion([small, tuple, map, cons, plain_list, bits, binop,
-                 unop, record, guard_call, remote_guard_call],
-                S, ?FUNCTION_NAME),
-         begin
-             Gt
-         end).
+guard_test(S) ->
+    Tags = [small, tuple, map, cons, plain_list, bits, binop,
+            unop, record, guard_call, remote_guard_call],
+    wunion(Tags, resize(S), ?FUNCTION_NAME).
 
 build_map(S, T) ->
     {'map', anno(), assoc_seq(S, 0, T)}.
@@ -1119,14 +1095,10 @@ guard_call_args(N, S) ->
 
 pattern(#gen_state{size = 0}=S) ->
     wunion([small], S, ?FUNCTION_NAME); % assume weight(small) > 0
-pattern(S0) ->
-    S = resize(S0),
-    ?LET(Pattern,
-         wunion([small, match, tuple, cons, plain_list, bits, unop, binop,
-                 record, map_pattern, string_prefix], S, ?FUNCTION_NAME),
-         begin
-             Pattern
-         end).
+pattern(S) ->
+    Tags = [small, match, tuple, cons, plain_list, bits, unop, binop,
+            record, map_pattern, string_prefix],
+    wunion(Tags, resize(S), ?FUNCTION_NAME).
 
 a_record(S, abstract_type) ->
     record_type(S);
@@ -1232,11 +1204,7 @@ record_field(N, T, Fs0) ->
 
 map_pattern(S0) ->
     S = exclude_tags([record_index, string_prefix, pat_var], S0),
-    ?LET(Assocs,
-         assoc_pattern_seq(S),
-         begin
-             {'map', anno(), Assocs}
-         end).
+    {'map', anno(), assoc_pattern_seq(S)}.
 
 assoc_pattern_seq(S) ->
     KeyW = get_weight(map_pattern_assoc, S),
@@ -1250,7 +1218,7 @@ assoc_pattern_seq(S) ->
     SKey = set_tag_weights(InKey, S), % only => in key; no =/2 in key
     G = proper_types:weighted_union(
           [{KeyW,
-            %% EEP 52. 
+            %% EEP 52.
             ?LAZY({'map_field_assoc', anno(), guard_test(SKey), pattern(S)})},
            {ValueW,
             ?LAZY({'map_field_exact', anno(), pattern(SKey), pattern(S)})}]),
@@ -1266,11 +1234,11 @@ string_prefix_list(S) ->
 
 %%% Maybe something like 'small'. Should obey S.size.
 abstract_type(S) ->
-    wunion([annotated_type, atom, bitstring, 'fun',
+    Tags = [annotated_type, atom, bitstring, 'fun',
             integer_range_type, nil, map, predefined_type, record,
             remote_type, singleton_integer_type, tuple, type_union,
             type_variable, user_defined_type],
-           S, ?FUNCTION_NAME).
+    wunion(Tags, S, ?FUNCTION_NAME).
 
 annotated_type(S) ->
     ?LET({Var, Type},
@@ -1302,9 +1270,7 @@ random_n_args(S) ->
 integer_range_type(S) ->
     ?LET({T1, T2},
          {singleton_integer_type(S), singleton_integer_type(S)},
-         begin
-             {'type', anno(), 'range', [T1, T2]}
-         end).
+         {'type', anno(), 'range', [T1, T2]}).
 
 map_type(S) ->
     proper_types:weighted_union(
@@ -1385,9 +1351,9 @@ function_type_list(S, N) ->
     ?LET({Ft, {MinTypes, MaxTypes}},
          {function_type(S, N), n_function_types(S)},
          begin
-             G = wunion([yes_constrained_function_type,
-                         no_constrained_function_type],
-                        S, ?FUNCTION_NAME),
+             Tags = [yes_constrained_function_type,
+                     no_constrained_function_type],
+             G = wunion(Tags, S, ?FUNCTION_NAME),
              NTypes = MinTypes + uniform(MaxTypes - MinTypes + 1) - 1,
              ?LET(Ts,
                   list_of_gen2(NTypes, G),
@@ -1434,20 +1400,16 @@ type_variable(_S) ->
     a_variable(type_variable).
 
 singleton_integer_type(S) ->
-    ?LET(It,
-         wunion([int, char, unop, binop], S, abstract_type),
-         begin
-             It
-         end).
+    wunion([integer, char, unop, binop], S, abstract_type).
 
 small(S, pattern) ->
-    wunion([atom, bool, int, string, char, float, nil, pat_var],
-           S, ?FUNCTION_NAME);
+    Tags = [atom, boolean, integer, string, char, float, nil, pat_var],
+    wunion(Tags, S, ?FUNCTION_NAME);
 small(S, _Where) ->
-    wunion([atom, bool, int, string, char, float, nil, var],
-           S, ?FUNCTION_NAME).
+    Tags = [atom, boolean, integer, string, char, float, nil, var],
+    wunion(Tags, S, ?FUNCTION_NAME).
 
-a_bool(_S) ->
+a_boolean(_S) ->
     proper_types:union([lit_atom('true'), lit_atom('false')]).
 
 an_integer(_S) ->
@@ -1469,11 +1431,7 @@ a_char(S) ->
     {'char', anno(), simple_char(S)}.
 
 simple_char(S) ->
-    ?LET(C,
-         (S#gen_state.simple_char)(),
-         begin
-             C
-         end).
+    (S#gen_state.simple_char)().
 
 default_simple_char() ->
     proper_types:union([proper_types:integer($a, $z),
@@ -1552,7 +1510,7 @@ bitstring(S, Where) ->
 bytes(S) ->
     {'bin', anno(), binelement_seq_term(S, bytes)}.
 
-bits(S, compound) when S#gen_state.result_type =:= term ->
+bits(#gen_state{result_type = term} = S, compound) ->
      {'bin', anno(), binelement_seq_term(S, bits)};
 bits(S, compound=Where) ->
     LiteralW = get_weight(literal_bits, S),
@@ -1597,12 +1555,8 @@ binelements_term(N, B) ->
     [{'bin_element', anno(), Expr, Size, TSL} | binelements_term(N - 1, B)].
 
 bin_pattern(S) ->
-    ?LET(BP,
-         wunion([pat_var, string, int, char, float,
-                 atom, unop, binop], S, pattern),
-         begin
-             BP
-         end).
+    Tags = [pat_var, string, integer, char, float, atom, unop, binop],
+    wunion(Tags, S, pattern).
 
 binelement_seq(S, T, Where) ->
     N = uniform(get_limit(bin_elements, S)),
@@ -1669,11 +1623,7 @@ binelement(S, T, Where, IsLast) ->
 
 binelement_size_pattern(S0) ->
     S = exclude_tags([fresh_var], S0),
-    ?LET(Size,
-         guard_test(S), %% EEP 52
-         begin
-             Size
-         end).
+    guard_test(S). %% EEP 52
 
 binelement_size(T) ->
     proper_types:weighted_union(
@@ -1687,7 +1637,7 @@ binelement_size(T) ->
 literal_bits(S, Where) ->
     N = uniform(get_limit(bin_elements, S)),
     {'bin', anno(), literal_binelements(N, S, Where)}.
-         
+
 literal_binelements(0, _S, _Where) ->
     [];
 literal_binelements(N, S, Where) ->
@@ -1794,16 +1744,18 @@ pattern_binop(T) ->
 %%% The operators according to erl_internal. orelse/andalso added.
 any_binop() ->
     proper_types:oneof(
-      ['/', '*', 'div', 'rem', 'band', 'and', '+', '-', 'bor', 'bxor',
-       'bsl', 'bsr', 'or', 'xor', '==', '/=', '=<', '<', '>=', '>',
-       '=:=', '=/=', 'orelse', 'andalso',
+      ['+', '-', '*', '/', 'div', 'rem', 'band', 'bor', 'bxor', 'bsl', 'bsr',
+       'and', 'or', 'xor',
+       '=:=', '=/=', '==', '/=', '=<', '<', '>=', '>',
+       'orelse', 'andalso', % not proper operators, but handled as such
        '++', '--', '!']). % not in guards
 
 guard_binop() ->
     proper_types:oneof(
-      ['/', '*', 'div', 'rem', 'band', 'and', '+', '-', 'bor', 'bxor',
-       'bsl', 'bsr', 'or', 'xor', '==', '/=', '=<', '<', '>=', '>',
-       '=:=', '=/=', 'orelse', 'andalso']).
+      ['+', '-', '*', '/', 'div', 'rem', 'band', 'bor', 'bxor', 'bsl', 'bsr',
+       'and', 'or', 'xor',
+       '=:=', '=/=', '==', '/=', '=<', '<', '>=', '>',
+       'orelse', 'andalso']). % not proper operators, but handled as such
 
 pattern_binop() ->
     proper_types:oneof(
@@ -1812,7 +1764,7 @@ pattern_binop() ->
 
 type_binop() ->
     proper_types:oneof(
-      ['*', 'div', 'rem', 'band', '+', '-', 'bor', 'bxor', 'bsl', 'bsr']).
+      ['+', '-', '*', 'div', 'rem', 'band', 'bor', 'bxor', 'bsl', 'bsr']).
 
 unop(S, abstract_type) ->
     {'op', anno(), type_unop(), singleton_integer_type(S)};
@@ -1827,7 +1779,7 @@ unop(S, pattern) ->
 pattern_expr_operand(S0) ->
     S = exclude_tags([record_index, string_prefix], S0),
     %% Simplified. Evaluates to an integer.
-    wunion([char, float, int, unop, binop], S, pattern).
+    wunion([char, float, integer, unop, binop], S, pattern).
 
 any_unop() ->
     proper_types:oneof(['+', '-', 'bnot', 'not']).
@@ -1972,7 +1924,7 @@ eval_dependencies(State0) ->
 %%% The list is not exhaustive. Maybe the user should fix this kind of
 %%% issues.
 deps(term) ->
-    [{[nil, string, char, int], [string_prefix]},
+    [{[nil, string, char, integer], [string_prefix]},
      {[bits, bytes], [bitstring]},
      {[bitstring], [bits, bytes]},
      {[build_map], [map]},
@@ -1980,7 +1932,7 @@ deps(term) ->
 deps(ResType) when ResType =:= program; ResType =:= guard; ResType =:= expr ->
     [{[type_decl], [user_defined_type]},
      {[record_decl], [record]},
-     {[nil, string, char, int], [string_prefix]},
+     {[nil, string, char, integer], [string_prefix]},
      {[bits, blc], [bitstring]},
      {[function_decl], [local_mfa]},
      {[bitstring], [bits, blc]},
@@ -2066,7 +2018,7 @@ pfun(yes_overloaded, _) -> fun yes_overloaded/1;
 pfun(any_eclass, _) -> fun any_eclass/1;
 pfun(any_mfa, _) -> fun any_mfa/1;
 pfun(any_op, Where) -> pfun1(fun any_binop/2, Where);
-pfun(bool, _) -> fun a_bool/1;
+pfun(boolean, _) -> fun a_boolean/1;
 pfun(bad_eclass, _) -> fun bad_eclass/1;
 pfun(bitstring, Where) -> fun(S) -> bitstring(S, Where) end;
 pfun(bits, Where) -> fun(S) -> bits(S, Where) end;
@@ -2092,7 +2044,7 @@ pfun(guard_call, _) -> fun guard_call/1;
 pfun(guard_op, Where) -> pfun1(fun guard_binop/2, Where);
 pfun('if', _) -> fun 'if'/1;
 pfun(inf_timeout, _) -> fun inf_timeout/1;
-pfun(int, _) -> fun an_integer/1;
+pfun(integer, _) -> fun an_integer/1;
 pfun(lambda, _) -> fun lambda/1;
 pfun(lc, _) -> fun lc/1;
 pfun(lc_any_filter, _) -> fun lc_any_filter/1;
@@ -2196,28 +2148,20 @@ check_option(char, Term) when is_function(Term, 0) ->
     true;
 check_option(atom, Term) when is_function(Term, 0) ->
     true;
-check_option(resize, Term) when Term; not Term ->
+check_option(resize, Term) when is_boolean(Term) ->
     true;
 check_option(_, _) ->
     false.
 
 check_option2(Weights, _Limits, weight, Term1, W) ->
-    try
-        is_integer(W) andalso W >= 0 andalso maps:is_key(Term1, Weights)
-    catch
-        _:_ ->
-            false
-    end;
+    is_integer(W) andalso W >= 0 andalso
+    is_map(Weights) andalso maps:is_key(Term1, Weights);
 check_option2(_Weights, Limits, limit, Term1, L) ->
-    try
-        %% A limit equal to zero would mean the same as setting the
-        %% weight to zero.
-        is_integer(L) andalso L > 0 andalso maps:is_key(Term1, Limits)
-            andalso (Term1 =/= tsl orelse L =< 3)
-    catch
-        _:_ ->
-            false
-    end;
+    %% A limit equal to zero would mean the same as setting the weight
+    %% to zero.
+    is_integer(L) andalso L > 0 andalso
+    is_map(Limits) andalso maps:is_key(Term1, Limits) andalso
+    (Term1 =/= tsl orelse L =< 3);
 check_option2(_, _, _, _, _) ->
     false.
 
@@ -2246,7 +2190,7 @@ eval_options([{set_all_weights, V}|Options], State0) ->
                          ; (complex_field_init, V0) -> V0
                          ; (string_prefix_list, V0) -> V0
                          ; (in_literal_bc, V0) -> V0
-                         ;  (_, _) -> V
+                         ; (_, _) -> V
                        end, State0#gen_state.weights),
     State = State0#gen_state{weights = Weights},
     eval_options(Options, State);
@@ -2320,7 +2264,7 @@ default_weights() ->
      blc_gen => 1,
      binop => 1,
      block => 1,
-     bool => 1,
+     boolean => 1,
      bound_var => 1,
      char => 1,
      compound => 1,
@@ -2341,7 +2285,6 @@ default_weights() ->
      guard_op => 1,
      guard_call => 1,
      inf_timeout => 1,
-     int => 1,
      integer => 3,
      integer_range_type => 1,
      lambda => 1,
@@ -2551,7 +2494,7 @@ post({op, A, Op, L, R}, S) when Op =:= 'bsl'; Op =:= 'bsr' ->
                 case V of % can be slow...
                     {integer, _, I} when I > 30 ->
                         {L2, {integer, A, 30}};
-                    {integer, _, I} when I <  -30 ->
+                    {integer, _, I} when I < -30 ->
                         {L2, {integer, A, -30}};
                     _ ->
                         {L2, R2}
@@ -2560,7 +2503,7 @@ post({op, A, Op, L, R}, S) when Op =:= 'bsl'; Op =:= 'bsr' ->
                 case erl_eval:partial_eval(R1) of % can be slow...
                     {integer, _, I} when I > 30 ->
                         {L1, {integer, A, 30}};
-                    {integer, _, I} when I <  -30 ->
+                    {integer, _, I} when I < -30 ->
                         {L1, {integer, A, -30}};
                     _ ->
                         {L1, R1}
@@ -2727,7 +2670,7 @@ post({type, A, range, [L, H]}, S) ->
             {{type, A, range, [H1, L1]}, S1};
         {{integer, _, V1}, {integer, _, V2}} when V1 < V2 ->
             {{type, A, range, [L1, H1]}, S1};
-        _ -> % cannot not happen
+        _ -> % cannot happen
             {{type, A, range, [L1, H1]}, S1}
     end;
 post({attribute, A, Type, {TypeName, AbstrType, Parms}}, S)
@@ -2760,7 +2703,7 @@ post({attribute, A, record, {Name, Fields}}, S) ->
                {Fields1, State1} = post_list(Fields, State),
                {{attribute, A, record, {Name, Fields1}}, State1}
        end);
-post({record_field, A, Name, Expr}, S) when S#post_state.context =:= record ->
+post({record_field, A, Name, Expr}, #post_state{context = record} = S) ->
     in_context
       (expr, S,
        fun(State) ->
@@ -2924,7 +2867,7 @@ post_try_clause(Clause, S, catch_clause) ->
     SSt = forbidden_variables(S2, S2#post_state.vars),
     {St1, S3} = post(St, SSt),
     StackVars = introduced_variables(SSt, S3),
-    %% The stracktrace variable cannot be used in the catch clause guard:
+    %% The stacktrace variable cannot be used in the catch clause guard:
     S4 = forbidden_variables(S3, StackVars),
     {GuardSeq1, S5} = post_guard_seq(GuardSeq, S4),
     %% Should simplify this...
@@ -3109,67 +3052,67 @@ some_atoms() ->
 some_named_functions() ->
     %% Do not include {'_', ...} since "fun _() -> _() end"
     %% results in unbound variable.
-    [{'F1', 1}, {'F2', 0}, {'F3', 2}, {'F3', 3}].
+    [{'F1',1}, {'F2',0}, {'F3',2}, {'F3',3}].
 
 some_functions() ->
-    [{f1, 1}, {f1, 2}, {f2, 0}].
+    [{f1,1}, {f1,2}, {f2,0}].
 
 some_records() ->
     %% The first one is chosen as "guard record", which means that
     %% all field initializations are guard expressions.
-    [{r1, [f1, f2]}, {r2, []}, {r3, [f1]}].
+    [{r1,[f1,f2]}, {r2,[]}, {r3,[f1]}].
 
 %%% An arbitrary, small, collection of BIFs.
 auto_imported() ->
-    [{abs, 1}, {atom_to_list, 1}, {ceil, 1}, {erase, 1},
-     {exit, 1}, {group_leader, 2}, {is_function, 2},
+    [{abs,1}, {atom_to_list,1}, {ceil,1}, {erase,1},
+     {exit,1}, {group_leader,2}, {is_function,2},
      %% Old BIFs:
-     {check_process_code, 2}, {get, 0}, {is_atom, 1}].
+     {check_process_code,2}, {get,0}, {is_atom,1}].
 
 some_types() ->
-    [{t1, 0}, {t2, 1}].
+    [{t1,0}, {t2,1}].
 
 predef_types() ->
-    [{any, 0}, {arity, 0}, {atom, 0}, {binary, 0}, {bitstring, 0},
-     {boolean, 0}, {byte, 0}, {char, 0}, {float, 0},
-     {function, 0}, {identifier, 0}, {integer, 0}, {iodata, 0},
-     {iolist, 0}, {list, 0}, {list, 1}, {map, 0},
-     {maybe_improper_list, 0}, {maybe_improper_list, 2}, {mfa, 0},
-     {module, 0}, {neg_integer, 0}, {nil, 0}, {no_return, 0}, {node,
-     0}, {non_neg_integer, 0}, {none, 0}, {nonempty_improper_list, 2},
-     {nonempty_list, 0}, {nonempty_list, 1},
-     {nonempty_maybe_improper_list, 0}, {nonempty_maybe_improper_list,
-     2}, {nonempty_string, 0}, {number, 0}, {pid, 0}, {port, 0},
-     {pos_integer, 0}, {reference, 0}, {string, 0}, {term, 0},
-     {timeout, 0}, {tuple, 0}].
+    [{any,0}, {arity,0}, {atom,0}, {binary,0}, {bitstring,0},
+     {boolean,0}, {byte,0}, {char,0}, {float,0}, {function,0},
+     {identifier,0}, {integer,0}, {iodata,0}, {iolist,0}, {list,0},
+     {list,1}, {map,0}, {maybe_improper_list,0},
+     {maybe_improper_list,2}, {mfa,0}, {module,0}, {neg_integer,0},
+     {nil,0}, {no_return,0}, {node,0}, {non_neg_integer,0}, {none,0},
+     {nonempty_improper_list,2}, {nonempty_list,0}, {nonempty_list,1},
+     {nonempty_maybe_improper_list,0},
+     {nonempty_maybe_improper_list,2}, {nonempty_string,0},
+     {number,0}, {pid,0}, {port,0}, {pos_integer,0}, {reference,0},
+     {string,0}, {term,0}, {timeout,0}, {tuple,0}].
 
 guard_bifs() ->
-    [{abs, 1}, {binary_part, 2}, {binary_part, 3}, {bit_size, 1},
-     {byte_size, 1}, {ceil, 1}, {element, 2}, {float, 1}, {floor, 1},
-     {hd, 1}, {is_map_key, 2}, {length, 1}, {map_size, 1}, {map_get,
-     2}, {node, 0}, {node, 1}, {round, 1}, {self, 0}, {size, 1}, {tl,
-     1}, {trunc, 1}, {tuple_size, 1},
-     {is_atom, 1}, {is_binary, 1}, {is_bitstring, 1}, {is_boolean, 1},
-     {is_float, 1}, {is_function, 1}, {is_function, 2}, {is_integer, 1},
-     {is_list, 1}, {is_map, 1}, {is_number, 1}, {is_pid, 1}, {is_port, 1},
-     {is_reference, 1}, {is_tuple, 1}].
+    [{abs,1}, {binary_part,2}, {binary_part,3}, {bit_size,1},
+     {byte_size,1}, {ceil,1}, {element,2}, {float,1}, {floor,1},
+     {hd,1}, {is_map_key,2}, {length,1}, {map_size,1}, {map_get,2},
+     {node,0}, {node,1}, {round,1}, {self,0}, {size,1}, {tl,1},
+     {trunc,1}, {tuple_size,1}, {is_atom,1}, {is_binary,1},
+     {is_bitstring,1}, {is_boolean,1}, {is_float,1}, {is_function,1},
+     {is_function,2}, {is_integer,1}, {is_list,1}, {is_map,1},
+     {is_number, 1}, {is_pid,1}, {is_port,1}, {is_reference,1},
+     {is_tuple,1}].
 
 other_bifs() ->
-    [{is_record, 2}, {is_record, 3}].
+    [{is_record,2}, {is_record,3}].
 
 expr_ops() ->
     %% Can be used in expressions with the "erlang:"-prefix.
-    [{'++', 2}, {'--', 2}, {'!', 2}] ++ guard_ops().
+    [{'++',2}, {'--',2}, {'!',2}] ++ guard_ops().
 
 guard_ops() ->
     %% Like guard_binop() and any_unop(), but excluding
     %% andalso, orelse, ++, --, and !.
     %% Can be used in guards with the "erlang:"-prefix.
-    [{'/', 2}, {'*', 2}, {'div', 2}, {'rem', 2}, {'band', 2}, {'and', 2},
-     {'+', 2}, {'-', 2}, {'bor', 2}, {'bxor', 2}, {'bsl', 2}, {'bsr', 2},
-     {'or', 2}, {'xor', 2}, {'==', 2}, {'/=', 2}, {'=<', 2}, {'<', 2},
-     {'>=', 2}, {'>', 2}, {'=:=', 2}, {'=/=', 2},
-     {'+', 1}, {'-', 1}, {'bnot', 1}, {'not', 1}].
+    [{'+',2}, {'+',1}, {'-',2}, {'-',1}, {'*',2}, {'/',2},
+     {'div',2}, {'rem',2}, {'band',2}, {'bnot',1}, {'bor',2}, {'bxor',2},
+     {'bsl',2}, {'bsr',2},
+     {'and',2}, {'or',2}, {'not',1}, {'xor',2},
+     {'=:=',2}, {'=/=',2}, {'==',2}, {'/=',2},
+     {'=<',2}, {'<',2}, {'>=',2}, {'>',2}].
 
 uniform(N) ->
     rand:uniform(N).
