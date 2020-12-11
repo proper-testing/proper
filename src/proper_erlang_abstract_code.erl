@@ -51,7 +51,7 @@
 %%%
 %%% ```
 %%% test() ->
-%%%     ?FORALL(Abstr, proper_abstr:module(),
+%%%     ?FORALL(Abstr, proper_erlang_abstract_code:module(),
 %%%             ?WHENFAIL(
 %%%                begin
 %%%                    io:format("~ts\n", [[erl_pp:form(F) || F <- Abstr]]),
@@ -66,7 +66,6 @@
 %%%     compile:noenv_forms(Abstr, Opts).
 %%% '''
 -module(proper_erlang_abstract_code).
-
 
 -export([module/0, module/1, guard/0, guard/1, expr/0, expr/1]).
 
@@ -1511,7 +1510,7 @@ bytes(S) ->
     {'bin', anno(), binelement_seq_term(S, bytes)}.
 
 bits(#gen_state{result_type = term} = S, compound) ->
-     {'bin', anno(), binelement_seq_term(S, bits)};
+    {'bin', anno(), binelement_seq_term(S, bits)};
 bits(S, compound=Where) ->
     LiteralW = get_weight(literal_bits, S),
     WildBitsW = wild_bits_weight(S),
@@ -2386,7 +2385,7 @@ default_limits() ->
       record_fields => ?MAX_RECORD_FIELDS,
       tsl => ?MAX_TYPE_SPECIFIER,
       union_types => ?MAX_UNION_TYPES
-      }.
+     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
