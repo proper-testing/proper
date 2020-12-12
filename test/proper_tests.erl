@@ -1427,12 +1427,11 @@ max_size_test_aux(Size) ->
 %% Erlang abstract code tests
 %%------------------------------------------------------------------------------
 
-erlang_abstract_code_test() ->
-    Opts = [{numtests, 100}, noshrink],
-    Props = [bits, expr, term, guard, program],
-    [?assertEqual(true, proper:quickcheck(erlang_abstract_code_test:Prop(),
-                                          Opts)) ||
-        Prop <- Props].
+erlang_abstract_code_test_() ->
+    M = erlang_abstract_code_test,
+    Props = [bits, expr, guard, term, module],
+    Opts = [{numtests, 200}, noshrink],
+    [?_assertEqual(true, proper:quickcheck(M:Prop(), Opts)) || Prop <- Props].
 
 %%------------------------------------------------------------------------------
 %% Helper predicates

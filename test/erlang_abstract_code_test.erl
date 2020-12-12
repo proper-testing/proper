@@ -36,7 +36,7 @@
 %%% @doc This module is a smoke test of the Erlang abstract code generator.
 -module(erlang_abstract_code_test).
 
--export([bits/0, expr/0, guard/0, term/0, program/0]).
+-export([bits/0, expr/0, guard/0, term/0, module/0]).
 
 -include_lib("proper/include/proper.hrl").
 
@@ -59,20 +59,16 @@ expr(Opts) ->
 guard() ->
     G = proper_erlang_abstract_code:guard(),
     ?FORALL(X, G, check_pp(erl_pp:guard((X)))).
-    
-program() ->
-    P = proper_erlang_abstract_code:module(),
-    ?FORALL(X, P, lists:all(fun(F) -> check_pp(erl_pp:form(F)) end, X)).
 
 term() ->
     T = proper_erlang_abstract_code:term(),
     ?FORALL(X, T, check_pp(erl_pp:expr(X))).
 
-check_pp(S) ->
-    case string:find(S, "INVALID-FORM") of
-        nomatch ->
-            true;
-        _ ->
-            false
-    end.
+module() ->
+    %% enable some elements which are off by default
+    Opts = [{weight, {D, 1}} || D <- [type_decl, function_spec, termcall]],
+    P = proper_erlang_abstract_code:module(Opts),
+    ?FORALL(X, P, lists:all(fun(F) -> check_pp(erl_pp:form(F)) end, X)).
 
+check_pp(S) ->
+    string:find(S, "INVALID-FORM") =:= nomatch.
