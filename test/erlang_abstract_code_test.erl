@@ -66,7 +66,7 @@ term() ->
 
 module() ->
     %% enable some elements which are off by default
-    Opts = [{weight, {D, 1}} || D <- [type_decl, function_spec]],
+    Opts = [{weight, {D, 1}} || D <- [type_decl, function_spec, termcall]],
     P = proper_erlang_abstract_code:module(Opts),
     ?FORALL(X, P, lists:all(fun(F) -> check_pp(erl_pp:form(F)) end, X)).
 
