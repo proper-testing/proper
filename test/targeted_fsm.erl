@@ -43,13 +43,13 @@
 %% proper_fsm callbacks
 %% -----------------------------------------------------------------------------
 
-
 unique_key(S) ->
-  ?SUCHTHAT(I, integer(1, 100),
-            length(lists:filter(fun ({K, _}) -> K =:= I end, S)) =:= 0).
+  ?SUCHTHAT(I, integer(1, 100), not lists:keymember(I, 1, S)).
+
 key(S) ->
   oneof([oneof([Key || {Key, _} <- S]),
          unique_key(S)]).
+
 value() ->
   integer().
 
@@ -70,10 +70,7 @@ next_state_data(_, _, S, _V, {call, ets, lookup, _}) -> S;
 next_state_data(_, _, _S, _V, {call, ets, delete_all_objects, [_]}) -> [].
 
 postcondition(_, _, S, {call, ets, insert, [_, {Key, _Value}]}, _R) ->
-  case proplists:is_defined(Key, S) of
-    true -> true;
-    false -> length(S) + 1 < ?MAX_SIZE
-  end;
+  proplists:is_defined(Key, S) orelse (length(S) + 1 < ?MAX_SIZE);
 postcondition(_, _, S, {call, ets, lookup, [_, Key]}, R) ->
   proplists:lookup_all(Key, S) =:= R;
 postcondition(_, _, _S, _C, _R) -> true.
@@ -90,7 +87,6 @@ non_empty_ets(S) ->
 %% -----------------------------------------------------------------------------
 %% Properties
 %% -----------------------------------------------------------------------------
-
 
 prop_random() ->
   ?FORALL(Cmds, proper_fsm:commands(?MODULE),
