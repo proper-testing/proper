@@ -101,7 +101,7 @@ prop_random() ->
 
 prop_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, proper_fsm:targeted_commands(?MODULE),
+     Cmds, proper_fsm:commands(?MODULE),
      begin
        catch ets:delete(?TAB),
        ?TAB = ets:new(?TAB, [set, public, named_table]),
@@ -114,7 +114,7 @@ prop_targeted() ->
 
 prop_targeted_init() ->
   ?FORALL_TARGETED(
-     Cmds, proper_fsm:targeted_commands(?MODULE, {empty_ets, []}),
+     Cmds, proper_fsm:commands(?MODULE, {empty_ets, []}),
      begin
        catch ets:delete(?TAB),
        ?TAB = ets:new(?TAB, [set, public, named_table]),

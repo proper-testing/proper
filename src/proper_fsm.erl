@@ -155,7 +155,7 @@
 %%% find such edge cases, provided a utility value.
 %%%
 %%% ```prop_targeted_testing() ->
-%%%        ?FORALL_TARGETED(Cmds, proper_fsm:targeted_commands(?MODULE),
+%%%        ?FORALL_TARGETED(Cmds, proper_fsm:commands(?MODULE),
 %%%                         begin
 %%%                             {History, State, Result} = proper_fsm:run_commands(?MODULE, Cmds),
 %%%                             UV = uv(History, State, Result),
@@ -173,7 +173,6 @@
 
 -export([commands/1, commands/2, run_commands/2, run_commands/3,
 	 state_names/1]).
--export([targeted_commands/1, targeted_commands/2]).
 -export([command/1, precondition/2, next_state/3, postcondition/3]).
 -export([target_states/4]).
 
@@ -241,8 +240,12 @@
 
 -spec commands(mod_name()) -> proper_types:type().
 commands(Mod) ->
+  ?USERNF(commands_gen(Mod), next_commands_gen(Mod)).
+
+-spec commands_gen(mod_name()) -> proper_types:type().
+commands_gen(Mod) ->
     ?LET([_|Cmds],
-	 proper_statem:commands(?MODULE, initial_state(Mod)),
+	 proper_statem:commands_gen(?MODULE, initial_state(Mod)),
 	 Cmds).
 
 %% @doc Similar to {@link commands/1}, but generated command sequences always
@@ -252,45 +255,27 @@ commands(Mod) ->
 %% while shrinking and when checking a counterexample).
 
 -spec commands(mod_name(), fsm_state()) -> proper_types:type().
-commands(Mod, {Name,Data} = InitialState) ->
+commands(Mod, InitialState) ->
+  ?USERNF(commands_gen(Mod, InitialState),
+          next_commands_gen(Mod, InitialState)).
+
+-spec commands_gen(mod_name(), fsm_state()) -> proper_types:type().
+commands_gen(Mod, {Name,Data} = InitialState) ->
     State = #state{name = Name, data = Data, mod = Mod},
     ?LET([_|Cmds],
-	 proper_statem:commands(?MODULE, State),
+	 proper_statem:commands_gen(?MODULE, State),
 	 [{init,InitialState}|Cmds]).
 
-%% @doc A special PropEr type which generates targeted command sequences,
-%% according to a finite state machine specification and taking into
-%% consideration a utility value. The function takes as input the name of
-%% the callback module, which contains the fsm specification.
-%% The initial state is computed by <br/>
-%% `{Mod:initial_state/0, Mod:initial_state_data/0}'.
-
--spec targeted_commands(mod_name()) -> proper_types:type().
-targeted_commands(Mod) ->
-  ?USERNF(commands(Mod), next_commands(Mod)).
-
-next_commands(Mod) ->
+next_commands_gen(Mod) ->
   InitialState = initial_state(Mod),
-  StatemNext = proper_statem:next_commands(?MODULE, InitialState),
+  StatemNext = proper_statem:next_commands_gen(?MODULE, InitialState),
   fun (Cmds, {Depth, Temp}) ->
       ?LET([_ | NextCmds], StatemNext(Cmds, {Depth, Temp}), NextCmds)
   end.
 
-%% @doc Similar to {@link targeted_commands/1}, but generated command
-%% sequences always start at a given state. In this case, the first
-%% command is always <br/>
-%% `{init, InitialState = {Name, Data}}' and is used to correctly
-%% initialize the state every time the command sequence is run (i.e.
-%% during normal execution, while shrinking and when checking a
-%% counterexample).
-
--spec targeted_commands(mod_name(), fsm_state()) -> proper_types:type().
-targeted_commands(Mod, InitialState) ->
-  ?USERNF(commands(Mod, InitialState), next_commands(Mod, InitialState)).
-
-next_commands(Mod, {Name, Data} = InitialState) ->
+next_commands_gen(Mod, {Name, Data} = InitialState) ->
   State = #state{name = Name, data = Data, mod = Mod},
-  StatemNext = proper_statem:next_commands(?MODULE, State),
+  StatemNext = proper_statem:next_commands_gen(?MODULE, State),
   fun (Cmds, {Depth, Temp}) ->
       ?LET([_ | NextCmds], StatemNext(Cmds, {Depth, Temp}),
            [{init, InitialState} | NextCmds])

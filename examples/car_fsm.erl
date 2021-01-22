@@ -342,7 +342,7 @@ prop_distance() ->
 %% provides failing command sequencies more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, proper_fsm:targeted_commands(?MODULE),
+     Cmds, proper_fsm:commands(?MODULE),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -360,7 +360,7 @@ prop_distance_targeted() ->
 prop_distance_targeted_init() ->
   State = {initial_state(), initial_state_data()},
   ?FORALL_TARGETED(
-     Cmds, proper_fsm:targeted_commands(?MODULE, State),
+     Cmds, proper_fsm:commands(?MODULE, State),
      ?TRAPEXIT(
         begin
           start_link(),

@@ -227,7 +227,7 @@
 %%% find such edge cases, provided a utility value.
 %%%
 %%% ```prop_targeted_testing() ->
-%%%        ?FORALL_TARGETED(Cmds, proper_statem:targeted_commands(?MODULE),
+%%%        ?FORALL_TARGETED(Cmds, proper_statem:commands(?MODULE),
 %%%                         begin
 %%%                             {History, State, Result} = proper_statem:run_commands(?MODULE, Cmds),
 %%%                             UV = uv(History, State, Result),
@@ -244,12 +244,13 @@
 -module(proper_statem).
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
-         targeted_commands/1, targeted_commands/2, more_commands/2]).
+         more_commands/2]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
 %% Exported for PropEr internal usage.
--export([next_commands/1, next_commands/2]).
+-export([commands_gen/1, commands_gen/2, next_commands_gen/1,
+         next_commands_gen/2]).
 
 
 -export_type([symbolic_var/0, symbolic_call/0, statem_result/0]).
@@ -332,14 +333,18 @@
 
 -spec commands(mod_name()) -> proper_types:type().
 commands(Mod) ->
+  ?USERNF(commands_gen(Mod), next_commands_gen(Mod)).
+
+-spec commands_gen(mod_name()) -> proper_types:type().
+commands_gen(Mod) ->
     ?LET(InitialState, ?LAZY(Mod:initial_state()),
 	 ?SUCHTHAT(
 	    Cmds,
 	    ?LET(List,
 		 ?SIZED(Size,
 			proper_types:noshrink(
-			  commands(Size * ?RESIZE_FACTOR,
-				   Mod, InitialState, 1))),
+			  commands_gen(Size * ?RESIZE_FACTOR,
+				       Mod, InitialState, 1))),
 		 proper_types:shrink_list(List)),
 	    is_valid(Mod, InitialState, Cmds, []))).
 
@@ -352,22 +357,27 @@ commands(Mod) ->
 
 -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
 commands(Mod, InitialState) ->
+  ?USERNF(commands_gen(Mod, InitialState),
+          next_commands_gen(Mod, InitialState)).
+
+-spec commands_gen(mod_name(), symbolic_state()) -> proper_types:type().
+commands_gen(Mod, InitialState) ->
     ?SUCHTHAT(
        Cmds,
        ?LET(CmdTail,
 	    ?LET(List,
 		 ?SIZED(Size,
 			proper_types:noshrink(
-			  commands(Size * ?RESIZE_FACTOR,
-				   Mod, InitialState, 1))),
+			  commands_gen(Size * ?RESIZE_FACTOR,
+				       Mod, InitialState, 1))),
 		 proper_types:shrink_list(List)),
 	    [{init,InitialState}|CmdTail]),
        is_valid(Mod, InitialState, Cmds, [])).
 
 %% @private
--spec commands(proper_gen:size(), mod_name(), symbolic_state(), pos_integer()) ->
+-spec commands_gen(proper_gen:size(), mod_name(), symbolic_state(), pos_integer()) ->
          proper_types:type().
-commands(Size, Mod, State, Count) ->
+commands_gen(Size, Mod, State, Count) ->
     ?LAZY(
        proper_types:frequency(
 	 [{1, []},
@@ -379,7 +389,7 @@ commands(Size, Mod, State, Count) ->
 			  NextState = Mod:next_state(State, Var, Call),
 			  ?LET(
 			     Cmds,
-			     commands(Size-1, Mod, NextState, Count+1),
+			     commands_gen(Size-1, Mod, NextState, Count+1),
 			     [{set,Var,Call}|Cmds])
 		      end)}])).
 
@@ -422,13 +432,13 @@ parallel_commands(Mod, InitialState) ->
 -spec parallel_gen(mod_name()) -> proper_types:type().
 parallel_gen(Mod) ->
     ?LET(Seq,
-	 commands(Mod),
+	 commands_gen(Mod),
 	 mk_parallel_testcase(Mod, Seq)).
 
 -spec parallel_gen(mod_name(), symbolic_state()) -> proper_types:type().
 parallel_gen(Mod, InitialState) ->
     ?LET(Seq,
-	 commands(Mod, InitialState),
+	 commands_gen(Mod, InitialState),
 	 mk_parallel_testcase(Mod, Seq)).
 
 -spec mk_parallel_testcase(mod_name(), command_list()) -> proper_types:type().
@@ -439,7 +449,7 @@ mk_parallel_testcase(Mod, Seq) ->
 		[{var,N}|_] -> N + 1
 	    end,
     ?LET(Parallel,
-	 ?SUCHTHAT(C, commands(?LIMIT, Mod, State, Count),
+	 ?SUCHTHAT(C, commands_gen(?LIMIT, Mod, State, Count),
 		   length(C) > ?WORKERS),
 	 begin
 	     LenPar = length(Parallel),
@@ -493,32 +503,9 @@ move_shrinker(Seq, Par, I) ->
 %% -----------------------------------------------------------------------------
 
 
-%% @doc A special PropEr type which generates random command sequences,
-%% according to an abstract state machine specification and taking into
-%% consideration a utility value. The function takes as input the name of
-%% a callback module, which contains the state machine specification. The
-%% initial state is computed by `Mod:initial_state/0'.
-
--spec targeted_commands(mod_name()) -> proper_types:type().
-targeted_commands(Mod) ->
-  ?USERNF(commands(Mod), next_commands(Mod)).
-
-%% @doc Similar to {@link targeted_commands/1}, but generated command sequences
-%% always start at a given state. In this case, the first command is always
-%% `{init, InitialState}' and is used to correctly initialize the state
-%% every time the command sequence is run (i.e. during normal execution,
-%% while shrinking and when checking a counterexample). In this case,
-%% `Mod:initial_state/0' is not called.
-
--spec targeted_commands(mod_name(), symbolic_state()) -> proper_types:type().
-targeted_commands(Mod, InitialState) ->
-  ?USERNF(commands(Mod, InitialState), next_commands(Mod, InitialState)).
-
-%% Targeted Helpers
-
 %% @private
--spec next_commands(mod_name()) -> next_fun().
-next_commands(Mod) ->
+-spec next_commands_gen(mod_name()) -> next_fun().
+next_commands_gen(Mod) ->
   fun (Cmds, {_Depth, Temp}) ->
       MaxRemovals = round(length(Cmds) * Temp),
       ?LET(InitialState, ?LAZY(Mod:initial_state()),
@@ -527,15 +514,16 @@ next_commands(Mod) ->
               ?LET(List,
                    ?SIZED(Size,
                           proper_types:noshrink(
-                            next_commands(Mod, InitialState, Cmds,
-                                          Size * ?RESIZE_FACTOR, MaxRemovals))),
+                            next_commands_gen(Mod, InitialState, Cmds,
+                                              Size * ?RESIZE_FACTOR,
+                                              MaxRemovals))),
                    proper_types:shrink_list(List)),
               is_valid(Mod, InitialState, NewCmds, [])))
   end.
 
 %% @private
--spec next_commands(mod_name(), symbolic_state()) -> next_fun().
-next_commands(Mod, InitialState) ->
+-spec next_commands_gen(mod_name(), symbolic_state()) -> next_fun().
+next_commands_gen(Mod, InitialState) ->
   fun Aux([{init, _S} | Cmds], {Depth, Temp}) ->
       Aux(Cmds, {Depth, Temp});
       Aux(Cmds, {_Depth, Temp}) ->
@@ -546,19 +534,20 @@ next_commands(Mod, InitialState) ->
               ?LET(List,
                    ?SIZED(Size,
                           proper_types:noshrink(
-                            next_commands(Mod, InitialState, Cmds,
-                                          Size * ?RESIZE_FACTOR, MaxRemovals))),
+                            next_commands_gen(Mod, InitialState, Cmds,
+                                              Size * ?RESIZE_FACTOR,
+                                              MaxRemovals))),
                    proper_types:shrink_list(List)),
               [{init, InitialState} | CmdsTail]),
          is_valid(Mod, InitialState, NewCmds, []))
   end.
 
--spec next_commands(mod_name(), symbolic_state(), command_list(),
+-spec next_commands_gen(mod_name(), symbolic_state(), command_list(),
                     proper_gen:size(), threshold()) ->
         proper_types:type().
-next_commands(Mod, InitialState, [_ | _] = Cmds, Size, 0) ->
-  next_commands(Mod, InitialState, Cmds, Size, 1);
-next_commands(Mod, InitialState, Cmds, Size, MaxRemovals) ->
+next_commands_gen(Mod, InitialState, [_ | _] = Cmds, Size, 0) ->
+  next_commands_gen(Mod, InitialState, Cmds, Size, 1);
+next_commands_gen(Mod, InitialState, Cmds, Size, MaxRemovals) ->
   %% Try to remove commands after the maximum current size is reached.
   Threshold = case Size > length(Cmds) of
                 true -> 0;
@@ -574,7 +563,7 @@ next_commands(Mod, InitialState, Cmds, Size, MaxRemovals) ->
               Remaining = Size - Length,
               State = state_after(Mod, [{init, InitialState} | LessCmds]),
               Count = Length + 1,
-              commands(Remaining, Mod, State, Count)
+              commands_gen(Remaining, Mod, State, Count)
             end,
             LessCmds ++ CmdsTail)).
 
