@@ -1112,7 +1112,7 @@ error_props_test_() ->
 		   ?FORALL(X, integer(), ?IMPLIES(X > 5, X < 6))),
      ?_assertCheck({error,too_many_instances}, [1,ab],
 		   ?FORALL(X, pos_integer(), X < 0)),
-     ?_errorsOut({cant_generate,[{proper_statem,commands,4}]},
+     ?_errorsOut({cant_generate,[{proper_statem,commands_gen,4}]},
 		 prec_false:prop_simple()),
      ?_errorsOut({cant_generate,[{nogen_statem,impossible_arg,0}]},
 		 nogen_statem:prop_simple()),

@@ -269,7 +269,7 @@ prop_distance() ->
 %% provides failing command sequencies more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
-     Cmds, targeted_commands(?MODULE),
+     Cmds, commands(?MODULE),
      ?TRAPEXIT(
         begin
           start_link(),
@@ -286,7 +286,7 @@ prop_distance_targeted() ->
 prop_distance_targeted_init() ->
   State = initial_state(),
   ?FORALL_TARGETED(
-     Cmds, targeted_commands(?MODULE, State),
+     Cmds, commands(?MODULE, State),
      ?TRAPEXIT(
         begin
           start_link(),
