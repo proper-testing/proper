@@ -242,6 +242,8 @@
 %%% <dd>This is equivalent to the {@link numtests/1} property wrapper. Any
 %%%   {@link numtests/1} wrappers in the actual property will overwrite this
 %%%   user option.</dd>
+%%% <dt>`{seed, {<Non_negative_integer>,<Non_negative_integer>,<Non_negative_integer>}}'</dt>
+%%% <dd>Pass a seed to the RNG so that random results can be reproduced.</dd>
 %%% <dt>`{start_size, <Size>}'</dt>
 %%% <dd>Specifies the initial value of the `size' parameter (default is 1), see
 %%%   the documentation of the {@link proper_types} module for details.</dd>
@@ -521,6 +523,7 @@
 		  | {'on_output',output_fun()}
 		  | {'search_steps',pos_integer()}
 		  | {'search_strategy',proper_target:strategy()}
+		  | {'seed',proper_gen:seed()}
 		  | {'skip_mfas',[mfa()]}
 		  | {'spec_timeout',timeout()}
 		  | {'start_size',proper_gen:size()}
@@ -982,6 +985,8 @@ parse_opt(UserOpt, Opts) ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{search_steps = N});
 	{search_strategy,S} ->
 	    ?VALIDATE_OPT(is_atom(S), Opts#opts{search_strategy = S});
+	{seed,Seed} ->
+	    ?VALIDATE_OPT(((is_tuple(Seed) andalso tuple_size(Seed) == 3) andalso ?POS_INTEGER(element(1,Seed)) andalso ?POS_INTEGER(element(2,Seed)) andalso ?POS_INTEGER(element(3,Seed))), Opts#opts{seed = Seed});
 	{skip_mfas,L} ->
 	    IsMFA = fun ({M,F,A}) when is_atom(M), is_atom(F),
 				       is_integer(A), 0 =< A, A =< 255 -> true;

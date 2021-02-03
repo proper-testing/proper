@@ -33,7 +33,7 @@
 	 safe_any/2, safe_zip/2, tuple_map/2, cut_improper_tail/1,
 	 head_length/1, find_first/2, filter/2, partition/2, insert/3,%remove/2,
 	 unflatten/2]).
--export([rand_start/1, rand_restart/1, rand_reseed/0, rand_stop/0,
+-export([rand_start/1, rand_restart/1, rand_make_seed/0, rand_reseed/0, rand_stop/0,
 	 rand_int/1, rand_int/2, smart_rand_int/3, rand_non_neg_int/1,
 	 rand_float/1, rand_float/2, rand_non_neg_float/1,
 	 distribute/2, jumble/1, rand_choose/1, freq_choose/1]).
@@ -238,6 +238,16 @@ rand_restart(Seed) ->
         _ ->
             ok
     end.
+
+%% @doc Derives a 3-tuple seed from current PRNG instance.
+%% Throws if there is no such instance.
+-spec rand_make_seed() -> proper_gen:seed().
+rand_make_seed() ->
+    {_,_} = get(?SEED_NAME),
+    A = rand_int(0, ?SEED_RANGE -1),
+    B = rand_int(0, ?SEED_RANGE -1),
+    C = rand_int(0, ?SEED_RANGE -1),
+    {A,B,C}.
 
 -spec rand_reseed() -> 'ok'.
 rand_reseed() ->

@@ -137,7 +137,8 @@ init_strategy(#{search_steps := Steps, search_strategy := Strat}) ->
   Strategy = strategy(Strat),
   proper_gen_next:init(),
   Data = Strategy:init_strategy(Steps),
-  Args = [{Strategy, Data}],
+  Seed = proper_arith:rand_make_seed(),
+  Args = [{Strategy, Data, Seed}],
   {ok, TargetserverPid} = gen_server:start_link(?MODULE, Args, []),
   put('$targetserver_pid', TargetserverPid),
   update_pdict(),
@@ -274,8 +275,9 @@ strategy(Strat) ->
 %% -----------------------------------------------------------------------------
 
 %% @private
--spec init(Args :: [{strategy(), strategy_data()}]) -> {ok, state()}.
-init([{Strategy, Data}]) ->
+-spec init(Args :: [{strategy(), strategy_data(), proper_gen:seed()}]) -> {ok, state()}.
+init([{Strategy, Data, Seed}]) ->
+  proper_arith:rand_start(Seed),
   {ok, #state{strategy = Strategy, data = Data}}.
 
 %% @private

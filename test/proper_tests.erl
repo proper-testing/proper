@@ -1172,6 +1172,54 @@ options_test_() ->
 print_in_magenta(S, L) ->
    io:format("\033[1;35m"++S++"\033[0m", L).
 
+seeded_test_() ->
+   Seed = os:timestamp(),
+   BaseOpts = [noshrink, {start_size,65536}, quiet],
+   Seeded = fun (Prop) ->
+                R = proper:counterexample(Prop, [{seed,Seed}|BaseOpts]),
+                proper:clean_garbage(),
+                R
+            end,
+   NoSeed = fun (Prop) ->
+                R = proper:counterexample(Prop, BaseOpts),
+                proper:clean_garbage(),
+                R
+            end,
+   ReSeeded = fun (Prop) ->
+                  OtherSeed = os:timestamp(),
+                  R = proper:counterexample(Prop, [{seed,OtherSeed}|BaseOpts]),
+                  proper:clean_garbage(),
+                  R
+              end,
+   [[?_assert(state_is_clean()),
+     ?_assertMatch({Name,{_,Equals}} when Equals > 6, {Name,equaltimes(Seeded,Prop,Check,10)}),
+     ?_assert(state_is_clean()),
+     ?_assertMatch({Name,{_,Equals}} when Equals < 4, {Name,equaltimes(NoSeed,Prop,Check,10)}),
+     ?_assert(state_is_clean()),
+     ?_assertMatch({Name,{_,Equals}} when Equals < 4, {Name,equaltimes(ReSeeded,Prop,Check,10)}),
+     ?_assert(state_is_clean())]
+    %% For each of these properties...
+    || {Name,Prop} <- [{forall,?FORALL(_, integer(), false)},
+                       {trapexit,?FORALL(_, integer(), ?TRAPEXIT(false))},
+                       {targeted,?FORALL_TARGETED(I, integer(), begin ?MAXIMIZE(I),false end)}],
+       %% Ensure that, using a large enough size and at least 60% of the time:
+       %% * provided a seed, another run gives the same counterexample;
+       %% * when not provided a seed: run gives out differing results to the seeded one;
+       %% * and similarly when given a different seed.
+       Check <- [Seeded(Prop)]].
+
+equaltimes(Runner, Prop, Expected, Max) ->
+    equaltimes(Runner, Prop, Expected, Max, Max, []).
+equaltimes(_, _, _, Max, 0, Unexpecteds) ->
+    {Unexpecteds, Max - length(Unexpecteds)};
+equaltimes(Runner, Prop, Expected, Max, N, Acc) ->
+    case Runner(Prop) of
+        Expected ->
+            equaltimes(Runner, Prop, Expected, Max, N-1, Acc);
+        Got ->
+            equaltimes(Runner, Prop, Expected, Max, N-1, [Got|Acc])
+    end.
+
 setup_prop() ->
     ?SETUP(fun () ->
 		   put(setup_token, true),
