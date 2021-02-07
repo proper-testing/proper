@@ -1,4 +1,4 @@
-[![Travis][travis badge]][travis]
+[![Github Actions][github badge]][github]
 [![CodeCov][codecov badge]][codecov]
 [![Erlang Versions][erlang versions badge]][erlang]
 [![License][license badge]][license]
@@ -188,7 +188,7 @@ incompatibilities between the two tools by now.
 [eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
 [license]: ./COPYING
 [release]: https://github.com/proper-testing/proper/releases/latest
-[travis]: https://travis-ci.org/proper-testing/proper
+[github]: https://github.com/proper-testing/proper/actions
 
 <!-- Badges (alphabetically) -->
 [codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
@@ -196,4 +196,4 @@ incompatibilities between the two tools by now.
 [erlang versions badge]: https://img.shields.io/badge/erlang-20.0%20to%2023.1-blue.svg?style=flat-square
 [license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
 [release badge]: https://img.shields.io/github/release/proper-testing/proper.svg?style=flat-square
-[travis badge]: https://img.shields.io/travis/proper-testing/proper/master.svg?style=flat-square
+[github badge]: https://github.com/proper-testing/proper/workflows/CI/badge.svg
