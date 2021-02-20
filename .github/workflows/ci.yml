@@ -20,14 +20,14 @@ jobs:
     strategy:
       matrix:
         otp:
-          - "20.0"
-          - "20.3"
-          - "21.0"
-          - "21.3"
-          - "22.1" # 22.0 seg faults
-          - "22.3"
-          - "23.0"
           - "23.2"
+          - "23.0"
+          - "22.3"
+          - "22.1" # 22.0 seg faults
+          - "21.3"
+          - "21.0"
+          - "20.3"
+          - "20.0"
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
