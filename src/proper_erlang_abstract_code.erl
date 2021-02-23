@@ -1672,7 +1672,7 @@ literal_binelement(S, IsLast, Where) ->
                        [Type, signedness(), endianness()]});
              Type =:= float ->
                  ?LET({Size, Unit},
-                      proper_types:oneof([{32, 2}, {64, 1}]),
+                      proper_types:oneof([{16, 1}, {32, 1}, {64, 1}]),
                       {'bin_element',
                        anno(),
                        a_float(S),
@@ -1897,7 +1897,7 @@ lit_integer(I) ->
     {'integer', anno(), I}.
 
 anno() ->
-    0.
+    erl_anno:new(0).
 
 resize(#gen_state{resize = false} = S) ->
     S;
