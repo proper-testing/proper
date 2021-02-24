@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -2371,8 +2371,8 @@ same_rec_arg(_, _, _NumRecArgs) ->
 
 -spec same_substs_dict(substs_dict(), substs_dict()) -> boolean().
 same_substs_dict(SubstsDict1, SubstsDict2) ->
-    SameKVPair = fun({{_K,V1},{_K,V2}}) -> same_ret_type(V1,V2);
-		    (_)                 -> false
+    SameKVPair = fun({{K1,V1},{K2,V2}}) when K1 =:= K2 -> same_ret_type(V1,V2);
+		    (_)                                -> false
 		 end,
     SubstsKVList1 = lists:sort(dict:to_list(SubstsDict1)),
     SubstsKVList2 = lists:sort(dict:to_list(SubstsDict2)),
