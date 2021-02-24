@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
 %%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
@@ -21,7 +21,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -914,7 +914,6 @@ multi_test_prep(Mod, Kind, UserOpts) ->
 %% a {@type proper:test()} opaque type to a {@type proper:outer_test()} opaque
 %% type so that the latter type can be passed to functions such as
 %% {@link proper:quickcheck/1} without a warning from dialyzer.
-%% @spec test_to_outer_test(test()) -> outer_test()
 -spec test_to_outer_test(test()) -> outer_test().
 test_to_outer_test(Test) -> Test.
 
@@ -1019,14 +1018,12 @@ peel_test(Test, Opts) ->
 
 %% @doc Specifies the number `N' of tests to run when testing the property
 %% `Test'. Default is 100.
-%% @spec numtests(pos_integer(), outer_test()) -> outer_test()
 -spec numtests(pos_integer(), outer_test()) -> outer_test().
 numtests(N, Test) ->
     {numtests, N, Test}.
 
 %% @doc Specifies that we expect the property `Test' to fail for some input. The
 %% property will be considered failing if it passes all the tests.
-%% @spec fails(outer_test()) -> outer_test()
 -spec fails(outer_test()) -> outer_test().
 fails(Test) ->
     {fails, Test}.
@@ -1034,7 +1031,6 @@ fails(Test) ->
 %% @doc Specifies an output function `Print' to be used by PropEr for all output
 %% printing during the testing of property `Test'. This wrapper is equivalent to
 %% the `on_output' option.
-%% @spec on_output(output_fun(), outer_test()) -> outer_test()
 -spec on_output(output_fun(), outer_test()) -> outer_test().
 on_output(Print, Test) ->
     {on_output, Print, Test}.
@@ -1070,7 +1066,6 @@ targeted(RawType, DTest) ->
 %% `SubProps' are true. Each sub-property should be tagged with a distinct atom.
 %% If this property fails, each failing sub-property will be reported and saved
 %% inside the counterexample along with its tag.
-%% @spec conjunction([{tag(),test()}]) -> test()
 -spec conjunction([{tag(),test()}]) -> test().
 conjunction(SubProps) ->
     {conjunction, SubProps}.
@@ -1087,28 +1082,24 @@ implies(Pre, DTest) ->
 %% percentage of test cases belonging to each category. Multiple `collect'
 %% wrappers are allowed in a single property, in which case the percentages for
 %% each `collect' wrapper are printed separately.
-%% @spec collect(term(), test()) -> test()
 -spec collect(term(), test()) -> test().
 collect(Category, Test) ->
     collect(with_title(""), Category, Test).
 
 %% @doc Same as {@link collect/2}, but also accepts a fun `Printer' to be used
 %% as the stats printer.
-%% @spec collect(stats_printer(), term(), test()) -> test()
 -spec collect(stats_printer(), term(), test()) -> test().
 collect(Printer, Category, Test) ->
     aggregate(Printer, [Category], Test).
 
 %% @doc Same as {@link collect/2}, but accepts a list of categories under which
 %% to classify the produced test case.
-%% @spec aggregate(sample(), test()) -> test()
 -spec aggregate(sample(), test()) -> test().
 aggregate(Sample, Test) ->
     aggregate(with_title(""), Sample, Test).
 
 %% @doc Same as {@link collect/3}, but accepts a list of categories under which
 %% to classify the produced test case.
-%% @spec aggregate(stats_printer(), sample(), test()) -> test()
 -spec aggregate(stats_printer(), sample(), test()) -> test().
 aggregate(Printer, Sample, Test) ->
     {sample, Sample, Printer, Test}.
@@ -1116,8 +1107,7 @@ aggregate(Printer, Sample, Test) ->
 %% @doc Same as {@link collect/2}, but can accept both a single category and a
 %% list of categories. `Count' is a boolean flag: when `false', the particular
 %% test case will not be counted.
-%% @spec classify(Count::boolean(), term() | sample(), test()) -> test()
--spec classify(boolean(), term() | sample(), test()) -> test().
+-spec classify(Count::boolean(), term() | sample(), test()) -> test().
 classify(false, _TermOrSample, Test) ->
     aggregate([], Test);
 classify(true, Sample, Test) when is_list(Sample) ->
@@ -1129,7 +1119,6 @@ classify(true, Term, Test) ->
 %% The number (or numbers) provided are collected and some statistics over the
 %% collected sample are printed at the end of testing (in case no test fails),
 %% prepended with `Title', which should be an atom or string.
-%% @spec measure(title(), number() | [number()], test()) -> test()
 -spec measure(title(), number() | [number()], test()) -> test().
 measure(Title, Sample, Test) when is_number(Sample) ->
     measure(Title, [Sample], Test);
@@ -1153,7 +1142,6 @@ timeout(Limit, DTest) ->
 
 %% @doc A custom property that evaluates to `true' only if `A =:= B', else
 %% evaluates to `false' and prints "`A =/= B'" on the screen.
-%% @spec equals(term(), term()) -> test()
 -spec equals(term(), term()) -> test().
 equals(A, B) ->
     ?WHENFAIL(io:format("~w =/= ~w~n",[A,B]), A =:= B).
