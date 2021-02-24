@@ -1,7 +1,7 @@
 %%% -*- coding: utf-8 -*-
 %%% -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains PropEr's Unit tests. You need the EUnit
@@ -1002,9 +1002,9 @@ true_stateful_test_() ->
      {timeout, 42, ?_passes(targeted_fsm:prop_random(), [{numtests,500}])}].
 
 false_props_test_() ->
-    [?_failsWith([[_Same,_Same]],
+    [?_failsWith([[Same,Same]],
 		 ?FORALL(L,list(integer()),is_sorted(L,lists:usort(L)))),
-     ?_failsWith([[_Same,_Same],_Same],
+     ?_failsWith([[Same2,Same2],Same2],
 		 ?FORALL(L, non_empty(list(union([a,b,c,d]))),
 			 ?FORALL(X, elements(L),
 				 not lists:member(X,lists:delete(X,L))))),
@@ -1016,7 +1016,7 @@ false_props_test_() ->
 				  true  -> throw(not_zero);
 				  false -> true
 			      end)),
-     ?_fails(?FORALL(_,1,lists:min([]) > 0)),
+     ?_fails(?FORALL(_, 1, lists:min([]) > 0)),
      ?_failsWith([[12,42]], ?FORALL(L, [12,42|list(integer())],
 				    case lists:member(42, L) of
 					true  -> erlang:exit(you_got_it);
@@ -1464,14 +1464,14 @@ equal_ignoring_ws(Str1, Str2) ->
 
 equal_ignoring_chars([], [], _Ignore) ->
     true;
-equal_ignoring_chars([_SameChar|Rest1], [_SameChar|Rest2], Ignore) ->
+equal_ignoring_chars([Ch1|Rest1], [Ch2|Rest2], Ignore) when Ch1 =:= Ch2 ->
     equal_ignoring_chars(Rest1, Rest2, Ignore);
-equal_ignoring_chars([Char1|Rest1] = Str1, [Char2|Rest2] = Str2, Ignore) ->
-    case lists:member(Char1, Ignore) of
+equal_ignoring_chars([Ch1|Rest1] = Str1, [Ch2|Rest2] = Str2, Ignore) ->
+    case lists:member(Ch1, Ignore) of
 	true ->
 	    equal_ignoring_chars(Rest1, Str2, Ignore);
 	false ->
-	    case lists:member(Char2, Ignore) of
+	    case lists:member(Ch2, Ignore) of
 		true ->
 		    equal_ignoring_chars(Str1, Rest2, Ignore);
 		false ->
