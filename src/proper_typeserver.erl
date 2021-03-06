@@ -81,7 +81,8 @@
 %%%   `#rec_name{}' syntax. To use a typed record in a `?FORALL', enclose the
 %%%   record in a custom type like so:
 %%%   ``` -type rec_name() :: #rec_name{}. '''
-%%%   and use the custom type instead.</li>
+%%%   and use the custom type instead. (Note that it is a good idea in general
+%%%   to do the above, i.e., give a name to all record types.)</li>
 %%% <li>`?FORALL's may contain references to self-recursive or mutually
 %%%   recursive native types, so long as each type in the hierarchy has a clear
 %%%   base case.
@@ -188,7 +189,7 @@
 %% CAUTION: all these must be sorted
 -define(STD_TYPES_0,
 	[any,arity,atom,binary,bitstring,bool,boolean,byte,char,float,integer,
-	 list,neg_integer,non_neg_integer,number,pos_integer,string,term,
+	 list,neg_integer,nil,non_neg_integer,number,pos_integer,string,term,
 	 timeout]).
 -define(HARD_ADTS,
 	%% gb_trees:iterator and gb_sets:iterator are NOT hardcoded
@@ -1628,7 +1629,7 @@ convert(_Mod, {type,_,range,[LowExpr,HighExpr]}, State, _Stack, _VarDict) ->
 	    expr_error(invalid_range, LowExpr, HighExpr)
     end;
 convert(_Mod, {type,_,nil,[]}, State, _Stack, _VarDict) ->
-    {ok, {simple,proper_types:exactly([])}, State};
+    {ok, {simple,proper_types:nil()}, State};
 convert(Mod, {type,_,list,[ElemForm]}, State, Stack, VarDict) ->
     convert_list(Mod, false, ElemForm, State, Stack, VarDict);
 convert(Mod, {type,_,nonempty_list,[ElemForm]}, State, Stack, VarDict) ->

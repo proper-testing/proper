@@ -145,7 +145,7 @@
 	 loose_tuple/1, exactly/1, fixed_list/1, function/2, map/0, map/2,
 	 any/0, shrink_list/1, safe_union/1, safe_weighted_union/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
-	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
+	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0, nil/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
@@ -211,7 +211,7 @@
 %% Types
 %%------------------------------------------------------------------------------
 
--type frequency() :: pos_integer().
+-type frequency() :: non_neg_integer().
 -type length()    :: non_neg_integer().
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | atom().
@@ -885,14 +885,14 @@ union_shrinker_2(X, Type, S) ->
 
 %% @doc A specialization of {@link union/1}, where each type in `ListOfTypes' is
 %% assigned a frequency. Frequencies must be Erlang expressions that evaluate to
-%% positive integers. Types with larger frequencies are more likely to be chosen
-%% by the random instance generator. The shrinking subsystem will ignore the
-%% frequencies and try to shrink towards the first type in the list.
+%% non-negative integers. Types with larger frequencies are more likely to be
+%% chosen by the random instance generator. The shrinking subsystem will ignore
+%% the frequencies and try to shrink towards the first type in the list with a
+%% non-zero frequency.
 -spec weighted_union(ListOfTypes::[{frequency(),raw_type()},...]) ->
           proper_types:type().
 weighted_union(RawFreqChoices) ->
-    CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
-    FreqChoices = lists:map(CookFreqType, RawFreqChoices),
+    FreqChoices = [{Fr,cook_outer(RT)} || {Fr,RT} <- RawFreqChoices, Fr > 0],
     Choices = [T || {_F,T} <- FreqChoices],
     PropList = [{subenv, FreqChoices},
 		{generator, {typed, fun weighted_union_gen/1}}],
@@ -1185,6 +1185,10 @@ byte() -> integer(0, 255).
 %% @equiv integer(0, 16#10ffff)
 -spec char() -> proper_types:type().
 char() -> integer(0, 16#10ffff).
+
+%% @equiv exactly([])
+-spec nil() -> proper_types:type().
+nil() -> exactly([]).
 
 %% @equiv list(any())
 -spec list() -> proper_types:type().
