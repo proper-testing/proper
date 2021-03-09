@@ -1979,9 +1979,6 @@ wunion1(FreqTypes) ->
     wunion2(FreqTypes, []).
 
 wunion2(FreqTypes0, Tags) ->
-    %% proper_types:weighted_union() seems to handle frequency() =:= 0
-    %% very well although frequency() :: pos_integer(), but avoid
-    %% possible Dialyzer warning.
     FreqTypes = non_zero(FreqTypes0),
     case FreqTypes of
         [] ->
