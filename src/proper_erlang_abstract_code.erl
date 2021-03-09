@@ -2642,8 +2642,8 @@ post({record, A, E, RecName, Fields}, S) ->
 post({record, A, RecName, Fields}, S) ->
     {Fields1, S1} = post_expr_list(Fields, S),
     {{record, A, RecName, Fields1}, S1};
-post({type, A, binary, [B, U]}, S) ->
-    {[B1, U1], S1} = post_expr_list([B, U], S),
+post({type, A, binary, [_B, _U]=BU}, S) ->
+    {[B1, U1], S1} = post_expr_list(BU, S),
     Check = fun(E) ->
                     case erl_eval:partial_eval(E) of
                         {integer, _, V} when V >= 0 ->
@@ -2655,8 +2655,8 @@ post({type, A, binary, [B, U]}, S) ->
                     end
             end,
     {{type, A, binary, [Check(B1), Check(U1)]}, S1};
-post({type, A, range, [L, H]}, S) ->
-    {[L1, H1], S1} = post_expr_list([L, H], S),
+post({type, A, range, [_L, _H]=LH}, S) ->
+    {[L1, H1] = LH1, S1} = post_expr_list(LH, S),
     Low = erl_eval:partial_eval(L1),
     High = erl_eval:partial_eval(H1),
     case {Low, High} of
@@ -2665,12 +2665,12 @@ post({type, A, range, [L, H]}, S) ->
         {{integer, _, V1}, {integer, _, V2}} when V1 >= V2 ->
             {{type, A, range, [H1, L1]}, S1};
         {{integer, _, V1}, {integer, _, V2}} when V1 < V2 ->
-            {{type, A, range, [L1, H1]}, S1};
+            {{type, A, range, LH1}, S1};
         _ -> % cannot happen
-            {{type, A, range, [L1, H1]}, S1}
+            {{type, A, range, LH1}, S1}
     end;
 post({attribute, A, Type, {TypeName, AbstrType, Parms}}, S)
-                  when Type =:= 'opaque'; Type =:= 'type'->
+                  when Type =:= 'opaque'; Type =:= 'type' ->
     in_context
       (type, S,
        fun(State) ->
@@ -2685,12 +2685,12 @@ post({function, A, F, N, ClauseSeq}, S) ->
                {ClauseSeq1, State1} = function_clauses(ClauseSeq, State),
                {{function, A, F, N, ClauseSeq1}, State1}
        end);
-post({attribute, A, Spec, {{F, N}, FuncTypeList}}, S) ->
+post({attribute, A, Spec, {{_F, _N}=FN, FuncTypeList}}, S) ->
     in_context
       (type, S,
        fun(State) ->
                {FuncTypeList1, State1} = post_list(FuncTypeList, State),
-               {{attribute, A, Spec, {{F, N}, FuncTypeList1}}, State1}
+               {{attribute, A, Spec, {FN, FuncTypeList1}}, State1}
        end);
 post({attribute, A, record, {Name, Fields}}, S) ->
     in_context
@@ -2762,10 +2762,10 @@ post({remote_type, A, [M, N, Ts]}, S) ->
     {{remote_type, A, [M1, N1, Ts1]}, S2};
 post({string, _, _}=Str, S) ->
     {Str, S};
-post({type, A, any}, S) ->
-    {{type, A, any}, S};
-post({type, A, N, any}, S) ->
-    {{type, A, N, any}, S};
+post({type, _A, any}=Any, S) ->
+    {Any, S};
+post({type, _A, _N, any}=Any, S) ->
+    {Any, S};
 post({type, A, 'fun', Ts}, S) ->
     {Ts1, S1} = post_list(Ts, S),
     {{type, A, 'fun', Ts1}, S1};
@@ -2782,10 +2782,10 @@ post({type, A, N, Ts}, S) ->
 post({user_type, A, N, Ts}, S) ->
     {Ts1, S1} = post_list(Ts, S),
     {{user_type, A, N, Ts1}, S1};
-post({var, A, '_'}, S) ->
-    {{var, A, '_'}, S};
-post({var, A, NamedFun}, S) ->
-    {{var, A, NamedFun}, S}.
+post({var, _A, '_'}=VarU, S) ->
+    {VarU, S};
+post({var, _A, _NamedFun}=VarNF, S) ->
+    {VarNF, S}.
 
 in_context(Context, S, Fun) ->
     S1 = S#post_state{context = Context,
