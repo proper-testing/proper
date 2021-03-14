@@ -501,7 +501,8 @@
 
 -type false_positive_mfas() :: fun((mfa(),Args::[term()],{fail,Result::term()} | {error | exit | throw,Reason::term()}) -> boolean()) | 'undefined'.
 
-%%
+%% Strategy function type
+-type strategy_fun() :: fun((NumTests :: pos_integer(), NumWorkers :: pos_integer()) -> [{non_neg_integer(), non_neg_integer()}]).
 
 %%-----------------------------------------------------------------------------
 %% Options and Context types
@@ -522,6 +523,7 @@
 		  | {'max_size',proper_gen:size()}
 		  | {'numtests',pos_integer()}
 		  | {'num_workers', non_neg_integer()}
+		  | {'strategy_fun', strategy_fun()}
 		  | {'on_output',output_fun()}
 		  | {'search_steps',pos_integer()}
 		  | {'search_strategy',proper_target:strategy()}
@@ -548,7 +550,8 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-	       num_workers      = 1               :: non_neg_integer(),
+	       num_workers      = 2               :: non_neg_integer(),
+	       strategy_fun     = default_strategy_fun() :: strategy_fun(),
 	       parent           = self()          :: pid(),
 	       nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
@@ -1018,6 +1021,8 @@ parse_opt(UserOpt, Opts) ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
     {num_workers,N} ->
         ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{num_workers = N});
+    {strategy_fun,Fun} ->
+        ?VALIDATE_OPT(is_function(Fun, 2), Opts#opts{strategy_fun = Fun});
 	{on_output,Print} ->
 	    ?VALIDATE_OPT(is_function(Print, 2),
 			  Opts#opts{output_fun = Print, nocolors = true});
@@ -1244,8 +1249,9 @@ property_type(_) -> {}.
 %% latter case it will start a node for every worker that will be spawned in order to
 %% avoid test collisions between them.
 -spec perform_with_nodes(test(), opts()) -> imm_result().
-perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers} = Opts) ->
-    TestsPerWorker = test_list_per_worker(NumTests, NumWorkers),
+perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers,
+                               strategy_fun = StrategyFun} = Opts) ->
+    TestsPerWorker = StrategyFun(NumTests, NumWorkers),
     NodeList = case property_type(Test) of
         {kind, Type} when Type =:= constructed; Type =:= wrapper ->
             % stateful or simulated annealing
@@ -2324,26 +2330,28 @@ report_shrinking(NumShrinks, MinImmTestCase, MinActions, Opts) ->
     print_imm_testcase(MinImmTestCase, "", Print),
     execute_actions(MinActions).
 
--spec test_list_per_worker(pos_integer(), non_neg_integer()) -> [{non_neg_integer(), non_neg_integer()}].
-test_list_per_worker(NumTests, NumWorkers) ->
-    Decr = case NumTests of
-        1 -> 0;
-        _ -> 1
-    end,
-    Seq = lists:seq(1, NumWorkers),
-    lists:map(fun(X) ->
-                  L2 = lists:seq(X - 1, NumTests - Decr, NumWorkers),
-                  {_Start, _NumTests} = {hd(L2), lists:last(L2)}
-              end, Seq).
+-spec default_strategy_fun() -> strategy_fun().
+default_strategy_fun() ->
+    fun(NumTests,NumWorkers) ->
+        Decr = case NumTests of
+                    1 -> 0;
+                    _ -> 1
+               end,
+        Seq = lists:seq(1, NumWorkers),
+        lists:map(fun(X) ->
+                    L2 = lists:seq(X - 1, NumTests - Decr, NumWorkers),
+                    {_Start, _NumTests} = {hd(L2), lists:last(L2)}
+                  end, Seq)
+    end.
 
 %% @private
--spec update_slave_node_ref({node(), {already_running, boolean()}}) -> list(node()).
-update_slave_node_ref(Node) ->
-    NewMap = case get(slave_node) of
+-spec update_worker_node_ref({node(), {already_running, boolean()}}) -> list(node()).
+update_worker_node_ref(Node) ->
+    NewMap = case get(worker_node) of
         undefined -> [Node];
         Map -> [Node|Map]
     end,
-    put(slave_node, NewMap).
+    put(worker_node, NewMap).
 
 %% @private
 %% @doc Starts a remote node to ensure the testing will not
@@ -2355,10 +2363,10 @@ start_node(SlaveName) ->
     _ = net_kernel:start([proper_master, shortnames]),
     case slave:start_link(HostName, SlaveName) of
         {ok, Node} ->
-            _ = update_slave_node_ref({Node, {already_running, false}}),
+            _ = update_worker_node_ref({Node, {already_running, false}}),
             Node;
         {error, {already_running, Node}} ->
-            _ = update_slave_node_ref({Node, {already_running, true}}),
+            _ = update_worker_node_ref({Node, {already_running, true}}),
             Node
     end.
 
@@ -2428,11 +2436,11 @@ start_nodes(NumNodes) ->
 %% @doc Stops all the registered (started) nodes.
 -spec stop_nodes() -> 'ok'.
 stop_nodes() ->
-    Nodes = get(slave_node),
+    Nodes = get(worker_node),
     NodesToStop = lists:filter(fun({_N, {already_running, Bool}}) -> not Bool end, Nodes),
     lists:foreach(fun({Node, _}) -> slave:stop(Node) end, NodesToStop),
     _ = net_kernel:stop(),
-    erase(slave_node),
+    erase(worker_node),
     ok.
 
 %% @private
