@@ -1087,15 +1087,17 @@ false_props_test_() ->
 		 ]))),
      ?_failsWith([[a,a,a,a,a]], shrinking_gotchas:prop_shrink_list_same_elem()),
      ?_fails(more_commands_test:prop_more_commands_fails(), [{numtests,42}]),
-     ?_failsWith([500], targeted_shrinking_test:prop_int()),
-     ?_failsWith([500], targeted_shrinking_test:prop_let_int()),
-     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_outer()),
-     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner()),
+     %% Run with sequential PropEr, as if the workers take too long to find
+     %% the counterexample, the property will hold when it shouldn't
+     ?_failsWith([500], targeted_shrinking_test:prop_int(), [{num_workers,0}]),
+     ?_failsWith([500], targeted_shrinking_test:prop_let_int(), [{num_workers,0}]),
+     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_outer(), [{num_workers,0}]),
+     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner(), [{num_workers,0}]),
      {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
      ?_fails(post_false:prop_simple())].
 
 false_stateful_test_() ->
-  Opts = [{numtests,1000}],
+  Opts = [{numtests,1000}, {num_workers,0}],
   [{timeout, 42, ?_fails(targeted_statem:prop_targeted(), Opts)},
    {timeout, 42, ?_fails(targeted_statem:prop_targeted_init(), Opts)},
    {timeout, 42, ?_fails(targeted_fsm:prop_targeted(), Opts)},
@@ -1159,7 +1161,7 @@ options_test_() ->
 			  ?FORALL(_, 1, begin inc_temp(), true end),
 			  [300]),
      ?_failsWith([42], ?FORALL(T, any(), T < 42),
-		 [any_to_integer,verbose,nocolors]),
+		 [any_to_integer,verbose,nocolors,{num_workers,0}]),
      ?_failsWith([42], ?FORALL(I, integer(), I < 42),
 		 [{numtests,4711}, {on_output,fun print_in_magenta/2}]),
      ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [noshrink]),

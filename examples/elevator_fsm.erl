@@ -33,7 +33,7 @@
 -export([initial_state/0, initial_state_data/0, precondition/4,
 	 next_state_data/5, postcondition/5]).
 %% functions used as proper_fsm commands
--export([up/0, down/0, which_floor/0, get_on/1, get_off/1,
+-export([up/1, down/1, which_floor/1, get_on/2, get_off/2,
 	 fsm_basement/1, fsm_floor/2]).
 
 -include_lib("proper/include/proper.hrl").
@@ -45,6 +45,7 @@
 		limit      :: pos_integer()}).   %% max number of people allowed
 
 -record(test_state, {people     = 0  :: non_neg_integer(),
+             elevator_name = elevator :: atom(),
 		     num_floors = 5  :: non_neg_integer(),
 		     max_people = 10 :: pos_integer()}).
 
@@ -54,28 +55,32 @@
 %%% API
 %%%-------------------------------------------------------------------
 
-start_link(Info) ->
-    gen_statem:start_link({local,?NAME}, ?MODULE, Info, []).
+generate_elevator_name() ->
+    Id = erlang:integer_to_list(erlang:unique_integer()),
+    list_to_atom("elevator" ++ Id).
 
-stop() ->
-    gen_statem:call(?NAME, stop).
+start_link(Name, Info) ->
+    gen_statem:start_link({local,Name}, ?MODULE, Info, []).
 
-up() ->
-    gen_statem:cast(?NAME, up).
+stop(Name) ->
+    gen_statem:call(Name, stop).
 
-down() ->
-    gen_statem:cast(?NAME, down).
+up(Name) ->
+    gen_statem:cast(Name, up).
 
-which_floor() ->
-    gen_statem:call(?NAME, which_floor).
+down(Name) ->
+    gen_statem:cast(Name, down).
+
+which_floor(Name) ->
+    gen_statem:call(Name, which_floor).
 
 %% N people try to get on the elevator
-get_on(N) ->
-    gen_statem:call(?NAME, {get_on,N}).
+get_on(Name, N) ->
+    gen_statem:call(Name, {get_on,N}).
 
 %% N people get off the elevator (assuming at least N people are inside)
-get_off(N) ->
-    gen_statem:cast(?NAME, {get_off,N}).
+get_off(Name, N) ->
+    gen_statem:cast(Name, {get_off,N}).
 
 
 %%--------------------------------------------------------------------
@@ -165,41 +170,44 @@ initial_state() -> fsm_basement.
 
 initial_state_data() -> #test_state{}.
 
+elevator_name(#test_state{elevator_name = ElevatorName}) ->
+    ElevatorName.
+
 fsm_basement(S) ->
-    [{history,{call,?MODULE,down,[]}},
-     {history,{call,?MODULE,which_floor,[]}},
-     {history,{call,?MODULE,get_on,[people(S)]}},
-     {history,{call,?MODULE,get_off,[people(S)]}},
-     {{fsm_floor,1},{call,?MODULE,up,[]}},
-     {history,{call,?MODULE,up,[]}}].
+    [{history,{call,?MODULE,down,[elevator_name(S)]}},
+     {history,{call,?MODULE,which_floor,[elevator_name(S)]}},
+     {history,{call,?MODULE,get_on,[elevator_name(S), people(S)]}},
+     {history,{call,?MODULE,get_off,[elevator_name(S), people(S)]}},
+     {{fsm_floor,1},{call,?MODULE,up,[elevator_name(S)]}},
+     {history,{call,?MODULE,up,[elevator_name(S)]}}].
 
 fsm_floor(N, S) ->
-    [{{fsm_floor,N-1},{call,?MODULE,down,[]}} || N > 1] ++
-    [{fsm_basement,{call,?MODULE,down,[]}} || N =:= 1] ++
-    [{history,{call,?MODULE,which_floor,[]}},
-     {history,{call,?MODULE,get_off,[people(S)]}},
-     {{fsm_floor,N+1},{call,?MODULE,up,[]}},
-     {history,{call,?MODULE,up,[]}}].
+    [{{fsm_floor,N-1},{call,?MODULE,down,[elevator_name(S)]}} || N > 1] ++
+    [{fsm_basement,{call,?MODULE,down,[elevator_name(S)]}} || N =:= 1] ++
+    [{history,{call,?MODULE,which_floor,[elevator_name(S)]}},
+     {history,{call,?MODULE,get_off,[elevator_name(S), people(S)]}},
+     {{fsm_floor,N+1},{call,?MODULE,up,[elevator_name(S)]}},
+     {history,{call,?MODULE,up,[elevator_name(S)]}}].
 
-precondition(fsm_basement, {fsm_floor,1}, S, {call,_,up,[]}) ->
+precondition(fsm_basement, {fsm_floor,1}, S, {call,_,up,[_ElevatorName]}) ->
     S#test_state.num_floors > 0;
-precondition(fsm_basement, fsm_basement, S, {call,_,up,[]}) ->
+precondition(fsm_basement, fsm_basement, S, {call,_,up,[_ElevatorName]}) ->
     S#test_state.num_floors =:= 0;
-precondition({fsm_floor,N}, {fsm_floor,M}, S, {call,_,up,[]})
+precondition({fsm_floor,N}, {fsm_floor,M}, S, {call,_,up,[_ElevatorName]})
   when M =:= N + 1 ->
     S#test_state.num_floors > N;
-precondition({fsm_floor,N}, {fsm_floor,N}, S, {call,_,up,[]}) ->
+precondition({fsm_floor,N}, {fsm_floor,N}, S, {call,_,up,[_ElevatorName]}) ->
     S#test_state.num_floors =:= N;
-precondition({fsm_floor,_}, {fsm_floor,_}, _S, {call,_,up,[]}) ->
+precondition({fsm_floor,_}, {fsm_floor,_}, _S, {call,_,up,[_ElevatorName]}) ->
     false;
-precondition(_, _, S, {call,_,get_off,[N]}) ->
+precondition(_, _, S, {call,_,get_off,[_ElevatorName, N]}) ->
     N =< S#test_state.people;
 precondition(_, _, _, _) ->
     true.
 
-next_state_data(_, _, S, _, {call,_,get_off,[N]}) ->
+next_state_data(_, _, S, _, {call,_,get_off,[_ElevatorName, N]}) ->
     S#test_state{people = S#test_state.people - N};
-next_state_data(_, _, S, _, {call,_,get_on,[N]}) ->
+next_state_data(_, _, S, _, {call,_,get_on,[_ElevatorName, N]}) ->
     People = S#test_state.people,
     case S#test_state.max_people < People + N of
 	true -> S;
@@ -208,17 +216,17 @@ next_state_data(_, _, S, _, {call,_,get_on,[N]}) ->
 next_state_data(_, _, S, _, _) ->
     S.
 
-postcondition(_, _, S, {call,_,get_on,[N]}, R) ->
+postcondition(_, _, S, {call,_,get_on,[_ElevatorName, N]}, R) ->
     People = S#test_state.people,
     case S#test_state.max_people < People + N of
 	true -> R =:= People;
 	false -> R =:= N + People
     end;
-postcondition(fsm_basement, fsm_basement, _, {call,_,which_floor,[]}, 0) ->
+postcondition(fsm_basement, fsm_basement, _, {call,_,which_floor,[_ElevatorName]}, 0) ->
     true;
-postcondition({fsm_floor,N}, {fsm_floor,N}, _, {call,_,which_floor,[]}, N) ->
+postcondition({fsm_floor,N}, {fsm_floor,N}, _, {call,_,which_floor,[_ElevatorName]}, N) ->
     true;
-postcondition(_, _, _, {call,_,which_floor,[]}, _) ->
+postcondition(_, _, _, {call,_,which_floor,[_ElevatorName]}, _) ->
     false;
 postcondition(_, _, _, _, R) ->
     R =:= ok.
@@ -232,16 +240,18 @@ prop_elevator() ->
     ?FORALL(
        {NumFloors,MaxPeople}, {num_floors(),max_people()},
        begin
+       ElevatorName = generate_elevator_name(),
 	   Initial = {initial_state(),
 		      #test_state{num_floors = NumFloors,
+                  elevator_name = ElevatorName,
 				  max_people = MaxPeople,
 				  people = 0}},
 	   ?FORALL(
 	      Cmds, more_commands(5, proper_fsm:commands(?MODULE, Initial)),
 	      begin
-		  {ok,_} = start_link({NumFloors,MaxPeople}),
+		  {ok,_} = start_link(ElevatorName, {NumFloors,MaxPeople}),
 		  {H,S,Res} = proper_fsm:run_commands(?MODULE, Cmds),
-		  stop(),
+		  stop(ElevatorName),
 		  ?WHENFAIL(
 		     io:format("H: ~w~nS: ~w~nR: ~w~n", [H,S,Res]),
 		     aggregate(zip(proper_fsm:state_names(H),

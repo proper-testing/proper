@@ -2167,6 +2167,7 @@ aggregate_imm_result(WorkerList, #pass{performed = Passed, samples = Samples} = 
                     WorkerList -- [From]),
             Performed = lists:foldl(fun(Worker, Acc) ->
                                 receive
+                                    {worker_msg, {performed, undefined, Id}} -> Acc;
                                     {worker_msg, {performed, P, Id}} -> P + Acc;
                                     {worker_msg, #fail{performed = FailedOn2}, Worker, Id} -> FailedOn2 + Acc
                                 end
