@@ -1195,6 +1195,7 @@ timeout(Limit, DTest) ->
 equals(A, B) ->
     ?WHENFAIL(io:format("~w =/= ~w~n",[A,B]), A =:= B).
 
+
 %%-----------------------------------------------------------------------------
 %% Bulk testing functions
 %%-----------------------------------------------------------------------------
@@ -1485,7 +1486,7 @@ perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
 		    NewSamples, NewPrinters, Opts);
 	#fail{} = FailResult ->
 	    Print("!", []),
-        FailResult#fail{performed = Passed + 1};
+	    FailResult#fail{performed = Passed + 1};
 	{error, rejected} ->
 	    Print("x", []),
 	    grow_size(Opts),

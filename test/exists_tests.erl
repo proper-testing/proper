@@ -72,12 +72,12 @@ not_exists_test() ->
   ok.
 
 forall_targeted_test() ->
-  false = proper:quickcheck(prop_forall_targeted(), ?PROPER_OPTIONS_SHRINKING),
+  false = proper:quickcheck(prop_forall_targeted(), ?PROPER_OPTIONS_SHRINKING ++ [{num_workers,1}]),
   [100] = proper:counterexample(),
   ok.
 
 forall_targeted_trapexit_test() ->
-  false = proper:quickcheck(prop_forall_targeted_trapexit(), ?PROPER_OPTIONS_SHRINKING),
+  false = proper:quickcheck(prop_forall_targeted_trapexit(), ?PROPER_OPTIONS_SHRINKING ++ [{num_workers,1}]),
   [100] = proper:counterexample(),
   ok.
 
@@ -467,7 +467,7 @@ prop_match_and_shrink() ->
 
 -spec match_and_shrink_test() -> 'ok'.
 match_and_shrink_test() ->
-  false = proper:quickcheck(prop_match_and_shrink(), ?PROPER_OPTIONS_SHRINKING),
+  false = proper:quickcheck(prop_match_and_shrink(), ?PROPER_OPTIONS_SHRINKING ++ [{num_workers,1}]),
   [L] = proper:counterexample(),
   ?assertEqual(100, lists:sum(L)).
 

@@ -1097,7 +1097,7 @@ false_props_test_() ->
      ?_fails(post_false:prop_simple())].
 
 false_stateful_test_() ->
-  Opts = [{numtests,1000}, {num_workers,0}],
+  Opts = [{numtests,1000},{num_workers,0}],
   [{timeout, 42, ?_fails(targeted_statem:prop_targeted(), Opts)},
    {timeout, 42, ?_fails(targeted_statem:prop_targeted_init(), Opts)},
    {timeout, 42, ?_fails(targeted_fsm:prop_targeted(), Opts)},
