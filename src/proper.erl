@@ -287,6 +287,15 @@
 %%% <dt>`{num_workers, <Non_negative_number>}'</dt>
 %%% <dd> Specifies the number of workers to spawn when performing the tests (defaults to 0,
 %%% which is PropEr's default behaviour). Each worker gets their own share of the total of number of tests to perform.</dd>
+%%% <dt>`{strategy_fun, <Strategy_function>}'</dt>
+%%% <dd> Overrides the default function used to split the load of tests among the workers.
+%%% It should be of the type {@link strategy_fun()}.</dd>
+%%% <dt>`pure | impure'</dt>
+%%% <dd> Declares the type of the property, as in pure with no side-effects or state,
+%%% and impure with them. <b>Notice</b>: this option will only be taken into account if
+%%% the the number of workers set is greater than 0. In addition, <i>pure</i> properties
+%%% will have all the workers sharing the same node, whereas <i>impure</i> properties will
+%%% have each worker on its own node.</dd>
 %%% </dl>
 %%%
 %%% == Spec testing ==
@@ -503,6 +512,9 @@
 
 %% Strategy function type
 -type strategy_fun() :: fun((NumTests :: pos_integer(), NumWorkers :: pos_integer()) -> [{non_neg_integer(), non_neg_integer()}]).
+%% A function that given a number of tests and a number of workers, splits
+%% the load in the form of a list of tuples with the first element as the
+%% starting test and the second element as the number of tests to do from there on.
 
 %%-----------------------------------------------------------------------------
 %% Options and Context types
@@ -524,6 +536,7 @@
 		  | {'numtests',pos_integer()}
 		  | {'num_workers', non_neg_integer()}
 		  | {'strategy_fun', strategy_fun()}
+		  | {'property_type', pure | impure}
 		  | {'on_output',output_fun()}
 		  | {'search_steps',pos_integer()}
 		  | {'search_strategy',proper_target:strategy()}
@@ -551,6 +564,7 @@
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
 	       num_workers      = 2               :: non_neg_integer(),
+	       property_type    = pure            :: pure | impure,
 	       strategy_fun     = default_strategy_fun() :: strategy_fun(),
 	       parent           = self()          :: pid(),
 	       nocolors         = false           :: boolean()}).
@@ -1004,6 +1018,8 @@ parse_opt(UserOpt, Opts) ->
 	noshrink       -> Opts#opts{noshrink = true};
 	quiet          -> Opts#opts{output_fun = fun(_,_) -> ok end};
 	verbose        -> Opts#opts{output_fun = fun io:format/2};
+	PropertyType when PropertyType =:= pure orelse PropertyType =:= impure ->
+        Opts#opts{property_type = PropertyType};
 	%% integer
 	N when is_integer(N) ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
@@ -1234,33 +1250,22 @@ inner_test(RawTest, Opts) ->
     end.
 
 %% @private
--spec property_type(test()) -> tuple() | false.
-property_type({forall, {_, {'$type', TList}}, _}) when is_list(TList) ->
-   lists:keyfind(kind, 1, TList);
-property_type({forall, {{'$type', TList}, _}, _}) when is_list(TList) ->
-   lists:keyfind(kind, 1, TList);
-property_type({forall, {_, TList}, _}) when is_list(TList) ->
-   lists:keyfind(kind, 1, TList);
-property_type(_) -> {}.
-
-%% @private
 %% @doc Runs PropEr in parallel mode, through the use of workers to perform the tests.
-%% Under this mode, PropEr will try to detect if a property is stateless or stateful,
-%% on the former case all the workers will be spawned on a single node, while on the
-%% latter case it will start a node for every worker that will be spawned in order to
+%% Under this mode, PropEr will detect if a property is pure or impure based on the options.
+%% On the former case, all the workers will be spawned on a single node; whereas on the
+%% latter case, it will start a node for every worker that will be spawned in order to
 %% avoid test collisions between them.
 -spec perform_with_nodes(test(), opts()) -> imm_result().
-perform_with_nodes(Test, #opts{numtests = NumTests, num_workers = NumWorkers,
-                               strategy_fun = StrategyFun} = Opts) ->
+perform_with_nodes(Test, Opts) ->
+    #opts{numtests = NumTests, num_workers = NumWorkers,
+          strategy_fun = StrategyFun, property_type = PropertyType} = Opts,
     TestsPerWorker = StrategyFun(NumTests, NumWorkers),
-    NodeList = case property_type(Test) of
-        {kind, Type} when Type =:= constructed; Type =:= wrapper ->
-            % stateful or simulated annealing
+    NodeList = case PropertyType of
+        impure ->
             Nodes = start_nodes(NumWorkers),
             ensure_code_loaded(Nodes),
             lists:zip(Nodes, TestsPerWorker);
-        _ ->
-            % stateless
+        pure ->
             [Node] = start_nodes(1),
             ensure_code_loaded([Node]),
             lists:map(fun(N) -> {Node, N} end, TestsPerWorker)

@@ -130,7 +130,7 @@ assertEqualsOneOf(X, List) ->
 -define(_nativeShrinksToOneOf(AllShrunk, TypeStr),
 	?_assertFailRun([[X] || X <- AllShrunk],
 			?FORALL(_X,assert_can_translate(?MODULE,TypeStr),false),
-			?SHRINK_TEST_OPTS)).
+			?SHRINK_TEST_OPTS ++ [{num_workers,0}])). %% this one can be probably run with workers
 
 -define(_assertFailRun(AllCExms, Test, Opts),
 	?_test(begin
@@ -156,8 +156,11 @@ assertEqualsOneOf(X, List) ->
 	       end)).
 
 -define(_cexmMatchesWith(Pattern, Test),
+	cexmMatchesWith(Pattern, Test, [])).
+
+-define(_cexmMatchesWith(Pattern, Test, Opts),
 	?_test(begin
-		   ?assertEqual(false, proper:quickcheck(Test)),
+		   ?assertEqual(false, proper:quickcheck(Test, Opts)),
 		   ?assertMatch(Pattern, get_cexm())
 	       end)).
 
@@ -996,13 +999,13 @@ true_stateful_test_() ->
      ?_passes(symb_statem:prop_simple()),
      ?_passes(symb_statem_maps:prop_simple()),
      ?_passes(more_commands_test:prop_commands_passes(), [{numtests,42}]),
-     {timeout, 10, ?_passes(ets_statem_test:prop_ets())},
-     {timeout, 20, ?_passes(ets_statem_test:prop_parallel_ets())},
+     {timeout, 10, ?_passes(ets_statem_test:prop_ets(), [impure])},
+     {timeout, 20, ?_passes(ets_statem_test:prop_parallel_ets(), [impure])},
      {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
      {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())},
-     {timeout, 42, ?_passes(targeted_statem:prop_random(), [{numtests,500}])},
-     {timeout, 42, ?_passes(targeted_fsm:prop_random(), [{numtests,500}])}].
+     {timeout, 42, ?_passes(targeted_statem:prop_random(), [{numtests,500},impure])},
+     {timeout, 42, ?_passes(targeted_fsm:prop_random(), [{numtests,500},impure])}].
 
 false_props_test_() ->
     [?_failsWith([[Same,Same]],
@@ -1026,8 +1029,8 @@ false_props_test_() ->
 					false -> true
 				    end)),
      %% TODO: Check that the following two tests shrink properly on _N
-     ?_cexmMatchesWith([{_,_N}], fun_tests:prop_fun_int_int()),
-     ?_cexmMatchesWith([{_,_,[_N]}], fun_tests:prop_lists_map_filter()),
+     ?_cexmMatchesWith([{_,_N}], fun_tests:prop_fun_int_int(), [{num_workers,0}]),
+     ?_cexmMatchesWith([{_,_,[_N]}], fun_tests:prop_lists_map_filter(), [{num_workers,0}]),
      ?_fails(?FORALL(_, integer(), ?TIMEOUT(100,timer:sleep(150) =:= ok))),
      ?_failsWith([20], ?FORALL(X, pos_integer(), ?TRAPEXIT(creator(X) =:= ok))),
      ?_assertTempBecomesN(7, false,
@@ -1093,7 +1096,7 @@ false_props_test_() ->
      ?_failsWith([500], targeted_shrinking_test:prop_let_int(), [{num_workers,0}]),
      ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_outer(), [{num_workers,0}]),
      ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner(), [{num_workers,0}]),
-     {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
+     {timeout, 20, ?_fails(ets_counter:prop_ets_counter(), [impure])},
      ?_fails(post_false:prop_simple())].
 
 false_stateful_test_() ->
@@ -1380,7 +1383,7 @@ args_not_defined_test() ->
      || {Args, SymbEnv} <- arguments_not_defined()].
 
 command_props_test_() ->
-    {timeout, 150, [?_assertEqual([], proper:module(command_props))]}.
+    {timeout, 150, [?_assertEqual([], proper:module(command_props, [impure]))]}.
 
 %% TODO: is_instance check fails because of ?LET in fsm_commands/1?
 can_generate_fsm_commands_test_() ->

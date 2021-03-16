@@ -29,6 +29,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(PROPER_OPTIONS, [quiet, {search_steps, 1000}, noshrink]).
+-define(PROPER_OPTIONS_NO_WORKERS, [{num_workers, 0} | ?PROPER_OPTIONS]).
 -define(PROPER_OPTIONS_SHRINKING, [quiet, {search_steps, 1000}]).
 -define(timeout(Timeout, Tests), {timeout, Timeout, Tests}).
 
@@ -282,7 +283,7 @@ prop_edge() ->
 
 -spec graph_test_() -> 'ok'.
 graph_test_() ->
-  ?timeout(10, ?_assert(proper:quickcheck(prop_graph(), ?PROPER_OPTIONS))).
+  ?timeout(10, ?_assert(proper:quickcheck(prop_graph(), ?PROPER_OPTIONS_NO_WORKERS))).
 
 prop_graph() ->
   ?NOT_EXISTS(_, simple_graph(), false).
@@ -349,13 +350,13 @@ matching_graph() ->
 
 -spec graph_match1_test_() -> 'ok'.
 graph_match1_test_() ->
-  Opts = ?PROPER_OPTIONS,
+  Opts = ?PROPER_OPTIONS_NO_WORKERS,
   ?timeout(60, ?_assert(proper:quickcheck(prop_graph_match_corr(), Opts))).
 
 
 -spec graph_match2_test_() -> 'ok'.
 graph_match2_test_() ->
-  Opts = ?PROPER_OPTIONS,
+  Opts = ?PROPER_OPTIONS_NO_WORKERS,
   ?timeout(60, ?_assert(proper:quickcheck(prop_graph_match_perf(), Opts))).
 
 prop_graph_match_perf() ->
@@ -448,7 +449,7 @@ prop_match() ->
 
 -spec match_test() -> 'ok'.
 match_test() ->
-  false = proper:quickcheck(prop_match(), ?PROPER_OPTIONS_SHRINKING),
+  false = proper:quickcheck(prop_match(), ?PROPER_OPTIONS_SHRINKING ++ [{num_workers, 0}]),
   ?assertMatch([10], proper:counterexample()).
 
 let_integer() ->
@@ -514,6 +515,6 @@ prop_no_type(3) ->
                    end).
 
 no_type_test_() ->
-  [?_assertEqual(true, proper:quickcheck(prop_no_type(1), ?PROPER_OPTIONS)),
-   ?_assertEqual(false, proper:quickcheck(prop_no_type(2), ?PROPER_OPTIONS)),
-   ?_assertEqual(false, proper:quickcheck(prop_no_type(3), ?PROPER_OPTIONS))].
+  [?_assertEqual(true, proper:quickcheck(prop_no_type(1), ?PROPER_OPTIONS_NO_WORKERS)),
+   ?_assertEqual(false, proper:quickcheck(prop_no_type(2), ?PROPER_OPTIONS_NO_WORKERS)),
+   ?_assertEqual(false, proper:quickcheck(prop_no_type(3), ?PROPER_OPTIONS_NO_WORKERS))].
