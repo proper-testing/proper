@@ -293,9 +293,11 @@
 %%% <dt>`pure | impure'</dt>
 %%% <dd> Declares the type of the property, as in pure with no side-effects or state,
 %%% and impure with them. <b>Notice</b>: this option will only be taken into account if
-%%% the the number of workers set is greater than 0. In addition, <i>pure</i> properties
-%%% will have all the workers sharing the same node, whereas <i>impure</i> properties will
-%%% have each worker on its own node.</dd>
+%%% the the number of workers set is greater than 0. In addition, <i>impure</i> properties
+%%% have each worker spawned on its own node.</dd>
+%%% <dt>`{stop_nodes, true | false}'</dt>
+%%% <dd> Specifies whether parallel PropEr should stop the nodes after running a property
+%%% or not. Defaults to true.</dd>
 %%% </dl>
 %%%
 %%% == Spec testing ==
@@ -526,6 +528,7 @@
 		  | 'long_result'
 		  | 'nocolors'
 		  | 'noshrink'
+		  | 'pure' | 'impure'
 		  | 'quiet'
 		  | 'verbose'
 		  | pos_integer()
@@ -536,7 +539,7 @@
 		  | {'numtests',pos_integer()}
 		  | {'num_workers', non_neg_integer()}
 		  | {'strategy_fun', strategy_fun()}
-		  | {'property_type', pure | impure}
+		  | {'stop_nodes', boolean()}
 		  | {'on_output',output_fun()}
 		  | {'search_steps',pos_integer()}
 		  | {'search_strategy',proper_target:strategy()}
@@ -563,9 +566,10 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-	       num_workers      = 2               :: non_neg_integer(),
+	       num_workers      = 0               :: non_neg_integer(),
 	       property_type    = pure            :: pure | impure,
 	       strategy_fun     = default_strategy_fun() :: strategy_fun(),
+	       stop_nodes       = true            :: boolean(),
 	       parent           = self()          :: pid(),
 	       nocolors         = false           :: boolean()}).
 -type opts() :: #opts{}.
@@ -1039,6 +1043,8 @@ parse_opt(UserOpt, Opts) ->
         ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{num_workers = N});
     {strategy_fun,Fun} ->
         ?VALIDATE_OPT(is_function(Fun, 2), Opts#opts{strategy_fun = Fun});
+    {stop_nodes,B} ->
+        ?VALIDATE_OPT(is_boolean(B), Opts#opts{stop_nodes = B});
 	{on_output,Print} ->
 	    ?VALIDATE_OPT(is_function(Print, 2),
 			  Opts#opts{output_fun = Print, nocolors = true});
@@ -1250,9 +1256,8 @@ inner_test(RawTest, Opts) ->
 
 %% @private
 %% @doc Runs PropEr in parallel mode, through the use of workers to perform the tests.
-%% Under this mode, PropEr will detect if a property is pure or impure based on the options.
-%% On the former case, all the workers will be spawned on a single node; whereas on the
-%% latter case, it will start a node for every worker that will be spawned in order to
+%% Under this mode, PropEr will detect if a property is pure or impure based on the passed options.
+%% On the later case, it will start a node for every worker that will be spawned in order to
 %% avoid test collisions between them.
 -spec parallel_perform(test(), opts()) -> imm_result().
 parallel_perform(Test, #opts{property_type = pure, numtests = NumTests,
@@ -1268,7 +1273,8 @@ parallel_perform(Test, #opts{property_type = pure, numtests = NumTests,
     ok = maybe_stop_cover_server([]),
     AggregatedImmResult;
 parallel_perform(Test, #opts{property_type = impure, numtests = NumTests,
-                             num_workers = NumWorkers, strategy_fun = StrategyFun} = Opts) ->
+                             num_workers = NumWorkers, strategy_fun = StrategyFun,
+                             stop_nodes = StopNodes} = Opts) ->
     TestsPerWorker = StrategyFun(NumTests, NumWorkers),
     Nodes = start_nodes(NumWorkers),
     ensure_code_loaded(Nodes),
@@ -1281,7 +1287,10 @@ parallel_perform(Test, #opts{property_type = impure, numtests = NumTests,
     InitialResult = #pass{samples = [], printers = [], actions = []},
     AggregatedImmResult = aggregate_imm_result(WorkerList, InitialResult),
     ok = maybe_stop_cover_server(NodeList),
-    ok = stop_nodes(),
+    ok = case StopNodes of
+        true -> stop_nodes();
+        false -> ok
+    end,
     AggregatedImmResult.
 
 -spec retry(test(), counterexample(), opts()) -> short_result().
@@ -1330,7 +1339,7 @@ multi_test(Mod, RawTestKind, Opts) ->
 
 -spec mfa_test(mfa(), raw_test_kind(), opts()) -> long_result().
 mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
-    {RawTest,#opts{output_fun = Print} = Opts} =
+    {RawTest,#opts{output_fun = Print, num_workers = NumWorkers} = Opts} =
 	case RawTestKind of
 	    test ->
 		OuterTest = Mod:Fun(),
@@ -1342,8 +1351,15 @@ mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
     global_state_reset(Opts),
     Print("Testing ~w:~w/~b~n", [Mod,Fun,Arity]),
     Finalizers = setup_test(Opts),
-    LongResult = inner_test(RawTest, Opts#opts{long_result = true}),
+    Opts1 = case NumWorkers > 0 of
+        true ->
+            _ = start_nodes(NumWorkers),
+            Opts#opts{stop_nodes = false};
+        false -> Opts
+    end,
+    LongResult = inner_test(RawTest, Opts1#opts{long_result = true}),
     ok = finalize_test(Finalizers),
+    ok = stop_nodes(),
     Print("~n", []),
     LongResult.
 
@@ -2357,11 +2373,11 @@ default_strategy_fun() ->
 %% @private
 -spec update_worker_node_ref({node(), {already_running, boolean()}}) -> list(node()).
 update_worker_node_ref(Node) ->
-    NewMap = case get(worker_node) of
+    NewMap = case get(worker_nodes) of
         undefined -> [Node];
         Map -> [Node|Map]
     end,
-    put(worker_node, NewMap).
+    put(worker_nodes, NewMap).
 
 %% @private
 %% @doc Starts a remote node to ensure the testing will not
@@ -2447,12 +2463,15 @@ start_nodes(NumNodes) ->
 %% @doc Stops all the registered (started) nodes.
 -spec stop_nodes() -> 'ok'.
 stop_nodes() ->
-    Nodes = get(worker_node),
-    NodesToStop = lists:filter(fun({_N, {already_running, Bool}}) -> not Bool end, Nodes),
-    lists:foreach(fun({Node, _}) -> slave:stop(Node) end, NodesToStop),
-    _ = net_kernel:stop(),
-    erase(worker_node),
-    ok.
+    case get(worker_nodes) of
+        undefined -> ok;
+        Nodes ->
+            NodesToStop = lists:filter(fun({_N, {already_running, Bool}}) -> not Bool end, Nodes),
+            lists:foreach(fun({Node, _}) -> slave:stop(Node) end, NodesToStop),
+            _ = net_kernel:stop(),
+            erase(worker_nodes),
+            ok
+    end.
 
 %% @private
 %% @doc Unlinks and kills all the workers.
