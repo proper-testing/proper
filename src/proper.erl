@@ -1232,12 +1232,11 @@ inner_test(RawTest, Opts) ->
     Test = cook_test(RawTest, Opts),
 	ImmResult = case NumWorkers > 0 of
 	true ->
-        case NumWorkers > NumTests of
-            true ->
-                perform_with_nodes(Test, Opts#opts{num_workers = NumTests});
-            false ->
-                perform_with_nodes(Test, Opts)
-        end;
+        Opts1 = case NumWorkers > NumTests of
+            true -> Opts#opts{num_workers = NumTests};
+            false -> Opts
+        end,
+        parallel_perform(Test, Opts1);
 	false ->
 	    perform(NumTests, Test, Opts)
 	end,
@@ -1255,22 +1254,26 @@ inner_test(RawTest, Opts) ->
 %% On the former case, all the workers will be spawned on a single node; whereas on the
 %% latter case, it will start a node for every worker that will be spawned in order to
 %% avoid test collisions between them.
--spec perform_with_nodes(test(), opts()) -> imm_result().
-perform_with_nodes(Test, Opts) ->
-    #opts{numtests = NumTests, num_workers = NumWorkers,
-          strategy_fun = StrategyFun, property_type = PropertyType} = Opts,
+-spec parallel_perform(test(), opts()) -> imm_result().
+parallel_perform(Test, #opts{property_type = pure, numtests = NumTests,
+                             num_workers = NumWorkers, strategy_fun = StrategyFun} = Opts) ->
     TestsPerWorker = StrategyFun(NumTests, NumWorkers),
-    NodeList = case PropertyType of
-        impure ->
-            Nodes = start_nodes(NumWorkers),
-            ensure_code_loaded(Nodes),
-            lists:zip(Nodes, TestsPerWorker);
-        pure ->
-            [Node] = start_nodes(1),
-            ensure_code_loaded([Node]),
-            lists:map(fun(N) -> {Node, N} end, TestsPerWorker)
+    _ = maybe_start_cover_server([]),
+    SpawnFun = fun({Start, ToPass}) ->
+        spawn_link_migrate(undefined, fun() -> perform(Start, ToPass, Test, Opts) end)
     end,
-    {ok, _} = maybe_start_cover_server(NodeList),
+    WorkerList = lists:map(SpawnFun, TestsPerWorker),
+    InitialResult = #pass{samples = [], printers = [], actions = []},
+    AggregatedImmResult = aggregate_imm_result(WorkerList, InitialResult),
+    ok = maybe_stop_cover_server([]),
+    AggregatedImmResult;
+parallel_perform(Test, #opts{property_type = impure, numtests = NumTests,
+                             num_workers = NumWorkers, strategy_fun = StrategyFun} = Opts) ->
+    TestsPerWorker = StrategyFun(NumTests, NumWorkers),
+    Nodes = start_nodes(NumWorkers),
+    ensure_code_loaded(Nodes),
+    NodeList = lists:zip(Nodes, TestsPerWorker),
+    _ = maybe_start_cover_server(NodeList),
     SpawnFun = fun({Node, {Start, ToPass}}) ->
         spawn_link_migrate(Node, fun() -> perform(Start, ToPass, Test, Opts) end)
     end,
@@ -2377,7 +2380,8 @@ start_node(SlaveName) ->
             Node
     end.
 
--spec maybe_start_cover_server([tuple()]) -> {'ok', [node()]}.
+-spec maybe_start_cover_server([tuple()]) -> {'ok', [node()]}
+                                           | {'error', {'already_started', pid()}}.
 maybe_start_cover_server(NodeList) ->
     case os:getenv("COVER") of
         false -> {ok, []};
