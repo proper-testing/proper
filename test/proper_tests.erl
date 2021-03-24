@@ -114,10 +114,6 @@ assertEqualsOneOf(X, List) ->
 	?_assertFailRun(none, ?FORALL(_X,Type,false),
 			?SHRINK_TEST_OPTS, [ExpShrunk])).
 
--define(_shrinksTo(ExpShrunk, Type, Opts),
-	?_assertFailRun(none, ?FORALL(_X,Type,false),
-			?SHRINK_TEST_OPTS ++ Opts, [ExpShrunk])).
-
 -define(_shrinksToOneOf(AllShrunk, Type),
 	?_assertFailRun([[X] || X <- AllShrunk], ?FORALL(_X,Type,false),
 			?SHRINK_TEST_OPTS)).
@@ -130,7 +126,7 @@ assertEqualsOneOf(X, List) ->
 -define(_nativeShrinksToOneOf(AllShrunk, TypeStr),
 	?_assertFailRun([[X] || X <- AllShrunk],
 			?FORALL(_X,assert_can_translate(?MODULE,TypeStr),false),
-			?SHRINK_TEST_OPTS ++ [{num_workers,0}])). %% this one can be probably run with workers
+			?SHRINK_TEST_OPTS)).
 
 -define(_assertFailRun(AllCExms, Test, Opts),
 	?_test(begin
@@ -156,11 +152,8 @@ assertEqualsOneOf(X, List) ->
 	       end)).
 
 -define(_cexmMatchesWith(Pattern, Test),
-	cexmMatchesWith(Pattern, Test, [])).
-
--define(_cexmMatchesWith(Pattern, Test, Opts),
 	?_test(begin
-		   ?assertEqual(false, proper:quickcheck(Test, Opts)),
+		   ?assertEqual(false, proper:quickcheck(Test)),
 		   ?assertMatch(Pattern, get_cexm())
 	       end)).
 
@@ -187,11 +180,11 @@ get_cexm() ->
 	end).
 
 -define(_assertTempBecomesN(N, ExpShortResult, Prop),
-	?_assertTempBecomesN(N, ExpShortResult, Prop, [{num_workers,0}])).
+	?_assertTempBecomesN(N, ExpShortResult, Prop, [])).
 
 -define(_assertTempBecomesN(N, ExpShortResult, Prop, Opts),
 	?_test(begin
-		   ?assertMatch(ExpShortResult, proper:quickcheck(Prop, [{num_workers,0}|Opts])),
+		   ?assertMatch(ExpShortResult, proper:quickcheck(Prop, Opts)),
 		   ?assertEqual(N, get_temp()),
 		   erase_temp(),
 		   proper:clean_garbage(),
@@ -768,7 +761,7 @@ constructed_types_test_() ->
 %%	 (start from valid Xs)
 shrinks_to_test_() ->
     All = simple_types_with_data() ++ constructed_types_with_data(),
-    [?_shrinksTo(Target, Type, [{num_workers,0}])
+    [?_shrinksTo(Target, Type)
      || {Type,_Xs,Target,_Ys,_TypeStr} <- All, Type =/= none].
 
 native_shrinks_to_test_() ->
@@ -999,13 +992,13 @@ true_stateful_test_() ->
      ?_passes(symb_statem:prop_simple()),
      ?_passes(symb_statem_maps:prop_simple()),
      ?_passes(more_commands_test:prop_commands_passes(), [{numtests,42}]),
-     {timeout, 10, ?_passes(ets_statem_test:prop_ets(), [impure])},
-     {timeout, 20, ?_passes(ets_statem_test:prop_parallel_ets(), [impure])},
+     {timeout, 10, ?_passes(ets_statem_test:prop_ets())},
+     {timeout, 20, ?_passes(ets_statem_test:prop_parallel_ets())},
      {timeout, 20, ?_passes(pdict_fsm:prop_pdict())},
      {timeout, 20, ?_passes(symb_statem:prop_parallel_simple())},
      {timeout, 20, ?_passes(symb_statem_maps:prop_parallel_simple())},
-     {timeout, 42, ?_passes(targeted_statem:prop_random(), [{numtests,500},impure])},
-     {timeout, 42, ?_passes(targeted_fsm:prop_random(), [{numtests,500},impure])}].
+     {timeout, 42, ?_passes(targeted_statem:prop_random(), [{numtests,500}])},
+     {timeout, 42, ?_passes(targeted_fsm:prop_random(), [{numtests,500}])}].
 
 false_props_test_() ->
     [?_failsWith([[Same,Same]],
@@ -1029,8 +1022,8 @@ false_props_test_() ->
 					false -> true
 				    end)),
      %% TODO: Check that the following two tests shrink properly on _N
-     ?_cexmMatchesWith([{_,_N}], fun_tests:prop_fun_int_int(), [{num_workers,0}]),
-     ?_cexmMatchesWith([{_,_,[_N]}], fun_tests:prop_lists_map_filter(), [{num_workers,0}]),
+     ?_cexmMatchesWith([{_,_N}], fun_tests:prop_fun_int_int()),
+     ?_cexmMatchesWith([{_,_,[_N]}], fun_tests:prop_lists_map_filter()),
      ?_fails(?FORALL(_, integer(), ?TIMEOUT(100,timer:sleep(150) =:= ok))),
      ?_failsWith([20], ?FORALL(X, pos_integer(), ?TRAPEXIT(creator(X) =:= ok))),
      ?_assertTempBecomesN(7, false,
@@ -1090,17 +1083,15 @@ false_props_test_() ->
 		 ]))),
      ?_failsWith([[a,a,a,a,a]], shrinking_gotchas:prop_shrink_list_same_elem()),
      ?_fails(more_commands_test:prop_more_commands_fails(), [{numtests,42}]),
-     %% Run with sequential PropEr, as if the workers take too long to find
-     %% the counterexample, the property will hold when it shouldn't
-     ?_failsWith([500], targeted_shrinking_test:prop_int(), [{num_workers,0}]),
-     ?_failsWith([500], targeted_shrinking_test:prop_let_int(), [{num_workers,0}]),
-     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_outer(), [{num_workers,0}]),
-     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner(), [{num_workers,0}]),
-     {timeout, 20, ?_fails(ets_counter:prop_ets_counter(), [impure])},
+     ?_failsWith([500], targeted_shrinking_test:prop_int()),
+     ?_failsWith([500], targeted_shrinking_test:prop_let_int()),
+     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_outer()),
+     ?_failsWith([500], targeted_shrinking_test:prop_int_shrink_inner()),
+     {timeout, 20, ?_fails(ets_counter:prop_ets_counter())},
      ?_fails(post_false:prop_simple())].
 
 false_stateful_test_() ->
-  Opts = [{numtests,1000},{num_workers,0}],
+  Opts = [{numtests,1000}],
   [{timeout, 42, ?_fails(targeted_statem:prop_targeted(), Opts)},
    {timeout, 42, ?_fails(targeted_statem:prop_targeted_init(), Opts)},
    {timeout, 42, ?_fails(targeted_fsm:prop_targeted(), Opts)},
@@ -1131,14 +1122,14 @@ error_props_test_() ->
      ?_assertRun(false,
 		 ?FORALL(_, ?SHRINK(42,[0]),
 			 non_deterministic([{4,false},{1,true}])),
-		 [{num_workers,0}], false),
+		 [], false),
      ?_assertRun(false,
 		 ?FORALL(_, ?SHRINK(42,[0]),
 			 non_deterministic([{3,false},{1,true},{1,false}])),
-		 [{num_workers,0}], false),
+		 [], false),
      ?_assertRun(false,
 		 ?FORALL(_, ?LAZY(non_deterministic([{1,1},{1,2},{1,3},{1,4}])),
-			 false), [{num_workers,0}], false)].
+			 false), [], false)].
 
 eval_test_() ->
     [?_assertEqual(Result, eval(Vars,SymbCall))
@@ -1164,7 +1155,7 @@ options_test_() ->
 			  ?FORALL(_, 1, begin inc_temp(), true end),
 			  [300]),
      ?_failsWith([42], ?FORALL(T, any(), T < 42),
-		 [any_to_integer,verbose,nocolors,{num_workers,0}]),
+		 [any_to_integer,verbose,nocolors]),
      ?_failsWith([42], ?FORALL(I, integer(), I < 42),
 		 [{numtests,4711}, {on_output,fun print_in_magenta/2}]),
      ?_failsWith([42], ?FORALL(_, ?SHRINK(42,[0,1]), false), [noshrink]),
@@ -1383,7 +1374,7 @@ args_not_defined_test() ->
      || {Args, SymbEnv} <- arguments_not_defined()].
 
 command_props_test_() ->
-    {timeout, 150, [?_assertEqual([], proper:module(command_props, [impure]))]}.
+    {timeout, 150, [?_assertEqual([], proper:module(command_props))]}.
 
 %% TODO: is_instance check fails because of ?LET in fsm_commands/1?
 can_generate_fsm_commands_test_() ->

@@ -61,6 +61,9 @@ endif
 test-examples:
 	$(REBAR3) eunit --dir=examples --verbose
 
+parallel-test-examples:
+	NUM_WORKERS=2 $(REBAR3) eunit --dir=examples_test --verbose
+
 doc: compile
 	./scripts/make_doc
 

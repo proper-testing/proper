@@ -992,7 +992,7 @@ add_user_opt(NewUserOpt, SingleUserOpt) ->
 
 -spec parse_opts(user_opts()) -> opts().
 parse_opts(UserOptsList) when is_list(UserOptsList) ->
-    parse_opts(lists:reverse(UserOptsList), #opts{});
+    parse_opts(lists:reverse(UserOptsList), maybe_override_numworkers(#opts{}));
 parse_opts(SingleUserOpt) ->
     parse_opts([SingleUserOpt]).
 
@@ -1001,6 +1001,13 @@ parse_opts([], Opts) ->
     Opts;
 parse_opts([UserOpt | Rest], Opts) ->
     parse_opts(Rest, parse_opt(UserOpt,Opts)).
+
+-spec maybe_override_numworkers(opts()) -> opts().
+maybe_override_numworkers(Opts) ->
+    case os:getenv("NUM_WORKERS") of
+        false -> Opts;
+        N -> Opts#opts{num_workers = erlang:list_to_integer(N)}
+    end.
 
 -define(POS_INTEGER(N),     (is_integer(N) andalso N > 0)).
 -define(NON_NEG_INTEGER(N), (is_integer(N) andalso N >= 0)).
