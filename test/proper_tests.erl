@@ -1399,9 +1399,9 @@ sampleshrink_test_() ->
         ?_shrinksTo([a], Gen)},
        ?_test(proper_gen:sampleshrink(Gen))]}].
 
-examples_are_ok_test_() ->
-  [{timeout, 42, ?_assertEqual([], proper:module(M))}
-   || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
+%examples_are_ok_test_() ->
+%  [{timeout, 42, ?_assertEqual([], proper:module(M))}
+%   || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
 
 
 %%------------------------------------------------------------------------------
