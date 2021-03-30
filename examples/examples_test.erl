@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8;  erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,13 +19,13 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2020 Spiros Dontas and Kostis Sagonas
+%%% @copyright 2020-2021 Spiros Dontas and Kostis Sagonas
 %%% @version {@version}
 %%% @author Spiros Dontas
 
-%%% @doc This module contains the examples tests.
+%%% @doc This module tests the examples.
 
--module(examples_tests).
+-module(examples_test).
 
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -72,17 +71,35 @@
 
 
 %%------------------------------------------------------------------------------
-%% Test that the examples work
+%% Test that the examples work:
+%%   1. The first test checks all 0-ary properties of complete modules.
+%%   2. The next tests check properties of specific modules with particular
+%%      parameters or properties that are not 0-ary but require some parameter.
+%% NOTE:
+%%   - Keep the list of module names and example_*_test_s alphabetically.
+%%   - The specified timeout values were chosen for old Travis servers;
+%%     probably they can be reduced to lower values without harm.
 %%------------------------------------------------------------------------------
 
+example_module_test_() ->
+  Opts = [],
+  Mods = [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack],
+  [{timeout, 42, ?_assertEqual([], proper:module(M, Opts))} || M <- Mods].
 
-%% test the properties of the `magic' example.
-example_magic_props_test_() ->
-  %% no point shrinking testx executed only for checking that they fail
-  FailOpts = [{numtests,10000}, noshrink],
-  [?_passes(magic:prop_spells_random(), [500]),  % let's hope we are unlucky
-   {timeout, 180, ?_fails(magic:prop_spells_targeted_auto(), FailOpts)},
-   {timeout, 180, ?_fails(magic:prop_spells_targeted_user(), FailOpts)}].
+
+%% test the properties of `car_fsm' example.
+example_car_fsm_props_test_() ->
+  FailOpts = [{numtests,1000}, noshrink],
+  [{timeout, 42, ?_passes(car_fsm:prop_distance(), [500])},
+   {timeout, 42, ?_fails(car_fsm:prop_distance_targeted(), FailOpts)},
+   {timeout, 42, ?_fails(car_fsm:prop_distance_targeted_init(), FailOpts)}].
+
+%% test the properties of `car_statem' example.
+example_car_statem_props_test_() ->
+  FailOpts = [{numtests,1000}, noshrink],
+  [{timeout, 42, ?_passes(car_statem:prop_distance(), [500])},
+   {timeout, 42, ?_fails(car_statem:prop_distance_targeted(), FailOpts)},
+   {timeout, 42, ?_fails(car_statem:prop_distance_targeted_init(), FailOpts)}].
 
 %% test the unary properties of the `labyrinth' example.
 example_labyrinth_props_test_() ->
@@ -96,6 +113,14 @@ example_labyrinth_props_test_() ->
    {timeout, 42, ?_fails(labyrinth:prop_exit_targeted_user(M2), FailOpts)},
    {timeout, 42, ?_fails(labyrinth:prop_exit_targeted_auto(M2), FailOpts)}].
 
+%% test the properties of the `magic' example.
+example_magic_props_test_() ->
+  %% no point shrinking tests executed only for checking that they fail
+  FailOpts = [{numtests,10000}, noshrink],
+  [?_passes(magic:prop_spells_random(), [500]),  % let's hope we are unlucky
+   {timeout, 180, ?_fails(magic:prop_spells_targeted_auto(), FailOpts)},
+   {timeout, 180, ?_fails(magic:prop_spells_targeted_user(), FailOpts)}].
+
 %% test the unary properties of the `mastermind' example.
 example_mastermind_props_test_() ->
   Properties = [prop_all_produced_solutions_are_valid,
@@ -108,16 +133,3 @@ example_mastermind_props_test_() ->
    |[{timeout, 10,
       ?_passes(mastermind:Prop(S))} || Prop <- Properties, S <- Strategies]].
 
-%% test the properties of `car_statem' example.
-example_car_statem_props_test_() ->
-  FailOpts = [{numtests,1000}, noshrink],
-  [{timeout, 42, ?_passes(car_statem:prop_distance(), [500])},
-   {timeout, 42, ?_fails(car_statem:prop_distance_targeted(), FailOpts)},
-   {timeout, 42, ?_fails(car_statem:prop_distance_targeted_init(), FailOpts)}].
-
-%% test the properties of `car_fsm' example.
-example_car_fsm_props_test_() ->
-  FailOpts = [{numtests,1000}, noshrink],
-  [{timeout, 42, ?_passes(car_fsm:prop_distance(), [500])},
-   {timeout, 42, ?_fails(car_fsm:prop_distance_targeted(), FailOpts)},
-   {timeout, 42, ?_fails(car_fsm:prop_distance_targeted_init(), FailOpts)}].

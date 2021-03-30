@@ -1,4 +1,4 @@
-# Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -20,7 +20,7 @@
 # Author(s):   Manolis Papadakis and Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default all compile dialyzer check_escripts test doc clean distclean rebuild retest
+.PHONY: default all compile dialyzer check_escripts test test-examples doc clean distclean rebuild retest
 
 ifneq (,$(findstring Windows,$(OS)))
     SEP := $(strip \)
@@ -35,7 +35,7 @@ COVER ?= false
 
 default: compile
 
-all: compile dialyzer doc test
+all: compile dialyzer doc test #test-examples -- this is another GitHub action
 
 compile:
 	$(RM) ebin
@@ -59,7 +59,7 @@ else
 endif
 
 test-examples:
-	$(REBAR3) eunit --dir=examples_test
+	$(REBAR3) eunit --dir=examples --verbose
 
 doc: compile
 	./scripts/make_doc
