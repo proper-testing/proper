@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         otp:
-          - "23.2"
+          - "23.3"
           - "23.0"
           - "22.3"
           - "22.1" # 22.0 seg faults
@@ -42,7 +42,7 @@ jobs:
   examples:
     name: Test examples
     runs-on: ubuntu-latest
-    container: erlang:23.2
+    container: erlang:23.3
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -52,7 +52,7 @@ jobs:
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
-    container: erlang:23.2
+    container: erlang:23.3
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
