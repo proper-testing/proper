@@ -1,5 +1,4 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
 %%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
@@ -1398,10 +1397,6 @@ sampleshrink_test_() ->
       [{"Try another way to call shrinking (not sampleshrink)",
         ?_shrinksTo([a], Gen)},
        ?_test(proper_gen:sampleshrink(Gen))]}].
-
-%examples_are_ok_test_() ->
-%  [{timeout, 42, ?_assertEqual([], proper:module(M))}
-%   || M <- [b64,elevator_fsm,ets_statem,mastermind,pdict_statem,stack]].
 
 
 %%------------------------------------------------------------------------------
