@@ -20,7 +20,7 @@
 # Author(s):   Manolis Papadakis and Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default all compile dialyzer check_escripts test test-examples doc clean distclean rebuild retest
+.PHONY: default all compile dialyzer check_escripts test test-examples test-parallel doc clean distclean rebuild retest
 
 ifneq (,$(findstring Windows,$(OS)))
     SEP := $(strip \)
@@ -61,8 +61,8 @@ endif
 test-examples:
 	$(REBAR3) eunit --dir=examples --verbose
 
-parallel-test-examples:
-	NUM_WORKERS=2 $(REBAR3) eunit --dir=examples_test --verbose
+test-parallel:
+	NUM_WORKERS=2 $(REBAR3) eunit --dir=examples --verbose
 
 doc: compile
 	./scripts/make_doc

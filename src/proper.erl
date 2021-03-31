@@ -702,17 +702,14 @@ size_at_nth_test(NumTest, #opts{max_size = MaxSize, start_size = StartSize,
                     (NumTest div 2) - (Rem div Div) + StartSize
             end;
         false ->
-            case NumTest == 0 of
+            case NumTest =:= 0 of
                 true -> StartSize;
                 false ->
                     Diff = (SizesToTest - 1) div (NumTests - 1),
                     NumTest * Diff + StartSize
             end
     end,
-    case Size >= MaxSize of
-        true -> MaxSize;
-        false -> Size
-    end.
+    min(MaxSize, Size).
 
 %% @private
 -spec get_size(proper_types:type()) -> proper_gen:size() | 'undefined'.

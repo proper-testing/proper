@@ -49,6 +49,16 @@ jobs:
       - name: Test examples
         run: make test-examples
 
+  parallel-tests:
+    name: Test examples in parallel
+    runs-on: ubuntu-latest
+    container: erlang:23.3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Test examples in parallel
+        run: make test-parallel
+
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest

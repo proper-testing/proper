@@ -271,4 +271,4 @@ elevator_test_() ->
 
 elevator_test_(N) ->
   {"Elevator FSM "++integer_to_list(N),
-   ?_assert(proper:quickcheck(?WRAP(prop_elevator()), [{numtests,N}]))}.
+   ?_assert(proper:quickcheck(?WRAP(prop_elevator()), [{numtests,N},impure]))}.

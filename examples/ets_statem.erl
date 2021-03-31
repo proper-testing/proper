@@ -249,5 +249,6 @@ keyreplace(Key, Pos, [Tuple|Rest], NewTuple, Acc) ->
 %%--------------------------------------------------------------------
 
 ets_statem_test_() ->
-  [{"ETS", ?_assert(proper:quickcheck(prop_ets()))},
-   {"Parallel ETS", ?_assert(proper:quickcheck(prop_parallel_ets()))}].
+  Opts = [impure],
+  [{"ETS", ?_assert(proper:quickcheck(prop_ets(),Opts))},
+   {"Parallel ETS", ?_assert(proper:quickcheck(prop_parallel_ets(),Opts))}].
