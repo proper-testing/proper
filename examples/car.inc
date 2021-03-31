@@ -1,5 +1,4 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
 %%% Copyright 2020-     Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
@@ -29,7 +28,6 @@
 %% Macros
 %% -----------------------------------------------------------------------------
 
-
 -define(HOUR, 3600).
 -define(ACCELERATION, 5).
 -define(DECELERATION, 20).
@@ -43,7 +41,6 @@
 %% -----------------------------------------------------------------------------
 %% Calculation Functions
 %% -----------------------------------------------------------------------------
-
 
 travel_calculations(Distance, Speed, Fuel) when Speed > 0 ->
   Consumption = fuel_consumption(Speed),
@@ -82,7 +79,6 @@ acceleration_calculations(Speed, Accel, Fuel) ->
     false -> {Distance, Acceleration, Burn}
   end.
 
-
 calculate_consumption(0, _Burnt) -> 0;
 calculate_consumption(Distance, Burnt) -> 100 * Burnt / Distance.
 
@@ -90,7 +86,6 @@ calculate_consumption(Distance, Burnt) -> 100 * Burnt / Distance.
 %% -----------------------------------------------------------------------------
 %% Helpers
 %% -----------------------------------------------------------------------------
-
 
 %% Calculate distance driven when accelerating - decelerating.
 calculate_distance(Speed, Acceleration) when Acceleration > 0 ->
@@ -130,3 +125,28 @@ intermediate_speeds(Speed, Acceleration) when Acceleration > 0 ->
 intermediate_speeds(Speed, Acceleration) ->
   T = -Acceleration / ?DECELERATION,
   [Speed - X / 10 * ?DECELERATION || X <- lists:seq(0, round(T * 10))].
+
+
+%% -----------------------------------------------------------------------------
+%% EUnit tests
+%% -----------------------------------------------------------------------------
+
+-define(_passes(Test),       ?_passes(Test, [])).
+-define(_passes(Test, Opts), ?_assert(proper:quickcheck(Test, Opts))).
+-define(_fails(Test, Opts),
+        ?_test(
+           begin
+             Result = proper:quickcheck(Test, Opts),
+             CExm = proper:counterexample(),
+             proper:clean_garbage(),
+             ?assertNot(Result),
+             ?checkCExm(CExm, Test, Opts)
+           end)).
+-define(checkCExm(CExm, Test, Opts),
+        ?assertNot(proper:check(Test, CExm, Opts))).
+
+car_props_test_() ->
+  FailOpts = [{numtests,1000}, noshrink],
+  [{"Random", ?_passes(prop_distance(), [500])},
+   {"Targeted", ?_fails(prop_distance_targeted(), FailOpts)},
+   {"Targeted init", ?_fails(prop_distance_targeted_init(), FailOpts)}].

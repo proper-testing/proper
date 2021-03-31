@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,21 +19,24 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Auto-ADT usage example: list-based implementation of a stack, with
-%%%      element counting
+%%%      element counting.
 
--module(stack).
+-module(stack_adt).
 -export([is_empty/1, size/1, new/0, push/2, pop/1, safe_pop/1]).
+
 -export_type([stack/1]).
 
 -opaque stack(T) :: {non_neg_integer(),[T]}.
 
-%% NOTE: You don't need to include the proper header if no properties are
+%% NOTE: You don't need to include the PropEr header if no properties are
 %%	 declared in the module.
 -include_lib("proper/include/proper.hrl").
+%% NOTE: You also don't need to include the EUnit header if there are no tests.
+-include_lib("eunit/include/eunit.hrl").
 
 %% NOTE: Every instance of the ADT in a spec must have variables as parameters.
 %%	 When this would mean singleton variables, use variables starting with
@@ -69,9 +71,10 @@ safe_pop({0, []}) ->
 safe_pop({N, [Top|Rest]}) when N > 0 ->
     {ok, Top, {N-1,Rest}}.
 
-%%------------------------------------------------------------------------------
+
+%%--------------------------------------------------------------------
 %% Properties
-%%------------------------------------------------------------------------------
+%%--------------------------------------------------------------------
 
 prop_push_pop() ->
     ?FORALL({X,S}, {integer(),stack(integer())},
@@ -79,3 +82,10 @@ prop_push_pop() ->
 		{Y,_} = pop(push(X,S)),
 		X =:= Y
 	    end).
+
+%%--------------------------------------------------------------------
+%% EUnit tests
+%%--------------------------------------------------------------------
+
+stack_ADT_test_() ->
+    {"Push/pop", ?_assert(proper:quickcheck(prop_push_pop()))}.

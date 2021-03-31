@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2020-     Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2020-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2020 Spiros Dontas and Kostis Sagonas
+%%% @copyright 2020-2021 Spiros Dontas and Kostis Sagonas
 %%% @version {@version}
 %%% @author Spiros Dontas
 
@@ -29,12 +28,12 @@
 -behaviour(proper_fsm).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 
 %% -----------------------------------------------------------------------------
 %% Exports
 %% -----------------------------------------------------------------------------
-
 
 %% API
 -export([start_link/0, stop/0, accelerate/1, brake/1, travel/1, refuel/1]).
@@ -51,7 +50,6 @@
 %% Definitions
 %% -----------------------------------------------------------------------------
 
-
 -define(DISTANCE, 1000).
 -define(SLOW_THRESHOLD, 100).
 
@@ -59,7 +57,6 @@
 %% -----------------------------------------------------------------------------
 %% Records
 %% -----------------------------------------------------------------------------
-
 
 -record(state,
         {fuel  :: float(),
@@ -73,9 +70,8 @@
 
 
 %% -----------------------------------------------------------------------------
-%% Common Imports
+%% Common car code -- including tests
 %% -----------------------------------------------------------------------------
-
 
 -include("car.inc").
 
@@ -83,7 +79,6 @@
 %% -----------------------------------------------------------------------------
 %% API
 %% -----------------------------------------------------------------------------
-
 
 start_link() ->
   gen_statem:start_link({local, ?NAME}, ?MODULE, [], []).
@@ -107,7 +102,6 @@ refuel(Amount) ->
 %% -----------------------------------------------------------------------------
 %% gen_statem callbacks
 %% -----------------------------------------------------------------------------
-
 
 init([]) ->
   {ok, stopped, #state{fuel = ?MAX_FUEL, speed = 0}}.
@@ -149,7 +143,6 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %% gen_statem helpers
 %% -----------------------------------------------------------------------------
 
-
 accelerate_helper(From, Value, S) ->
   #state{fuel = Fuel, speed = Speed} = S,
   Calc = acceleration_calculations(Speed, Value, Fuel),
@@ -180,7 +173,6 @@ refuel_helper(From, Value, S) ->
 %% Generators
 %% -----------------------------------------------------------------------------
 
-
 accelerator(Speed, slow) ->
   integer(1, ?SLOW_THRESHOLD - Speed);
 accelerator(Speed, fast) ->
@@ -201,7 +193,6 @@ refueler(Fuel) -> integer(0, round(?MAX_FUEL - Fuel)).
 %% -----------------------------------------------------------------------------
 %% proper_fsm callbacks
 %% -----------------------------------------------------------------------------
-
 
 initial_state() -> stopped.
 
@@ -304,7 +295,6 @@ postcondition(_, _, _S, _, _R) ->
 %% proper_fsm helpers
 %% -----------------------------------------------------------------------------
 
-
 accelerate_commands(Speed) ->
   [{slow, ?CALL(accelerate, [accelerator(Speed, slow)])}
    || Speed < ?SLOW_THRESHOLD] ++
@@ -321,7 +311,6 @@ brake_commands(Speed) ->
 %% -----------------------------------------------------------------------------
 %% Properties
 %% -----------------------------------------------------------------------------
-
 
 %% Vanilla property based testing. This should not fail consistently.
 prop_distance() ->
@@ -378,7 +367,6 @@ prop_distance_targeted_init() ->
 %% -----------------------------------------------------------------------------
 %% Helpers
 %% -----------------------------------------------------------------------------
-
 
 %% Get state names based on speed.
 state_name(0) -> stopped;

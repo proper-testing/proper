@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017-2020, Andreas Löscher <andreas.loscher@it.uu.se>
-%%%                     and  Kostis Sagonas <kostis@it.uu.se>
+%%% Copyright (c) 2017-2021 Andreas Löscher <andreas.loscher@it.uu.se>
+%%%                     and Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -19,7 +18,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017-2020 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017-2021 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
 %%% @author Andreas Löscher and Kostis Sagonas
 
@@ -30,6 +29,7 @@
 	 prop_exit_targeted_auto/1]).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Types
@@ -208,3 +208,46 @@ prop_exit_targeted_auto(Maze) ->
 
 distance({X1, Y1}, {X2, Y2}) ->
   math:sqrt(math:pow(X1 - X2, 2) + math:pow(Y1 - Y2, 2)).
+
+
+%% -----------------------------------------------------------------------------
+%% EUnit tests
+%% -----------------------------------------------------------------------------
+
+-define(_passes(Test),       ?_passes(Test, [])).
+-define(_passes(Test, Opts), ?_assert(proper:quickcheck(Test, Opts))).
+-define(_fails(Test, Opts),
+        ?_test(
+           begin
+             Result = proper:quickcheck(Test, Opts),
+             CExm = proper:counterexample(),
+             proper:clean_garbage(),
+             ?assertNot(Result),
+             ?checkCExm(CExm, Test, Opts)
+           end)).
+-define(_failsWith(ExpectedCExm, Test), ?_failsWith(ExpectedCExm, Test, [])).
+-define(_failsWith(ExpectedCExm, Test, Opts),
+        ?_test(
+           begin
+             Result = proper:quickcheck(Test, Opts),
+             CExm = proper:counterexample(),
+             proper:clean_garbage(),
+             ?assertNot(Result),
+             ?assertMatch(ExpectedCExm, CExm),
+             ?checkCExm(CExm, Test, Opts)
+           end)).
+-define(checkCExm(CExm, Test, Opts),
+        ?assertNot(proper:check(Test, CExm, Opts))).
+
+labyrinth_props_test_() ->
+  FailOpts = [{numtests,7500}, noshrink],        % see comment above
+  M0 = labyrinth:maze(0), M1 = labyrinth:maze(1), M2 = labyrinth:maze(2),
+  SixLeft = [[left,left,left,left,left,left]],
+  [{"Random", ?_failsWith(SixLeft, prop_exit_random(M0), [500])},
+   {"Targeted user Maze 0", ?_failsWith(SixLeft, prop_exit_targeted_user(M0))},
+   {timeout, 42,
+    {"Targeted user Maze 1", ?_fails(prop_exit_targeted_user(M1), FailOpts)}},
+   {timeout, 42,
+    {"Targeted user Maze 2", ?_fails(prop_exit_targeted_user(M2), FailOpts)}},
+   {timeout, 42,
+    {"Targeted user Maze 3", ?_fails(prop_exit_targeted_auto(M2), FailOpts)}}].
