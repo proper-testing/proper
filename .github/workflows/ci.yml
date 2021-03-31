@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         otp:
-          - "23.3"
+          - "23.2"
           - "23.0"
           - "22.3"
           - "22.1" # 22.0 seg faults
