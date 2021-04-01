@@ -43,6 +43,7 @@ compile:
 	ln -s _build/default/lib/proper/ebin .
 
 dialyzer: .plt/proper_plt compile
+	$(RM) .plt/proper_plt
 	dialyzer -n -nn --plt $< -Wunmatched_returns -Wunknown ebin
 
 .plt/proper_plt: .plt
