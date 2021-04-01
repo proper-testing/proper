@@ -41,6 +41,7 @@ compile:
 	$(RM) ebin
 	$(REBAR3) compile
 	ln -s _build/default/lib/proper/ebin .
+	$(RM) .plt/proper_plt
 
 dialyzer: .plt/proper_plt compile
 	dialyzer --plt $< -Wunmatched_returns -Wunknown ebin
