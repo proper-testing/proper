@@ -43,10 +43,9 @@ compile:
 	ln -s _build/default/lib/proper/ebin .
 
 dialyzer: .plt/proper_plt compile
-	dialyzer -n -nn --plt $< -Wunmatched_returns -Wunknown ebin
+	dialyzer --plt $< -Wunmatched_returns -Wunknown ebin
 
 .plt/proper_plt: .plt
-	$(RM) .plt/proper_plt
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit
 
 check_escripts:
