@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,26 +19,21 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc PropEr usage example: Static mastermind solver
 
 -module(mastermind).
 -export([solve/3, solve/4]).
--export([prop_all_combinations_are_produced/0,
-	 prop_all_selections_are_produced/0,
-	 prop_remove_insert_symmetry/0,
-	 prop_delete_insert_all_symmetry/0,
-	 prop_compatible_works/0,
-	 prop_io_filters_are_symmetric/0,
-	 prop_next_comb_produces_all_combinations_in_order/0,
-	 prop_all_compatibles_are_produced/0,
-	 prop_all_produced_solutions_are_valid/1,
+
+%% O-ary props are automatically exported; 1-ary ones are not
+-export([prop_all_produced_solutions_are_valid/1,
 	 prop_secret_combination_is_not_discarded/1,
 	 prop_invalidated_instances_reject_original_secret/1]).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %% -----------------------------------------------------------------------------
 %% Types
@@ -706,3 +700,38 @@ invalid_instance() ->
 list_update(Index, NewElem, List) ->
     {H,[_OldElem | T]} = lists:split(Index - 1, List),
     H ++ [NewElem] ++ T.
+
+
+%% -----------------------------------------------------------------------------
+%% EUnit tests
+%% -----------------------------------------------------------------------------
+
+-define(_passes(Test),       ?_passes(Test, [])).
+-define(_passes(Test, Opts), ?_assert(proper:quickcheck(Test, Opts))).
+
+mastermind_props_0_test_() ->
+  NamedProps0 =
+    [{"All combinations", fun prop_all_combinations_are_produced/0},
+     {"All selections", fun prop_all_selections_are_produced/0},
+     {"Remove/Insert symmerty", fun prop_remove_insert_symmetry/0},
+     {"Delete/Insert all symmetry", fun prop_delete_insert_all_symmetry/0},
+     {"Compatible works", fun prop_compatible_works/0},
+     {"IO filters symmetric", fun prop_io_filters_are_symmetric/0},
+     {"Next comb", fun prop_next_comb_produces_all_combinations_in_order/0},
+     {"All compatibles", fun prop_all_compatibles_are_produced/0}],
+  [{N, ?_passes(P())} || {N,P} <- NamedProps0].
+
+mastermind_props_1_test_() ->
+  NamedProps1 =
+    [{"Solutions valid", fun prop_all_produced_solutions_are_valid/1},
+     %% fun prop_secret_combination_is_not_discarded/1,
+     {"Invalidated instances",
+      fun prop_invalidated_instances_reject_original_secret/1}],
+  Strategies = [heur, simple, stream],
+  [{"Secret comb using heur",
+    ?_passes(prop_secret_combination_is_not_discarded(heur))},
+   {"Secret comp using simple",
+    ?_passes(prop_secret_combination_is_not_discarded(simple))}
+   |
+   [{N++" using "++atom_to_list(S), ?_passes(P(S))}
+    || {N,P} <- NamedProps1, S <- Strategies]].

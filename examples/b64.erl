@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Kostis Sagonas
 %%% @doc PropEr usage example: Some simple testcases for stdlib's base64
@@ -29,6 +28,7 @@
 -export([prop_enc_dec/0]).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 prop_enc_dec() ->
   ?FORALL(Msg, union([binary(), list(range(1,255))]),
@@ -39,3 +39,6 @@ prop_enc_dec() ->
 	      false -> EncDecMsg =:= list_to_binary(Msg)
 	    end
 	  end).
+
+b64_test_() ->
+  {"Enc/dec", ?_assert(proper:quickcheck(prop_enc_dec(), [{numtests,10000}]))}.

@@ -1,5 +1,4 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
 %%% Copyright (c) 2017, Andreas Löscher <andreas.loscher@it.uu.se>
 %%%
@@ -28,6 +27,7 @@
 
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -record(attr, {strength     = 0 :: integer(),
                constitution = 0 :: integer(),
@@ -168,7 +168,7 @@ add_some_spells(Spells, Percentage, _) ->
   NumAdd = max(1, trunc(length(Spells) * Percentage / 100)),
   ?LET(AddIndices, indices(NumAdd, 0, length(Spells)),
        begin
-         %% have to be able to inser elements in the front of the list
+         %% have to be able to insert elements in the front of the list
          {Spells2, AddIndices2} = case AddIndices of
                                     [0 | NormalIndices] ->
                                       {[oneof(spells()) | Spells], NormalIndices};
@@ -237,3 +237,31 @@ count_spells([H|T], Acc) ->
              _ -> Acc#{H => 1}
            end,
   count_spells(T, NewAcc).
+
+
+%% -----------------------------------------------------------------------------
+%% EUnit tests
+%% -----------------------------------------------------------------------------
+
+-define(_passes(Test),       ?_passes(Test, [])).
+-define(_passes(Test, Opts), ?_assert(proper:quickcheck(Test, Opts))).
+-define(_fails(Test, Opts),
+        ?_test(
+           begin
+             Result = proper:quickcheck(Test, Opts),
+             CExm = proper:counterexample(),
+             proper:clean_garbage(),
+             ?assertNot(Result),
+             ?checkCExm(CExm, Test, Opts)
+           end)).
+-define(checkCExm(CExm, Test, Opts),
+        ?assertNot(proper:check(Test, CExm, Opts))).
+
+magic_props_test_() ->
+  %% no point shrinking tests executed only for checking that they fail
+  FailOpts = [{numtests,10000}, noshrink],
+  [{"Random", ?_passes(prop_spells_random(), [500])},% let's hope we are unlucky
+   {timeout, 60,
+    {"Targeted auto", ?_fails(prop_spells_targeted_auto(), FailOpts)}},
+   {timeout, 60,
+    {"Targeted user", ?_fails(prop_spells_targeted_user(), FailOpts)}}].

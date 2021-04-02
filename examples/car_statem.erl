@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2020-     Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2020-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2020 Spiros Dontas and Kostis Sagonas
+%%% @copyright 2020-2021 Spiros Dontas and Kostis Sagonas
 %%% @version {@version}
 %%% @author Spiros Dontas
 
@@ -29,12 +28,12 @@
 -behaviour(proper_statem).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 
 %% -----------------------------------------------------------------------------
 %% Exports
 %% -----------------------------------------------------------------------------
-
 
 %% api
 -export([start_link/0, stop/0, accelerate/1, brake/1, travel/1, refuel/1]).
@@ -50,14 +49,12 @@
 %% Definitions
 %% -----------------------------------------------------------------------------
 
-
 -define(DISTANCE, 1000).
 
 
 %% -----------------------------------------------------------------------------
 %% Records
 %% -----------------------------------------------------------------------------
-
 
 -record(state,
         {fuel  :: float(),
@@ -71,9 +68,8 @@
 
 
 %% -----------------------------------------------------------------------------
-%% Common Imports
+%% Common car code -- including tests
 %% -----------------------------------------------------------------------------
-
 
 -include("car.inc").
 
@@ -81,7 +77,6 @@
 %% -----------------------------------------------------------------------------
 %% API
 %% -----------------------------------------------------------------------------
-
 
 start_link() ->
   gen_server:start_link({local, ?NAME}, ?MODULE, [], []).
@@ -105,7 +100,6 @@ refuel(Amount) ->
 %% -----------------------------------------------------------------------------
 %% gen_server callbacks
 %% -----------------------------------------------------------------------------
-
 
 init([]) ->
   {ok, #state{fuel = ?MAX_FUEL, speed = 0}}.
@@ -154,7 +148,6 @@ code_change(_OldVsn, S, _Extra) ->
 %% Generators
 %% -----------------------------------------------------------------------------
 
-
 accelerator(Speed) ->
   integer(0, ?MAX_SPEED - Speed).
 
@@ -171,7 +164,6 @@ refueler(Fuel) ->
 %% -----------------------------------------------------------------------------
 %% proper_statem callbacks
 %% -----------------------------------------------------------------------------
-
 
 initial_state() ->
   #test_state{fuel     = ?MAX_FUEL,
@@ -251,7 +243,6 @@ next_state(S, _V, {call, _, refuel, [Value]}) ->
 %% Properties
 %% -----------------------------------------------------------------------------
 
-
 %% Vanilla property based testing. This should not fail consistently.
 prop_distance() ->
   ?FORALL(Cmds, commands(?MODULE),
@@ -303,7 +294,6 @@ prop_distance_targeted_init() ->
 %% -----------------------------------------------------------------------------
 %% Helpers
 %% -----------------------------------------------------------------------------
-
 
 %% Function to be called when the property fails.
 on_failure({postcondition, false}, Cmds) ->

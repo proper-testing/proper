@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 %%% @doc Simple statem test for ets tables
@@ -34,6 +33,7 @@
 -export([sample_commands/0]).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -type object()     :: tuple().
 -type table_type() :: 'set' | 'ordered_set' | 'bag' | 'duplicate_bag'.
@@ -90,7 +90,7 @@ command(S) ->
 	   || S#state.stored =/= []] ++
 	  [{call,ets,update_counter,[tab(S), key(S), int()]}
 	   || S#state.stored =/= [],
-	      S#state.type =:= set orelse  S#state.type =:= ordered_set]).
+	      S#state.type =:= set orelse S#state.type =:= ordered_set]).
 
 precondition(S, {call,_,lookup_element,[_, Key, _]}) ->
     proplists:is_defined(Key, S#state.stored);
@@ -228,7 +228,7 @@ sample_commands() ->
 	   commands(?MODULE, initial_state(Type)))).
 
 
-%%% Utility Functions
+%%% Utility functions
 
 keyreplace(Key, Pos, List, NewTuple) ->
     keyreplace(Key, Pos, List, NewTuple, []).
@@ -242,3 +242,12 @@ keyreplace(Key, Pos, [Tuple|Rest], NewTuple, Acc) ->
 	false ->
 	    keyreplace(Key, Pos, Rest, NewTuple, [Tuple|Acc])
     end.
+
+
+%%--------------------------------------------------------------------
+%% EUnit tests
+%%--------------------------------------------------------------------
+
+ets_statem_test_() ->
+  [{"ETS", ?_assert(proper:quickcheck(prop_ets()))},
+   {"Parallel ETS", ?_assert(proper:quickcheck(prop_parallel_ets()))}].

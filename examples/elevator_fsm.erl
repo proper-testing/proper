@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -28,7 +27,6 @@
 -behaviour(gen_statem).
 -behaviour(proper_fsm).
 
--export([test/0, test/1]).
 %% gen_statem mandatory callbacks and state-handling functions
 -export([init/1, callback_mode/0, basement/3, floor/3]).
 %% proper_fsm callbacks
@@ -39,6 +37,7 @@
 	 fsm_basement/1, fsm_floor/2]).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -record(state, {floor  = 0 :: non_neg_integer(), %% current floor
 		people = 0 :: non_neg_integer(), %% people inside the elevator
@@ -50,17 +49,10 @@
 		     max_people = 10 :: pos_integer()}).
 
 -define(NAME, elevator).
--define(WRAP(T), proper:test_to_outer_test(T)).
 
-%%--------------------------------------------------------------------
+%%%-------------------------------------------------------------------
 %%% API
-%%--------------------------------------------------------------------
-
-test() ->
-    test(100).
-
-test(Tests) ->
-    proper:quickcheck(?WRAP(prop_elevator()), [{numtests,Tests}]).
+%%%-------------------------------------------------------------------
 
 start_link(Info) ->
     gen_statem:start_link({local,?NAME}, ?MODULE, Info, []).
@@ -231,6 +223,11 @@ postcondition(_, _, _, {call,_,which_floor,[]}, _) ->
 postcondition(_, _, _, _, R) ->
     R =:= ok.
 
+
+%%%-------------------------------------------------------------------
+%%% Properties
+%%%-------------------------------------------------------------------
+
 prop_elevator() ->
     ?FORALL(
        {NumFloors,MaxPeople}, {num_floors(),max_people()},
@@ -261,3 +258,17 @@ max_people() ->
 
 num_floors() ->
     noshrink(integer(1, 4)).
+
+
+%%%-------------------------------------------------------------------
+%%% EUnit tests
+%%%-------------------------------------------------------------------
+
+-define(WRAP(T), proper:test_to_outer_test(T)).
+
+elevator_test_() ->
+  elevator_test_(100).
+
+elevator_test_(N) ->
+  {"Elevator FSM "++integer_to_list(N),
+   ?_assert(proper:quickcheck(?WRAP(prop_elevator()), [{numtests,N}]))}.
