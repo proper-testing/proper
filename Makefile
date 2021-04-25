@@ -62,7 +62,7 @@ test-examples:
 	$(REBAR3) eunit --dir=examples --verbose
 
 test-parallel:
-	NUM_WORKERS=2 $(REBAR3) eunit --dir=examples --verbose
+	NUMWORKERS=2 $(REBAR3) eunit --dir=examples --verbose
 
 doc: compile
 	./scripts/make_doc

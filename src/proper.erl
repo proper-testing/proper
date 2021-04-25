@@ -284,7 +284,7 @@
 %%% is undefined.</dd>
 %%% <dt>`nocolors'</dt>
 %%% <dd>Do not use term colors in output.</dd>
-%%% <dt>`{num_workers, <Non_negative_number>}'</dt>
+%%% <dt>`{numworkers, <Non_negative_number>}'</dt>
 %%% <dd> Specifies the number of workers to spawn when performing the tests (defaults to 0,
 %%% which is PropEr's default behaviour). Each worker gets their own share of the total of number of tests to perform.</dd>
 %%% <dt>`{strategy_fun, <Strategy_function>}'</dt>
@@ -537,7 +537,7 @@
 		  | {'max_shrinks',non_neg_integer()}
 		  | {'max_size',proper_gen:size()}
 		  | {'numtests',pos_integer()}
-		  | {'num_workers', non_neg_integer()}
+		  | {'numworkers', non_neg_integer()}
 		  | {'strategy_fun', strategy_fun()}
 		  | {'stop_nodes', boolean()}
 		  | {'on_output',output_fun()}
@@ -566,7 +566,7 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-	       num_workers      = 0               :: non_neg_integer(),
+	       numworkers      = 0               :: non_neg_integer(),
 	       property_type    = pure            :: pure | impure,
 	       strategy_fun     = default_strategy_fun() :: strategy_fun(),
 	       stop_nodes       = true            :: boolean(),
@@ -737,7 +737,7 @@ global_state_init_size_seed(Size, Seed) ->
 -spec global_state_init(opts()) -> 'ok'.
 global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
 			search_strategy = Strategy, search_steps = SearchSteps,
-			any_type = AnyType, seed = Seed, num_workers = NumWorkers} = Opts) ->
+			any_type = AnyType, seed = Seed, numworkers = NumWorkers} = Opts) ->
     clean_garbage(),
     put('$size', StartSize - 1),
     put('$left', 0),
@@ -1001,9 +1001,9 @@ parse_opts([UserOpt | Rest], Opts) ->
 
 -spec maybe_override_numworkers(opts()) -> opts().
 maybe_override_numworkers(Opts) ->
-    case os:getenv("NUM_WORKERS") of
+    case os:getenv("NUMWORKERS") of
         false -> Opts;
-        N -> Opts#opts{num_workers = erlang:list_to_integer(N)}
+        N -> Opts#opts{numworkers = erlang:list_to_integer(N)}
     end.
 
 -define(POS_INTEGER(N),     (is_integer(N) andalso N > 0)).
@@ -1043,8 +1043,8 @@ parse_opt(UserOpt, Opts) ->
 	    ?VALIDATE_OPT(?NON_NEG_INTEGER(Size), Opts#opts{max_size = Size});
 	{numtests,N} ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
-    {num_workers,N} ->
-        ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{num_workers = N});
+    {numworkers,N} ->
+        ?VALIDATE_OPT(?NON_NEG_INTEGER(N), Opts#opts{numworkers = N});
     {strategy_fun,Fun} ->
         ?VALIDATE_OPT(is_function(Fun, 2), Opts#opts{strategy_fun = Fun});
     {stop_nodes,B} ->
@@ -1238,12 +1238,12 @@ test(RawTest, Opts) ->
 -spec inner_test(raw_test(), opts()) -> result().
 inner_test(RawTest, Opts) ->
     #opts{numtests = NumTests, long_result = Long, output_fun = Print,
-            num_workers = NumWorkers} = Opts,
+            numworkers = NumWorkers} = Opts,
     Test = cook_test(RawTest, Opts),
 	ImmResult = case NumWorkers > 0 of
 	true ->
         Opts1 = case NumWorkers > NumTests of
-            true -> Opts#opts{num_workers = NumTests};
+            true -> Opts#opts{numworkers = NumTests};
             false -> Opts
         end,
         parallel_perform(Test, Opts1);
@@ -1265,7 +1265,7 @@ inner_test(RawTest, Opts) ->
 %% avoid test collisions between them.
 -spec parallel_perform(test(), opts()) -> imm_result().
 parallel_perform(Test, #opts{property_type = pure, numtests = NumTests,
-                             num_workers = NumWorkers, strategy_fun = StrategyFun} = Opts) ->
+                             numworkers = NumWorkers, strategy_fun = StrategyFun} = Opts) ->
     TestsPerWorker = StrategyFun(NumTests, NumWorkers),
     _ = maybe_start_cover_server([]),
     SpawnFun = fun({Start, ToPass}) ->
@@ -1277,7 +1277,7 @@ parallel_perform(Test, #opts{property_type = pure, numtests = NumTests,
     ok = maybe_stop_cover_server([]),
     AggregatedImmResult;
 parallel_perform(Test, #opts{property_type = impure, numtests = NumTests,
-                             num_workers = NumWorkers, strategy_fun = StrategyFun,
+                             numworkers = NumWorkers, strategy_fun = StrategyFun,
                              stop_nodes = StopNodes} = Opts) ->
     TestsPerWorker = StrategyFun(NumTests, NumWorkers),
     Nodes = start_nodes(NumWorkers),
@@ -1343,7 +1343,7 @@ multi_test(Mod, RawTestKind, Opts) ->
 
 -spec mfa_test(mfa(), raw_test_kind(), opts()) -> long_result().
 mfa_test({Mod,Fun,Arity} = MFA, RawTestKind, ImmOpts) ->
-    {RawTest,#opts{output_fun = Print, num_workers = NumWorkers} = Opts} =
+    {RawTest,#opts{output_fun = Print, numworkers = NumWorkers} = Opts} =
 	case RawTestKind of
 	    test ->
 		OuterTest = Mod:Fun(),
@@ -1436,7 +1436,7 @@ perform(Passed, NumTests, Test, Opts) ->
 	      [sample()] | 'none', [stats_printer()] | 'none', opts()) ->
       imm_result() | 'ok'.
 perform(Passed, _ToPass, 0, _Test, Samples, Printers,
-        #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
+        #opts{numworkers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
     R = case Passed of
         0 -> {error, cant_satisfy};
         _ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
@@ -1450,7 +1450,7 @@ perform(Passed, _ToPass, 0, _Test, Samples, Printers, _Opts) ->
 	_ -> #pass{samples = Samples, printers = Printers, performed = Passed, actions = []}
     end;
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
-        #opts{num_workers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
+        #opts{numworkers = NumWorkers, parent = From} = _Opts) when NumWorkers > 0 ->
     R = #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []},
     check_if_early_fail(),
     From ! {worker_msg, R#pass{performed = floor(ToPass div NumWorkers + 1)}, self(), get('$property_id')},
@@ -1458,7 +1458,7 @@ perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers,
 perform(ToPass, ToPass, _TriesLeft, _Test, Samples, Printers, _Opts) ->
     #pass{samples = Samples, printers = Printers, performed = ToPass, actions = []};
 perform(Passed, ToPass, TriesLeft, Test, Samples, Printers,
-        #opts{output_fun = Print, num_workers = NumWorkers, parent = From} = Opts) when NumWorkers > 0 ->
+        #opts{output_fun = Print, numworkers = NumWorkers, parent = From} = Opts) when NumWorkers > 0 ->
     check_if_early_fail(),
     case run(Test, Opts) of
 	#pass{reason = true_prop, samples = MoreSamples,
