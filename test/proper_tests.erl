@@ -1426,7 +1426,8 @@ erlang_abstract_code_test_() ->
     M = erlang_abstract_code_test,
     Props = [bits, expr, guard, term, module],
     Opts = [{numtests, 200}, noshrink],
-    [?_assertEqual(true, proper:quickcheck(M:Prop(), Opts)) || Prop <- Props].
+    {timeout, 42,
+     [?_assertEqual(true, proper:quickcheck(M:Prop(), Opts)) || Prop <- Props]}.
 
 %%------------------------------------------------------------------------------
 %% Helper predicates

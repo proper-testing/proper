@@ -10,7 +10,7 @@ Contact information and license
 
 PropEr (PROPerty-based testing tool for ERlang) is a QuickCheck-inspired
 open-source property-based testing tool for Erlang, developed by Manolis
-Papadakis, Eirini Arvaniti and Kostis Sagonas. The base PropEr system was
+Papadakis, Eirini Arvaniti, and Kostis Sagonas. The base PropEr system was
 written mainly by Manolis Papadakis, and the stateful code testing subsystem
 by Eirini Arvaniti. Kostis Sagonas has been actively maintaining its code
 base since 2012.
@@ -88,7 +88,7 @@ Quickstart guide
     base:
 
     ```shell
-        git clone git://github.com/proper-testing/proper.git
+    git clone git://github.com/proper-testing/proper.git
     ```
 *   Compile PropEr: Simply run `make` if you just want to build PropEr.
     If you want to do some changes to PropEr or submit some pull request you

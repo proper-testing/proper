@@ -3075,6 +3075,7 @@ predef_types() ->
      {list,1}, {map,0}, {maybe_improper_list,0},
      {maybe_improper_list,2}, {mfa,0}, {module,0}, {neg_integer,0},
      {nil,0}, {no_return,0}, {node,0}, {non_neg_integer,0}, {none,0},
+     {nonempty_binary, 0}, {nonempty_bitstring, 0},
      {nonempty_improper_list,2}, {nonempty_list,0}, {nonempty_list,1},
      {nonempty_maybe_improper_list,0},
      {nonempty_maybe_improper_list,2}, {nonempty_string,0},
@@ -3089,7 +3090,7 @@ guard_bifs() ->
      {trunc,1}, {tuple_size,1}, {is_atom,1}, {is_binary,1},
      {is_bitstring,1}, {is_boolean,1}, {is_float,1}, {is_function,1},
      {is_function,2}, {is_integer,1}, {is_list,1}, {is_map,1},
-     {is_number, 1}, {is_pid,1}, {is_port,1}, {is_reference,1},
+     {is_number,1}, {is_pid,1}, {is_port,1}, {is_reference,1},
      {is_tuple,1}].
 
 other_bifs() ->
