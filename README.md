@@ -3,6 +3,7 @@
 [![Erlang Versions][erlang versions badge]][erlang]
 [![License][license badge]][license]
 [![Latest Release][release badge]][release]
+[![Hex PM][hex pm badge]][hex]
 [![Last Commit][commit badge]][commit]
 
 Contact information and license
@@ -186,6 +187,7 @@ incompatibilities between the two tools by now.
 [commit]: https://github.com/proper-testing/proper/commit/HEAD
 [erlang]: http://www.erlang.org
 [eunit stdout]: http://erlang.org/doc/apps/eunit/chapter.html#Running_EUnit
+[hex]: https://hex.pm/packages/proper
 [license]: ./COPYING
 [release]: https://github.com/proper-testing/proper/releases/latest
 [github]: https://github.com/proper-testing/proper/actions
@@ -194,6 +196,7 @@ incompatibilities between the two tools by now.
 [codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
 [commit badge]: https://img.shields.io/github/last-commit/proper-testing/proper.svg?style=flat-square
 [erlang versions badge]: https://img.shields.io/badge/erlang-20.0%20to%2023.3-blue.svg?style=flat-square
+[hex pm badge]: https://img.shields.io/hexpm/v/proper.svg?style=flat
 [license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
 [release badge]: https://img.shields.io/github/release/proper-testing/proper.svg?style=flat-square
 [github badge]: https://github.com/proper-testing/proper/workflows/CI/badge.svg
