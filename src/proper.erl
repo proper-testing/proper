@@ -514,6 +514,9 @@
 
 -type purity() :: 'pure' | 'impure'.
 
+-type test_range()  :: {Start :: non_neg_integer(), ToPass :: pos_integer()}.
+-type worker_args() :: test_range() | {node(), test_range()}.
+
 %% Strategy function type
 -type strategy_fun() :: fun((NumTests :: pos_integer(), NumWorkers :: pos_integer()) -> [{non_neg_integer(), non_neg_integer()}]).
 %% A function that given a number of tests and a number of workers, splits
@@ -1261,6 +1264,18 @@ inner_test(RawTest, Opts) ->
     end.
 
 %% @private
+-spec spawn_workers_and_get_result(
+        SpawnFun   :: fun((worker_args()) -> [{non_neg_integer(), non_neg_integer()}]),
+        WorkerArgs :: [worker_args()]) -> imm_result().
+spawn_workers_and_get_result(SpawnFun, WorkerArgs) ->
+    _ = maybe_start_cover_server(WorkerArgs),
+    WorkerList = lists:map(SpawnFun, WorkerArgs),
+    InitialResult = #pass{samples = [], printers = [], actions = []},
+    AggregatedImmResult = aggregate_imm_result(WorkerList, InitialResult),
+    ok = maybe_stop_cover_server(WorkerArgs),
+    AggregatedImmResult.
+
+%% @private
 %% @doc Runs PropEr in parallel mode, through the use of workers to perform the tests.
 %% Under this mode, PropEr needs information whether a property is pure or impure,
 %% and this information is passed via an option.
@@ -1269,16 +1284,11 @@ inner_test(RawTest, Opts) ->
 -spec parallel_perform(test(), opts()) -> imm_result().
 parallel_perform(Test, #opts{property_type = pure, numtests = NumTests,
                              numworkers = NumWorkers, strategy_fun = StrategyFun} = Opts) ->
-    TestsPerWorker = StrategyFun(NumTests, NumWorkers),
-    _ = maybe_start_cover_server([]),
     SpawnFun = fun({Start, ToPass}) ->
-        spawn_link_migrate(undefined, fun() -> perform(Start, ToPass, Test, Opts) end)
-    end,
-    WorkerList = lists:map(SpawnFun, TestsPerWorker),
-    InitialResult = #pass{samples = [], printers = [], actions = []},
-    AggregatedImmResult = aggregate_imm_result(WorkerList, InitialResult),
-    ok = maybe_stop_cover_server([]),
-    AggregatedImmResult;
+                  spawn_link_migrate(undefined, fun() -> perform(Start, ToPass, Test, Opts) end)
+               end,
+    TestsPerWorker = StrategyFun(NumTests, NumWorkers),
+    spawn_workers_and_get_result(SpawnFun, TestsPerWorker);
 parallel_perform(Test, #opts{property_type = impure, numtests = NumTests,
                              numworkers = NumWorkers, strategy_fun = StrategyFun,
                              stop_nodes = StopNodes} = Opts) ->
@@ -1286,14 +1296,10 @@ parallel_perform(Test, #opts{property_type = impure, numtests = NumTests,
     Nodes = start_nodes(NumWorkers),
     ensure_code_loaded(Nodes),
     NodeList = lists:zip(Nodes, TestsPerWorker),
-    _ = maybe_start_cover_server(NodeList),
     SpawnFun = fun({Node, {Start, ToPass}}) ->
-        spawn_link_migrate(Node, fun() -> perform(Start, ToPass, Test, Opts) end)
-    end,
-    WorkerList = lists:map(SpawnFun, NodeList),
-    InitialResult = #pass{samples = [], printers = [], actions = []},
-    AggregatedImmResult = aggregate_imm_result(WorkerList, InitialResult),
-    ok = maybe_stop_cover_server(NodeList),
+                  spawn_link_migrate(Node, fun() -> perform(Start, ToPass, Test, Opts) end)
+               end,
+    AggregatedImmResult = spawn_workers_and_get_result(SpawnFun, NodeList),
     ok = case StopNodes of
         true -> stop_nodes();
         false -> ok
