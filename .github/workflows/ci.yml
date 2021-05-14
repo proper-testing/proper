@@ -49,7 +49,7 @@ jobs:
       - name: Test examples
         run: make test-examples
 
-  parallel-tests:
+  parallel-examples:
     name: Test examples in parallel
     runs-on: ubuntu-latest
     container: erlang:23.3

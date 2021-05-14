@@ -285,17 +285,17 @@
 %%% <dt>`nocolors'</dt>
 %%% <dd>Do not use term colors in output.</dd>
 %%% <dt>`{numworkers, <Non_negative_number>}'</dt>
-%%% <dd> Specifies the number of workers to spawn when performing the tests (defaults to 0,
-%%% which is PropEr's default behaviour). Each worker gets their own share of the total of number of tests to perform.</dd>
+%%% <dd> Specifies the number of workers to spawn when performing the tests (defaults to 0).
+%%% Each worker gets their own share of the total of number of tests to perform.</dd>
 %%% <dt>`{strategy_fun, <Strategy_function>}'</dt>
 %%% <dd> Overrides the default function used to split the load of tests among the workers.
 %%% It should be of the type {@link strategy_fun()}.</dd>
 %%% <dt>`pure | impure'</dt>
 %%% <dd> Declares the type of the property, as in pure with no side-effects or state,
 %%% and impure with them. <b>Notice</b>: this option will only be taken into account if
-%%% the the number of workers set is greater than 0. In addition, <i>impure</i> properties
+%%% the number of workers set is greater than 0. In addition, <i>impure</i> properties
 %%% have each worker spawned on its own node.</dd>
-%%% <dt>`{stop_nodes, true | false}'</dt>
+%%% <dt>`{stop_nodes, boolean()}'</dt>
 %%% <dd> Specifies whether parallel PropEr should stop the nodes after running a property
 %%% or not. Defaults to true.</dd>
 %%% </dl>
@@ -512,6 +512,8 @@
 
 -type false_positive_mfas() :: fun((mfa(),Args::[term()],{fail,Result::term()} | {error | exit | throw,Reason::term()}) -> boolean()) | 'undefined'.
 
+-type purity() :: 'pure' | 'impure'.
+
 %% Strategy function type
 -type strategy_fun() :: fun((NumTests :: pos_integer(), NumWorkers :: pos_integer()) -> [{non_neg_integer(), non_neg_integer()}]).
 %% A function that given a number of tests and a number of workers, splits
@@ -528,7 +530,7 @@
 		  | 'long_result'
 		  | 'nocolors'
 		  | 'noshrink'
-		  | 'pure' | 'impure'
+		  | purity()
 		  | 'quiet'
 		  | 'verbose'
 		  | pos_integer()
@@ -566,8 +568,8 @@
 	       skip_mfas        = []              :: [mfa()],
 	       false_positive_mfas                :: false_positive_mfas(),
 	       setup_funs       = []              :: [setup_fun()],
-	       numworkers      = 0               :: non_neg_integer(),
-	       property_type    = pure            :: pure | impure,
+	       numworkers       = 0               :: non_neg_integer(),
+	       property_type    = pure            :: purity(),
 	       strategy_fun     = default_strategy_fun() :: strategy_fun(),
 	       stop_nodes       = true            :: boolean(),
 	       parent           = self()          :: pid(),
@@ -1260,9 +1262,10 @@ inner_test(RawTest, Opts) ->
 
 %% @private
 %% @doc Runs PropEr in parallel mode, through the use of workers to perform the tests.
-%% Under this mode, PropEr will detect if a property is pure or impure based on the passed options.
-%% On the later case, it will start a node for every worker that will be spawned in order to
-%% avoid test collisions between them.
+%% Under this mode, PropEr needs information whether a property is pure or impure,
+%% and this information is passed via an option.
+%% When testing impure properties, PropEr will start a node for every worker that will be
+%% spawned in order to avoid test collisions between them.
 -spec parallel_perform(test(), opts()) -> imm_result().
 parallel_perform(Test, #opts{property_type = pure, numtests = NumTests,
                              numworkers = NumWorkers, strategy_fun = StrategyFun} = Opts) ->
@@ -1430,6 +1433,10 @@ perform(NumTests, Test, Opts) ->
 perform(Passed, NumTests, Test, Opts) ->
     Size = size_at_nth_test(Passed, Opts),
     put('$size', Size),
+    %% When working on parallelizing PropEr initially we used to hit too easily
+    %% the default maximum number of tries that PropEr had, so when running on parallel
+    %% it has a higher than usual max number of tries.The number was picked after testing locally
+    %% with different values.
     perform(Passed, NumTests, 3 * ?MAX_TRIES_FACTOR * NumTests, Test, none, none, Opts).
 
 -spec perform(non_neg_integer(), pos_integer(), non_neg_integer(), test(),
@@ -2177,10 +2184,10 @@ aggregate_imm_result([], ImmResult) ->
 aggregate_imm_result(WorkerList, #pass{performed = Passed, samples = Samples} = ImmResult) ->
     Id = get('$property_id'),
     receive
-        % if we haven't received anything yet we use the first pass
+        %% if we haven't received anything yet we use the first pass we get
         {worker_msg, #pass{} = Received, From, Id} when Passed == undefined ->
             aggregate_imm_result(WorkerList -- [From], Received);
-        % from that moment on, we accumulate the count of passed tests
+        %% from that moment on, we accumulate the count of passed tests
         {worker_msg, #pass{performed = PassedRcvd, samples = SamplesRcvd}, From, Id}
                 when Samples == [none] ->
             NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd,
@@ -2376,10 +2383,10 @@ default_strategy_fun() ->
 
 %% @private
 -spec update_worker_node_ref({node(), {already_running, boolean()}}) -> list(node()).
-update_worker_node_ref(Node) ->
+update_worker_node_ref(NodeName) ->
     NewMap = case get(worker_nodes) of
-        undefined -> [Node];
-        Map -> [Node|Map]
+        undefined -> [NodeName];
+        Map -> [NodeName|Map]
     end,
     put(worker_nodes, NewMap).
 
@@ -2441,10 +2448,7 @@ ensure_code_loaded(Nodes) ->
     %% we get all the files that need to be loaded from the current directory
     Files = filelib:wildcard("**/*.beam"),
     %% but we only care about the filename, without the .beam extension
-    Modules =
-        lists:map(fun(File) ->
-                    erlang:list_to_atom(filename:basename(File, ".beam"))
-                  end, Files),
+    Modules = [erlang:list_to_atom(filename:basename(File, ".beam")) || File <- Files],
 
     %% call the functions needed to ensure that all modules are available on the nodes
     lists:foreach(fun(Module) -> maybe_load_binary(Nodes, Module) end, Modules),
@@ -2456,12 +2460,12 @@ ensure_code_loaded(Nodes) ->
 %% @doc Starts multiple (NumNodes) remote nodes.
 -spec start_nodes(non_neg_integer()) -> list(node()).
 start_nodes(NumNodes) ->
-    StartNode =
-    fun(N) ->
-        SlaveName = list_to_atom("proper_slave_" ++ integer_to_list(N)),
-        _ = start_node(SlaveName)
-    end,
-    lists:map(StartNode, lists:seq(1, NumNodes)).
+    StartNodeFun =
+        fun(N) ->
+            SlaveName = list_to_atom("proper_slave_" ++ integer_to_list(N)),
+            _ = start_node(SlaveName)
+        end,
+    lists:map(StartNodeFun, lists:seq(1, NumNodes)).
 
 %% @private
 %% @doc Stops all the registered (started) nodes.
