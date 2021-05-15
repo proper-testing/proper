@@ -240,7 +240,7 @@ distance({X1, Y1}, {X2, Y2}) ->
         ?assertNot(proper:check(Test, CExm, Opts))).
 
 labyrinth_props_test_() ->
-  FailOpts = [{numtests,7500}, noshrink],        % see comment above
+  FailOpts = [{numtests,7500}, noshrink, {numworkers,0}],        % see comment above
   M0 = labyrinth:maze(0), M1 = labyrinth:maze(1), M2 = labyrinth:maze(2),
   SixLeft = [[left,left,left,left,left,left]],
   [{"Random", ?_failsWith(SixLeft, prop_exit_random(M0), [500])},

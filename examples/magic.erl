@@ -259,7 +259,7 @@ count_spells([H|T], Acc) ->
 
 magic_props_test_() ->
   %% no point shrinking tests executed only for checking that they fail
-  FailOpts = [{numtests,10000}, noshrink],
+  FailOpts = [{numtests,10000}, noshrink, {numworkers,0}],
   [{"Random", ?_passes(prop_spells_random(), [500])},% let's hope we are unlucky
    {timeout, 60,
     {"Targeted auto", ?_fails(prop_spells_targeted_auto(), FailOpts)}},

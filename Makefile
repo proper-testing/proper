@@ -20,7 +20,7 @@
 # Author(s):   Manolis Papadakis and Kostis Sagonas
 # Description: Instructions for make
 
-.PHONY: default all compile dialyzer check_escripts test test-examples doc clean distclean rebuild retest
+.PHONY: default all compile dialyzer check_escripts test test-examples test-parallel doc clean distclean rebuild retest
 
 ifneq (,$(findstring Windows,$(OS)))
     SEP := $(strip \)
@@ -43,7 +43,7 @@ compile:
 	ln -s _build/default/lib/proper/ebin .
 
 dialyzer: .plt/proper_plt compile
-	dialyzer -nn --plt $< -Wunmatched_returns -Wunknown ebin
+	dialyzer -nn --plt $< -Wunmatched_returns ebin
 
 .plt/proper_plt: .plt
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit mnesia tools runtime_tools
@@ -60,6 +60,9 @@ endif
 
 test-examples:
 	$(REBAR3) eunit --dir=examples --verbose
+
+test-parallel:
+	NUMWORKERS=2 $(REBAR3) eunit --dir=examples --verbose
 
 doc: compile
 	./scripts/make_doc

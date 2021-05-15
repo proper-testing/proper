@@ -146,7 +146,7 @@ intermediate_speeds(Speed, Acceleration) ->
         ?assertNot(proper:check(Test, CExm, Opts))).
 
 car_props_test_() ->
-  FailOpts = [{numtests,1000}, noshrink],
-  [{"Random", ?_passes(prop_distance(), [500])},
+  FailOpts = [{numtests,1000}, noshrink, {numworkers,0}],
+  [{"Random", ?_passes(prop_distance(), [500, impure])},
    {"Targeted", ?_fails(prop_distance_targeted(), FailOpts)},
    {"Targeted init", ?_fails(prop_distance_targeted_init(), FailOpts)}].
