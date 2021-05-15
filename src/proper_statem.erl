@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -277,12 +276,9 @@
 %% Type declarations
 %% -----------------------------------------------------------------------------
 
-%% @type symbolic_state()
 -type symbolic_state()    :: term().
-%% @type dynamic_state()
 -type dynamic_state()     :: term().
 -type symbolic_var()      :: {'var',pos_integer()}.
-%% @type symbolic_call()
 -type symbolic_call()     :: {'call',mod_name(),fun_name(),[term()]}.
 -type command()           :: {'set',symbolic_var(),symbolic_call()}
 			   | {'init',symbolic_state()}.
