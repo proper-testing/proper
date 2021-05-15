@@ -145,7 +145,7 @@ all_selections(N, List) when N >= 1 ->
 
 all_selections(1, List, _Len) ->
     [[X] || X <- List];
-all_selections(_Len, List, _Len) ->
+all_selections(Take, List, Len) when Take =:= Len ->
     [List];
 all_selections(Take, [Head|Tail], Len) ->
     [[Head|Rest] || Rest <- all_selections(Take - 1, Tail, Len - 1)]
@@ -192,7 +192,7 @@ delete(List, ToDelete) ->
 
 delete_tr(List, [], Acc) ->
     lists:reverse(Acc) ++ List;
-delete_tr([_Same|ListTail], [_Same|ToDeleteTail], Acc) ->
+delete_tr([X|ListTail], [X|ToDeleteTail], Acc) ->
     delete_tr(ListTail, ToDeleteTail, Acc);
 delete_tr([X|Rest], ToDelete, Acc) ->
     delete_tr(Rest, ToDelete, [X|Acc]).
@@ -221,7 +221,7 @@ all_insertions_tr(X, Front, Back = [BackHead|BackTail], Acc) ->
 %% same position.
 true_permutation([], []) ->
     true;
-true_permutation([_Same|_NewTail], [_Same|_OldTail]) ->
+true_permutation([H|_NewTail], [H|_OldTail]) ->
     false;
 true_permutation([_NewHead|NewTail], [_OldHead|OldTail]) ->
     true_permutation(NewTail, OldTail).
@@ -241,8 +241,9 @@ compatible(A, B, {Blacks,Whites}, Colors) ->
 
 correct_blacks([], [], 0) -> true;
 correct_blacks([], [], _N) -> false;
-correct_blacks([_Same|_At], [_Same|_Bt], 0) -> false;
-correct_blacks([_Same|At], [_Same|Bt], N) -> correct_blacks(At, Bt, N - 1);
+correct_blacks([Ah|_At], [Bh|_Bt], 0) when Ah =:= Bh -> false;
+correct_blacks([Ah|At], [Bh|Bt], N) when Ah =:= Bh ->
+    correct_blacks(At, Bt, N - 1);
 correct_blacks([_Ah|At], [_Bh|Bt], N) -> correct_blacks(At, Bt, N).
 
 correct_sum(A, B, N, Colors) ->
@@ -274,7 +275,7 @@ remove_sames(A, B) ->
 
 remove_sames_tr([], [], N, AccA, AccB) ->
     {N, AccA, AccB};
-remove_sames_tr([_Same|At], [_Same|Bt], N, AccA, AccB) ->
+remove_sames_tr([Ah|At], [Bh|Bt], N, AccA, AccB) when Ah =:= Bh ->
     remove_sames_tr(At, Bt, N + 1, AccA, AccB);
 remove_sames_tr([Ah|At], [Bh|Bt], N, AccA, AccB) ->
     remove_sames_tr(At, Bt, N, [Ah|AccA], [Bh|AccB]).
@@ -288,7 +289,7 @@ get_whites_tr([], _B, N) ->
     N;
 get_whites_tr(_A, [], N) ->
     N;
-get_whites_tr([_Same|At], [_Same|Bt], N) ->
+get_whites_tr([Ah|At], [Bh|Bt], N) when Ah =:= Bh ->
     get_whites_tr(At, Bt, N + 1);
 get_whites_tr([Ah|At], B = [Bh|_Bt], N) when Ah < Bh ->
     get_whites_tr(At, B, N);
