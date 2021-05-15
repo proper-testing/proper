@@ -20,6 +20,7 @@ jobs:
     strategy:
       matrix:
         otp:
+          - "24.0"
           - "23.3"
           - "23.0"
           - "22.3"
@@ -42,7 +43,7 @@ jobs:
   examples:
     name: Test examples
     runs-on: ubuntu-latest
-    container: erlang:23.3
+    container: erlang:24.0
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -62,7 +63,7 @@ jobs:
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
-    container: erlang:23.3
+    container: erlang:24.0
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
