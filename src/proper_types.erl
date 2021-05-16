@@ -179,7 +179,7 @@
 %%	records, maybe_improper_list(T,S), nonempty_improper_list(T,S)
 %%	maybe_improper_list(), maybe_improper_list(T), iolist, iodata
 %% don't need:
-%%	nonempty_{list,string,maybe_improper_list}
+%%	nonempty_{binary,bitstring,list,maybe_improper_list,string}
 %% won't do:
 %%	pid, port, ref, identifier, none, no_return, module, mfa, node
 %%	array, dict, digraph, set, gb_tree, gb_set, queue, tid

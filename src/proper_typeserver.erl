@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
 %%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -1151,13 +1150,15 @@ match([Tag|PatRest], [X|ToMatchRest], Acc, TypeMode) when is_atom(Tag) ->
 -define(NON_ATOM_TYPES,
 	[arity,binary,bitstring,byte,char,float,'fun',function,integer,iodata,
 	 iolist,list,map,maybe_improper_list,mfa,neg_integer,nil,no_return,
-	 non_neg_integer,none,nonempty_improper_list,nonempty_list,
-	 nonempty_maybe_improper_list,nonempty_string,number,pid,port,
+	 non_neg_integer,none,nonempty_binary,nonempty_bitstring,
+	 nonempty_improper_list,nonempty_list,nonempty_maybe_improper_list,
+	 nonempty_string,number,pid,port,
 	 pos_integer,range,record,reference,string,tuple]).
 -define(NON_TUPLE_TYPES,
 	[arity,atom,binary,bitstring,bool,boolean,byte,char,float,'fun',
 	 function,identifier,integer,iodata,iolist,list,map,maybe_improper_list,
 	 module,neg_integer,nil,no_return,node,non_neg_integer,none,
+	 nonempty_binary,nonempty_bitstring,
 	 nonempty_improper_list,nonempty_list,nonempty_maybe_improper_list,
 	 nonempty_string,number,pid,port,pos_integer,range,reference,string,
 	 timeout]).
@@ -1383,6 +1384,10 @@ is_instance(X, _Mod, {type,_,neg_integer,[]}, _Stack) ->
     is_integer(X) andalso X < 0;
 is_instance(X, _Mod, {type,_,non_neg_integer,[]}, _Stack) ->
     is_integer(X) andalso X >= 0;
+is_instance(X, _Mod, {type,_,nonempty_binary,[]}, _Stack) ->
+    is_binary(X) andalso byte_size(X) > 0;
+is_instance(X, _Mod, {type,_,nonempty_bitstring,[]}, _Stack) ->
+    is_bitstring(X) andalso bit_size(X) > 0;
 is_instance(X, Mod, {type,_,nonempty_list,[Type]}, _Stack) ->
     list_test(X, Mod, Type, dummy, false, true, false);
 is_instance(X, Mod, {type,_,nonempty_improper_list,[Cont,Term]}, _Stack) ->
@@ -1621,6 +1626,10 @@ convert(_Mod, {type,_,binary,[BaseExpr,UnitExpr]}, State, _Stack, _VarDict) ->
 	_ ->
 	    expr_error(invalid_base, BaseExpr)
     end;
+convert(_Mod, {type,_,nonempty_binary,[]}, State, _Stack, _VarDict) ->
+    {ok, {simple,proper_types:non_empty(proper_types:binary())}, State};
+convert(_Mod, {type,_,nonempty_bitstring,[]}, State, _Stack, _VarDict) ->
+    {ok, {simple,proper_types:non_empty(proper_types:bitstring())}, State};
 convert(_Mod, {type,_,range,[LowExpr,HighExpr]}, State, _Stack, _VarDict) ->
     case {eval_int(LowExpr),eval_int(HighExpr)} of
 	{{ok,Low},{ok,High}} when Low =< High ->
