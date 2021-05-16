@@ -2016,7 +2016,12 @@ shrink(Shrunk, [RawImmInstance | Rest] = TestTail, {Type,Prop} = StrTest, Reason
     ImmInstance = case proper_types:find_prop(is_user_nf, Type) of
                     {ok, true} ->
                       case proper_types:safe_is_instance(RawImmInstance, Type) of
-                        false -> proper_gen:clean_instance(RawImmInstance);
+                        false ->
+                          CleanInstance = proper_gen:clean_instance(RawImmInstance),
+                          case proper_types:safe_is_instance(CleanInstance, Type) of
+                            true -> CleanInstance;
+                            false -> RawImmInstance
+                          end;
                         true -> RawImmInstance
                       end;
                     {ok, false} -> RawImmInstance;
