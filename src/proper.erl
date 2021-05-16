@@ -1,5 +1,4 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
 %%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
@@ -478,16 +477,15 @@
 -type numeric_stats() :: {number(), float(), number()}.
 -type time_period() :: non_neg_integer().
 
-%% @type outer_test(). A testable property that has optionally been wrapped with
-%% one or more <a href="#external-wrappers">external wrappers</a>.
 -opaque outer_test() :: test()
 		      | {'fails', outer_test()}
 		      | {'setup', setup_fun(), outer_test()}
 		      | {'numtests', pos_integer(), outer_test()}
 		      | {'on_output', output_fun(), outer_test()}.
+%% A testable property that has optionally been wrapped with one or
+%% more <a href="#external-wrappers">external wrappers</a>.
+
 %% TODO: Should the tags be of the form '$...'?
-%% @type test(). A testable property that has not been wrapped with an
-%% <a href="#external-wrappers">external wrapper</a>.
 -opaque test() :: boolean()
 	        | {'forall', proper_types:raw_type(), dependent_test()}
 	        | {'exists', proper_types:raw_type(), dependent_test(), boolean()}
@@ -499,6 +497,9 @@
 	        | {'timeout', time_period(), fun(() -> boolean())}.
 	      %%| {'always', pos_integer(), delayed_test()}
 	      %%| {'sometimes', pos_integer(), delayed_test()}
+%% A testable property that has not been wrapped with an
+%% <a href="#external-wrappers">external wrapper</a>.
+
 -type delayed_test() :: fun(() -> test()).
 -type dependent_test() :: fun((proper_gen:instance()) -> test()).
 -type lazy_test() :: delayed_test() | dependent_test().
