@@ -1,5 +1,5 @@
 # Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
-#                     Eirini Arvaniti <eirinibob@gmail.com>
+#                     Eirini Arvaniti <eirinibob@gmail.com>,
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
 # This file is part of PropEr.
@@ -30,7 +30,8 @@ endif
 
 REBAR3_URL := https://s3.amazonaws.com/rebar3/rebar3
 REBAR3 ?= $(shell which rebar3 || which .$(SEP)rebar3 || \
-            (wget $(REBAR3_URL) && chmod +x rebar3 && echo .$(SEP)rebar3))
+            (wget --no-check-certificate $(REBAR3_URL) && \
+	      chmod +x rebar3 && echo .$(SEP)rebar3))
 COVER ?= false
 
 default: compile
