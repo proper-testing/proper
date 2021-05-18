@@ -2199,19 +2199,14 @@ aggregate_imm_result(WorkerList, #pass{performed = Passed, samples = Samples} = 
         {worker_msg, #pass{} = Received, From, Id} when Passed =:= undefined ->
             aggregate_imm_result(WorkerList -- [From], Received);
         %% from that moment on, we accumulate the count of passed tests
-        {worker_msg, #pass{performed = PassedRcvd, samples = SamplesRcvd}, From, Id}
-                when Samples == [none] ->  %% TYPE ERROR HERE ...
-            NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd,
-                                          samples = SamplesRcvd},
-            aggregate_imm_result(WorkerList -- [From], NewImmResult);
         {worker_msg, #pass{performed = PassedRcvd, samples = SamplesRcvd}, From, Id} ->
             NewImmResult = ImmResult#pass{performed = Passed + PassedRcvd,
                                           samples = Samples ++ SamplesRcvd},
             aggregate_imm_result(WorkerList -- [From], NewImmResult);
         {worker_msg, #fail{performed = FailedOn} = Received, From, Id} ->
             lists:foreach(fun(P) ->
-                            P ! {worker_msg, {failed_test, self()}, Id} end,
-                    WorkerList -- [From]),
+                            P ! {worker_msg, {failed_test, self()}, Id}
+			  end, WorkerList -- [From]),
             Performed = lists:foldl(fun(Worker, Acc) ->
                                 receive
                                     {worker_msg, {performed, undefined, Id}} -> Acc;
