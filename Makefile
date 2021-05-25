@@ -40,7 +40,7 @@ default: compile
 all: compile dialyzer doc test #test-examples -- this is another GitHub action
 
 compile:
-	$(RM) ebin
+	$(RM) ebin .plt/proper_plt
 	$(REBAR3) compile
 	ln -s _build/default/lib/proper/ebin .
 
@@ -48,7 +48,6 @@ dialyzer: .plt/proper_plt compile
 	dialyzer --plt $< -Wunmatched_returns ebin
 
 .plt/proper_plt: .plt
-	$(RM) $@
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit mnesia tools runtime_tools
 
 check_escripts:
