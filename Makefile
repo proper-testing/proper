@@ -28,7 +28,8 @@ else
     SEP := $(strip /)
 endif
 
-REBAR3_URL := https://s3.amazonaws.com/rebar3/rebar3
+# A safe version of rebar3 that still supports 20.x and 21.x
+REBAR3_URL := https://github.com/erlang/rebar3/releases/download/3.15.2/rebar3
 REBAR3 ?= $(shell which rebar3 || which .$(SEP)rebar3 || \
             (wget --no-check-certificate $(REBAR3_URL) && \
 	      chmod +x rebar3 && echo .$(SEP)rebar3))
