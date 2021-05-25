@@ -40,7 +40,7 @@ default: compile
 all: compile dialyzer doc test #test-examples -- this is another GitHub action
 
 compile:
-	$(RM) ebin
+	$(RM) ebin .plt/proper_plt
 	$(REBAR3) compile
 	ln -s _build/default/lib/proper/ebin .
 
