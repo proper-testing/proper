@@ -116,13 +116,13 @@ next_state(S, _V, {call,_,update_counter,[_Tab, Key, Incr]}) ->
 	set ->
 	    Object = proplists:lookup(Key, S#state.stored),
 	    Value = element(2, Object),
-	    NewObj =  setelement(2, Object, Value + Incr),
-	    S#state{stored=keyreplace(Key, 1, S#state.stored, NewObj)};
+	    NewObj = setelement(2, Object, Value + Incr),
+	    S#state{stored = keyreplace(Key, 1, S#state.stored, NewObj)};
 	ordered_set ->
 	    Object = lists:keyfind(Key, 1, S#state.stored),
 	    Value = element(2, Object),
 	    NewObj = setelement(2, Object, Value + Incr),
-	    S#state{stored=lists:keyreplace(Key, 1, S#state.stored, NewObj)}
+	    S#state{stored = lists:keyreplace(Key, 1, S#state.stored, NewObj)}
     end;
 next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
     case S#state.type of
@@ -133,9 +133,9 @@ next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
 		    S#state{stored = S#state.stored ++ [Object]};
 		true ->
 		    %% correct model
-		    S#state{stored=keyreplace(Key, 1, S#state.stored, Object)}
+		    S#state{stored = keyreplace(Key, 1, S#state.stored, Object)}
 		    %% error model, run {numtests, 3000} to discover the bug
-		    %% S#state{stored=lists:keyreplace(Key, 1, S#state.stored,
+		    %% S#state{stored = lists:keyreplace(Key, 1, S#state.stored,
 		    %% 				    Object)}
 	    end;
 	ordered_set ->
@@ -144,7 +144,7 @@ next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
 		false ->
 		    S#state{stored = S#state.stored ++ [Object]};
 		true ->
-		    S#state{stored=lists:keyreplace(Key, 1, S#state.stored,
+		    S#state{stored = lists:keyreplace(Key, 1, S#state.stored,
 						    Object)}
 	    end;
 	bag ->
@@ -160,9 +160,9 @@ next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
 next_state(S, _V, {call,_,delete,[_Tab, Key]}) ->
     case S#state.type of
 	ordered_set ->
-	    S#state{stored=lists:keydelete(Key, 1, S#state.stored)};
+	    S#state{stored = lists:keydelete(Key, 1, S#state.stored)};
 	_ ->
-	    S#state{stored=proplists:delete(Key, S#state.stored)}
+	    S#state{stored = proplists:delete(Key, S#state.stored)}
     end;
 next_state(S, _V, {call,_,_,_}) -> S.
 

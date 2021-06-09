@@ -28,7 +28,9 @@ else
     SEP := $(strip /)
 endif
 
-REBAR3_URL := https://s3.amazonaws.com/rebar3/rebar3
+# A safe version of rebar3 that still supports Erlang/OTP 20.x and 21.x
+# Upgrade to a newer version when support for these versions is dropped.
+REBAR3_URL := https://github.com/erlang/rebar3/releases/download/3.15.2/rebar3
 REBAR3 ?= $(shell which rebar3 || which .$(SEP)rebar3 || \
             (wget --no-check-certificate $(REBAR3_URL) && \
 	      chmod +x rebar3 && echo .$(SEP)rebar3))
@@ -44,7 +46,7 @@ compile:
 	ln -s _build/default/lib/proper/ebin .
 
 dialyzer: .plt/proper_plt compile
-	dialyzer -nn --plt $< -Wunmatched_returns ebin
+	dialyzer --plt $< -Wunmatched_returns ebin
 
 .plt/proper_plt: .plt
 	dialyzer --build_plt --output_plt $@ --apps erts kernel stdlib compiler crypto syntax_tools eunit mnesia tools runtime_tools

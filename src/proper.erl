@@ -508,8 +508,9 @@
 -type stripped_test() :: boolean()
 		       | {proper_types:type(), dependent_test()}
 		       | [{tag(),test()}].
--type finalize_fun() :: fun (() -> 'ok').
--type setup_fun() :: fun(() -> finalize_fun()) | fun ((setup_opts()) -> finalize_fun()).
+-type finalize_fun() :: fun(() -> 'ok').
+-type setup_fun() :: fun(() -> finalize_fun())
+                   | fun((setup_opts()) -> finalize_fun()).
 
 -type false_positive_mfas() :: fun((mfa(),Args::[term()],{fail,Result::term()} | {error | exit | throw,Reason::term()}) -> boolean()) | 'undefined'.
 
