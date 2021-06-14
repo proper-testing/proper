@@ -267,7 +267,7 @@ num_floors() ->
 -define(WRAP(T), proper:test_to_outer_test(T)).
 
 elevator_test_() ->
-  elevator_test_(100).
+  {timeout, 42, elevator_test_(100)}.
 
 elevator_test_(N) ->
   {"Elevator FSM "++integer_to_list(N),

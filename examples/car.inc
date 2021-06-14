@@ -147,6 +147,6 @@ intermediate_speeds(Speed, Acceleration) ->
 
 car_props_test_() ->
   FailOpts = [{numtests,1000}, noshrink, {numworkers,0}],
-  [{"Random", ?_passes(prop_distance(), [500, impure])},
-   {"Targeted", ?_fails(prop_distance_targeted(), FailOpts)},
-   {"Targeted init", ?_fails(prop_distance_targeted_init(), FailOpts)}].
+  [{timeout, 20, {"Random", ?_passes(prop_distance(), [500, impure])}},
+   {timeout, 42, {"Targeted", ?_fails(prop_distance_targeted(), FailOpts)}},
+   {timeout, 42, {"Targeted init", ?_fails(prop_distance_targeted_init(), FailOpts)}}].
