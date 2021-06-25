@@ -1,8 +1,7 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; -*- erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -20,15 +19,15 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This is the source for the proper.app file.
 
 {application, proper,
  [{description, "A QuickCheck-inspired property-based testing tool for Erlang"},
-  {maintainers, ["Manolis Papadakis", "Eirini Arvaniti", "Kostis Sagonas"]},
-  {licenses, ["GPL3"]},
+  {maintainers, ["Kostis Sagonas"]},
+  {licenses, ["GPL 3.0"]},
   {links,  [{"GitHub", "https://github.com/proper-testing/proper"},
             {"Official Documentation", "https://proper-testing.github.io/"}]},
   {vsn, "1.4.0"},
