@@ -261,7 +261,7 @@ magic_props_test_() ->
   %% no point shrinking tests executed only for checking that they fail
   FailOpts = [{numtests,10000}, noshrink, {numworkers,0}],
   [{"Random", ?_passes(prop_spells_random(), [500])},% let's hope we are unlucky
-   {timeout, 60,
+   {timeout, 120,
     {"Targeted auto", ?_fails(prop_spells_targeted_auto(), FailOpts)}},
-   {timeout, 60,
+   {timeout, 120,
     {"Targeted user", ?_fails(prop_spells_targeted_user(), FailOpts)}}].
