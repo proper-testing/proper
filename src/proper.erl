@@ -3,7 +3,7 @@
 %%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
-%%%                 and Andreas Löscher <andreas.loscher@it.uu.se>
+%%%                 and Andreas Löscher <andreas@loscher.net>
 %%%
 %%% This file is part of PropEr.
 %%%
