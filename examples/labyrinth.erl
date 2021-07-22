@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017-2021 Andreas Löscher <andreas.loscher@it.uu.se>
+%%% Copyright (c) 2017-2021 Andreas Löscher <andreas@loscher.net>
 %%%                     and Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
