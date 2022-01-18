@@ -56,7 +56,7 @@
 %%% <dd>Identical to the above, but gets evaluated automatically before being
 %%%   applied to a property.</dd>
 %%% <dt id="var">`{var,'{@type var_id()}`}'</dt>
-%%% <dd>This contruct serves as a placeholder for values that are not known at
+%%% <dd>This construct serves as a placeholder for values that are not known at
 %%%   type construction time. It will be replaced by the actual value of the
 %%%   variable during evaluation.</dd>
 %%% </dl>
@@ -92,7 +92,7 @@
 %%% document your code and facilitate spec testing, you can include the
 %%% complementary header file `proper/include/proper_param_adts.hrl', which
 %%% provides the corresponding `-type' definitions. Please note that Dialyzer
-%%% currenty treats these the same way as their non-parametric counterparts.
+%%% currently treats these the same way as their non-parametric counterparts.
 %%%
 %%% The use of Auto-ADT is currently subject to the following limitations:
 %%% <ul>

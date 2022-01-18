@@ -104,7 +104,7 @@
 %%%   where:
 %%%   ``` -type rec() :: #rec{}.
 %%%       -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}). '''
-%%%   A little rewritting can usually remedy this problem as well:
+%%%   A little rewriting can usually remedy this problem as well:
 %%%   ``` ?FORALL(..., rec(), ...) '''
 %%%   where:
 %%%   ``` -type rec() :: #rec{b :: 'nil'} | #rec{b :: rec()}.

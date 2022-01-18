@@ -37,7 +37,7 @@
 %%%
 %%% ```prop_target() ->                 % Try to check that
 %%%      ?EXISTS(Input, Params,         % some input exists
-%%%              begin                  % that fullfills the property.
+%%%              begin                  % that fulfills the property.
 %%%                UV = SUT:run(Input), % Do so by running SUT with Input
 %%%                ?MAXIMIZE(UV),       % and maximize its Utility Value
 %%%                UV < Threshold       % up to some Threshold.

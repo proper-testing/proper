@@ -611,7 +611,7 @@ run_commands(Mod, Cmds) ->
 %% @doc  Similar to {@link run_commands/2}, but also accepts an environment,
 %% used for symbolic variable evaluation during command execution. The
 %% environment consists of `{Key::atom(), Value::term()}' pairs. Keys may be
-%% used in symbolic variables (i.e. `{var,Key}') whithin the command sequence
+%% used in symbolic variables (i.e. `{var,Key}') within the command sequence
 %% `Cmds'. These symbolic variables will be replaced by their corresponding
 %% `Value' during command execution.
 
@@ -713,7 +713,7 @@ safe_apply(M, F, A) ->
 %%   sequential component.</li>
 %% <li>`Parallel_history' contains the execution history of each of the
 %%   concurrent tasks.</li>
-%% <li>`Result' specifies the outcome of the attemp to serialize command
+%% <li>`Result' specifies the outcome of the attempt to serialize command
 %%   execution, based on the results observed. In addition to results
 %%   returned by {@link run_commands/2}, it can also be the atom
 %%   `no_possible_interleaving'.</li>

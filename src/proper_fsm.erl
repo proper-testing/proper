@@ -93,7 +93,7 @@
 %%%        `['{@type transition()}`]'
 %%%   <p>There should be one instance of this function for each reachable state
 %%%   `{StateName,Attr1,...,AttrN}' of the finite state machine. The function
-%%%   has similar beaviour to `StateName/1', described above.</p></li>
+%%%   has similar behaviour to `StateName/1', described above.</p></li>
 %%% <li> `weight(From::'{@type state_name()}`,
 %%%              Target::'{@type state_name()}`,
 %%%              Call::'{@type symbolic_call()}`) -> non_neg_integer()'
@@ -312,7 +312,7 @@ state_names(History) ->
 
 
 %% -----------------------------------------------------------------------------
-%% Proper_statem bahaviour callback functions
+%% Proper_statem behaviour callback functions
 %% -----------------------------------------------------------------------------
 
 -spec initial_state(mod_name()) -> state().

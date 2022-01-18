@@ -27,7 +27,7 @@
 %%%              the application's source files, after inlining all types
 %%%              denoted as aliases, and removing from the exported types lists
 %%%              all types denoted as private.
-%%% Known Bugs:  * This scipt is very hacky, it will probably break easily.
+%%% Known Bugs:  * This script is very hacky, it will probably break easily.
 %%%              * Record declarations with no type information are discarded.
 %%%              * Any text inside the same multi-line comment as an @alias or
 %%%                @private_type tag will be discarded.

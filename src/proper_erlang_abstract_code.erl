@@ -1809,7 +1809,7 @@ type_specifier(N, IsLast, L) ->
 
 a_type_specifier(IsLast0, L) ->
     %% A bit sloppy. Cannot generate [{unit, 8}, binary], for example.
-    %% Maybe do nothing here and everyting in post_process()?
+    %% Maybe do nothing here and everything in post_process()?
     IsLast = IsLast0 andalso not is_chosen(unit, L),
     UnitWeight = case is_member([bitstring, bits, bytes, binary], L) of
                      true -> 0;

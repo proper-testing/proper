@@ -257,7 +257,7 @@ prop_distance() ->
              end)).
 
 %% Targeted property based testing, where maximizing the distance travelled
-%% provides failing command sequencies more consistently.
+%% provides failing command sequences more consistently.
 prop_distance_targeted() ->
   ?FORALL_TARGETED(
      Cmds, commands(?MODULE),

@@ -129,7 +129,7 @@
 %%% be of interest.
 %%%
 %%% == Program behaviour ==
-%%% When running in verbose mode (this is the default), each sucessful test
+%%% When running in verbose mode (this is the default), each successful test
 %%% prints a '.' on screen. If a test fails, a '!' is printed, along with the
 %%% failing test case (the instances of the types in every `?FORALL') and the
 %%% cause of the failure, if it was not simply the falsification of the
@@ -147,7 +147,7 @@
 %%% <ul>
 %%% <li>`true': The property held for all valid produced inputs.</li>
 %%% <li>`false': The property failed for some input.</li>
-%%% <li>`{error, <Type_of_error>}': An error occured; see the {@section Errors}
+%%% <li>`{error, <Type_of_error>}': An error occurred; see the {@section Errors}
 %%%   section for more information.</li>
 %%% </ul>
 %%%
@@ -197,7 +197,7 @@
 %%% <li>`true': The property now holds for this test case.</li>
 %%% <li>`false': The test case still fails (although not necessarily for the
 %%%   same reason as before).</li>
-%%% <li>`{error, <Type_of_error>}': An error occured - see the {@section Errors}
+%%% <li>`{error, <Type_of_error>}': An error occurred - see the {@section Errors}
 %%%   section for more information.</li>
 %%% </ul>
 %%%
@@ -338,7 +338,7 @@
 %%% == Errors ==
 %%% The following errors may be encountered during testing. The term provided
 %%% for each error is the error type returned by proper:quickcheck in case such
-%%% an error occurs. Normaly, a message is also printed on screen describing
+%%% an error occurs. Normally, a message is also printed on screen describing
 %%% the error.
 %%%
 %%% <dl>

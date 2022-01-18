@@ -28,7 +28,7 @@
 -export([not_handled/0]).
 
 %%
-%% Checks that the automatic traslation of types to generators can handle all
+%% Checks that the automatic translation of types to generators can handle all
 %% types (structured + opaque) which are exported by some module of PropEr.
 %% To do so, it tests that the following functions:
 %%   - `proper_typeserver:demo_translate_type/2`,
