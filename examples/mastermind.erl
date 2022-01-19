@@ -409,7 +409,7 @@ next_comb_tr(_MaxColor, [X | Rest], Acc) ->
 %% combinations):
 %% * if the guess list is empty, return [[0,0,...,0]], else:
 %% * sort the guesses by applying a selectivity heuristic (guesses whose
-%%   score will result in more combinations being rejected are prefered)
+%%   score will result in more combinations being rejected are preferred)
 %% * take the first guess-score pair and produce all the combinations it's
 %%   compatible with
 %% * filter the list with the rest of the pairs
