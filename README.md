@@ -195,7 +195,7 @@ incompatibilities between the two tools by now.
 <!-- Badges (alphabetically) -->
 [codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
 [commit badge]: https://img.shields.io/github/last-commit/proper-testing/proper.svg?style=flat-square
-[erlang versions badge]: https://img.shields.io/badge/erlang-20.0%20to%2025.0-blue.svg?style=flat-square
+[erlang versions badge]: https://img.shields.io/badge/erlang-21.0%20to%2025.0-blue.svg?style=flat-square
 [hex pm badge]: https://img.shields.io/hexpm/v/proper.svg?style=flat
 [license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
 [release badge]: https://img.shields.io/github/release/proper-testing/proper.svg?style=flat-square
