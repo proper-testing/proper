@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -173,7 +173,7 @@ remove_parameters(Type) ->
 	       'none' | {'ok',imm_instance()}) -> imm_instance().
 generate(Type, 0, none) ->
     Constraints = proper_types:get_prop(constraints, Type),
-    MFAs = [eunit_lib:fun_parent(C) || {C, true} <- Constraints],
+    MFAs = [fun_parent(C) || {C, true} <- Constraints],
     throw({'$cant_generate', lists:usort(MFAs)});
 generate(_Type, 0, {ok,Fallback}) ->
     Fallback;
@@ -352,6 +352,26 @@ clean_instance(ImmInstance) -> ImmInstance.
 clean_instance_list([H|T]) -> [clean_instance(H) | clean_instance_list(T)];
 clean_instance_list([])    -> [];
 clean_instance_list(Other) -> clean_instance(Other).
+
+%% @private
+-spec fun_parent(fun()) -> mfa().
+%% Get the name of the containing function for a fun. (This is encoded
+%% in the name of the generated function that implements the fun.)
+%%
+%% NB: This is a function taken from eunit_lib's source code.
+%%     It was removed in 25.0 because it relies on undocumented behaviour.
+fun_parent(F) ->
+    {module, M} = erlang:fun_info(F, module),
+    {name, N} = erlang:fun_info(F, name),
+    case erlang:fun_info(F, type) of
+	{type, external} ->
+	    {arity, A} = erlang:fun_info(F, arity),
+	    {M, N, A};
+	{type, local} ->
+	    [$-|S] = atom_to_list(N),
+	    [S2, T] = string:split(S, "/", trailing),
+	    {M, list_to_atom(S2), element(1, string:to_integer(T))}
+    end.
 
 %%-----------------------------------------------------------------------------
 %% Basic type generators
