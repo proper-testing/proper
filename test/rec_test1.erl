@@ -26,7 +26,7 @@
 %%% @doc This module contains types for testing the typeserver.
 
 -module(rec_test1).
--export_type([a/0, bb/0, expb/0, expc/0]).
+-export_type([a/0, aa/0, bb/0, cc/0, deeplist/0, e/0, f/0, expb/0, expc/0]).
 
 -type a() :: 'aleaf' | b() | [{'rec', a()}] | c() | d().
 -type b() :: 'bleaf' | {'bnode', b(), b()}.
