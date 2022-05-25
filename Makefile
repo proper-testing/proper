@@ -1,4 +1,4 @@
-# Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>,
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
