@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
+%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -677,8 +677,8 @@ run_commands(Cmds, Env, Mod, History, State) ->
 check_precondition(Mod, State, Call) ->
     try Mod:precondition(State, Call)
     catch
-	?STACKTRACE(Kind, Reason, StackTrace) %, is in macro
-	{exception, Kind, Reason, StackTrace}
+	Kind:Reason:StackTrace ->
+	    {exception, Kind, Reason, StackTrace}
     end.
 
 -spec check_postcondition(mod_name(), dynamic_state(), symbolic_call(), term()) ->
@@ -686,8 +686,8 @@ check_precondition(Mod, State, Call) ->
 check_postcondition(Mod, State, Call, Res) ->
     try Mod:postcondition(State, Call, Res)
     catch
-	?STACKTRACE(Kind, Reason, StackTrace) %, is in macro
-	{exception, Kind, Reason, StackTrace}
+	Kind:Reason:StackTrace ->
+	    {exception, Kind, Reason, StackTrace}
     end.
 
 -spec safe_apply(mod_name(), fun_name(), [term()]) ->
@@ -696,8 +696,8 @@ safe_apply(M, F, A) ->
     try apply(M, F, A) of
 	Result -> {ok, Result}
     catch
-	?STACKTRACE(Kind, Reason, StackTrace) %, is in macro
-	{error, {exception, Kind, Reason, StackTrace}}
+	Kind:Reason:StackTrace ->
+	    {error, {exception, Kind, Reason, StackTrace}}
     end.
 
 

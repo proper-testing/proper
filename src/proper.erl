@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
 %%%                 and Andreas Löscher <andreas@loscher.net>
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -1834,7 +1834,7 @@ apply_args(Args, Prop, Ctx, Opts) ->
     try apply(Prop, Args) of
 	InnerProp -> run(InnerProp, Ctx, Opts)
     catch
-	?STACKTRACE(error, ErrReason, RawTrace) %, is in macro
+	error:ErrReason:RawTrace ->
 	    case ErrReason =:= function_clause
 		 andalso threw_exception(Prop, RawTrace) of
 		true ->
@@ -1849,7 +1849,7 @@ apply_args(Args, Prop, Ctx, Opts) ->
 	    {error, {cant_generate,MFAs}};
 	throw:{'$typeserver',SubReason} ->
 	    {error, {typeserver,SubReason}};
-	?STACKTRACE(ExcKind, ExcReason, Trace) %, is in macro
+	ExcKind:ExcReason:Trace ->
 	    create_fail_result(Ctx, {exception,ExcKind,ExcReason,Trace})
     end.
 
