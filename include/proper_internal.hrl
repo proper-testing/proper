@@ -27,6 +27,28 @@
 
 -include("proper_common.hrl").
 
+%%------------------------------------------------------------------------------
+%% Peer node module definition
+%%------------------------------------------------------------------------------
+
+%% OTP25 introduced `peer` to replace the `slave' module.
+%% It has a different API, so for now we have to live with macros to
+%% conditionally compile the proper code to handle the node setup.
+%% This whole setup can be removed once PropEr requires at the very least OTP25 to run.
+-if (?OTP_RELEASE >= 25).
+-define(START_PEER_NODE(Name),
+        peer:start(#{name => Name})).
+-define(STOP_PEER_NODE(Name),
+        peer:stop(Name)).
+-else.
+-define(START_PEER_NODE(Name),
+        begin
+            HostName = list_to_atom(net_adm:localhost()),
+            slave:start_link(HostName, Name)
+        end).
+-define(STOP_PEER_NODE(Name),
+        slave:stop(Node)).
+-endif.
 
 %%------------------------------------------------------------------------------
 %% Random generator selection
