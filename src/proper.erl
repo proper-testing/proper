@@ -414,12 +414,6 @@
 
 -include("proper_internal.hrl").
 
-%% Remove this once PropEr requires at the very least OTP25 to run.
-%% Context: the function has a pattern matching that can
-%% only match in OTP25, so in older versions of OTP Dialyzer
-%% will emit a warning about it.
--dialyzer({nowarn_function, start_node/1}).
-
 %%-----------------------------------------------------------------------------
 %% Macros
 %%-----------------------------------------------------------------------------
@@ -2394,7 +2388,7 @@ default_strategy_fun() ->
     end.
 
 %% @private
--spec update_worker_node_ref({node(), {already_running, boolean()}}) -> [node()].
+-spec update_worker_node_ref({node() | pid(), {already_running, boolean()}}) -> [node() | pid()].
 update_worker_node_ref(NodeName) ->
     NewMap = case get(worker_nodes) of
 	       undefined -> [NodeName];
@@ -2407,12 +2401,8 @@ update_worker_node_ref(NodeName) ->
 %% crash the BEAM, and loads on it all the needed code.
 -spec start_node(node()) -> node().
 start_node(Name) ->
-    case ?START_PEER_NODE(Name) of
+    ?CASE_START_PEER_NODE(Name)
         {ok, Node} ->
-            _ = update_worker_node_ref({Node, {already_running, false}}),
-            Node;
-        {ok, Pid, Node} ->
-            register(Node, Pid),
             _ = update_worker_node_ref({Node, {already_running, false}}),
             Node;
         {error, {already_running, Node}} ->
