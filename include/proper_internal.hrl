@@ -33,16 +33,23 @@
 
 -if (?OTP_RELEASE >= 25).
 -define(CASE_START_PEER_NODE(Name),
-    case peer:start(#{name => Name}) of
+    case peer:start_link(#{name => Name}) of
         {ok, Pid, Node} ->
             register(Node, Pid),
             _ = update_worker_node_ref({Node, {already_running, false}}),
+            Node;
+        {ok, Pid} ->
+            Node = list_to_atom(lists:concat([Name, "@", net_adm:localhost()])),
+            register(Node, Pid),
             Node;).
 -define(STOP_PEER_NODE(Name),
         peer:stop(Name)).
 -else.
 -define(CASE_START_PEER_NODE(Name),
-        case slave:start_link(_HostName = list_to_atom(net_adm:localhost()), Name) of).
+    case slave:start_link(_HostName = list_to_atom(net_adm:localhost()), Name) of
+        {ok, Node} ->
+            _ = update_worker_node_ref({Node, {already_running, false}}),
+            Node;).
 -define(STOP_PEER_NODE(Name),
         slave:stop(Node)).
 -endif.

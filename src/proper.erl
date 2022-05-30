@@ -2388,7 +2388,7 @@ default_strategy_fun() ->
     end.
 
 %% @private
--spec update_worker_node_ref({node() | pid(), {already_running, boolean()}}) -> [node() | pid()].
+-spec update_worker_node_ref({node(), {already_running, boolean()}}) -> [node()].
 update_worker_node_ref(NodeName) ->
     NewMap = case get(worker_nodes) of
 	       undefined -> [NodeName];
@@ -2401,10 +2401,7 @@ update_worker_node_ref(NodeName) ->
 %% crash the BEAM, and loads on it all the needed code.
 -spec start_node(node()) -> node().
 start_node(Name) ->
-    ?CASE_START_PEER_NODE(Name)
-        {ok, Node} ->
-            _ = update_worker_node_ref({Node, {already_running, false}}),
-            Node;
+    ?CASE_START_PEER_NODE(Name) %% most of the case statements are inside the macro
         {error, {already_running, Node}} ->
             _ = update_worker_node_ref({Node, {already_running, true}}),
             Node
