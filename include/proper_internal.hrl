@@ -37,10 +37,6 @@
         {ok, Pid, Node} ->
             register(Node, Pid),
             _ = update_worker_node_ref({Node, {already_running, false}}),
-            Node;
-        {ok, Pid} ->
-            Node = list_to_atom(lists:concat([Name, "@", net_adm:localhost()])),
-            register(Node, Pid),
             Node;).
 -define(STOP_PEER_NODE(Name),
         peer:stop(Name)).
