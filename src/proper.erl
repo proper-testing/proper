@@ -2401,7 +2401,7 @@ update_worker_node_ref(NodeName) ->
 %% crash the BEAM, and loads on it all the needed code.
 -spec start_node(node()) -> node().
 start_node(Name) ->
-    ?CASE_START_PEER_NODE(Name) %% most of the case statements are inside the macro
+    ?CASE_START_PEER_NODE(Name) %% the 'ok' case of this case statement is in the macro
         {error, {already_running, Node}} ->
             _ = update_worker_node_ref({Node, {already_running, true}}),
             Node
