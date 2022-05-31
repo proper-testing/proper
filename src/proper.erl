@@ -2400,14 +2400,8 @@ update_worker_node_ref(NodeName) ->
 %% @doc Starts a remote node to ensure the testing will not
 %% crash the BEAM, and loads on it all the needed code.
 -spec start_node(node()) -> node().
-start_node(SlaveName) ->
-    [] = os:cmd("epmd -daemon"),
-    HostName = list_to_atom(net_adm:localhost()),
-    _ = net_kernel:start([proper_master, shortnames]),
-    case slave:start_link(HostName, SlaveName) of
-        {ok, Node} ->
-            _ = update_worker_node_ref({Node, {already_running, false}}),
-            Node;
+start_node(Name) ->
+    ?CASE_START_PEER_NODE(Name) %% the 'ok' case of this case statement is in the macro
         {error, {already_running, Node}} ->
             _ = update_worker_node_ref({Node, {already_running, true}}),
             Node
@@ -2466,20 +2460,25 @@ ensure_code_loaded(Nodes) ->
 %% @doc Starts multiple (NumNodes) remote nodes.
 -spec start_nodes(non_neg_integer()) -> [node()].
 start_nodes(NumNodes) ->
-    [start_node(list_to_atom("proper_slave_" ++ integer_to_list(N)))
+    [] = os:cmd("epmd -daemon"),
+    _ = net_kernel:start([proper_leader, shortnames]),
+    [start_node(list_to_atom("proper_follower_" ++ integer_to_list(N)))
      || N <- lists:seq(1, NumNodes)].
 
+-spec stop_node({node(), {already_running, boolean()}}) -> ok.
+stop_node({Node, {already_running, false}}) ->
+    ?STOP_PEER_NODE(Node);
+stop_node({_Node, {already_running, true}}) ->
+    ok.
+
 %% @private
-%% @doc Stops all the registered (started) nodes.
+%% @doc Stops all the registered (started by us) nodes.
 -spec stop_nodes() -> 'ok'.
 stop_nodes() ->
     case get(worker_nodes) of
         undefined -> ok;
         Nodes ->
-            StopFun = fun({Node, {already_running, false}}) -> slave:stop(Node);
-			 ({_Node, {already_running, true}}) -> ok
-		      end,
-            lists:foreach(StopFun, Nodes),
+            lists:foreach(fun stop_node/1, Nodes),
             _ = net_kernel:stop(),
             erase(worker_nodes),
             ok
