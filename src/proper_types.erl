@@ -1,5 +1,7 @@
-%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -17,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -139,10 +141,10 @@
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
-	 loose_tuple/1, exactly/1, fixed_list/1, function/2, any/0,
-	 shrink_list/1, safe_union/1, safe_weighted_union/1]).
+	 loose_tuple/1, exactly/1, fixed_list/1, function/2, map/0, map/2,
+	 any/0, shrink_list/1, safe_union/1, safe_weighted_union/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
-	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0,
+	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0, nil/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
@@ -151,7 +153,7 @@
 -export([resize/2, non_empty/1, noshrink/1]).
 
 -export([cook_outer/1, is_type/1, equal_types/2, is_raw_type/1, to_binary/1,
-	 from_binary/1, get_prop/2, find_prop/2, safe_is_instance/2,
+	 from_binary/1, add_prop/3, get_prop/2, find_prop/2, safe_is_instance/2,
 	 is_instance/2, unwrap/1, weakly/1, strongly/1, satisfies_all/2,
 	 new_type/2, subtype/2]).
 -export([lazy/1, sized/1, bind/3, shrinkwith/2, add_constraint/3,
@@ -159,7 +161,10 @@
 	 parameter/1, parameter/2]).
 -export([le/2]).
 
--export_type([type/0, raw_type/0, extint/0, extnum/0]).
+%% Public API types
+-export_type([type/0, raw_type/0]).
+-export_type([extint/0, extnum/0, frequency/0, length/0]).
+%% Internal types
 
 -include("proper_internal.hrl").
 
@@ -174,7 +179,7 @@
 %%	records, maybe_improper_list(T,S), nonempty_improper_list(T,S)
 %%	maybe_improper_list(), maybe_improper_list(T), iolist, iodata
 %% don't need:
-%%	nonempty_{list,string,maybe_improper_list}
+%%	nonempty_{binary,bitstring,list,maybe_improper_list,string}
 %% won't do:
 %%	pid, port, ref, identifier, none, no_return, module, mfa, node
 %%	array, dict, digraph, set, gb_tree, gb_set, queue, tid
@@ -198,12 +203,15 @@
 -define(WRAPPER(PropList), new_type(PropList,wrapper)).
 -define(CONSTRUCTED(PropList), new_type(PropList,constructed)).
 -define(CONTAINER(PropList), new_type(PropList,container)).
--define(SUBTYPE(Type,PropList), subtype(PropList,Type)).
+-define(SUBTYPE(PropList,Type), subtype(PropList,Type)).
 
 
 %%------------------------------------------------------------------------------
 %% Types
 %%------------------------------------------------------------------------------
+
+-type frequency() :: non_neg_integer().
+-type length()    :: non_neg_integer().
 
 -type type_kind() :: 'basic' | 'wrapper' | 'constructed' | 'container' | atom().
 -type instance_test() :: fun((proper_gen:imm_instance()) -> boolean())
@@ -223,15 +231,18 @@
 
 -opaque type() :: {'$type', [type_prop()]}.
 %% A type of the PropEr type system
-%% @type raw_type(). You can consider this as an equivalent of {@type type()}.
+
 -type raw_type() :: type() | [raw_type()] | loose_tuple(raw_type()) | term().
+%% You can consider this as an equivalent of {@type type()}.
+
 -type type_prop_name() :: 'kind' | 'generator' | 'reverse_gen' | 'parts_type'
 			| 'combine' | 'alt_gens' | 'shrink_to_parts'
 			| 'size_transform' | 'is_instance' | 'shrinkers'
 			| 'noshrink' | 'internal_type' | 'internal_types'
 			| 'get_length' | 'split' | 'join' | 'get_indices'
 			| 'remove' | 'retrieve' | 'update' | 'constraints'
-			| 'parameters' | 'env' | 'subenv'.
+			| 'parameters' | 'env' | 'subenv'
+			| 'user_nf' | 'is_user_nf' | 'matcher'.
 
 -type type_prop_value() :: term().
 -type type_prop() ::
@@ -242,7 +253,7 @@
     | {'combine', proper_gen:combine_fun()}
     | {'alt_gens', proper_gen:alt_gens()}
     | {'shrink_to_parts', boolean()}
-    | {'size_transform', fun((size()) -> size())}
+    | {'size_transform', fun((proper_gen:size()) -> proper_gen:size())}
     | {'is_instance', instance_test()}
     | {'shrinkers', [proper_shrink:shrinker()]}
     | {'noshrink', boolean()}
@@ -279,7 +290,9 @@
       %% boolean field that specifies whether the condition is strict.
     | {'parameters', [{atom(),value()}]}
     | {'env', term()}
-    | {'subenv', term()}.
+    | {'subenv', term()}
+    | {'user_nf', proper_gen_next:nf()}
+    | {'is_user_nf', boolean()}.
 
 
 %%------------------------------------------------------------------------------
@@ -327,7 +340,7 @@ is_raw_type(_) -> false.
 -spec is_raw_type_list(maybe_improper_list()) -> boolean().
 %% CAUTION: this must handle improper lists
 is_raw_type_list([H|T]) -> is_raw_type(H) orelse is_raw_type_list(T);
-is_raw_type_list([])    -> false; 
+is_raw_type_list([])    -> false;
 is_raw_type_list(T)     -> is_raw_type(T).
 
 %% @private
@@ -336,9 +349,7 @@ to_binary(Type) ->
     term_to_binary(Type).
 
 %% @private
--ifdef(AT_LEAST_17).
 -spec from_binary(binary()) -> proper_types:type().
--endif.
 from_binary(Binary) ->
     binary_to_term(Binary).
 
@@ -417,7 +428,7 @@ is_inst(Instance, RawType) ->
     is_inst(Instance, RawType, 10).
 
 %% @private
--spec is_inst(proper_gen:instance(), raw_type(), size()) ->
+-spec is_inst(proper_gen:instance(), raw_type(), proper_gen:size()) ->
 	  boolean() | {'error',{'typeserver',term()}}.
 is_inst(Instance, RawType, Size) ->
     proper:global_state_init_size(Size),
@@ -429,7 +440,8 @@ is_inst(Instance, RawType, Size) ->
 -spec safe_is_instance(proper_gen:imm_instance(), raw_type()) ->
 	  boolean() | {'error',{'typeserver',term()}}.
 safe_is_instance(ImmInstance, RawType) ->
-    try is_instance(ImmInstance, RawType) catch
+    try is_instance(ImmInstance, RawType)
+    catch
 	throw:{'$typeserver',SubReason} -> {error, {typeserver,SubReason}}
     end.
 
@@ -460,9 +472,7 @@ wrapper_test(ImmInstance, Type) ->
     lists:any(fun(T) -> is_instance(ImmInstance, T) end, unwrap(Type)).
 
 %% @private
--ifdef(AT_LEAST_17).
 -spec unwrap(proper_types:type()) -> [proper_types:type(),...].
--endif.
 %% TODO: check if it's actually a raw type that's returned?
 unwrap(Type) ->
     RawInnerTypes = proper_gen:alt_gens(Type) ++ [proper_gen:normal_gen(Type)],
@@ -589,7 +599,7 @@ add_constraint(RawType, Condition, IsStrict) ->
 -spec native_type(mod_name(), string()) -> proper_types:type().
 native_type(Mod, TypeStr) ->
     ?WRAPPER([
-	{generator, fun() ->  proper_gen:native_type_gen(Mod,TypeStr) end}
+	{generator, fun() -> proper_gen:native_type_gen(Mod, TypeStr) end}
     ]).
 
 
@@ -685,7 +695,7 @@ binary() ->
 %% `Len' must be an Erlang expression that evaluates to a non-negative integer.
 %% Instances shrink towards binaries of zeroes.
 -spec binary(length()) -> proper_types:type().
-binary(Len) ->
+binary(Len) when is_integer(Len), Len >= 0 ->
     ?WRAPPER([
 	{env, Len},
 	{generator, {typed, fun binary_len_gen/1}},
@@ -714,7 +724,7 @@ bitstring() ->
 %% `Len' must be an Erlang expression that evaluates to a non-negative integer.
 %% Instances shrink towards bitstrings of zeroes
 -spec bitstring(length()) -> proper_types:type().
-bitstring(Len) ->
+bitstring(Len) when is_integer(Len), Len >= 0 ->
     ?WRAPPER([
 	{env, Len},
 	{generator, {typed, fun bitstring_len_gen/1}},
@@ -798,17 +808,16 @@ list_get_indices(_, List) ->
 %% This assumes that:
 %% - instances of size S are always valid instances of size >S
 %% - any recursive calls inside Gen are lazy
--spec distlist(size(), proper_gen:sized_generator(), boolean()) ->
+-spec distlist(proper_gen:size(), proper_gen:sized_generator(), boolean()) ->
 	  proper_types:type().
 distlist(Size, Gen, NonEmpty) ->
     ParentType = case NonEmpty of
 		     true  -> non_empty(list(Gen(Size)));
 		     false -> list(Gen(Size))
 		 end,
-    ?SUBTYPE(ParentType, [
-	{subenv, {Size, Gen, NonEmpty}},
-	{generator, {typed, fun distlist_gen/1}}
-    ]).
+    PropList = [{subenv, {Size, Gen, NonEmpty}},
+		{generator, {typed, fun distlist_gen/1}}],
+    subtype(PropList, ParentType).
 
 distlist_gen(Type) ->
     {Size, Gen, NonEmpty} = get_prop(subenv, Type),
@@ -817,7 +826,7 @@ distlist_gen(Type) ->
 %% @doc All lists of length `Len' containing elements of type `ElemType'.
 %% `Len' must be an Erlang expression that evaluates to a non-negative integer.
 -spec vector(length(), ElemType::raw_type()) -> proper_types:type().
-vector(Len, RawElemType) ->
+vector(Len, RawElemType) when is_integer(Len), Len >= 0 ->
     ElemType = cook_outer(RawElemType),
     ?CONTAINER([
 	{env, Len},
@@ -877,19 +886,18 @@ union_shrinker_2(X, Type, S) ->
 
 %% @doc A specialization of {@link union/1}, where each type in `ListOfTypes' is
 %% assigned a frequency. Frequencies must be Erlang expressions that evaluate to
-%% positive integers. Types with larger frequencies are more likely to be chosen
-%% by the random instance generator. The shrinking subsystem will ignore the
-%% frequencies and try to shrink towards the first type in the list.
+%% non-negative integers. Types with larger frequencies are more likely to be
+%% chosen by the random instance generator. The shrinking subsystem will ignore
+%% the frequencies and try to shrink towards the first type in the list with a
+%% non-zero frequency.
 -spec weighted_union(ListOfTypes::[{frequency(),raw_type()},...]) ->
           proper_types:type().
 weighted_union(RawFreqChoices) ->
-    CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
-    FreqChoices = lists:map(CookFreqType, RawFreqChoices),
+    FreqChoices = [{Fr,cook_outer(RT)} || {Fr,RT} <- RawFreqChoices, Fr > 0],
     Choices = [T || {_F,T} <- FreqChoices],
-    ?SUBTYPE(union(Choices), [
-	{subenv, FreqChoices},
-	{generator, {typed, fun weighted_union_gen/1}}
-    ]).
+    PropList = [{subenv, FreqChoices},
+		{generator, {typed, fun weighted_union_gen/1}}],
+    subtype(PropList, union(Choices)).
 
 weighted_union_gen(Gen) ->
     FreqChoices = get_prop(subenv, Gen),
@@ -899,10 +907,9 @@ weighted_union_gen(Gen) ->
 -spec safe_union([raw_type(),...]) -> proper_types:type().
 safe_union(RawChoices) ->
     Choices = [cook_outer(C) || C <- RawChoices],
-    subtype(
-      [{subenv, Choices},
-       {generator, {typed, fun safe_union_gen/1}}],
-      union(Choices)).
+    PropList = [{subenv, Choices},
+		{generator, {typed, fun safe_union_gen/1}}],
+    subtype(PropList, union(Choices)).
 
 safe_union_gen(Type) ->
     Choices = get_prop(subenv, Type),
@@ -912,13 +919,12 @@ safe_union_gen(Type) ->
 -spec safe_weighted_union([{frequency(),raw_type()},...]) ->
          proper_types:type().
 safe_weighted_union(RawFreqChoices) ->
-    CookFreqType = fun({Freq,RawType}) ->
-			   {Freq,cook_outer(RawType)} end,
+    CookFreqType = fun({Freq,RawType}) -> {Freq,cook_outer(RawType)} end,
     FreqChoices = lists:map(CookFreqType, RawFreqChoices),
     Choices = [T || {_F,T} <- FreqChoices],
-    subtype([{subenv, FreqChoices},
-             {generator, {typed, fun safe_weighted_union_gen/1}}],
-            union(Choices)).
+    PropList = [{subenv, FreqChoices},
+		{generator, {typed, fun safe_weighted_union_gen/1}}],
+    subtype(PropList, union(Choices)).
 
 safe_weighted_union_gen(Type) ->
     FreqChoices = get_prop(subenv, Type),
@@ -1060,11 +1066,10 @@ fixed_list_test(X, {ProperHead,ImproperTail}) ->
 	    andalso is_instance(XTail, ImproperTail)
 	end
     end;
-fixed_list_test(X, ProperFields) ->
-    is_list(X)
-    andalso length(X) =:= length(ProperFields)
-    andalso lists:all(fun({E,T}) -> is_instance(E, T) end,
-		      lists:zip(X, ProperFields)).
+fixed_list_test(X, ProperFields) when length(X) =:= length(ProperFields) ->
+    lists:all(fun({E,T}) -> is_instance(E, T) end, lists:zip(X, ProperFields));
+fixed_list_test(_X, _) ->
+    false.
 
 %% TODO: Move these 2 functions to proper_arith?
 -spec improper_list_retrieve(index(), nonempty_improper_list(value(),value()),
@@ -1110,6 +1115,18 @@ function_is_instance(Type, X) ->
     %% TODO: what if it's not a function we produced?
     andalso equal_types(RetType, proper_gen:get_ret_type(X)).
 
+%% @doc A map associating keys and values of unspecified types (of any term()).
+-spec map() -> proper_types:type().
+map() ->
+    ?LAZY(map(any(), any())).
+
+%% @doc A map whose keys are defined by the generator `K' and values
+%% by the generator `V'.
+-spec map(K::raw_type(), V::raw_type()) -> proper_types:type().
+map(K, V) ->
+    ?LET(L, list({K, V}), maps:from_list(L)).
+
+
 %% @doc All Erlang terms (that PropEr can produce). For reasons of efficiency,
 %% functions are never produced as instances of this type.<br />
 %% CAUTION: Instances of this type are expensive to produce, shrink and instance-
@@ -1118,10 +1135,8 @@ function_is_instance(Type, X) ->
 -spec any() -> proper_types:type().
 any() ->
     AllTypes = [integer(),float(),atom(),bitstring(),?LAZY(loose_tuple(any())),
-		?LAZY(list(any()))],
-    ?SUBTYPE(union(AllTypes), [
-	{generator, fun proper_gen:any_gen/1}
-    ]).
+		?LAZY(list(any())), ?LAZY(map(any(), any()))],
+    subtype([{generator, fun proper_gen:any_gen/1}], union(AllTypes)).
 
 
 %%------------------------------------------------------------------------------
@@ -1171,6 +1186,10 @@ byte() -> integer(0, 255).
 %% @equiv integer(0, 16#10ffff)
 -spec char() -> proper_types:type().
 char() -> integer(0, 16#10ffff).
+
+%% @equiv exactly([])
+-spec nil() -> proper_types:type().
+nil() -> exactly([]).
 
 %% @equiv list(any())
 -spec list() -> proper_types:type().
@@ -1307,7 +1326,7 @@ weighted_default(Default, Type) ->
 %% types to produce instances that grow faster or slower, like so:
 %% ```?SIZED(Size, resize(Size * 2, list(integer()))'''
 %% The above specifies a list type that grows twice as fast as normal lists.
--spec resize(size(), Type::raw_type()) -> proper_types:type().
+-spec resize(proper_gen:size(), Type::raw_type()) -> proper_types:type().
 resize(NewSize, RawType) ->
     Type = cook_outer(RawType),
     case find_prop(size_transform, Type) of

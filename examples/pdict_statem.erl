@@ -1,5 +1,7 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -17,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Kresten Krab Thorup, edited by Eirini Arvaniti
 %%% @doc Simple statem test for the process dictionary
@@ -25,33 +27,19 @@
 -module(pdict_statem).
 -behaviour(proper_statem).
 
--export([test/0, test/1]).
 -export([initial_state/0, command/1, precondition/2, postcondition/3,
 	 next_state/3]).
+-export([set_up/0, clean_up/0]).  % needed by the PropEr test suite
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -define(KEYS, [a,b,c,d]).
 
 %% A simple statem test for the process dictionary; tests the
 %% operations erlang:put/2, erlang:get/1, erlang:erase/1.
 
-test() ->
-    test(100).
-
-test(N) ->
-    proper:quickcheck(?MODULE:prop_pdict(), N).
-
-prop_pdict() ->
-    ?FORALL(Cmds, commands(?MODULE),
-	    begin
-		{H,S,Res} = run_commands(?MODULE, Cmds),
-		clean_up(),
-		?WHENFAIL(
-		   io:format("History: ~w~nState: ~w~nRes: ~w~n",
-			     [H, S, Res]),
-		   aggregate(command_names(Cmds), Res =:= ok))
-	    end).
+set_up() -> ok.
 
 clean_up() ->
     lists:foreach(fun(Key) -> erlang:erase(Key) end, ?KEYS).
@@ -59,7 +47,8 @@ clean_up() ->
 key() ->
     elements(?KEYS).
 
-initial_state() -> [].
+initial_state() ->
+    [KV || {Key, _} = KV <- erlang:get(), lists:member(Key, ?KEYS)].
 
 command([]) ->
     {call,erlang,put,[key(), integer()]};
@@ -68,17 +57,14 @@ command(Props) ->
 				      {1, {key(),integer()}}]),
 	 oneof([{call,erlang,put,[Key,Value]},
 		{call,erlang,get,[Key]},
-		{call,erlang,erase,[Key]}
-	       ])).
+		{call,erlang,erase,[Key]}])).
 
 precondition(_, {call,erlang,put,[_,_]}) ->
     true;
 precondition(Props, {call,erlang,get,[Key]}) ->
     proplists:is_defined(Key, Props);
 precondition(Props, {call,erlang,erase,[Key]}) ->
-    proplists:is_defined(Key, Props);
-precondition(_, _) ->
-    false.
+    proplists:is_defined(Key, Props).
 
 postcondition(Props, {call,erlang,put,[Key,_]}, undefined) ->
     not proplists:is_defined(Key, Props);
@@ -87,9 +73,7 @@ postcondition(Props, {call,erlang,put,[Key,_]}, Old) ->
 postcondition(Props, {call,erlang,get,[Key]}, Val) ->
     {Key,Val} =:= proplists:lookup(Key, Props);
 postcondition(Props, {call,erlang,erase,[Key]}, Val) ->
-    {Key,Val} =:= proplists:lookup(Key, Props);
-postcondition(_, _, _) ->
-    false.
+    {Key,Val} =:= proplists:lookup(Key, Props).
 
 next_state(Props, _Var, {call,erlang,put,[Key,Value]}) ->
     %% correct model
@@ -100,3 +84,33 @@ next_state(Props, _Var, {call,erlang,erase,[Key]}) ->
     proplists:delete(Key, Props);
 next_state(Props, _Var, {call,erlang,get,[_]}) ->
     Props.
+
+
+%%%-------------------------------------------------------------------
+%%% Properties
+%%%-------------------------------------------------------------------
+
+prop_pdict() ->
+    ?FORALL(Cmds, commands(?MODULE),
+	    begin
+		?MODULE:set_up(),
+		{H,S,Res} = run_commands(?MODULE, Cmds),
+		?MODULE:clean_up(),
+		?WHENFAIL(
+		   io:format("History: ~w~nState: ~w~nRes: ~w~n", [H, S, Res]),
+		   aggregate(command_names(Cmds), Res =:= ok))
+	    end).
+
+
+%%%-------------------------------------------------------------------
+%%% EUnit tests
+%%%-------------------------------------------------------------------
+
+-define(WRAP(T), proper:test_to_outer_test(T)).
+
+pdict_statem_test_() ->
+    pdict_statem_test_(100).
+
+pdict_statem_test_(N) ->
+    {"PDict statem "++integer_to_list(N),
+     ?_assert(proper:quickcheck(?WRAP(prop_pdict()), [{numtests,N}]))}.

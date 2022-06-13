@@ -1,4 +1,6 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,55 +19,49 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
-%%% @author Manolis Papadakis
+%%% @author Manolis Papadakis and Kostis Sagonas
 %%% @doc Internal header file: This header is included in all PropEr source
 %%%      files.
 
--include("compile_flags.hrl").
 -include("proper_common.hrl").
 
-
 %%------------------------------------------------------------------------------
-%% Activate strip_types parse transform
+%% Peer node module definition
 %%------------------------------------------------------------------------------
 
--ifdef(NO_TYPES).
--compile({parse_transform, strip_types}).
+-if (?OTP_RELEASE >= 25).
+-define(CASE_START_PEER_NODE(Name),
+    case peer:start_link(#{name => Name}) of
+        {ok, Pid, Node} ->
+            register(Node, Pid),
+            _ = update_worker_node_ref({Node, {already_running, false}}),
+            Node;).
+-define(STOP_PEER_NODE(Name),
+        peer:stop(Name)).
+-else.
+-define(CASE_START_PEER_NODE(Name),
+    case slave:start_link(_HostName = list_to_atom(net_adm:localhost()), Name) of
+        {ok, Node} ->
+            _ = update_worker_node_ref({Node, {already_running, false}}),
+            Node;).
+-define(STOP_PEER_NODE(Name),
+        slave:stop(Node)).
 -endif.
-
 
 %%------------------------------------------------------------------------------
 %% Random generator selection
 %%------------------------------------------------------------------------------
 
--ifdef(USE_SFMT).
--define(RANDOM_MOD, sfmt).
--define(SEED_NAME, sfmt_seed).
-
--else.
-
--ifdef(AT_LEAST_19).
--define(RANDOM_MOD, rand).   %% for 19.x use the 'rand' module
+-define(RANDOM_MOD, rand).
 -define(SEED_NAME, rand_seed).
--else.
--define(RANDOM_MOD, random).
--define(SEED_NAME, random_seed).
--endif.
--endif.
-
 
 %%------------------------------------------------------------------------------
 %% Line annotations
 %%------------------------------------------------------------------------------
 
--ifdef(AT_LEAST_19).
 -define(anno(L), erl_anno:new(L)).
--else.
--define(anno(L), L).
--endif.
-
 
 %%------------------------------------------------------------------------------
 %% Macros
@@ -94,23 +90,17 @@
 %% TODO: Perhaps these should be moved inside modules.
 -type mod_name() :: atom().
 -type fun_name() :: atom().
--type size() :: non_neg_integer().
--type length() :: non_neg_integer().
 -type position() :: pos_integer().
--type frequency() :: pos_integer().
--type seed() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
 
 -type abs_form()   :: erl_parse:abstract_form().
 -type abs_expr()   :: erl_parse:abstract_expr().
 -type abs_clause() :: erl_parse:abstract_clause().
-
--ifdef(AT_LEAST_19).
--type abs_type() :: erl_parse:abstract_type().
+-type abs_type()   :: erl_parse:abstract_type().
+-if (?OTP_RELEASE >= 23).
+-type abs_rec_field() :: erl_parse:af_field_decl().
 -else.
--type abs_type() :: term().
+-type abs_rec_field() :: term().
 -endif.
-%% TODO: Replace abs_rec_field with its proper type once it is exported.
--type abs_rec_field() :: term().	% erl_parse:af_field_decl().
 
 -type loose_tuple(T) :: {} | {T} | {T,T} | {T,T,T} | {T,T,T,T} | {T,T,T,T,T}
 		      | {T,T,T,T,T,T} | {T,T,T,T,T,T,T} | {T,T,T,T,T,T,T,T}

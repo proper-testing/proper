@@ -1,4 +1,7 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains helper arithmetic, list handling and random
@@ -26,9 +29,9 @@
 
 -module(proper_arith).
 
--export([list_remove/2, list_update/3, list_insert/3, safe_map/2, safe_foldl/3,
+-export([list_remove/2, list_update/3, list_insert/3, safe_map/2, %safe_foldl/3,
 	 safe_any/2, safe_zip/2, tuple_map/2, cut_improper_tail/1,
-	 head_length/1, find_first/2, filter/2, partition/2, remove/2, insert/3,
+	 head_length/1, find_first/2, filter/2, partition/2, insert/3,%remove/2,
 	 unflatten/2]).
 -export([rand_start/1, rand_restart/1, rand_reseed/0, rand_stop/0,
 	 rand_int/1, rand_int/2, smart_rand_int/3, rand_non_neg_int/1,
@@ -73,13 +76,13 @@ safe_map_tr(Fun, [Head | Tail], AccList) ->
 safe_map_tr(Fun, ImproperTail, AccList) ->
     lists:reverse(AccList, Fun(ImproperTail)).
 
--spec safe_foldl(fun((T,A) -> A), A, maybe_improper_list(T,T | [])) -> A.
-safe_foldl(_Fun, Acc, []) ->
-    Acc;
-safe_foldl(Fun, Acc, [X | Rest]) ->
-    safe_foldl(Fun, Fun(X,Acc), Rest);
-safe_foldl(Fun, Acc, ImproperTail) ->
-    Fun(ImproperTail, Acc).
+%% -spec safe_foldl(fun((T,A) -> A), A, maybe_improper_list(T,T | [])) -> A.
+%% safe_foldl(_Fun, Acc, []) ->
+%%     Acc;
+%% safe_foldl(Fun, Acc, [X | Rest]) ->
+%%     safe_foldl(Fun, Fun(X,Acc), Rest);
+%% safe_foldl(Fun, Acc, ImproperTail) ->
+%%     Fun(ImproperTail, Acc).
 
 -spec safe_any(fun((T) -> boolean()), maybe_improper_list(T,T | [])) ->
 	  boolean().
@@ -179,18 +182,6 @@ partition_tr(Pred, [X | Rest], Pos, Trues, TrueLookup, Falses, FalseLookup) ->
 			 [Pos | FalseLookup])
     end.
 
--spec remove([T], [position()]) -> [T].
-remove(Xs, Positions) ->
-    remove_tr(Xs, Positions, 1, []).
-
--spec remove_tr([T], [position()], position(), [T]) -> [T].
-remove_tr(Xs, [], _Pos, Acc) ->
-    lists:reverse(Acc, Xs);
-remove_tr([_X | XsTail], [Pos | PosTail], Pos, Acc) ->
-    remove_tr(XsTail, PosTail, Pos + 1, Acc);
-remove_tr([X | XsTail], Positions, Pos, Acc) ->
-    remove_tr(XsTail, Positions, Pos + 1, [X | Acc]).
-
 -spec insert([T], [position()], [T]) -> [T].
 insert(Xs, Positions, Ys) ->
     insert_tr(Xs, Positions, Ys, 1, []).
@@ -203,7 +194,19 @@ insert_tr([X | XsTail], [Pos | PosTail], Ys, Pos, Acc) ->
 insert_tr(Xs, Positions, [Y | YsTail], Pos, Acc) ->
     insert_tr(Xs, Positions, YsTail, Pos + 1, [Y | Acc]).
 
--spec unflatten([T], [length()]) -> [[T]].
+%% -spec remove([T], [position()]) -> [T].
+%% remove(Xs, Positions) ->
+%%     remove_tr(Xs, Positions, 1, []).
+%%
+%% -spec remove_tr([T], [position()], position(), [T]) -> [T].
+%% remove_tr(Xs, [], _Pos, Acc) ->
+%%     lists:reverse(Acc, Xs);
+%% remove_tr([_X | XsTail], [Pos | PosTail], Pos, Acc) ->
+%%     remove_tr(XsTail, PosTail, Pos + 1, Acc);
+%% remove_tr([X | XsTail], Positions, Pos, Acc) ->
+%%     remove_tr(XsTail, Positions, Pos + 1, [X | Acc]).
+
+-spec unflatten([T], [proper_types:length()]) -> [[T]].
 unflatten(List, Lens) ->
     {[],RevSubLists} = lists:foldl(fun remove_n/2, {List,[]}, Lens),
     lists:reverse(RevSubLists).
@@ -220,21 +223,14 @@ remove_n(N, {List,Acc}) ->
 
 %% @doc Seeds the random number generator. This function should be run before
 %% calling any random function from this module.
--spec rand_start(seed()) -> 'ok'.
--ifdef(AT_LEAST_19).
+-spec rand_start(proper_gen:seed()) -> 'ok'.
 rand_start(Seed) ->
     _ = rand:seed(exsplus, Seed),
     ok.
--else.
-rand_start(Seed) ->
-    _ = ?RANDOM_MOD:seed(Seed),
-    %% TODO: read option for RNG bijections here
-    ok.
--endif.
 
 %% @doc Conditionally seeds the random number generator. This function should
 %% be run before calling any random function from this module.
--spec rand_restart(seed()) -> 'ok'.
+-spec rand_restart(proper_gen:seed()) -> 'ok'.
 rand_restart(Seed) ->
     case get(?SEED_NAME) of
         undefined ->
@@ -244,17 +240,9 @@ rand_restart(Seed) ->
     end.
 
 -spec rand_reseed() -> 'ok'.
--ifdef(AT_LEAST_19).
 rand_reseed() ->
     _ = rand:seed(exsplus, os:timestamp()),
     ok.
--else.
-rand_reseed() ->
-    %% TODO: This should use the pid of the process somehow, in case two
-    %%       spawned functions call it simultaneously?
-    _ = ?RANDOM_MOD:seed(os:timestamp()),
-    ok.
--endif.
 
 -spec rand_stop() -> 'ok'.
 rand_stop() ->
@@ -270,7 +258,7 @@ rand_non_neg_int(Const) ->
     trunc(rand_non_neg_float(Const)).
 
 -spec bounded_rand_non_neg_int(non_neg_integer(), non_neg_integer()) ->
-				      non_neg_integer().
+	  non_neg_integer().
 bounded_rand_non_neg_int(Const, Lim) when is_integer(Lim), Lim >= 0 ->
     X = rand_non_neg_int(Const),
     case X > Lim of
@@ -292,7 +280,7 @@ smart_rand_int(Const, Low, High) ->
     end.
 
 -spec wide_range_rand_int(non_neg_integer(), integer(), integer()) ->
-				 integer().
+	  integer().
 wide_range_rand_int(Const, Low, High) when Low >= 0 ->
     Low + bounded_rand_non_neg_int(Const, High - Low);
 wide_range_rand_int(Const, Low, High) when High =< 0 ->
@@ -355,13 +343,14 @@ rand_choose(Choices) when Choices =/= [] ->
     Pos = rand_int(1, length(Choices)),
     {Pos, lists:nth(Pos, Choices)}.
 
--spec freq_choose([{frequency(),T},...]) -> {position(),T}.
+-spec freq_choose([{proper_types:frequency(),T},...]) -> {position(),T}.
 freq_choose(Choices) when Choices =/= []  ->
     AddFreq = fun({Freq,_},Acc) -> Freq + Acc end,
     SumFreq = lists:foldl(AddFreq, 0, Choices),
     freq_select(rand_int(1, SumFreq), Choices, 1).
 
--spec freq_select(frequency(), [{frequency(),T}], position()) -> {position(),T}.
+-spec freq_select(proper_types:frequency(), [{proper_types:frequency(),T}],
+		  position()) -> {position(),T}.
 freq_select(N, [{Freq,Choice} | Rest], Pos) ->
     case N =< Freq of
 	true ->

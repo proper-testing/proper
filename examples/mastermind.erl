@@ -1,5 +1,7 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -17,26 +19,36 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc PropEr usage example: Static mastermind solver
 
--module(mm).
--export([mastermind/3, mastermind/4]).
--export([prop_all_combinations_are_produced/0,
-	 prop_all_selections_are_produced/0,
-	 prop_remove_insert_symmetry/0,
-	 prop_delete_insert_all_symmetry/0,
-	 prop_compatible_works/0,
-	 prop_io_filters_are_symmetric/0,
-	 prop_next_comb_produces_all_combinations_in_order/0,
-	 prop_all_compatibles_are_produced/0,
-	 prop_all_produced_solutions_are_valid/1,
+-module(mastermind).
+-export([solve/3, solve/4]).
+
+%% O-ary props are automatically exported; 1-ary ones are not
+-export([prop_all_produced_solutions_are_valid/1,
 	 prop_secret_combination_is_not_discarded/1,
 	 prop_invalidated_instances_reject_original_secret/1]).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+%% -----------------------------------------------------------------------------
+%% Types
+%% -----------------------------------------------------------------------------
+
+-define(MAX_LENGTH, 13).
+
+-type len()        :: 2..?MAX_LENGTH.
+-type num_colors() :: 1..36.
+-type blacks()     :: 0..?MAX_LENGTH.
+-type whites()     :: 0..?MAX_LENGTH.
+-type comb()       :: string().  % XXX: can be further refined
+-type rawguess()   :: {comb(),blacks(),whites()}.
+-type rawguesses() :: [rawguess()].
+-type solver()     :: 'heur' | 'simple' | 'stream'.
 
 
 %% -----------------------------------------------------------------------------
@@ -54,51 +66,51 @@
 %% expected format for the answer. If there is no combination compatible with
 %% all the guesses, the program should return the string "-1".
 
-%% The module should export a function mastermind/3, that takes the following
+%% The module should export a `solve` function that takes the following
 %% arguments:
 %% 1) the length of the combinations (> 1)
 %% 2) the number of colors (1..36)
-%% 3) the list of guess-score pairs, in the format:
+%% 3) the list of guess-score triples, in the format:
 %%    {guess, num_black_pegs, num_white_pegs}
 
 %% Expected output:
-%% mm:mastermind(4, 10, [{"3157",1,2},{"1350",2,1},{"6120",0,2},{"2381",3,0}]).
+%% mastermind:solve(4, 10, [{"3157",1,2},{"1350",2,1},{"6120",0,2},{"2381",3,0}]).
 %% "2351"
-%% mm:mastermind(4, 10, [{"3557",1,2},{"1350",2,1},{"6120",0,2},{"2381",3,0}]).
+%% mastermind:solve(4, 10, [{"3557",1,2},{"1350",2,1},{"6120",0,2},{"2381",3,0}]).
 %% "-1"
-%% mm:mastermind(4, 10, [{"3557",1,2},{"1350",0,1},{"2575",2,1},{"5574",3,0}]).
+%% mastermind:solve(4, 10, [{"3557",1,2},{"1350",0,1},{"2575",2,1},{"5574",3,0}]).
 %% "5576"
-%% mm:mastermind(5, 10, [{"12345",1,0},{"02789",1,2},{"82900",3,0}]).
+%% mastermind:solve(5, 10, [{"12345",1,0},{"02789",1,2},{"82900",3,0}]).
 %% "22902"
-%% mm:mastermind(5, 10, [{"23543",0,2},{"45674",1,2},{"67242",2,0}]).
+%% mastermind:solve(5, 10, [{"23543",0,2},{"45674",1,2},{"67242",2,0}]).
 %% "67375"
-%% mm:mastermind(5, 10, [{"74562",0,0},{"11300",1,0}]).
+%% mastermind:solve(5, 10, [{"74562",0,0},{"11300",1,0}]).
 %% "18888"
-%% mm:mastermind(4, 10, [{"1234",1,0},{"0004",1,0},{"0222",0,0},{"4444",1,0},
-%%			 {"5554",1,0},{"6664",2,0},{"6784",2,2}]).
+%% mastermind:solve(4, 10, [{"1234",1,0},{"0004",1,0},{"0222",0,0},{"4444",1,0},
+%%			    {"5554",1,0},{"6664",2,0},{"6784",2,2}]).
 %% "6874"
-%% mm:mastermind(6, 10, [{"353523",0,5},{"294333",3,2},{"254672",2,1}]).
+%% mastermind:solve(6, 10, [{"353523",0,5},{"294333",3,2},{"254672",2,1}]).
 %% "534332"
-%% mm:mastermind(6, 10, [{"097654",1,3},{"000465",1,1},{"011579",0,2},
-%%			 {"227496",1,3},{"347963",4,1}]).
+%% mastermind:solve(6, 10, [{"097654",1,3},{"000465",1,1},{"011579",0,2},
+%%			    {"227496",1,3},{"347963",4,1}]).
 %% "467963"
-%% mm:mastermind(6, 10, [{"006892",0,2},{"115258",2,2},{"357368",2,1}]).
+%% mastermind:solve(6, 10, [{"006892",0,2},{"115258",2,2},{"357368",2,1}]).
 %% "112365"
-%% mm:mastermind(7, 10, [{"2104767",1,3},{"3541285",3,1},{"7567128",1,4},
-%%			 {"0117285",1,4},{"1521775",2,2},{"3261781",4,0}]).
+%% mastermind:solve(7, 10, [{"2104767",1,3},{"3541285",3,1},{"7567128",1,4},
+%%			    {"0117285",1,4},{"1521775",2,2},{"3261781",4,0}]).
 %% "3570781"
-%% mm:mastermind(8, 10, [{"11244556",0,2},{"66756572",1,4},{"00026667",1,3},
-%%			 {"03663775",1,3},{"22677262",0,3},{"67568688",7,0}]).
+%% mastermind:solve(8, 10, [{"11244556",0,2},{"66756572",1,4},{"00026667",1,3},
+%%			    {"03663775",1,3},{"22677262",0,3},{"67568688",7,0}]).
 %% "67568689"
-%% mm:mastermind(8, 10, [{"21244767",3,0},{"35455685",3,1},{"75687658",2,4}]).
+%% mastermind:solve(8, 10, [{"21244767",3,0},{"35455685",3,1},{"75687658",2,4}]).
 %% "05258667"
-%% mm:mastermind(8, 10, [{"76897034",5,0},{"76284933",3,2}]).
+%% mastermind:solve(8, 10, [{"76897034",5,0},{"76284933",3,2}]).
 %% "06097033"
-%% mm:mastermind(9, 10, [{"345352352",0,5},{"287639433",3,2},{"276235467",5,2},
-%%			 {"523459878",0,5}]).
+%% mastermind:solve(9, 10, [{"345352352",0,5},{"287639433",3,2},{"276235467",5,2},
+%%			    {"523459878",0,5}]).
 %% "082235466"
-%% mm:mastermind(10, 10, [{"3476453523",0,5},{"2876394333",3,2},
-%%			  {"2762354672",5,2},{"5234598781",0,5}]).
+%% mastermind:solve(10, 10, [{"3476453523",0,5},{"2876394333",3,2},
+%%			     {"2762354672",5,2},{"5234598781",0,5}]).
 %% "0122374372"
 
 
@@ -133,7 +145,7 @@ all_selections(N, List) when N >= 1 ->
 
 all_selections(1, List, _Len) ->
     [[X] || X <- List];
-all_selections(_Len, List, _Len) ->
+all_selections(Take, List, Len) when Take =:= Len ->
     [List];
 all_selections(Take, [Head|Tail], Len) ->
     [[Head|Rest] || Rest <- all_selections(Take - 1, Tail, Len - 1)]
@@ -180,7 +192,7 @@ delete(List, ToDelete) ->
 
 delete_tr(List, [], Acc) ->
     lists:reverse(Acc) ++ List;
-delete_tr([_Same|ListTail], [_Same|ToDeleteTail], Acc) ->
+delete_tr([X|ListTail], [X|ToDeleteTail], Acc) ->
     delete_tr(ListTail, ToDeleteTail, Acc);
 delete_tr([X|Rest], ToDelete, Acc) ->
     delete_tr(Rest, ToDelete, [X|Acc]).
@@ -209,7 +221,7 @@ all_insertions_tr(X, Front, Back = [BackHead|BackTail], Acc) ->
 %% same position.
 true_permutation([], []) ->
     true;
-true_permutation([_Same|_NewTail], [_Same|_OldTail]) ->
+true_permutation([H|_NewTail], [H|_OldTail]) ->
     false;
 true_permutation([_NewHead|NewTail], [_OldHead|OldTail]) ->
     true_permutation(NewTail, OldTail).
@@ -229,8 +241,9 @@ compatible(A, B, {Blacks,Whites}, Colors) ->
 
 correct_blacks([], [], 0) -> true;
 correct_blacks([], [], _N) -> false;
-correct_blacks([_Same|_At], [_Same|_Bt], 0) -> false;
-correct_blacks([_Same|At], [_Same|Bt], N) -> correct_blacks(At, Bt, N - 1);
+correct_blacks([Ah|_At], [Bh|_Bt], 0) when Ah =:= Bh -> false;
+correct_blacks([Ah|At], [Bh|Bt], N) when Ah =:= Bh ->
+    correct_blacks(At, Bt, N - 1);
 correct_blacks([_Ah|At], [_Bh|Bt], N) -> correct_blacks(At, Bt, N).
 
 correct_sum(A, B, N, Colors) ->
@@ -262,7 +275,7 @@ remove_sames(A, B) ->
 
 remove_sames_tr([], [], N, AccA, AccB) ->
     {N, AccA, AccB};
-remove_sames_tr([_Same|At], [_Same|Bt], N, AccA, AccB) ->
+remove_sames_tr([Ah|At], [Bh|Bt], N, AccA, AccB) when Ah =:= Bh ->
     remove_sames_tr(At, Bt, N + 1, AccA, AccB);
 remove_sames_tr([Ah|At], [Bh|Bt], N, AccA, AccB) ->
     remove_sames_tr(At, Bt, N, [Ah|AccA], [Bh|AccB]).
@@ -276,14 +289,14 @@ get_whites_tr([], _B, N) ->
     N;
 get_whites_tr(_A, [], N) ->
     N;
-get_whites_tr([_Same|At], [_Same|Bt], N) ->
+get_whites_tr([Ah|At], [Bh|Bt], N) when Ah =:= Bh ->
     get_whites_tr(At, Bt, N + 1);
 get_whites_tr([Ah|At], B = [Bh|_Bt], N) when Ah < Bh ->
     get_whites_tr(At, B, N);
 get_whites_tr(A = [Ah|_At], [Bh|Bt], N) when Ah > Bh ->
     get_whites_tr(A, Bt, N).
 
-%% Function: mastermind/3
+%% Function: solve/3
 %% Main entry function, serves as input/output filter for an actual solver
 %% function, which must return a list of combinations that are compatible with
 %% every guess-score pair provided. Such a list needn't be sorted - actually,
@@ -291,13 +304,15 @@ get_whites_tr(A = [Ah|_At], [Bh|Bt], N) when Ah > Bh ->
 %% combinations), but it must contain the minimum combination compatible with
 %% the input, if such a combination exists (being complete, however, helps with
 %% testing).
-mastermind(Len, Colors, RawGuesses) ->
-    mastermind(Len, Colors, RawGuesses, heur).
+-spec solve(len(), num_colors(), rawguesses()) -> comb().
+solve(Len, Colors, RawGuesses) ->
+    solve(Len, Colors, RawGuesses, heur).
 
-%% Function: mastermind/4
+%% Function: solve/4
 %% The last argument is used to select a particular solver - valid solvers are
 %% 'simple', 'stream' and 'heur', default is 'heur'.
-mastermind(Len, Colors, RawGuesses, SolverName) ->
+-spec solve(len(), num_colors(), rawguesses(), solver()) -> comb().
+solve(Len, Colors, RawGuesses, SolverName) ->
     Guesses = [{parse(RawComb),{B,W}} || {RawComb,B,W} <- RawGuesses],
     case valid_input(Len, Colors, Guesses) of
 	true  -> ok;
@@ -394,7 +409,7 @@ next_comb_tr(_MaxColor, [X | Rest], Acc) ->
 %% combinations):
 %% * if the guess list is empty, return [[0,0,...,0]], else:
 %% * sort the guesses by applying a selectivity heuristic (guesses whose
-%%   score will result in more combinations being rejected are prefered)
+%%   score will result in more combinations being rejected are preferred)
 %% * take the first guess-score pair and produce all the combinations it's
 %%   compatible with
 %% * filter the list with the rest of the pairs
@@ -686,3 +701,38 @@ invalid_instance() ->
 list_update(Index, NewElem, List) ->
     {H,[_OldElem | T]} = lists:split(Index - 1, List),
     H ++ [NewElem] ++ T.
+
+
+%% -----------------------------------------------------------------------------
+%% EUnit tests
+%% -----------------------------------------------------------------------------
+
+-define(_passes(Test),       ?_passes(Test, [])).
+-define(_passes(Test, Opts), ?_assert(proper:quickcheck(Test, Opts))).
+
+mastermind_props_0_test_() ->
+  NamedProps0 =
+    [{"All combinations", fun prop_all_combinations_are_produced/0},
+     {"All selections", fun prop_all_selections_are_produced/0},
+     {"Remove/Insert symmerty", fun prop_remove_insert_symmetry/0},
+     {"Delete/Insert all symmetry", fun prop_delete_insert_all_symmetry/0},
+     {"Compatible works", fun prop_compatible_works/0},
+     {"IO filters symmetric", fun prop_io_filters_are_symmetric/0},
+     {"Next comb", fun prop_next_comb_produces_all_combinations_in_order/0},
+     {"All compatibles", fun prop_all_compatibles_are_produced/0}],
+  [{N, ?_passes(P())} || {N,P} <- NamedProps0].
+
+mastermind_props_1_test_() ->
+  NamedProps1 =
+    [{"Solutions valid", fun prop_all_produced_solutions_are_valid/1},
+     %% fun prop_secret_combination_is_not_discarded/1,
+     {"Invalidated instances",
+      fun prop_invalidated_instances_reject_original_secret/1}],
+  Strategies = [heur, simple, stream],
+  [{"Secret comb using heur",
+    ?_passes(prop_secret_combination_is_not_discarded(heur))},
+   {"Secret comp using simple",
+    ?_passes(prop_secret_combination_is_not_discarded(simple))}
+   |
+   [{N++" using "++atom_to_list(S), ?_passes(P(S))}
+    || {N,P} <- NamedProps1, S <- Strategies]].

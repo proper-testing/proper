@@ -1,4 +1,7 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Parametric wrapper to ordsets module.
@@ -37,10 +40,6 @@
 %% When parsed by the typeserver, this becomes opaque (it's declared as a
 %% simple type because dialyzer can't handle parametric opaque types yet).
 -type ordset(T) :: [T].
-
-%% This header is only included so that the strip_types parse transform will be
-%% applied to this file as well.
--include("proper_internal.hrl").
 
 
 %%-----------------------------------------------------------------------------

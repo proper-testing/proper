@@ -1,5 +1,7 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -17,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -66,10 +68,10 @@
 %%%   <p>Specifies the initial state of the finite state machine. As with
 %%%   `proper_statem:initial_state/0', its result should be deterministic.
 %%%   </p></li>
-%%% <li> `initial_state_data() ::' {@type state_data()}
+%%% <li> `initial_state_data() ->' {@type state_data()}
 %%%   <p>Specifies what the state data should initially contain. Its result
 %%%   should be deterministic</p></li>
-%%% <li> `StateName(S::'{@type state_data()}`) ::'
+%%% <li> `StateName(S::'{@type state_data()}`) ->'
 %%%        `['{@type transition()}`]'
 %%%   <p>There should be one instance of this function for each reachable
 %%%   state `StateName' of the finite state machine. In case `StateName' is a
@@ -87,17 +89,17 @@
 %%%   them. This feature can be used to include conditional transitions that
 %%%   depend on the `StateData'.</p></li>
 %%% <li> `StateName(Attr1::term(), ..., AttrN::term(),
-%%%                 S::'{@type state_data()}`) ::'
+%%%                 S::'{@type state_data()}`) ->'
 %%%        `['{@type transition()}`]'
 %%%   <p>There should be one instance of this function for each reachable state
 %%%   `{StateName,Attr1,...,AttrN}' of the finite state machine. The function
-%%%   has similar beaviour to `StateName/1', described above.</p></li>
+%%%   has similar behaviour to `StateName/1', described above.</p></li>
 %%% <li> `weight(From::'{@type state_name()}`,
 %%%              Target::'{@type state_name()}`,
-%%%              Call::'{@type symbolic_call()}`) -> integer()'
+%%%              Call::'{@type symbolic_call()}`) -> non_neg_integer()'
 %%%   <p>This is an optional callback. When it is not defined (or not exported),
 %%%   transitions are chosen with equal probability. When it is defined, it
-%%%   assigns an integer weight to transitions from `From' to `Target'
+%%%   assigns a non-negative integer weight to transitions from `From' to `Target'
 %%%   triggered by symbolic call `Call'. In this case, each transition is chosen
 %%%   with probability proportional to the weight assigned.</p></li>
 %%% <li> `precondition(From::'{@type state_name()}`,
@@ -144,6 +146,26 @@
 %%%                    cleanup(),
 %%%                    Result =:= ok
 %%%                end).'''
+%%%
+%%% == Stateful Targeted Testing ==
+%%% During testing of the system's behavior, there may be some failing command
+%%% sequences that the random property based testing does not find with ease,
+%%% or at all. In these cases, stateful targeted property based testing can help
+%%% find such edge cases, provided a utility value.
+%%%
+%%% ```prop_targeted_testing() ->
+%%%        ?FORALL_TARGETED(Cmds, proper_fsm:commands(?MODULE),
+%%%                         begin
+%%%                             {History, State, Result} = proper_fsm:run_commands(?MODULE, Cmds),
+%%%                             UV = uv(History, State, Result),
+%%%                             ?MAXIMIZE(UV),
+%%%                             cleanup(),
+%%%                             Result =:= ok
+%%%                         end).'''
+%%%
+%%% Νote that the `UV' value can be computed in any way fit, depending on the
+%%% use case. `uv/3' is used here as a dummy function which computes the
+%%% utility value.
 %%% @end
 
 -module(proper_fsm).
@@ -164,14 +186,12 @@
 -type symbolic_call():: proper_statem:symbolic_call().
 -type fsm_result()   :: proper_statem:statem_result().
 -type state_name()   :: atom() | tuple().
-%% @type state_data()
 -type state_data()   :: term().
 -type fsm_state()    :: {state_name(),state_data()}.
 -type transition()   :: {state_name(),symbolic_call()}.
 -type command()      :: {'set',symbolic_var(),symbolic_call()}
 		      | {'init',fsm_state()}.
 -type command_list() :: [command()].
-%% @type cmd_result()
 -type cmd_result()   :: term().
 -type history()      :: [{fsm_state(),cmd_result()}].
 -type tmp_command()  :: {'init',state()}
@@ -185,7 +205,7 @@
 
 %% -----------------------------------------------------------------------------
 %% Proper_fsm behaviour callback functions
-%% ----------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------
 
 -callback initial_state() -> state_name().
 
@@ -200,6 +220,10 @@
 -callback next_state_data(state_name(), state_name(), state_data(),
 			  cmd_result(), symbolic_call()) -> state_data().
 
+-callback weight(state_name(), state_name(), symbolic_call()) -> non_neg_integer().
+
+-optional_callbacks([weight/3]).
+
 
 %% -----------------------------------------------------------------------------
 %% API
@@ -213,8 +237,12 @@
 
 -spec commands(mod_name()) -> proper_types:type().
 commands(Mod) ->
+  ?USERNF(commands_gen(Mod), next_commands_gen(Mod)).
+
+-spec commands_gen(mod_name()) -> proper_types:type().
+commands_gen(Mod) ->
     ?LET([_|Cmds],
-	 proper_statem:commands(?MODULE, initial_state(Mod)),
+	 proper_statem:commands_gen(?MODULE, initial_state(Mod)),
 	 Cmds).
 
 %% @doc Similar to {@link commands/1}, but generated command sequences always
@@ -224,11 +252,31 @@ commands(Mod) ->
 %% while shrinking and when checking a counterexample).
 
 -spec commands(mod_name(), fsm_state()) -> proper_types:type().
-commands(Mod, {Name,Data} = InitialState) ->
+commands(Mod, InitialState) ->
+  ?USERNF(commands_gen(Mod, InitialState),
+          next_commands_gen(Mod, InitialState)).
+
+-spec commands_gen(mod_name(), fsm_state()) -> proper_types:type().
+commands_gen(Mod, {Name,Data} = InitialState) ->
     State = #state{name = Name, data = Data, mod = Mod},
     ?LET([_|Cmds],
-	 proper_statem:commands(?MODULE, State),
+	 proper_statem:commands_gen(?MODULE, State),
 	 [{init,InitialState}|Cmds]).
+
+next_commands_gen(Mod) ->
+  InitialState = initial_state(Mod),
+  StatemNext = proper_statem:next_commands_gen(?MODULE, InitialState),
+  fun (Cmds, {Depth, Temp}) ->
+      ?LET([_ | NextCmds], StatemNext(Cmds, {Depth, Temp}), NextCmds)
+  end.
+
+next_commands_gen(Mod, {Name, Data} = InitialState) ->
+  State = #state{name = Name, data = Data, mod = Mod},
+  StatemNext = proper_statem:next_commands_gen(?MODULE, State),
+  fun (Cmds, {Depth, Temp}) ->
+      ?LET([_ | NextCmds], StatemNext(Cmds, {Depth, Temp}),
+           [{init, InitialState} | NextCmds])
+  end.
 
 %% @doc Evaluates a given symbolic command sequence `Cmds' according to the
 %% finite state machine specified in `Mod'. The result is a triple of the
@@ -264,7 +312,7 @@ state_names(History) ->
 
 
 %% -----------------------------------------------------------------------------
-%% Proper_statem bahaviour callback functions
+%% Proper_statem behaviour callback functions
 %% -----------------------------------------------------------------------------
 
 -spec initial_state(mod_name()) -> state().
@@ -290,9 +338,9 @@ precondition(#state{name = From, data = Data, mod = Mod}, Call) ->
 	    true;
 	_ ->
 	    io:format(
-	      "\nError: The transition from \"~w\" state triggered by ~w "
-	      "call leads to multiple target states.\nUse the precondition/5 "
-              "callback to specify which target state should be chosen.\n",
+	      "~nError: The transition from \"~w\" state triggered by ~w "
+	      "call leads to multiple target states.~nUse the precondition/5 "
+              "callback to specify which target state should be chosen.~n",
 	      [From, get_mfa(Call)]),
 	    erlang:error(too_many_targets)
     end.

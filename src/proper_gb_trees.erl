@@ -1,4 +1,7 @@
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Parametric wrapper to gb_trees module.
@@ -33,20 +36,10 @@
 
 -export_type([gb_tree/2, iterator/2]).
 
-%% This header is included for the ifdef below and so that the
-%% strip_types parse transform will be applied to this file as well.
--include("proper_internal.hrl").
-
--ifdef(NO_MODULES_IN_OPAQUES).
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
--type gb_tree(_K,_V) :: gb_tree().
--else.
 -opaque gb_tree(K,V) :: gb_trees:tree(K,V).
--endif.
+
 %% Based on the documentation alone, this is the best we can do.
 -type iterator(_K,_V) :: term().
-
 
 %%------------------------------------------------------------------------------
 %% API functions

@@ -1,4 +1,7 @@
-%%% Copyright 2016      Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2016-2018 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,15 +20,13 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2016-2018 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Pierre Fenoll (adapted from the code of test/symb_statem.erl)
 
 -module(symb_statem_maps).
+-behaviour(proper_statem).
 
--include("compile_flags.hrl").
-
--ifdef(AT_LEAST_17).
 -include_lib("proper/include/proper.hrl").
 
 -export([command/1,
@@ -37,7 +38,9 @@
 -export([qux/1]).
 
 -record(state, {qux = #{key => []} :: map()}).
+-type state() :: #state{}.
 
+-spec initial_state() -> state().
 initial_state() ->
     #state{}.
 
@@ -53,7 +56,7 @@ next_state(S = #state{qux=Qux}, V, {call,?MODULE,qux,[_Arg]}) ->
     NewQux = Qux#{key => [{call,erlang,hd,[NewValues]} | Values]},
     S#state{qux = NewQux}.
 
-postcondition(S=#state{qux=#{key:=Values}}, {call,?MODULE,qux,[_Arg]}, Res)
+postcondition(#state{qux=#{key:=Values}}, {call,?MODULE,qux,[_Arg]}, Res)
   when is_map(Res) ->
     lists:all(fun is_integer/1, Values);
 postcondition(_, _, _) ->
@@ -79,4 +82,3 @@ prop_parallel_simple() ->
 		   io:format("Seq: ~w\nParallel: ~p\n:Res: ~w\n", [S,P,Res]),
 		   Res =:= ok)
 	    end).
--endif.

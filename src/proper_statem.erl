@@ -1,5 +1,7 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -17,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
@@ -110,8 +112,10 @@
 %%%   abstract state machine. In case precondition doesn't hold, a new call is
 %%%   chosen using the `command/1' generator. If preconditions are very strict,
 %%%   it will take a lot of tries for PropEr to randomly choose a valid command.
-%%%   Testing will be stopped in case the `constraint_tries' limit is reached
-%%%   (see the 'Options' section in the {@link proper} module documentation).
+%%%   Testing will be stopped if the `constraint_tries' limit is reached
+%%%   (see the 'Options' section in the {@link proper} module documentation) and
+%%%   a `{cant_generate,[{proper_statem,commands,4}]}' error will be produced in
+%%%   that case.
 %%%   Preconditions are also important for correct shrinking of failing
 %%%   testcases. When shrinking command sequences, we try to eliminate commands
 %%%   that do not contribute to failure, ensuring that all preconditions still
@@ -214,21 +218,50 @@
 %%% For PropEr to be able to detect race conditions, the code of the system
 %%% under test should be instrumented with `erlang:yield/0' calls to the
 %%% scheduler.
+%%%
+%%% == Stateful Targeted Testing ==
+%%% During testing of the system's behavior, there may be some failing command
+%%% sequences that the random property based testing does not find with ease,
+%%% or at all. In these cases, stateful targeted property based testing can help
+%%% find such edge cases, provided a utility value.
+%%%
+%%% ```prop_targeted_testing() ->
+%%%        ?FORALL_TARGETED(Cmds, proper_statem:commands(?MODULE),
+%%%                         begin
+%%%                             {History, State, Result} = proper_statem:run_commands(?MODULE, Cmds),
+%%%                             UV = uv(History, State, Result),
+%%%                             ?MAXIMIZE(UV),
+%%%                             cleanup(),
+%%%                             Result =:= ok
+%%%                         end).'''
+%%%
+%%% Νote that the `UV' value can be computed in any way fit, depending on the
+%%% use case. `uv/3' is used here as a dummy function which computes the
+%%% utility value.
 %%% @end
 
 -module(proper_statem).
 
 -export([commands/1, commands/2, parallel_commands/1, parallel_commands/2,
-	 more_commands/2]).
+         more_commands/2]).
 -export([run_commands/2, run_commands/3, run_parallel_commands/2,
 	 run_parallel_commands/3]).
 -export([state_after/2, command_names/1, zip/2]).
+%% Exported for PropEr internal usage.
+-export([commands_gen/1, commands_gen/2, next_commands_gen/1,
+         next_commands_gen/2]).
+
+
+-export_type([symbolic_var/0, symbolic_call/0, statem_result/0]).
+
 
 -include("proper_internal.hrl").
 
 -define(WORKERS, 2).
 -define(LIMIT, 12).
 
+-define(COMMANDS_SZ_FACTOR, '$commands_size_factor').
+-define(RESIZE_FACTOR, proper_types:parameter(?COMMANDS_SZ_FACTOR, 1)).
 
 %% -----------------------------------------------------------------------------
 %% Exported only for testing purposes
@@ -239,17 +272,13 @@
 -export([get_next/6, mk_first_comb/3]).
 -export([execute/3, check/6, run/3, get_initial_state/2]).
 
-
 %% -----------------------------------------------------------------------------
 %% Type declarations
 %% -----------------------------------------------------------------------------
 
-%% @type symbolic_state()
 -type symbolic_state()    :: term().
-%% @type dynamic_state()
 -type dynamic_state()     :: term().
 -type symbolic_var()      :: {'var',pos_integer()}.
-%% @type symbolic_call()
 -type symbolic_call()     :: {'call',mod_name(),fun_name(),[term()]}.
 -type command()           :: {'set',symbolic_var(),symbolic_call()}
 			   | {'init',symbolic_state()}.
@@ -263,17 +292,20 @@
 		       | {'postcondition', 'false' | proper:exception()}
 		       | proper:exception()
 		       | 'no_possible_interleaving'.
+-type len()         :: non_neg_integer().
 -type index()       :: pos_integer().
 -type indices()     :: [index()].
 -type combination() :: [{pos_integer(),indices()}].
--type lookup()      :: orddict:orddict().
-
--export_type([symbolic_var/0, symbolic_call/0, statem_result/0]).
+-type lookup()      :: orddict:orddict(index(),command()).
+-type threshold()   :: non_neg_integer().
+-type next_temp()   :: {proper_gen_next:depth(), proper_gen_next:temperature()}.
+-type next_fun()    :: fun((command_list(), next_temp()) ->
+                              proper_types:type()).
 
 
 %% -----------------------------------------------------------------------------
 %% Proper_statem behaviour callback functions
-%% ----------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------
 
 -callback initial_state() -> symbolic_state().
 
@@ -286,7 +318,6 @@
 -callback next_state(symbolic_state() | dynamic_state(), term(),
 		     symbolic_call()) -> symbolic_state() | dynamic_state().
 
-
 %% -----------------------------------------------------------------------------
 %% Sequential command generation
 %% -----------------------------------------------------------------------------
@@ -298,13 +329,18 @@
 
 -spec commands(mod_name()) -> proper_types:type().
 commands(Mod) ->
+  ?USERNF(commands_gen(Mod), next_commands_gen(Mod)).
+
+-spec commands_gen(mod_name()) -> proper_types:type().
+commands_gen(Mod) ->
     ?LET(InitialState, ?LAZY(Mod:initial_state()),
 	 ?SUCHTHAT(
 	    Cmds,
 	    ?LET(List,
 		 ?SIZED(Size,
 			proper_types:noshrink(
-			  commands(Size, Mod, InitialState, 1))),
+			  commands_gen(Size * ?RESIZE_FACTOR,
+				       Mod, InitialState, 1))),
 		 proper_types:shrink_list(List)),
 	    is_valid(Mod, InitialState, Cmds, []))).
 
@@ -317,20 +353,27 @@ commands(Mod) ->
 
 -spec commands(mod_name(), symbolic_state()) -> proper_types:type().
 commands(Mod, InitialState) ->
+  ?USERNF(commands_gen(Mod, InitialState),
+          next_commands_gen(Mod, InitialState)).
+
+-spec commands_gen(mod_name(), symbolic_state()) -> proper_types:type().
+commands_gen(Mod, InitialState) ->
     ?SUCHTHAT(
        Cmds,
        ?LET(CmdTail,
 	    ?LET(List,
 		 ?SIZED(Size,
 			proper_types:noshrink(
-			  commands(Size, Mod, InitialState, 1))),
+			  commands_gen(Size * ?RESIZE_FACTOR,
+				       Mod, InitialState, 1))),
 		 proper_types:shrink_list(List)),
 	    [{init,InitialState}|CmdTail]),
        is_valid(Mod, InitialState, Cmds, [])).
 
--spec commands(size(), mod_name(), symbolic_state(), pos_integer()) ->
+%% @private
+-spec commands_gen(proper_gen:size(), mod_name(), symbolic_state(), pos_integer()) ->
          proper_types:type().
-commands(Size, Mod, State, Count) ->
+commands_gen(Size, Mod, State, Count) ->
     ?LAZY(
        proper_types:frequency(
 	 [{1, []},
@@ -342,7 +385,7 @@ commands(Size, Mod, State, Count) ->
 			  NextState = Mod:next_state(State, Var, Call),
 			  ?LET(
 			     Cmds,
-			     commands(Size-1, Mod, NextState, Count+1),
+			     commands_gen(Size-1, Mod, NextState, Count+1),
 			     [{set,Var,Call}|Cmds])
 		      end)}])).
 
@@ -351,7 +394,7 @@ commands(Size, Mod, State, Count) ->
 
 -spec more_commands(pos_integer(), proper_types:type()) -> proper_types:type().
 more_commands(N, CmdType) ->
-    ?SIZED(Size, proper_types:resize(Size * N, CmdType)).
+    proper_types:with_parameter(?COMMANDS_SZ_FACTOR, N, CmdType).
 
 
 %% -----------------------------------------------------------------------------
@@ -385,13 +428,13 @@ parallel_commands(Mod, InitialState) ->
 -spec parallel_gen(mod_name()) -> proper_types:type().
 parallel_gen(Mod) ->
     ?LET(Seq,
-	 commands(Mod),
+	 commands_gen(Mod),
 	 mk_parallel_testcase(Mod, Seq)).
 
 -spec parallel_gen(mod_name(), symbolic_state()) -> proper_types:type().
 parallel_gen(Mod, InitialState) ->
     ?LET(Seq,
-	 commands(Mod, InitialState),
+	 commands_gen(Mod, InitialState),
 	 mk_parallel_testcase(Mod, Seq)).
 
 -spec mk_parallel_testcase(mod_name(), command_list()) -> proper_types:type().
@@ -402,7 +445,7 @@ mk_parallel_testcase(Mod, Seq) ->
 		[{var,N}|_] -> N + 1
 	    end,
     ?LET(Parallel,
-	 ?SUCHTHAT(C, commands(?LIMIT, Mod, State, Count),
+	 ?SUCHTHAT(C, commands_gen(?LIMIT, Mod, State, Count),
 		   length(C) > ?WORKERS),
 	 begin
 	     LenPar = length(Parallel),
@@ -452,6 +495,82 @@ move_shrinker(Seq, Par, I) ->
 
 
 %% -----------------------------------------------------------------------------
+%% Targeted command generation
+%% -----------------------------------------------------------------------------
+
+
+%% @private
+-spec next_commands_gen(mod_name()) -> next_fun().
+next_commands_gen(Mod) ->
+  fun (Cmds, {_Depth, Temp}) ->
+      MaxRemovals = round(length(Cmds) * Temp),
+      ?LET(InitialState, ?LAZY(Mod:initial_state()),
+           ?SUCHTHAT(
+              NewCmds,
+              ?LET(List,
+                   ?SIZED(Size,
+                          proper_types:noshrink(
+                            next_commands_gen(Mod, InitialState, Cmds,
+                                              Size * ?RESIZE_FACTOR,
+                                              MaxRemovals))),
+                   proper_types:shrink_list(List)),
+              is_valid(Mod, InitialState, NewCmds, [])))
+  end.
+
+%% @private
+-spec next_commands_gen(mod_name(), symbolic_state()) -> next_fun().
+next_commands_gen(Mod, InitialState) ->
+  fun Aux([{init, _S} | Cmds], {Depth, Temp}) ->
+      Aux(Cmds, {Depth, Temp});
+      Aux(Cmds, {_Depth, Temp}) ->
+      MaxRemovals = round(length(Cmds) * Temp),
+      ?SUCHTHAT(
+         NewCmds,
+         ?LET(CmdsTail,
+              ?LET(List,
+                   ?SIZED(Size,
+                          proper_types:noshrink(
+                            next_commands_gen(Mod, InitialState, Cmds,
+                                              Size * ?RESIZE_FACTOR,
+                                              MaxRemovals))),
+                   proper_types:shrink_list(List)),
+              [{init, InitialState} | CmdsTail]),
+         is_valid(Mod, InitialState, NewCmds, []))
+  end.
+
+-spec next_commands_gen(mod_name(), symbolic_state(), command_list(),
+                    proper_gen:size(), threshold()) ->
+        proper_types:type().
+next_commands_gen(Mod, InitialState, [_ | _] = Cmds, Size, 0) ->
+  next_commands_gen(Mod, InitialState, Cmds, Size, 1);
+next_commands_gen(Mod, InitialState, Cmds, Size, MaxRemovals) ->
+  %% Try to remove commands after the maximum current size is reached.
+  Threshold = case Size > length(Cmds) of
+                true -> 0;
+                false -> MaxRemovals
+              end,
+  ?LET(LessCmds,
+       ?LET(LessRCmds,
+            remove_cmds(lists:reverse(Cmds), Threshold),
+            lists:reverse(LessRCmds)),
+       ?LET(CmdsTail,
+            begin
+              Length = length(LessCmds),
+              Remaining = Size - Length,
+              State = state_after(Mod, [{init, InitialState} | LessCmds]),
+              Count = Length + 1,
+              commands_gen(Remaining, Mod, State, Count)
+            end,
+            LessCmds ++ CmdsTail)).
+
+-spec remove_cmds(command_list(), threshold()) -> proper_types:type().
+remove_cmds(Cmds, Threshold) ->
+  ?LAZY(proper_types:frequency(
+          [{1, proper_types:exactly(Cmds)},
+           {Threshold, ?LAZY(remove_cmds(tl(Cmds), Threshold - 1))}])).
+
+
+%% -----------------------------------------------------------------------------
 %% Sequential command execution
 %% -----------------------------------------------------------------------------
 
@@ -492,7 +611,7 @@ run_commands(Mod, Cmds) ->
 %% @doc  Similar to {@link run_commands/2}, but also accepts an environment,
 %% used for symbolic variable evaluation during command execution. The
 %% environment consists of `{Key::atom(), Value::term()}' pairs. Keys may be
-%% used in symbolic variables (i.e. `{var,Key}') whithin the command sequence
+%% used in symbolic variables (i.e. `{var,Key}') within the command sequence
 %% `Cmds'. These symbolic variables will be replaced by their corresponding
 %% `Value' during command execution.
 
@@ -558,8 +677,8 @@ run_commands(Cmds, Env, Mod, History, State) ->
 check_precondition(Mod, State, Call) ->
     try Mod:precondition(State, Call)
     catch
-	Kind:Reason ->
-	    {exception, Kind, Reason, erlang:get_stacktrace()}
+	Kind:Reason:StackTrace ->
+	    {exception, Kind, Reason, StackTrace}
     end.
 
 -spec check_postcondition(mod_name(), dynamic_state(), symbolic_call(), term()) ->
@@ -567,8 +686,8 @@ check_precondition(Mod, State, Call) ->
 check_postcondition(Mod, State, Call, Res) ->
     try Mod:postcondition(State, Call, Res)
     catch
-	Kind:Reason ->
-	    {exception, Kind, Reason, erlang:get_stacktrace()}
+	Kind:Reason:StackTrace ->
+	    {exception, Kind, Reason, StackTrace}
     end.
 
 -spec safe_apply(mod_name(), fun_name(), [term()]) ->
@@ -577,8 +696,8 @@ safe_apply(M, F, A) ->
     try apply(M, F, A) of
 	Result -> {ok, Result}
     catch
-	Kind:Reason ->
-	    {error, {exception, Kind, Reason, erlang:get_stacktrace()}}
+	Kind:Reason:StackTrace ->
+	    {error, {exception, Kind, Reason, StackTrace}}
     end.
 
 
@@ -594,9 +713,10 @@ safe_apply(M, F, A) ->
 %%   sequential component.</li>
 %% <li>`Parallel_history' contains the execution history of each of the
 %%   concurrent tasks.</li>
-%% <li>`Result' specifies the outcome of the attemp to serialize command
-%%   execution, based on the results observed. It can be one of the following:
-%%   <ul><li> `ok' </li><li> `no_possible_interleaving' </li></ul> </li>
+%% <li>`Result' specifies the outcome of the attempt to serialize command
+%%   execution, based on the results observed. In addition to results
+%%   returned by {@link run_commands/2}, it can also be the atom
+%%   `no_possible_interleaving'.</li>
 %% </ul>
 
 -spec run_parallel_commands(mod_name(), parallel_testcase()) ->
@@ -654,7 +774,7 @@ await([]) -> [];
 await([H|T]) ->
     receive
 	{H, {ok, Res}} ->
-        [Res|await(T)];
+	    [Res|await(T)];
 	{H, {'EXIT',_} = Err} ->
 	    _ = [exit(Pid, kill) || Pid <- T],
 	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
@@ -774,7 +894,7 @@ get_initial_state(Mod, Cmds) when is_list(Cmds) ->
     Mod:initial_state().
 
 %% @private
--spec fix_parallel(index(), non_neg_integer(), combination() | 'done',
+-spec fix_parallel(index(), len(), combination() | 'done',
 		   lookup(), mod_name(), symbolic_state(), [symbolic_var()],
 		   pos_integer()) -> [command_list()].
 fix_parallel(_, 0, done, _, _, _, _, _) ->
@@ -801,9 +921,9 @@ fix_parallel(MaxIndex, Len, Comb, LookUp, Mod, State, SymbEnv, W) ->
 -spec can_parallelize([command_list()], mod_name(), symbolic_state(),
 		      [symbolic_var()]) -> boolean().
 can_parallelize(CmdLists, Mod, State, SymbEnv) ->
-    lists:all(fun(C) -> is_valid(Mod, State, C, SymbEnv) end, CmdLists)
-	andalso lists:all(fun(C) -> is_valid(Mod, State, C, SymbEnv) end,
-			  possible_interleavings(CmdLists)).
+    F = fun(C) -> is_valid(Mod, State, C, SymbEnv) end,
+    lists:all(F, CmdLists) andalso
+	lists:all(F, possible_interleavings(CmdLists)).
 
 %% @private
 -spec possible_interleavings([command_list()]) -> [command_list()].
@@ -832,7 +952,7 @@ insert_all([X|[Y|Rest]], List) ->
 all_insertions(X, Limit, List) ->
     all_insertions_tr(X, Limit, 0, [], List, []).
 
--spec all_insertions_tr(term(), pos_integer(), non_neg_integer(),
+-spec all_insertions_tr(term(), pos_integer(), len(),
 			[term()], [term()], [[term()]]) -> [[term()]].
 all_insertions_tr(X, Limit, LengthFront, Front, [], Acc) ->
     case LengthFront < Limit of
@@ -865,12 +985,11 @@ mk_dict([{init,_}|T], N) -> mk_dict(T, N);
 mk_dict([H|T], N)        -> [{N,H}|mk_dict(T, N+1)].
 
 %% @private
--spec mk_first_comb(pos_integer(), non_neg_integer(), pos_integer()) ->
-         combination().
+-spec mk_first_comb(pos_integer(), len(), pos_integer()) -> combination().
 mk_first_comb(N, Len, W) ->
     mk_first_comb_tr(1, N, Len, [], W).
 
--spec mk_first_comb_tr(pos_integer(), pos_integer(), non_neg_integer(),
+-spec mk_first_comb_tr(pos_integer(), pos_integer(), len(),
 		       combination(), pos_integer()) -> combination().
 mk_first_comb_tr(Start, N, _Len, Accum, 1) ->
     [{1,lists:seq(Start, N)}|Accum];
@@ -887,7 +1006,7 @@ lookup_cmd_lists(Combination, LookUp) ->
     [lookup_cmds(Indices, LookUp) || {_, Indices} <- Combination].
 
 %% @private
--spec get_next(combination(), non_neg_integer(), index(), indices(),
+-spec get_next(combination(), len(), index(), indices(),
 	       pos_integer(), pos_integer()) -> combination() | 'done'.
 get_next(L, _Len, _MaxIndex, Available, _Workers, 1) ->
     [{1,Available}|proplists:delete(1, L)];

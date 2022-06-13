@@ -1,4 +1,7 @@
-%%% Copyright 2010-2015 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2017 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2015 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2017 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Parametric wrapper to array module.
@@ -34,17 +37,7 @@
 
 -export_type([array/1]).
 
-%% This header is included for the ifdef below and so that the
-%% strip_types parse transform will be applied to this file as well.
--include("proper_internal.hrl").
-
--ifdef(NO_MODULES_IN_OPAQUES).
-%% When parsed by the typeserver, this becomes opaque (it's declared as a simple
-%% type because dialyzer can't handle parametric opaque types yet).
--type array(_T) :: array().
--else.
 -opaque array(T) :: array:array(T).
--endif.
 
 -type array_size() :: non_neg_integer().
 -type array_indx() :: non_neg_integer().
@@ -54,7 +47,6 @@
                     | {'default', T} | {'fixed', boolean()}
                     | {'size', array_size()}.
 -type array_opts(T) :: array_opt(T) | [array_opt(T)].
-
 
 %%------------------------------------------------------------------------------
 %% API functions

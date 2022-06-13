@@ -28,7 +28,7 @@ This is the source for PropEr's overview page.
 
 @doc This is PropEr's Reference Manual. If you are new to PropEr, you should
 first read the User Guide (available online at
-<a href="http://proper.softlab.ntua.gr/" target="_top">PropEr's website</a>,
+<a href="http://proper-testing.github.io" target="_top">PropEr's website</a>,
 and also in PropEr's README file). The bulk of the PropEr API is contained in
 the documentation for the following modules:
 

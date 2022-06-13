@@ -1,5 +1,7 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -17,19 +19,21 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 %%% @doc Simple statem test for ets tables
 
 -module(ets_statem).
 -behaviour(proper_statem).
+-compile([debug_info]).
 
 -export([initial_state/0, command/1,
 	 precondition/2, postcondition/3, next_state/3]).
 -export([sample_commands/0]).
 
 -include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -type object()     :: tuple().
 -type table_type() :: 'set' | 'ordered_set' | 'bag' | 'duplicate_bag'.
@@ -86,7 +90,7 @@ command(S) ->
 	   || S#state.stored =/= []] ++
 	  [{call,ets,update_counter,[tab(S), key(S), int()]}
 	   || S#state.stored =/= [],
-	      S#state.type =:= set orelse  S#state.type =:= ordered_set]).
+	      S#state.type =:= set orelse S#state.type =:= ordered_set]).
 
 precondition(S, {call,_,lookup_element,[_, Key, _]}) ->
     proplists:is_defined(Key, S#state.stored);
@@ -112,13 +116,13 @@ next_state(S, _V, {call,_,update_counter,[_Tab, Key, Incr]}) ->
 	set ->
 	    Object = proplists:lookup(Key, S#state.stored),
 	    Value = element(2, Object),
-	    NewObj =  setelement(2, Object, Value + Incr),
-	    S#state{stored=keyreplace(Key, 1, S#state.stored, NewObj)};
+	    NewObj = setelement(2, Object, Value + Incr),
+	    S#state{stored = keyreplace(Key, 1, S#state.stored, NewObj)};
 	ordered_set ->
 	    Object = lists:keyfind(Key, 1, S#state.stored),
 	    Value = element(2, Object),
 	    NewObj = setelement(2, Object, Value + Incr),
-	    S#state{stored=lists:keyreplace(Key, 1, S#state.stored, NewObj)}
+	    S#state{stored = lists:keyreplace(Key, 1, S#state.stored, NewObj)}
     end;
 next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
     case S#state.type of
@@ -129,9 +133,9 @@ next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
 		    S#state{stored = S#state.stored ++ [Object]};
 		true ->
 		    %% correct model
-		    S#state{stored=keyreplace(Key, 1, S#state.stored, Object)}
+		    S#state{stored = keyreplace(Key, 1, S#state.stored, Object)}
 		    %% error model, run {numtests, 3000} to discover the bug
-		    %% S#state{stored=lists:keyreplace(Key, 1, S#state.stored,
+		    %% S#state{stored = lists:keyreplace(Key, 1, S#state.stored,
 		    %% 				    Object)}
 	    end;
 	ordered_set ->
@@ -140,7 +144,7 @@ next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
 		false ->
 		    S#state{stored = S#state.stored ++ [Object]};
 		true ->
-		    S#state{stored=lists:keyreplace(Key, 1, S#state.stored,
+		    S#state{stored = lists:keyreplace(Key, 1, S#state.stored,
 						    Object)}
 	    end;
 	bag ->
@@ -156,9 +160,9 @@ next_state(S, _V, {call,_,insert,[_Tab, Object]}) ->
 next_state(S, _V, {call,_,delete,[_Tab, Key]}) ->
     case S#state.type of
 	ordered_set ->
-	    S#state{stored=lists:keydelete(Key, 1, S#state.stored)};
+	    S#state{stored = lists:keydelete(Key, 1, S#state.stored)};
 	_ ->
-	    S#state{stored=proplists:delete(Key, S#state.stored)}
+	    S#state{stored = proplists:delete(Key, S#state.stored)}
     end;
 next_state(S, _V, {call,_,_,_}) -> S.
 
@@ -198,7 +202,8 @@ prop_ets() ->
 		    {H,S,Res} = run_commands(?MODULE, Cmds),
 		    [ets:delete(Tab) || Tab <- S#state.tabs],
 		    ?WHENFAIL(
-		       io:format("History: ~p~nState: ~p~nRes: ~p~n", [H,S,Res]),
+		       io:format("History: ~p~nState: ~p~nRes: ~p~n",
+				 [H,S,Res]),
 		       collect(Type, Res =:= ok))
 		end)).
 
@@ -206,9 +211,9 @@ prop_parallel_ets() ->
     ?FORALL(Type, noshrink(table_type()),
         ?FORALL(Cmds, commands(?MODULE, initial_state(Type, parallel)),
 		begin
-		    ets:new(tab, [named_table, public, Type]),
+		    Tab = ets:new(tab, [named_table, public, Type]),
 		    {Seq,P,Res} = run_commands(?MODULE, Cmds),
-		    ets:delete(tab),
+		    ets:delete(Tab),
 		    ?WHENFAIL(
 		       io:format("Sequential: ~p~nParallel: ~p~nRes: ~p~n",
 				 [Seq,P,Res]),
@@ -223,7 +228,7 @@ sample_commands() ->
 	   commands(?MODULE, initial_state(Type)))).
 
 
-%%% Utility Functions
+%%% Utility functions
 
 keyreplace(Key, Pos, List, NewTuple) ->
     keyreplace(Key, Pos, List, NewTuple, []).
@@ -237,3 +242,13 @@ keyreplace(Key, Pos, [Tuple|Rest], NewTuple, Acc) ->
 	false ->
 	    keyreplace(Key, Pos, Rest, NewTuple, [Tuple|Acc])
     end.
+
+
+%%--------------------------------------------------------------------
+%% EUnit tests
+%%--------------------------------------------------------------------
+
+ets_statem_test_() ->
+  Opts = [impure],
+  [{"ETS", ?_assert(proper:quickcheck(prop_ets(),Opts))},
+   {"Parallel ETS", ?_assert(proper:quickcheck(prop_parallel_ets(),Opts))}].

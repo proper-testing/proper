@@ -1,5 +1,7 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -17,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -78,7 +80,8 @@
 %%%   `#rec_name{}' syntax. To use a typed record in a `?FORALL', enclose the
 %%%   record in a custom type like so:
 %%%   ``` -type rec_name() :: #rec_name{}. '''
-%%%   and use the custom type instead.</li>
+%%%   and use the custom type instead. (Note that it is a good idea in general
+%%%   to do the above, i.e., give a name to all record types.)</li>
 %%% <li>`?FORALL's may contain references to self-recursive or mutually
 %%%   recursive native types, so long as each type in the hierarchy has a clear
 %%%   base case.
@@ -101,7 +104,7 @@
 %%%   where:
 %%%   ``` -type rec() :: #rec{}.
 %%%       -record(rec, {a = 0 :: integer(), b = 'nil' :: 'nil' | #rec{}}). '''
-%%%   A little rewritting can usually remedy this problem as well:
+%%%   A little rewriting can usually remedy this problem as well:
 %%%   ``` ?FORALL(..., rec(), ...) '''
 %%%   where:
 %%%   ``` -type rec() :: #rec{b :: 'nil'} | #rec{b :: rec()}.
@@ -185,7 +188,7 @@
 %% CAUTION: all these must be sorted
 -define(STD_TYPES_0,
 	[any,arity,atom,binary,bitstring,bool,boolean,byte,char,float,integer,
-	 list,neg_integer,non_neg_integer,number,pos_integer,string,term,
+	 list,neg_integer,nil,non_neg_integer,number,pos_integer,string,term,
 	 timeout]).
 -define(HARD_ADTS,
 	%% gb_trees:iterator and gb_sets:iterator are NOT hardcoded
@@ -236,24 +239,21 @@
 
 -type type_kind() :: 'type' | 'record'.
 -type type_ref() :: {type_kind(),type_name(),arity()}.
--ifdef(NO_MODULES_IN_OPAQUES).
--type substs_dict() :: dict(). %% dict(field_name(),ret_type())
--else.
 -type substs_dict() :: dict:dict(field_name(),ret_type()).
--endif.
 -type full_type_ref() :: {mod_name(),type_kind(),type_name(),
 			  [ret_type()] | substs_dict()}.
 -type symb_info() :: 'not_symb' | {'orig_abs',abs_type()}.
 -type type_repr() :: {'abs_type',abs_type(),[var_name()],symb_info()}
 		   | {'cached',fin_type(),abs_type(),symb_info()}
 		   | {'abs_record',[{field_name(),abs_type()}]}.
--type gen_fun() :: fun((size()) -> fin_type()).
--type rec_fun() :: fun(([gen_fun()],size()) -> fin_type()).
+-type gen_fun() :: fun((proper_gen:size()) -> fin_type()).
+-type rec_fun() :: fun(([gen_fun()],proper_gen:size()) -> fin_type()).
 -type rec_arg() :: {boolean() | {'list',boolean(),rec_fun()},full_type_ref()}.
 -type rec_args() :: [rec_arg()].
 -type ret_type() :: {'simple',fin_type()} | {'rec',rec_fun(),rec_args()}.
--type rec_fun_info() :: {pos_integer(),pos_integer(),[arity(),...],
-			 [rec_fun(),...]}.
+-type rec_arg_lens() :: [arity(),...].
+-type rec_funs()     :: [rec_fun(),...].
+-type rec_fun_info() :: {pos_integer(),pos_integer(),rec_arg_lens(),rec_funs()}.
 
 -type imm_type_ref() :: {type_name(),arity()}.
 -type hard_adt_repr() :: {abs_type(),[var_name()]} | 'already_declared'.
@@ -267,35 +267,18 @@
 -type pattern() :: loose_tuple(pat_field()).
 -type next_step() :: 'none' | 'take_head' | {'match_with',pattern()}.
 
--ifdef(NO_MODULES_IN_OPAQUES).
-%% @private_type
--type mod_exp_types() :: set(). %% set(imm_type_ref())
--type mod_types() :: dict(). %% dict(type_ref(),type_repr())
-%% @private_type
--type mod_exp_funs() :: set(). %% set(fun_ref())
--type mod_specs() :: dict(). %% dict(fun_ref(),fun_repr())
--else.
 %% @private_type
 -type mod_exp_types() :: sets:set(imm_type_ref()).
 -type mod_types() :: dict:dict(type_ref(),type_repr()).
 %% @private_type
 -type mod_exp_funs() :: sets:set(fun_ref()).
 -type mod_specs() :: dict:dict(fun_ref(),fun_repr()).
--endif.
 
--ifdef(NO_MODULES_IN_OPAQUES).
--record(state,
-	{cached    = dict:new() :: dict(),   %% dict(imm_type(),fin_type())
-	 exp_types = dict:new() :: dict(),   %% dict(mod_name(),mod_exp_types())
-	 types     = dict:new() :: dict(),   %% dict(mod_name(),mod_types())
-	 exp_specs = dict:new() :: dict()}). %% dict(mod_name(),mod_specs())
--else.
 -record(state,
 	{cached    = dict:new() :: dict:dict(imm_type(),fin_type()),
 	 exp_types = dict:new() :: dict:dict(mod_name(),mod_exp_types()),
 	 types     = dict:new() :: dict:dict(mod_name(),mod_types()),
 	 exp_specs = dict:new() :: dict:dict(mod_name(),mod_specs())}).
--endif.
 -type state() :: #state{}.
 
 -record(mod_info,
@@ -307,11 +290,7 @@
 -type mod_info() :: #mod_info{}.
 
 -type stack() :: [full_type_ref() | 'tuple' | 'list' | 'union' | 'fun'].
--ifdef(NO_MODULES_IN_OPAQUES).
--type var_dict() :: dict(). %% dict(var_name(),ret_type())
--else.
 -type var_dict() :: dict:dict(var_name(),ret_type()).
--endif.
 %% @private_type
 -type imm_type() :: {mod_name(),string()}.
 %% @alias
@@ -524,38 +503,40 @@ make_spec_test({Mod,_Fun,_Arity}=MFA, {Domain,_Range}=FunRepr, SpecTimeout, Fals
 	    Error
     end.
 
--spec apply_spec_test(mfa(), fun_repr(), timeout(), false_positive_mfas(), term()) -> proper:test().
+-spec apply_spec_test(mfa(), fun_repr(), timeout(), false_positive_mfas(), [term()]) -> proper:test().
 apply_spec_test({Mod,Fun,_Arity}=MFA, {_Domain,Range}, SpecTimeout, FalsePositiveMFAs, Args) ->
-    ?TIMEOUT(SpecTimeout,
-             begin
-                 %% NOTE: only call apply/3 inside try/catch (do not trust ?MODULE:is_instance/3)
-                 Result =
-                     try apply(Mod, Fun, Args) of
-                         X -> {ok, X}
-                     catch
-                         X:Y -> {X, Y}
-                     end,
-                 case Result of
-                     {ok, Z} ->
-                         case ?MODULE:is_instance(Z, Mod, Range) of
-                             true ->
-                                 true;
-                             false when is_function(FalsePositiveMFAs) ->
-                                 FalsePositiveMFAs(MFA, Args, {fail, Z});
-                             false ->
-                                 false
-                         end;
-                     Exception when is_function(FalsePositiveMFAs) ->
-                         case FalsePositiveMFAs(MFA, Args, Exception) of
-                             true ->
-                                 true;
-                             false ->
-                                 error(Exception, erlang:get_stacktrace())
-                         end;
-                     Exception ->
-                         error(Exception, erlang:get_stacktrace())
-                 end
-             end).
+    Prop =
+	?DELAY(
+	   begin
+	       %% NOTE: only call apply/3 inside try/catch (do not trust ?MODULE:is_instance/3)
+	       {Result, StackTrace} =
+		   try apply(Mod, Fun, Args) of
+		       X -> {{ok, X}, none}
+		   catch
+		       Class:Reason:Trace -> {{Class, Reason}, Trace}
+		   end,
+	       case Result of
+		   {ok, Z} ->
+		       case ?MODULE:is_instance(Z, Mod, Range) of
+			   true ->
+			       true;
+			   false when is_function(FalsePositiveMFAs) ->
+			       FalsePositiveMFAs(MFA, Args, {fail, Z});
+			   false ->
+			       false
+		       end;
+		   Exception when is_function(FalsePositiveMFAs) ->
+		       case FalsePositiveMFAs(MFA, Args, Exception) of
+			   true ->
+			       true;
+			   false ->
+			       error(Exception, StackTrace)
+		       end;
+		   Exception ->
+		       error(Exception, StackTrace)
+	       end
+	   end),
+    proper:timeout(SpecTimeout, Prop).
 
 -spec get_exp_specced(mod_name(), state()) -> rich_result2([mfa()],state()).
 get_exp_specced(Mod, State) ->
@@ -1052,6 +1033,8 @@ collect_vars(FullADTRef, {paren_type,_,[Type]}, UsedVars) ->
     collect_vars(FullADTRef, Type, UsedVars);
 collect_vars(FullADTRef, {ann_type,_,[_Var,Type]}, UsedVars) ->
     collect_vars(FullADTRef, Type, UsedVars);
+collect_vars(_FullADTRef, {type,_,map,any}, UsedVars) ->
+    UsedVars;
 collect_vars(_FullADTRef, {type,_,tuple,any}, UsedVars) ->
     UsedVars;
 collect_vars({_Mod,SameName,Arity} = FullADTRef, {type,_,SameName,ArgForms},
@@ -1089,11 +1072,7 @@ multi_collect_vars({_Mod,_Name,Arity} = FullADTRef, Forms, UsedVars) ->
     CombineVars = fun(L1,L2) -> lists:zipwith(fun erlang:'++'/2, L1, L2) end,
     lists:foldl(CombineVars, UsedVars, MoreUsedVars).
 
--ifdef(NO_MODULES_IN_OPAQUES).
--type var_substs_dict() :: dict().
--else.
 -type var_substs_dict() :: dict:dict(var_name(),abs_type()).
--endif.
 -spec update_vars(abs_type(), var_substs_dict(), boolean()) -> abs_type().
 update_vars({paren_type,Line,[Type]}, VarSubstsDict, UnboundToAny) ->
     {paren_type, Line, [update_vars(Type,VarSubstsDict,UnboundToAny)]};
@@ -1112,13 +1091,15 @@ update_vars({remote_type,Line,[RemModForm,NameForm,ArgForms]}, VarSubstsDict,
 	    UnboundToAny) ->
     NewArgForms = [update_vars(A,VarSubstsDict,UnboundToAny) || A <- ArgForms],
     {remote_type, Line, [RemModForm,NameForm,NewArgForms]};
-update_vars({T,_,tuple,any} = Call, _VarSubstsDict, _UnboundToAny) when ?IS_TYPE_TAG(T) ->
-    Call;
+update_vars({type,_,map,any} = Type, _VarSubstsDict, _UnboundToAny) ->
+    Type;
+update_vars({type,_,tuple,any} = Type, _VarSubstsDict, _UnboundToAny) ->
+    Type;
 update_vars({T,Line,Name,ArgForms}, VarSubstsDict, UnboundToAny) when ?IS_TYPE_TAG(T) ->
     NewArgForms = [update_vars(A,VarSubstsDict,UnboundToAny) || A <- ArgForms],
     {T, Line, Name, NewArgForms};
-update_vars(Call, _VarSubstsDict, _UnboundToAny) ->
-    Call.
+update_vars(Type, _VarSubstsDict, _UnboundToAny) ->
+    Type.
 
 
 %%------------------------------------------------------------------------------
@@ -1167,21 +1148,23 @@ match([Tag|PatRest], [X|ToMatchRest], Acc, TypeMode) when is_atom(Tag) ->
 %% CAUTION: these must be sorted
 -define(NON_ATOM_TYPES,
 	[arity,binary,bitstring,byte,char,float,'fun',function,integer,iodata,
-	 iolist,list,maybe_improper_list,mfa,neg_integer,nil,no_return,
-	 non_neg_integer,none,nonempty_improper_list,nonempty_list,
-	 nonempty_maybe_improper_list,nonempty_string,number,pid,port,
+	 iolist,list,map,maybe_improper_list,mfa,neg_integer,nil,no_return,
+	 non_neg_integer,none,nonempty_binary,nonempty_bitstring,
+	 nonempty_improper_list,nonempty_list,nonempty_maybe_improper_list,
+	 nonempty_string,number,pid,port,
 	 pos_integer,range,record,reference,string,tuple]).
 -define(NON_TUPLE_TYPES,
 	[arity,atom,binary,bitstring,bool,boolean,byte,char,float,'fun',
-	 function,identifier,integer,iodata,iolist,list,maybe_improper_list,
-	 neg_integer,nil,no_return,node,non_neg_integer,none,
+	 function,identifier,integer,iodata,iolist,list,map,maybe_improper_list,
+	 module,neg_integer,nil,no_return,node,non_neg_integer,none,
+	 nonempty_binary,nonempty_bitstring,
 	 nonempty_improper_list,nonempty_list,nonempty_maybe_improper_list,
 	 nonempty_string,number,pid,port,pos_integer,range,reference,string,
 	 timeout]).
 -define(NO_HEAD_TYPES,
 	[arity,atom,binary,bitstring,bool,boolean,byte,char,float,'fun',
-	 function,identifier,integer,mfa,module,neg_integer,nil,no_return,node,
-	 non_neg_integer,none,number,pid,port,pos_integer,range,record,
+	 function,identifier,integer,map,mfa,module,neg_integer,nil,no_return,
+	 node,non_neg_integer,none,number,pid,port,pos_integer,range,record,
 	 reference,timeout,tuple]).
 
 -spec can_be_tag(atom(), abs_type()) -> boolean().
@@ -1393,14 +1376,17 @@ is_instance(X, Mod, {type,_,list,[Type]}, _Stack) ->
 is_instance(X, Mod, {type,_,maybe_improper_list,[Cont,Term]}, _Stack) ->
     list_test(X, Mod, Cont, Term, true, true, true);
 is_instance(X, _Mod, {type,_,module,[]}, _Stack) ->
-    is_atom(X) orelse
-    is_tuple(X) andalso X =/= {} andalso is_atom(element(1,X));
+    is_atom(X);
 is_instance([], _Mod, {type,_,nil,[]}, _Stack) ->
     true;
 is_instance(X, _Mod, {type,_,neg_integer,[]}, _Stack) ->
     is_integer(X) andalso X < 0;
 is_instance(X, _Mod, {type,_,non_neg_integer,[]}, _Stack) ->
     is_integer(X) andalso X >= 0;
+is_instance(X, _Mod, {type,_,nonempty_binary,[]}, _Stack) ->
+    is_binary(X) andalso byte_size(X) > 0;
+is_instance(X, _Mod, {type,_,nonempty_bitstring,[]}, _Stack) ->
+    is_bitstring(X) andalso bit_size(X) > 0;
 is_instance(X, Mod, {type,_,nonempty_list,[Type]}, _Stack) ->
     list_test(X, Mod, Type, dummy, false, true, false);
 is_instance(X, Mod, {type,_,nonempty_improper_list,[Cont,Term]}, _Stack) ->
@@ -1442,6 +1428,8 @@ is_instance(X, Mod, {type,_,record,[{atom,_,Name} = NameForm | RawSubsts]},
     end;
 is_instance(X, _Mod, {type,_,reference,[]}, _Stack) ->
     is_reference(X);
+is_instance(X, _Mod, {type,_,map,any}, _Stack) ->
+    is_map(X);
 is_instance(X, _Mod, {type,_,tuple,any}, _Stack) ->
     is_tuple(X);
 is_instance(X, Mod, {type,_,tuple,Fields}, _Stack) ->
@@ -1637,6 +1625,10 @@ convert(_Mod, {type,_,binary,[BaseExpr,UnitExpr]}, State, _Stack, _VarDict) ->
 	_ ->
 	    expr_error(invalid_base, BaseExpr)
     end;
+convert(_Mod, {type,_,nonempty_binary,[]}, State, _Stack, _VarDict) ->
+    {ok, {simple,proper_types:non_empty(proper_types:binary())}, State};
+convert(_Mod, {type,_,nonempty_bitstring,[]}, State, _Stack, _VarDict) ->
+    {ok, {simple,proper_types:non_empty(proper_types:bitstring())}, State};
 convert(_Mod, {type,_,range,[LowExpr,HighExpr]}, State, _Stack, _VarDict) ->
     case {eval_int(LowExpr),eval_int(HighExpr)} of
 	{{ok,Low},{ok,High}} when Low =< High ->
@@ -1645,7 +1637,7 @@ convert(_Mod, {type,_,range,[LowExpr,HighExpr]}, State, _Stack, _VarDict) ->
 	    expr_error(invalid_range, LowExpr, HighExpr)
     end;
 convert(_Mod, {type,_,nil,[]}, State, _Stack, _VarDict) ->
-    {ok, {simple,proper_types:exactly([])}, State};
+    {ok, {simple,proper_types:nil()}, State};
 convert(Mod, {type,_,list,[ElemForm]}, State, Stack, VarDict) ->
     convert_list(Mod, false, ElemForm, State, Stack, VarDict);
 convert(Mod, {type,_,nonempty_list,[ElemForm]}, State, Stack, VarDict) ->
@@ -1654,6 +1646,8 @@ convert(_Mod, {type,_,nonempty_list,[]}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:non_empty(proper_types:list())}, State};
 convert(_Mod, {type,_,nonempty_string,[]}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:non_empty(proper_types:string())}, State};
+convert(_Mod, {type,_,map,any}, State, _Stack, _VarDict) ->
+    {ok, {simple,proper_types:map()}, State};
 convert(_Mod, {type,_,tuple,any}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:tuple()}, State};
 convert(Mod, {type,_,tuple,ElemForms}, State, Stack, VarDict) ->
@@ -2335,11 +2329,11 @@ soft_clean_rec_args_tr([Arg | Rest], Acc, RecFunInfo, ToList, FoundListInst,
     soft_clean_rec_args_tr(Rest, [Arg | Acc], RecFunInfo, ToList, FoundListInst,
 			   Pos+1).
 
--spec get_group(pos_integer(), [non_neg_integer()]) -> pos_integer().
+-spec get_group(pos_integer(), rec_arg_lens()) -> pos_integer().
 get_group(Pos, AllMembers) ->
     get_group_tr(Pos, AllMembers, 1).
 
--spec get_group_tr(pos_integer(), [non_neg_integer()], pos_integer()) ->
+-spec get_group_tr(pos_integer(), rec_arg_lens(), pos_integer()) ->
 	  pos_integer().
 get_group_tr(Pos, [Members | Rest], GroupNum) ->
     case Pos =< Members of
@@ -2386,8 +2380,8 @@ same_rec_arg(_, _, _NumRecArgs) ->
 
 -spec same_substs_dict(substs_dict(), substs_dict()) -> boolean().
 same_substs_dict(SubstsDict1, SubstsDict2) ->
-    SameKVPair = fun({{_K,V1},{_K,V2}}) -> same_ret_type(V1,V2);
-		    (_)                 -> false
+    SameKVPair = fun({{K1,V1},{K2,V2}}) when K1 =:= K2 -> same_ret_type(V1,V2);
+		    (_)                                -> false
 		 end,
     SubstsKVList1 = lists:sort(dict:to_list(SubstsDict1)),
     SubstsKVList2 = lists:sort(dict:to_list(SubstsDict2)),

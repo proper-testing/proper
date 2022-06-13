@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  otps:
+    name: OTP ${{ matrix.otp }}
+    runs-on: ubuntu-latest
+    container: erlang:${{ matrix.otp }}
+    strategy:
+      matrix:
+        otp:
+          - "25.0"
+          - "24.3"
+          - "24.0"
+          - "23.2"
+          - "23.0"
+          - "22.3"
+          - "22.1" # 22.0 seg faults
+          - "21.3"
+          - "21.0"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Cache .plt directory
+        uses: actions/cache@v2
+        with:
+          path: .plt
+          key: ${{ runner.os }}-otp-${{ matrix.otp }}
+      - name: Test everything
+        run: make all
+
+  examples:
+    name: Test examples
+    runs-on: ubuntu-latest
+    container: erlang:25.0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Test examples
+        run: make test-examples
+
+  parallel-examples:
+    name: Test examples in parallel
+    runs-on: ubuntu-latest
+    container: erlang:25.0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Test examples in parallel
+        run: make test-parallel
+
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-latest
+    container: erlang:25.0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Measure coverage
+        run: make test
+        env:
+          COVER: true
+      - name: Ping codecov
+        uses: codecov/codecov-action@v1
+        with:
+          file: "_build/test/covertool/proper.covertool.xml"

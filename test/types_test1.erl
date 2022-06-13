@@ -1,4 +1,7 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,18 +20,24 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains types for testing the typeserver.
 
 -module(types_test1).
+-export([function_that_uses_local_types_only/1]).
+
 -export_type([exp1/0]).
 
--record(rec1, {a = 42 :: integer(), b :: float(), c = this_atom}).
+-record(rec1, {a = 42 :: integer(), b :: float(), c = this_atom :: term()}).
 -type rec1() :: #rec1{}.
 -opaque exp1() :: rec1() | atom().
 -type type1() :: {exp1(), [float() | boolean()]}.
 -type type2(T) :: {T,T} | [T].
 -type rem1() :: types_test2:exp1(integer()) | integer().
 -type rem2() :: {bitstring(), types_test2:exp2()}.
+
+-spec function_that_uses_local_types_only(type2(type1())) -> {rem1(), rem2()}.
+function_that_uses_local_types_only(_) ->
+    {42, {<<42>>, gazonk}}.

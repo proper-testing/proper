@@ -1,4 +1,7 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2019 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,32 +20,31 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2019 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 
 -module(ets_counter).
 
-%% -export([ets_inc/2]).
-%% -export([command/1, precondition/2, postcondition/3,
-%% 	 initial_state/0, next_state/3]).
--compile(export_all).
+-export([ets_inc/2]).
+-export([set_up/0, clean_up/0]).  % needed by proper_tests
+-export([command/1, precondition/2, postcondition/3,
+ 	 initial_state/0, next_state/3]).
 
 -include_lib("proper/include/proper.hrl").
 
--define(KEYS, lists:seq(1, 10)).
-
-ets_inc(Key, Inc) ->
-    case ets:lookup(counter, Key) of
-	[] ->
-	    erlang:yield(),
-	    ets:insert(counter, {Key,Inc}),
-	    Inc;
-	[{Key,OldValue}] ->
-	    NewValue = OldValue + Inc,
-	    ets:insert(counter, {Key, NewValue}),
-	    NewValue
-    end.
+%% ---------------------------------------------------------------------
+%% Under _reasonable_ schedulings, the following property is expected
+%% to *fail* due to races between the ets:lookup/2 and ets:insert/2
+%% calls.
+%%
+%% In Erlang/OTP releases 22.0 and prior, a call to erlang:yield/0 was
+%% sufficient to provoke the race when executing commands in parallel.
+%% In a pre-release of 23.0, this seems not to be the case any longer
+%% but substituting the yield() call with a sleep() seems to do the
+%% trick. How robust is that to ensure the failure of the property
+%% remains to be investigated.
+%% ---------------------------------------------------------------------
 
 prop_ets_counter() ->
     ?FORALL(Commands, parallel_commands(?MODULE),
@@ -55,6 +57,25 @@ prop_ets_counter() ->
 			  Result =:= ok)
 	    end).
 
+%% ---------------------------------------------------------------------
+
+-define(KEYS, lists:seq(1, 10)).
+
+ets_inc(Key, Inc) ->
+    case ets:lookup(counter, Key) of
+	[] ->
+	    my_yield(), % attempts to schedule out the process here
+	    ets:insert(counter, {Key,Inc}),
+	    Inc;
+	[{Key,OldValue}] ->
+	    NewValue = OldValue + Inc,
+	    ets:insert(counter, {Key,NewValue}),
+	    NewValue
+    end.
+
+my_yield() ->
+   timer:sleep(1).	% for OTP < 22.1 sufficed: erlang:yield().
+
 set_up() ->
     counter = ets:new(counter, [public, named_table]),
     ok.
@@ -65,13 +86,14 @@ clean_up() ->
 key() ->
     elements(?KEYS).
 
-initial_state() -> [].
+initial_state() ->
+    [].  % an empty proplist
 
 precondition(_S, _C) ->
     true.
 
 command(_S) ->
-    {call,?MODULE,ets_inc,[key(),non_neg_integer()]}.
+    {call,?MODULE,ets_inc,[key(),pos_integer()]}.
 
 postcondition(S, {call,_,ets_inc,[Key, Inc]}, Res) ->
     case proplists:is_defined(Key, S) of

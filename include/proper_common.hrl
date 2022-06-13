@@ -1,6 +1,10 @@
-%%% Copyright 2010-2013 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
-%%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
+%%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
+%%%                 and Andreas Löscher <andreas@loscher.net>
 %%%
 %%% This file is part of PropEr.
 %%%
@@ -17,7 +21,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2013 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc Common parts of user and internal header files
@@ -27,7 +31,11 @@
 %% Test generation macros
 %%------------------------------------------------------------------------------
 
--define(FORALL(X,RawType,Prop), proper:forall(RawType,fun(X) -> Prop end)).
+-define(FORALL(X,RawType,Prop), proper:forall(RawType, fun(X) -> Prop end)).
+-define(EXISTS(X,RawType,Prop), proper:exists(RawType, fun(X) -> Prop end, false)).
+-define(NOT_EXISTS(X,RawType,Prop), proper:exists(RawType, fun(X) -> Prop end, true)).
+-define(FORALL_TARGETED(X, RawType, Prop),
+        proper:targeted(RawType, fun(X) -> Prop end)).
 -define(IMPLIES(Pre,Prop), proper:implies(Pre,?DELAY(Prop))).
 -define(WHENFAIL(Action,Prop), proper:whenfail(?DELAY(Action),?DELAY(Prop))).
 -define(TRAPEXIT(Prop), proper:trapexit(?DELAY(Prop))).
@@ -46,10 +54,19 @@
 -define(SIZED(SizeArg,Gen), proper_types:sized(fun(SizeArg) -> Gen end)).
 -define(LET(X,RawType,Gen), proper_types:bind(RawType,fun(X) -> Gen end,false)).
 -define(SHRINK(Gen,AltGens),
-	proper_types:shrinkwith(?DELAY(Gen),?DELAY(AltGens))).
+        proper_types:shrinkwith(?DELAY(Gen),?DELAY(AltGens))).
 -define(LETSHRINK(Xs,RawType,Gen),
-	proper_types:bind(RawType,fun(Xs) -> Gen end,true)).
+        proper_types:bind(RawType,fun(Xs) -> Gen end,true)).
 -define(SUCHTHAT(X,RawType,Condition),
-	proper_types:add_constraint(RawType,fun(X) -> Condition end,true)).
+        proper_types:add_constraint(RawType,fun(X) -> Condition end,true)).
 -define(SUCHTHATMAYBE(X,RawType,Condition),
-	proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
+        proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
+
+%%------------------------------------------------------------------------------
+%% Targeted macros
+%%------------------------------------------------------------------------------
+
+-define(MAXIMIZE(Fitness), proper_target:update_uv(Fitness, inf)).
+-define(MINIMIZE(Fitness), ?MAXIMIZE(-Fitness)).
+-define(USERNF(Type, NF), proper_gen_next:set_user_nf(Type, NF)).
+-define(USERMATCHER(Type, Matcher), proper_gen_next:set_matcher(Type, Matcher)).

@@ -1,5 +1,7 @@
-%%% Copyright 2010-2016 Manolis Papadakis <manopapad@gmail.com>,
-%%%                     Eirini Arvaniti <eirinibob@gmail.com>
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
 %%% This file is part of PropEr.
@@ -17,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2016 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -54,7 +56,7 @@
 %%% <dd>Identical to the above, but gets evaluated automatically before being
 %%%   applied to a property.</dd>
 %%% <dt id="var">`{var,'{@type var_id()}`}'</dt>
-%%% <dd>This contruct serves as a placeholder for values that are not known at
+%%% <dd>This construct serves as a placeholder for values that are not known at
 %%%   type construction time. It will be replaced by the actual value of the
 %%%   variable during evaluation.</dd>
 %%% </dl>
@@ -90,7 +92,7 @@
 %%% document your code and facilitate spec testing, you can include the
 %%% complementary header file `proper/include/proper_param_adts.hrl', which
 %%% provides the corresponding `-type' definitions. Please note that Dialyzer
-%%% currenty treats these the same way as their non-parametric counterparts.
+%%% currently treats these the same way as their non-parametric counterparts.
 %%%
 %%% The use of Auto-ADT is currently subject to the following limitations:
 %%% <ul>
@@ -156,7 +158,6 @@
 
 -type var_id() :: atom() | pos_integer().
 -type var_values() :: [{var_id(),term()}].
-%% @type symb_term()
 -type symb_term() :: term().
 -type handled_term() :: term().
 -type caller() :: 'user' | 'system'.
@@ -306,7 +307,6 @@ symb_walk_gen(VarValues, SymbTerm,
 
 -spec do_symb_walk_gen(fun((T) -> S), maybe_improper_list(T,T | [])) ->
 			  maybe_improper_list(S,S | []).
--ifdef(AT_LEAST_17).
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_map(SymbTerm) ->
     maps:from_list(proper_arith:safe_map(SymbWalk, maps:to_list(SymbTerm)));
 do_symb_walk_gen(SymbWalk, SymbTerm) when is_list(SymbTerm) ->
@@ -315,11 +315,3 @@ do_symb_walk_gen(SymbWalk, SymbTerm) when is_tuple(SymbTerm) ->
     proper_arith:tuple_map(SymbWalk, SymbTerm);
 do_symb_walk_gen(_, SymbTerm) ->
     SymbTerm.
--else.
-do_symb_walk_gen(SymbWalk, SymbTerm) when is_list(SymbTerm) ->
-    proper_arith:safe_map(SymbWalk, SymbTerm);
-do_symb_walk_gen(SymbWalk, SymbTerm) when is_tuple(SymbTerm) ->
-    proper_arith:tuple_map(SymbWalk, SymbTerm);
-do_symb_walk_gen(_, SymbTerm) ->
-    SymbTerm.
--endif.

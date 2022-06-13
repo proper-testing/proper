@@ -1,4 +1,7 @@
-%%% Copyright 2010-2011 Manolis Papadakis <manopapad@gmail.com>,
+%%% -*- coding: utf-8 -*-
+%%% -*- erlang-indent-level: 2 -*-
+%%% -------------------------------------------------------------------
+%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -17,13 +20,18 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2011 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2020 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
 %%% @version {@version}
 %%% @author Eirini Arvaniti
 %%% @doc Tests for fsm transition targets
 
 -module(numbers_fsm).
--compile(export_all).
+-behaviour(proper_fsm).
+
+-export([zero/1, one/1, two/1, three/1, four/1, num/4]).
+-export([idle/0, inc/0, dec/0, insert/1, delete/1]).
+-export([initial_state/0, initial_state_data/0, precondition/4,
+	 postcondition/5, weight/3, next_state_data/5]).
 
 -include_lib("proper/include/proper.hrl").
 
@@ -32,7 +40,7 @@
 -define(LOOKUP, [{zero,0}, {one,1}, {two,2}, {three,3}, {four,4}]).
 
 
-%%% Fsm callbacks
+%%% FSM callbacks
 
 zero(S) ->
     idle_transition() ++
@@ -128,8 +136,8 @@ mod(0, _Y) -> 0.
 mod_add(X, Y) -> mod(X+Y, 5).
 mod_sub(X, Y) -> mod(X-Y, 5).
 
-inc() -> ok.
 idle() -> ok.
+inc() -> ok.
 dec() -> ok.
 insert(_) -> ok.
 delete(_) -> ok.
