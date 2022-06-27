@@ -27,16 +27,23 @@
 %%%
 %%% PropEr can parse types expressed in Erlang's type language and convert them
 %%% to its own type format. Such expressions can be used instead of regular type
-%%% constructors in the second argument of `?FORALL's. No extra notation is
-%%% required; PropEr will detect which calls correspond to native types by
-%%% applying a parse transform during compilation. This parse transform is
-%%% automatically applied to any module that includes the `proper.hrl' header
-%%% file. You can disable this feature by compiling your modules with
-%%% `-DPROPER_NO_TRANS'. Note that this will currently also disable the
-%%% automatic exporting of properties.
+%%% constructors in the second argument of `?FORALL's. Such types can be expressed
+%%% in two ways:
+%%% <ul>
+%%% <li> directly, with no extra notation required; PropEr will detect which calls
+%%% correspond to native types by applying a parse transform during compilation.
+%%% This parse transform is automatically applied to any module that includes
+%%% the `proper.hrl' header file.</li>
+%%% <li> by leveraging the `?TYPE` macro; This allows urestricted use of Erlang's
+%%% type language and does not require applying the parse transform.</li>
+%%% </ul>
 %%%
-%%% The use of native types in properties is subject to the following usage
-%%% rules:
+%%% You can disable the parse transform (and automatic detection of native types)
+%%% by compiling your modules with `-DPROPER_NO_TRANS' flag. Note that this will
+%%% currently also disable the automatic exporting of properties.
+%%%
+%%% The use of automatically-detected native types in properties is subject
+%%% to the following usage rules:
 %%% <ul>
 %%% <li>Native types cannot be used outside of `?FORALL's.</li>
 %%% <li>Inside `?FORALL's, native types can be combined with other native
@@ -152,6 +159,19 @@
 %%%     `-type' declaration</li>
 %%%   </ul>
 %%% </li>
+%%% </ul>
+%%%
+%%% The `?TYPE` macro for explicitly taking advantage of PropEr's native type
+%%% support is subject to the following usage rules:
+%%% <ul>
+%%% <li>It is allowed in any position to produce a PropEr type, including
+%%%   outside of `?FORALL`.</li>
+%%% <li>The same restriction on allowed recursive native types as in `?FORALL` apply.</li>
+%%% <li>There's no risk of confusion between expressions and native types,
+%%%   inside `?TYPE` everything is interpreted as a native type, and as such
+%%%   `?TYPE([integer()])` will produce an arbitrary integer list.</li>
+%%% <li>It is not checked for correct syntax - using invalid syntax can produce
+%%%   errors when the property is evaluated, which are hard to understand.</li>
 %%% </ul>
 %%%
 %%% You can use <a href="#index">these</a> functions to try out the type

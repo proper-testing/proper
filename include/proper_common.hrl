@@ -61,6 +61,7 @@
         proper_types:add_constraint(RawType,fun(X) -> Condition end,true)).
 -define(SUCHTHATMAYBE(X,RawType,Condition),
         proper_types:add_constraint(RawType,fun(X) -> Condition end,false)).
+-define(TYPE(X), proper_types:native_type(?MODULE, ??X)).
 
 %%------------------------------------------------------------------------------
 %% Targeted macros
