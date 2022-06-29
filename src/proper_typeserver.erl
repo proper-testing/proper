@@ -161,17 +161,19 @@
 %%% </li>
 %%% </ul>
 %%%
-%%% The `?TYPE` macro for explicitly taking advantage of PropEr's native type
+%%% The `?TYPE' macro for explicitly taking advantage of PropEr's native type
 %%% support is subject to the following usage rules:
 %%% <ul>
 %%% <li>It is allowed in any position to produce a PropEr type, including
-%%%   outside of `?FORALL`.</li>
-%%% <li>The same restriction on allowed recursive native types as in `?FORALL` apply.</li>
-%%% <li>There's no risk of confusion between expressions and native types,
-%%%   inside `?TYPE` everything is interpreted as a native type, and as such
-%%%   `?TYPE([integer()])` will produce an arbitrary integer list.</li>
-%%% <li>It is not checked for correct syntax - using invalid syntax can produce
-%%%   errors when the property is evaluated, which are hard to understand.</li>
+%%%   outside of `?FORALL'.</li>
+%%% <li>The same restriction on allowed recursive native types as in `?FORALL`
+%%%   apply.</li>
+%%% <li>There is no risk of confusion between expressions and native types.
+%%%   Inside `?TYPE' everything is interpreted as a native type; for example,
+%%%   `?TYPE([integer()])' will produce an arbitrary integer list.</li>
+%%% <li>Its argument is not checked for correct syntax.  Using invalid syntax
+%%%   can result in errors that are hard to understand when the property is
+%%%   evaluated.</li>
 %%% </ul>
 %%%
 %%% You can use <a href="#index">these</a> functions to try out the type
