@@ -166,7 +166,7 @@
 %%% <ul>
 %%% <li>It is allowed in any position to produce a PropEr type, including
 %%%   outside of `?FORALL'.</li>
-%%% <li>The same restriction on allowed recursive native types as in `?FORALL`
+%%% <li>The same restriction on allowed recursive native types as in `?FORALL'
 %%%   apply.</li>
 %%% <li>There is no risk of confusion between expressions and native types.
 %%%   Inside `?TYPE' everything is interpreted as a native type; for example,
