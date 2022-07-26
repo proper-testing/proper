@@ -23,7 +23,7 @@
 %%% @author Andreas Löscher and Kostis Sagonas
 
 -module(labyrinth).
--export([maze/1]).
+-export([maze/1, draw_map/1]).
 -export([prop_exit_random/1,
 	 prop_exit_targeted_user/1,
 	 prop_exit_targeted_auto/1]).
