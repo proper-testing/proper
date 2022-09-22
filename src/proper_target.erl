@@ -1,7 +1,6 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017-2021 Andreas Löscher <andreas@loscher.net>
+%%% Copyright (c) 2017-2022 Andreas Löscher <andreas@loscher.net>
 %%%                     and Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -19,17 +18,17 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017-2021 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017-2022 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
 %%% @author Andreas Löscher
 
 %%% @doc This module defines the top-level behaviour for Targeted
 %%% Property-Based Testing (TPBT). Using TPBT the input generation
 %%% is no longer random, but guided by a search strategy to increase
-%%% the probability of finding failing input. For this to work the user
+%%% the probability of finding failing input. For this to work, the user
 %%% has to specify a search strategy and also needs to extract
-%%% utility-values from the system under test that the search strategy
-%%% then tries to maximize.
+%%% utility values from the system under test that the search strategy
+%%% then tries to maximize (or minimize).
 %%%
 %%% To use TPBT the test specification macros `?FORALL_TARGETED`, `?EXISTS',
 %%% and `?NOT_EXISTS' are used. The typical structure for a targeted
