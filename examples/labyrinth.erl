@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017-2021 Andreas Löscher <andreas@loscher.net>
+%%% Copyright (c) 2017-2022 Andreas Löscher <andreas@loscher.net>
 %%%                     and Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -18,7 +18,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017-2021 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017-2022 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
 %%% @author Andreas Löscher and Kostis Sagonas
 
