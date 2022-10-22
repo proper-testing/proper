@@ -40,9 +40,6 @@
 %%
 %% Still, the test is currently not 100% there.
 %% TODOs:
-%%   - Eliminate the 12 errors that `proper_typeserver:demo_translate_type/2`
-%%     currently returns. (Three of these errors are due to the incomplete
-%%     handling of maps.)
 %%   - Handle symbolic instances (the {'$call', ...} case below).
 %%
 

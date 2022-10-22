@@ -1648,6 +1648,8 @@ convert(_Mod, {type,_,nonempty_string,[]}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:non_empty(proper_types:string())}, State};
 convert(_Mod, {type,_,map,any}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:map()}, State};
+convert(Mod, {type,_,map,Fields}, State, Stack, VarDict) ->
+	convert_map(Mod, Fields, State, Stack, VarDict);
 convert(_Mod, {type,_,tuple,any}, State, _Stack, _VarDict) ->
     {ok, {simple,proper_types:tuple()}, State};
 convert(Mod, {type,_,tuple,ElemForms}, State, Stack, VarDict) ->
@@ -1786,6 +1788,57 @@ convert_normal_rec_list(RecFun, RecArgs, NonEmpty) ->
 		end,
     NewRecArgs = clean_rec_args(RecArgs),
     {NewRecFun, NewRecArgs}.
+
+-spec convert_map(mod_name(), [Field], state(), stack(), var_dict()) ->
+	rich_result2(ret_type(), state())
+when
+	Field :: {type, erl_anno:anno(), map_field_assoc, [abs_type()]}
+		| {type, erl_anno:anno(), map_field_exact, [abs_type()]}.
+convert_map(Mod, Fields, State1, Stack, VarDict) ->
+	{AbstractRequiredFields, AbstractOptionalFields} = lists:partition(
+		fun ({type, _, map_field_exact, _FieldType}) ->
+				true;
+			({type, _, map_field_assoc, _FieldType}) ->
+				false
+		end,
+		Fields
+	),
+	case process_map_fields(Mod, AbstractRequiredFields, State1, Stack, VarDict) of
+		{ok, RequiredFields, State2} ->
+			case process_map_fields(Mod, AbstractOptionalFields, State2, Stack, VarDict) of
+				{ok, OptionalFields, State3} ->
+					Required = proper_types:fixed_map(maps:from_list(RequiredFields)),
+					Optional = proper_types:map(maps:from_list(OptionalFields)),
+					{ok, {simple, proper_types:map_union([Required, Optional])}, State3};
+				{error, Reason} ->
+					{error, Reason}
+			end;
+		{error, Reason} ->
+			{error, Reason}
+	end.
+
+process_map_fields(Mod, AbstractFields, State, Stack, VarDict) ->
+	Process =
+		fun ({type, _, _, RawFieldTypes}, {ok, Fields, State1}) when
+				length(RawFieldTypes) =:= 2
+			->
+				case process_list(
+					Mod, RawFieldTypes, State1, [map | Stack], VarDict
+				) of
+					{ok, FieldTypes, State2} ->
+						{ok, [list_to_tuple(FieldTypes) | Fields], State2};
+					{error, Reason} ->
+						{error, Reason}
+				end;
+			(_FieldTypes, {error, Reason}) ->
+				{error, Reason}
+	end,
+	case lists:foldl(Process, {ok, [], State}, AbstractFields) of
+		{ok, ReverseFields, NewState} ->
+			{ok, lists:reverse(ReverseFields), NewState};
+		{error, Reason} ->
+			{error, Reason}
+	end.
 
 -spec convert_tuple(mod_name(), [abs_type()], boolean(), state(), stack(),
 		    var_dict()) -> rich_result2(ret_type(),state()).

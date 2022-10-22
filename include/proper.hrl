@@ -47,9 +47,9 @@
 %%------------------------------------------------------------------------------
 
 -import(proper_types, [integer/2, float/2, atom/0, binary/0, binary/1,
-		       bitstring/0, bitstring/1, list/1, vector/2, union/1,
-		       weighted_union/1, tuple/1, loose_tuple/1, exactly/1,
-		       fixed_list/1, function/2, map/2, any/0]).
+		       bitstring/0, bitstring/1, list/1, map/1, map/2, map_union/2,
+			   vector/2, union/1, weighted_union/1, tuple/1, loose_tuple/1,
+			   exactly/1, fixed_list/1, fixed_map/1, function/2, any/0]).
 
 
 %%------------------------------------------------------------------------------
