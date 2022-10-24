@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
+%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -324,10 +324,8 @@ is_type(_) ->
 
 %% @private
 -spec equal_types(proper_types:type(), proper_types:type()) -> boolean().
-equal_types(SameType, SameType) ->
-    true;
-equal_types(_, _) ->
-    false.
+equal_types(Type1, Type2) ->
+    Type1 =:= Type2.
 
 -compile({inline, [is_raw_type/1]}).
 %% @private
@@ -743,7 +741,7 @@ bitstring_len_is_instance(Type, X) ->
 %% @doc All lists containing elements of type `ElemType'.
 %% Instances shrink towards the empty list, `[]'.
 -spec list(ElemType::raw_type()) -> proper_types:type().
-% TODO: subtyping would be useful here (list, vector, fixed_list)
+%% TODO: subtyping would be useful here (list, vector, fixed_list)
 list(RawElemType) ->
     ElemType = cook_outer(RawElemType),
     ?CONTAINER([
@@ -769,7 +767,7 @@ list_is_instance(Type, X) ->
 
 %% @doc A type that generates exactly the list `List'. Instances shrink towards
 %% shorter sublists of the original list.
--spec shrink_list([term()]) -> proper_types:type().
+-spec shrink_list(list()) -> proper_types:type().
 shrink_list(List) ->
     ?CONTAINER([
 	{env, List},
@@ -789,7 +787,7 @@ shrink_list_is_instance(Type, X) ->
     List = get_prop(env, Type),
     is_sublist(X, List).
 
--spec is_sublist([term()], [term()]) -> boolean().
+-spec is_sublist(list(), list()) -> boolean().
 is_sublist([], _) -> true;
 is_sublist(_, []) -> false;
 is_sublist([H|T1], [H|T2]) -> is_sublist(T1, T2);
