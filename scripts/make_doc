@@ -1,9 +1,8 @@
 #!/usr/bin/env escript
 
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2020 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -353,6 +352,8 @@ replace({Kind,Line,Args}, Alias, Value) when Kind =:= ann_type
     NewArgs = [replace(Arg,Alias,Value) || Arg <- Args],
     {Kind, Line, NewArgs};
 replace(Type = {type,_Line,tuple,any}, _Alias, _Value) ->
+    Type;
+replace(Type = {type,_Line,map,any}, _Alias, _Value) ->
     Type;
 replace({type,_Line,SameName,Args}, Alias = {type,SameName,Arity},
 	Value = {TypeForm,VarForms}) when length(Args) =:= Arity ->
