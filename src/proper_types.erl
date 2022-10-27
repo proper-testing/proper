@@ -1113,11 +1113,6 @@ function_is_instance(Type, X) ->
     %% TODO: what if it's not a function we produced?
     andalso equal_types(RetType, proper_gen:get_ret_type(X)).
 
-%% @doc A map associating keys and values of unspecified types (of any term()).
--spec map() -> proper_types:type().
-map() ->
-    ?LAZY(map(any(), any())).
-
 %% @doc A map whose keys are defined by the generator `K' and values
 %% by the generator `V'.
 -spec map(K::raw_type(), V::raw_type()) -> proper_types:type().
@@ -1178,6 +1173,10 @@ number() -> union([integer(), float()]).
 boolean() -> union(['false', 'true']).
 
 %% @equiv integer(0, 255)
+-spec arity() -> proper_types:type().
+arity() -> integer(0, 255).
+
+%% @equiv integer(0, 255)
 -spec byte() -> proper_types:type().
 byte() -> integer(0, 255).
 
@@ -1197,13 +1196,13 @@ list() -> list(any()).
 -spec tuple() -> proper_types:type().
 tuple() -> loose_tuple(any()).
 
+%% @equiv map(any(), any())
+-spec map() -> proper_types:type().
+map() -> map(any(), any()).
+
 %% @equiv list(char())
 -spec string() -> proper_types:type().
 string() -> list(char()).
-
-%% @equiv weighted_union(FreqChoices)
--spec wunion([{frequency(),raw_type()},...]) -> proper_types:type().
-wunion(FreqChoices) -> weighted_union(FreqChoices).
 
 %% @equiv any()
 -spec term() -> proper_types:type().
@@ -1213,9 +1212,9 @@ term() -> any().
 -spec timeout() -> proper_types:type().
 timeout() -> union([non_neg_integer(), 'infinity']).
 
-%% @equiv integer(0, 255)
--spec arity() -> proper_types:type().
-arity() -> integer(0, 255).
+%% @equiv weighted_union(FreqChoices)
+-spec wunion([{frequency(),raw_type()},...]) -> proper_types:type().
+wunion(FreqChoices) -> weighted_union(FreqChoices).
 
 
 %%------------------------------------------------------------------------------

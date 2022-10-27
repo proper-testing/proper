@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2021 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2021 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
+%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc User header file: This file should be included in each file containing
@@ -58,8 +58,8 @@
 
 -import(proper_types, [integer/0, non_neg_integer/0, pos_integer/0,
 		       neg_integer/0, range/2, float/0, non_neg_float/0,
-		       number/0, boolean/0, byte/0, char/0, list/0, tuple/0,
-		       string/0, wunion/1, term/0, timeout/0, arity/0]).
+		       number/0, boolean/0, arity/0, byte/0, char/0, list/0,
+		       tuple/0, map/0, string/0, term/0, timeout/0, wunion/1]).
 -import(proper_types, [int/0, nat/0, largeint/0, real/0, bool/0, choose/2,
 		       elements/1, oneof/1, frequency/1, return/1, default/2,
 		       orderedlist/1, function0/1, function1/1, function2/1,
