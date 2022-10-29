@@ -1803,13 +1803,28 @@ convert_map(Mod, Fields, State1, Stack, VarDict) ->
 		end,
 		Fields
 	),
-	case process_map_fields(Mod, AbstractRequiredFields, State1, Stack, VarDict) of
-		{ok, RequiredFields, State2} ->
-			case process_map_fields(Mod, AbstractOptionalFields, State2, Stack, VarDict) of
-				{ok, OptionalFields, State3} ->
-					Required = proper_types:fixed_map(maps:from_list(RequiredFields)),
-					Optional = proper_types:map(maps:from_list(OptionalFields)),
-					{ok, {simple, proper_types:merge_maps([Required, Optional])}, State3};
+	case process_map_fields(required, Mod, AbstractRequiredFields, State1, Stack, VarDict) of
+		{ok, RawRequired, State2} ->
+			case process_map_fields(optional, Mod, AbstractOptionalFields, State2, Stack, VarDict) of
+				{ok, RawOptional, State3} ->
+					% {ok, {rec, fun map_rec_fun/2, [
+					% 	{false, {maps, type, from_list, [RequiredFields]}},
+					% 	{false, {maps, type, from_list, [OptionalFields]}}
+					% ]}, State3};
+					% ?var(Stack),
+					% io:format("Required ~P \n", [RequiredFields, 10]),
+					% io:format("Optional ~P \n", [OptionalFields, 10]),
+					% ?var(proper_gen:safe_generate(Required)),
+					% ?var(proper_gen:safe_generate(Optional)),
+					% Required = proper_types:fixed_map(maps:from_list(RequiredFields)),
+					% Optional = proper_types:map(maps:from_list(OptionalFields)),
+					% {ok, {simple, proper_types:merge_maps([Required, Optional])}, State3};
+					MapType = ?LET(
+						{Required, Optional},
+						{RawRequired, RawOptional},
+						maps:merge(Required, Optional)
+					),
+					{ok, {simple, MapType}, State3};
 				{error, Reason} ->
 					{error, Reason}
 			end;
@@ -1817,7 +1832,7 @@ convert_map(Mod, Fields, State1, Stack, VarDict) ->
 			{error, Reason}
 	end.
 
-process_map_fields(Mod, AbstractFields, State, Stack, VarDict) ->
+process_map_fields(MapKind, Mod, AbstractFields, State, Stack, VarDict) ->
 	Process =
 		fun ({type, _, _, RawFieldTypes}, {ok, Fields, State1}) when
 				length(RawFieldTypes) =:= 2
@@ -1826,7 +1841,17 @@ process_map_fields(Mod, AbstractFields, State, Stack, VarDict) ->
 					Mod, RawFieldTypes, State1, [map | Stack], VarDict
 				) of
 					{ok, FieldTypes, State2} ->
-						{ok, [list_to_tuple(FieldTypes) | Fields], State2};
+						case combine_ret_types(FieldTypes, {map, MapKind}) of
+							{simple, FinType} ->
+								{ok, [{simple, FinType} | Fields], State2};
+							{rec, _RecFun, RecArgs} = Type ->
+								case at_toplevel(RecArgs, Stack) of
+									true ->
+										base_case_error(Stack);
+									false ->
+										{ok, [Type | Fields], State2}
+								end
+						end;
 					{error, Reason} ->
 						{error, Reason}
 				end;
@@ -2269,8 +2294,8 @@ partition_rec_args(FullTypeRef, RecArgs, OnlyInstanceAccepting) ->
     proper_arith:partition(SameType, RecArgs).
 
 %% Tuples can be of 0 arity, unions of 1 and wunions at least of 2.
--spec combine_ret_types([ret_type()], {'tuple',boolean()} | 'union'
-				      | 'wunion') -> ret_type().
+-spec combine_ret_types([ret_type()], {'tuple', boolean()} |
+	{'map', 'required' | 'optional'} | 'union' | 'wunion') -> ret_type().
 combine_ret_types(RetTypes, EnclosingType) ->
     case lists:all(fun is_simple_ret_type/1, RetTypes) of
 	true ->
@@ -2278,6 +2303,7 @@ combine_ret_types(RetTypes, EnclosingType) ->
 	    Combine = case EnclosingType of
 			  {tuple,false} -> fun proper_types:tuple/1;
 			  {tuple,true}  -> fun proper_types:fixed_list/1;
+			  {map, _}      -> combine_simple_map_fun(EnclosingType);
 			  union         -> fun proper_types:union/1
 		      end,
 	    FinTypes = [T || {simple,T} <- RetTypes],
@@ -2300,7 +2326,9 @@ combine_ret_types(RetTypes, EnclosingType) ->
 			{union_rec_fun(RecFunInfo),clean_rec_args(FlatRecArgs)};
 		    wunion ->
 			{wunion_rec_fun(RecFunInfo),
-			 clean_rec_args(FlatRecArgs)}
+			 clean_rec_args(FlatRecArgs)};
+			{map, MapKind} ->
+				{map_rec_fun(RecFunInfo, MapKind), clean_rec_args(FlatRecArgs)}
 		end,
 	    {rec, NewRecFun, NewRecArgs}
     end.
@@ -2339,6 +2367,37 @@ wunion_rec_fun({NumTypes,_NumRecs,RecArgLens,RecFuns}) ->
 	WeightedChoices = lists:zipwith3(ZipFun, Weights, RecFuns, ArgsList),
 	proper_types:wunion(WeightedChoices)
     end.
+
+map_rec_fun({_NumTypes, _NumRecs, RecArgLens, RecFuns}, required) ->
+	fun(AllGFs, Size) ->
+		GFsList = proper_arith:unflatten(AllGFs, RecArgLens),
+		ArgsList = [[GenFuns, Size] || GenFuns <- GFsList],
+		ZipFun = fun erlang:apply/2,
+		RawFields = lists:zipwith(ZipFun, RecFuns, ArgsList),
+		?LET(Fields, RawFields, proper_type:fixed_map(maps:from_list(Fields)))
+	end;
+map_rec_fun({_NumTypes, NumRecs, RecArgLens, RecFuns}, optional) ->
+	fun(AllGFs, TopSize) ->
+		Size = TopSize div NumRecs,
+		GFsList = proper_arith:unflatten(AllGFs, RecArgLens),
+		ArgsList = [[GenFuns, Size] || GenFuns <- GFsList],
+		ZipFun = fun erlang:apply/2,
+		RawFields = lists:zipwith(ZipFun, RecFuns, ArgsList),
+		?LET(Fields, RawFields, proper_type:map(maps:from_list(Fields)))
+	end.
+
+combine_simple_map_fun({map, MapKind}) ->
+	GenFun = case MapKind of
+		required -> fun proper_types:fixed_map/1;
+		optional -> fun proper_types:map/1
+	end,
+	fun(FieldTypes) ->
+		?LET(
+			Fields,
+			FieldTypes,
+			GenFun(maps:from_list(lists:map(fun list_to_tuple/1, Fields)))
+		)
+	end.
 
 -spec add_ret_type(ret_type(), {[rec_fun()],[rec_args()],non_neg_integer()}) ->
 	  {[rec_fun()],[rec_args()],non_neg_integer()}.
