@@ -494,13 +494,8 @@ map_key_shrinker(
 
 get_map_field_candidates(Key, Value, TypeMap) ->
 	Candidates = maps:filter(fun(KeyType, ValueType) ->
-		(Key =:= KeyType orelse
-			proper_types:is_type(Key) andalso
-			proper_types:is_instance(Key, KeyType))
-		andalso
-		(Key =:= KeyType orelse
-			proper_types:is_type(Value) andalso
-			proper_types:is_instance(Value, ValueType))
+		proper_types:is_instance(Key, KeyType) andalso
+		proper_types:is_instance(Value, ValueType)
 	end, TypeMap),
 	{KeyType, ValueType, _} = maps:next(maps:iterator(Candidates)),
 	{KeyType, ValueType}.

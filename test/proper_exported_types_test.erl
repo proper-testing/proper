@@ -27,6 +27,8 @@
 -module(proper_exported_types_test).
 -export([not_handled/0]).
 
+-include("proper_internal.hrl").
+
 %%
 %% Checks that the automatic translation of types to generators can handle all
 %% types (structured + opaque) which are exported by some module of PropEr.
@@ -60,8 +62,11 @@ pick_instance({M,T,A,{ok,Gen}}) ->
       %% catch _ -> io:format("~p~n", [{M,T,A}]), Inst end;
     _ ->
       case proper_typeserver:demo_is_instance(Inst, M, stringify(T, A)) of
-	true  -> ok;
-        false -> {M,T,A,Inst,Gen}
+        true  -> ok;
+        false -> {M,T,A,Inst,Gen};
+        {error, Reason} ->
+          ?var(Inst),
+          error(Reason, [{M,T,A,{ok,Gen}}])
       end
   end.
 

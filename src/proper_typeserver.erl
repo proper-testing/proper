@@ -1809,7 +1809,7 @@ convert_map(Mod, Fields, State1, Stack, VarDict) ->
 				{ok, OptionalFields, State3} ->
 					Required = proper_types:fixed_map(maps:from_list(RequiredFields)),
 					Optional = proper_types:map(maps:from_list(OptionalFields)),
-					{ok, {simple, proper_types:map_union([Required, Optional])}, State3};
+					{ok, {simple, proper_types:merge_maps([Required, Optional])}, State3};
 				{error, Reason} ->
 					{error, Reason}
 			end;

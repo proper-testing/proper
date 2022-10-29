@@ -345,11 +345,8 @@ clean_instance({'$to_part',ImmInstance}) ->
 clean_instance(ImmInstance) when is_list(ImmInstance) ->
     clean_instance_list(ImmInstance);
 clean_instance(ImmInstance) when is_map(ImmInstance) ->
-	%% maps:map only changes the values, this handles both values and keys
-	maps:from_list([
-		{clean_instance(Key), clean_instance(Value)}
-		|| {Key, Value} <- maps:to_list(ImmInstance)
-	]);
+	%% maps:map only changes the values, this handles both keys and values
+	maps:from_list(clean_instance_list(maps:to_list(ImmInstance)));
 clean_instance(ImmInstance) when is_tuple(ImmInstance) ->
     list_to_tuple(clean_instance_list(tuple_to_list(ImmInstance)));
 clean_instance(ImmInstance) -> ImmInstance.

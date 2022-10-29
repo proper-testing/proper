@@ -148,7 +148,7 @@
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
-	 function1/1, function2/1, function3/1, function4/1, map_union/1,
+	 function1/1, function2/1, function3/1, function4/1, merge_maps/1,
 	 weighted_default/2]).
 -export([resize/2, non_empty/1, noshrink/1]).
 
@@ -1144,21 +1144,23 @@ map(K, V) ->
     ?LET(L, list({K, V}), maps:from_list(L)).
 
 %% @doc A map merged from the given map generators.
--spec map_union([Map::raw_type()]) -> proper_types:type().
-map_union(RawMaps) when is_list(RawMaps) ->
+-spec merge_maps([Map::raw_type()]) -> proper_types:type().
+merge_maps(RawMaps) when is_list(RawMaps) ->
     ?LET(Maps, RawMaps, lists:foldl(fun maps:merge/2, #{}, Maps)).
 
 %% @doc A map whose keys and values are defined by the given `Map'.
 %% Also written simply as a {@link maps. map}.
 -spec fixed_map(#{Key::raw_type() => Value::raw_type()}) -> proper_types:type().
 fixed_map(Map) when is_map(Map) ->
-    WithValueTypes = maps:map(fun(_Key, Value) -> cook_outer(Value) end, Map),
+	%% maps:map only changes the values, this handles both keys and values
+    WithValueTypes = maps:from_list([
+        {cook_outer(Key), cook_outer(Value)}
+        || {Key, Value} <- maps:to_list(Map)
+    ]),
     ?CONTAINER([
         {generator, {typed, fun map_gen/1}},
         {is_instance, {typed, fun map_is_instance/2}},
-        {shrinkers, [
-            fun proper_shrink:map_value_shrinker/3
-        ]},
+        {shrinkers, [fun proper_shrink:map_value_shrinker/3]},
         {internal_types, WithValueTypes},
         {get_length, fun maps:size/1},
         {join, fun maps:merge/2},
