@@ -75,6 +75,6 @@ jobs:
         env:
           COVER: true
       - name: Ping codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
-          file: "_build/test/covertool/proper.covertool.xml"
+          files: "_build/test/covertool/proper.covertool.xml"
