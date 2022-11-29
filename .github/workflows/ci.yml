@@ -32,9 +32,9 @@ jobs:
           - "21.0"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Cache .plt directory
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .plt
           key: ${{ runner.os }}-otp-${{ matrix.otp }}
@@ -47,7 +47,7 @@ jobs:
     container: erlang:25.1.1
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Test examples
         run: make test-examples
 
@@ -57,7 +57,7 @@ jobs:
     container: erlang:25.1.1
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Test examples in parallel
         run: make test-parallel
 
@@ -67,7 +67,7 @@ jobs:
     container: erlang:25.1.1
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Measure coverage
