@@ -89,7 +89,7 @@ Quickstart guide
     base:
 
     ```shell
-    git clone git://github.com/proper-testing/proper.git
+    git clone https://github.com/proper-testing/proper.git
     ```
 *   Compile PropEr: Simply run `make` if you just want to build PropEr.
     If you want to do some changes to PropEr or submit some pull request you
