@@ -18,7 +18,7 @@ base since 2012.
 
 You can reach PropEr's developers in the following ways:
 
-*   on the web: at [the project's home page](http://proper-testing.github.io)
+*   on the web: at [the project's home page](https://proper-testing.github.io)
     or [the project's github page](https://github.com/proper-testing/proper)
 *   by email: take the tool's name (all lowercase), add a @ followed by
     softlab dot ntua dot gr
@@ -89,7 +89,7 @@ Quickstart guide
     base:
 
     ```shell
-    git clone git://github.com/proper-testing/proper.git
+    git clone git@github.com:proper-testing/proper.git
     ```
 *   Compile PropEr: Simply run `make` if you just want to build PropEr.
     If you want to do some changes to PropEr or submit some pull request you
@@ -195,7 +195,7 @@ incompatibilities between the two tools by now.
 <!-- Badges (alphabetically) -->
 [codecov badge]: https://codecov.io/gh/proper-testing/proper/branch/master/graph/badge.svg
 [commit badge]: https://img.shields.io/github/last-commit/proper-testing/proper.svg?style=flat-square
-[erlang versions badge]: https://img.shields.io/badge/erlang-21.0%20to%2025.1-blue.svg?style=flat-square
+[erlang versions badge]: https://img.shields.io/badge/erlang-21.0%20to%2025.2-blue.svg?style=flat-square
 [hex pm badge]: https://img.shields.io/hexpm/v/proper.svg?style=flat
 [license badge]: https://img.shields.io/github/license/proper-testing/proper.svg?style=flat-square
 [release badge]: https://img.shields.io/github/release/proper-testing/proper.svg?style=flat-square
