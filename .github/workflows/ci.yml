@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         otp:
-          - "25.1.1"
+          - "25.2"
           - "25.0"
           - "24.3"
           - "24.0"
@@ -44,7 +44,7 @@ jobs:
   examples:
     name: Test examples
     runs-on: ubuntu-latest
-    container: erlang:25.1.1
+    container: erlang:25.2
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -54,7 +54,7 @@ jobs:
   parallel-examples:
     name: Test examples in parallel
     runs-on: ubuntu-latest
-    container: erlang:25.1.1
+    container: erlang:25.2
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -64,7 +64,7 @@ jobs:
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
-    container: erlang:25.1.1
+    container: erlang:25.2
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -74,7 +74,7 @@ jobs:
         run: make test
         env:
           COVER: true
-      - name: Ping codecov
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           files: "_build/test/covertool/proper.covertool.xml"
