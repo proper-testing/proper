@@ -97,7 +97,7 @@
         {'variables', [atom()]} |
         {'weight', {Key :: atom(), Weight :: weight()}} |
         {'function', [{FunctionName :: atom(), Arity :: arity()}]} |
-        {'types', [{TypeName :: atom(), NumOfParms :: arity()}]} |
+        {'types', [{TypeName :: atom(), NumOfParams :: arity()}]} |
         {'records', [{RecordName:: atom(), [FieldName :: atom()]}]} |
         {'limit', [{Name :: atom(), Limit :: limit()}]} |
         {'char', char_fun()} |
@@ -628,10 +628,10 @@ type_decl(S0, {TypeName, N}) ->
     ?SIZED(Size,
            begin
                S = S0#gen_state{size = Size},
-               Parms = list_of_gen2(N, type_parameter()),
+               Params = list_of_gen2(N, type_parameter()),
                {'attribute', anno(), type_attr(),
                 %% Not affected by weight of 'variable'.
-                {TypeName, abstract_type(S), Parms}}
+                {TypeName, abstract_type(S), Params}}
            end).
 
 type_parameter() ->
@@ -890,10 +890,10 @@ stacktrace_variable(S) ->
 
 'receive'(S) ->
     Ws = sum_weights([lit_timeout, inf_timeout, var_timeout], S),
-    AfterW = min(Ws, 1),
+    AfterWs = min(Ws, 1),
     proper_types:weighted_union(
       [{1, ?LAZY(receive_no_after(S))},
-       {AfterW, ?LAZY(receive_yes_after(S))}
+       {AfterWs, ?LAZY(receive_yes_after(S))}
       ]).
 
 receive_no_after(S) ->
@@ -2642,8 +2642,8 @@ post({record, A, E, RecName, Fields}, S) ->
 post({record, A, RecName, Fields}, S) ->
     {Fields1, S1} = post_expr_list(Fields, S),
     {{record, A, RecName, Fields1}, S1};
-post({type, A, binary, [_B, _U]=BU}, S) ->
-    {[B1, U1], S1} = post_expr_list(BU, S),
+post({type, A, binary, [_B, _U]=BaseUnit}, S) ->
+    {[B1, U1], S1} = post_expr_list(BaseUnit, S),
     Check = fun(E) ->
                     case erl_eval:partial_eval(E) of
                         {integer, _, V} when V >= 0 ->
@@ -2669,14 +2669,14 @@ post({type, A, range, [_L, _H]=LH}, S) ->
         _ -> % cannot happen
             {{type, A, range, LH1}, S1}
     end;
-post({attribute, A, Type, {TypeName, AbstrType, Parms}}, S)
+post({attribute, A, Type, {TypeName, AbstrType, Params}}, S)
                   when Type =:= 'opaque'; Type =:= 'type' ->
     in_context
       (type, S,
        fun(State) ->
-               {Parms1, S1} = post_list(Parms, State),
+               {Params1, S1} = post_list(Params, State),
                {AbstrType1, S2} = post(AbstrType, S1),
-               {{attribute, A, Type, {TypeName, AbstrType1, Parms1}}, S2}
+               {{attribute, A, Type, {TypeName, AbstrType1, Params1}}, S2}
        end);
 post({function, A, F, N, ClauseSeq}, S) ->
     in_context
