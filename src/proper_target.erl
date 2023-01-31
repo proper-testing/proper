@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright (c) 2017-2022 Andreas Löscher <andreas@loscher.net>
+%%% Copyright (c) 2017-2023 Andreas Löscher <andreas@loscher.net>
 %%%                     and Kostis Sagonas <kostis@it.uu.se>
 %%%
 %%% This file is part of PropEr.
@@ -18,7 +18,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2017-2022 Andreas Löscher and Kostis Sagonas
+%%% @copyright 2017-2023 Andreas Löscher and Kostis Sagonas
 %%% @version {@version}
 %%% @author Andreas Löscher
 
@@ -120,7 +120,7 @@
 %% update the strategy with the fitness
 -callback update_fitness(fitness(), target_state(), strategy_data()) ->
   {target_state(), strategy_data()}.
-%% reset strat
+%% reset strategy
 -callback reset(target_state(), strategy_data()) ->
   {target_state(), strategy_data()}.
 
@@ -132,8 +132,8 @@
 %% @doc Initializes targeted gen server based on a search strategy.
 
 -spec init_strategy(opts()) -> ok.
-init_strategy(#{search_steps := Steps, search_strategy := Strat}) ->
-  Strategy = strategy(Strat),
+init_strategy(#{search_steps := Steps, search_strategy := SearchStrategy}) ->
+  Strategy = strategy(SearchStrategy),
   proper_gen_next:init(),
   Data = Strategy:init_strategy(Steps),
   Args = [{Strategy, Data}],
@@ -235,9 +235,9 @@ reset() ->
   TargetserverPid = get('$targetserver_pid'),
   safe_call(TargetserverPid, reset).
 
-%% Create a safe call to a gen_server in case it
-%% raises noproc. Τhis should only be used for
-%% calls that do not return significant values.
+%% Create a safe call to a gen_server in case it raises noproc.
+%% This should only be used for calls that do not return significant
+%% values.
 
 %% @private
 -spec safe_call(pid(), term()) -> term().
@@ -257,15 +257,15 @@ check_threshold(Threshold, Fitness) ->
   end.
 
 %% @private
-strategy(Strat) ->
-  case Strat of
+strategy(Strategy) ->
+  case Strategy of
     simulated_annealing ->
       proper_sa;
     hill_climbing ->
       put(target_sa_acceptfunc, hillclimbing),
       proper_sa;
     _ ->
-      Strat
+      Strategy
   end.
 
 %% -----------------------------------------------------------------------------
@@ -282,19 +282,19 @@ init([{Strategy, Data}]) ->
                   State :: state()) ->
         {reply, Reply :: term(), NewState :: state()}.
 handle_call(gen, _From, State) ->
-  #state{strategy = Strat, target = Target, data = Data} = State,
-  {NextValue, NewTarget, NewData} = Strat:next(Target, Data),
+  #state{strategy = Strategy, target = Target, data = Data} = State,
+  {NextValue, NewTarget, NewData} = Strategy:next(Target, Data),
   {reply, NextValue, State#state{target = NewTarget, data = NewData}};
 
 handle_call(shrinker, _From, State) ->
-  #state{strategy = Strat, target = Target, data = Data} = State,
-  Shrinker = Strat:get_shrinker(Target, Data),
+  #state{strategy = Strategy, target = Target, data = Data} = State,
+  Shrinker = Strategy:get_shrinker(Target, Data),
   {reply, Shrinker, State};
 
 handle_call({init_target, Type}, _From, State) ->
-  #state{strategy = Strat} = State,
+  #state{strategy = Strategy} = State,
   NextFun = proper_gen_next:from_proper_generator(Type),
-  NewTarget = Strat:init_target(Type, NextFun),
+  NewTarget = Strategy:init_target(Type, NextFun),
   {reply, ok, State#state{target = NewTarget}};
 
 handle_call({update_pdict, KVs}, _From, State) ->
@@ -302,13 +302,13 @@ handle_call({update_pdict, KVs}, _From, State) ->
   {reply, ok, State};
 
 handle_call({update_fitness, Fitness}, _From, State) ->
-  #state{strategy = Strat, target = Target, data = Data} = State,
-  {NewTarget, NewData} = Strat:update_fitness(Fitness, Target, Data),
+  #state{strategy = Strategy, target = Target, data = Data} = State,
+  {NewTarget, NewData} = Strategy:update_fitness(Fitness, Target, Data),
   {reply, ok, State#state{target = NewTarget, data = NewData}};
 
 handle_call(reset, _From, State) ->
-  #state{strategy = Strat, target = Target, data = Data} = State,
-  {NewTarget, NewData} = Strat:reset(Target, Data),
+  #state{strategy = Strategy, target = Target, data = Data} = State,
+  {NewTarget, NewData} = Strategy:reset(Target, Data),
   {reply, ok, State#state{target = NewTarget, data = NewData}}.
 
 %% @private

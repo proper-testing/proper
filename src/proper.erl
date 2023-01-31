@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2023 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                     Kostis Sagonas <kostis@cs.ntua.gr>,
 %%%                 and Andreas Löscher <andreas@loscher.net>
@@ -20,7 +20,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas and Andreas Löscher
+%%% @copyright 2010-2023 Manolis Papadakis, Eirini Arvaniti, Kostis Sagonas, and Andreas Löscher
 %%% @version {@version}
 %%% @author Manolis Papadakis
 
@@ -1645,9 +1645,9 @@ run(Result, #ctx{mode = Mode, bound = Bound} = Ctx, _Opts) when is_boolean(Resul
 	    {error, too_many_instances}
     end;
 run({exists, RawType, Prop, Not}, #ctx{mode = new} = Ctx,
-    #opts{search_strategy = Strat, search_steps = Steps,
+    #opts{search_strategy = Strategy, search_steps = Steps,
           output_fun = Print, start_size = StartSize} = Opts) ->
-    InitOpts = #{search_steps => Steps, search_strategy => Strat},
+    InitOpts = #{search_steps => Steps, search_strategy => Strategy},
     proper_target:init_strategy(InitOpts),
     proper_target:init_target(RawType),
     Target = proper_target:targeted(RawType),
