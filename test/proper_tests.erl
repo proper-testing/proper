@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2023 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti and Kostis Sagonas
+%%% @copyright 2010-2023 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains PropEr's Unit tests. You need the EUnit
@@ -243,14 +243,14 @@ setup_run_commands(Module, Cmds, Env) ->
 %% Helper functions
 %%------------------------------------------------------------------------------
 
-assert_type_works({Type,Are,_Target,Arent,TypeStr}, IsSimple) ->
+assert_type_works({Type,Are,_Target,AreNot,TypeStr}, IsSimple) ->
     case Type of
 	none ->
 	    ok;
 	_ ->
 	    lists:foreach(fun(X) -> assert_is_instance(X,Type) end, Are),
 	    assert_can_generate(Type, IsSimple),
-	    lists:foreach(fun(X) -> assert_not_is_instance(X,Type) end, Arent)
+	    lists:foreach(fun(X) -> assert_not_is_instance(X,Type) end, AreNot)
     end,
     case TypeStr of
 	none ->
@@ -260,7 +260,7 @@ assert_type_works({Type,Are,_Target,Arent,TypeStr}, IsSimple) ->
 	    lists:foreach(fun(X) -> assert_is_instance(X,TransType) end, Are),
 	    assert_can_generate(TransType, IsSimple),
 	    lists:foreach(fun(X) -> assert_not_is_instance(X,TransType) end,
-			  Arent)
+			  AreNot)
     end.
 
 assert_can_translate(Mod, TypeStr) ->
