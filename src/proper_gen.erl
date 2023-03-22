@@ -406,6 +406,40 @@ float_gen(_Size, Low, High) ->
 %% We make sure we never clash with internal atoms by checking that the first
 %% character is not '$'.
 atom_gen(Size) ->
+    atom_gen(get('$atom_limit'), Size).
+
+atom_gen(infinity, Size) ->
+    atom_gen1(Size);
+atom_gen(Limit, Size) ->
+    ?LAZY(
+	?LET(Atom,
+	     try persistent_term:get({'$proper', ?MODULE, ?FUNCTION_NAME, Size}) of
+		 {N, Atoms} when N =< Limit ->
+		     proper_types:oneof(Atoms);
+		 {N, CurAtoms} ->
+		     ?LET(MoreAtoms,
+			  proper_types:vector(Limit-N, atom_gen1(Size)),
+			  begin
+			      Atoms = CurAtoms ++ MoreAtoms,
+			      persistent_term:put({'$proper', ?MODULE, ?FUNCTION_NAME, Size},
+						  {Limit, Atoms}),
+			      proper_types:oneof(Atoms)
+			  end
+		     )
+	     catch
+		 error:badarg ->
+		     ?LET(Atoms,
+			  proper_types:vector(Limit, atom_gen1(Size)),
+			  begin
+			      persistent_term:put({'$proper', ?MODULE, ?FUNCTION_NAME, Size},
+						  {Limit, Atoms}),
+			      proper_types:oneof(Atoms)
+			  end
+		     )
+	     end,
+	Atom)).
+
+atom_gen1(Size) ->
     ?LET(Str,
 	 ?SUCHTHAT(X,
 		   proper_types:resize(Size,
