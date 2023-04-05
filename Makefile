@@ -1,4 +1,4 @@
-# Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
+# Copyright 2010-2023 Manolis Papadakis <manopapad@gmail.com>,
 #                     Eirini Arvaniti <eirinibob@gmail.com>,
 #                 and Kostis Sagonas <kostis@cs.ntua.gr>
 #
@@ -72,11 +72,13 @@ doc: compile
 
 clean:
 	./scripts/clean_temp.sh
+	./scripts/clean_doc.sh
+	$(REBAR3) clean
 
 distclean: clean
-	$(REBAR3) clean
-	$(RM) .plt/proper_plt
-	$(RM) -r _build ebin rebar3 rebar.lock
+	$(RM) ebin .plt/proper_plt
+	$(RM) rebar3 rebar.lock
+	$(RM) -r _build
 
 rebuild: distclean compile
 
