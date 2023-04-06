@@ -139,7 +139,7 @@
 -module(proper_types).
 -export([is_inst/2, is_inst/3]).
 
--export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
+-export([integer/2, float/2, atom/0, existing_atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
 	 loose_tuple/1, exactly/1, fixed_list/1, function/2, map/0, map/2,
 	 any/0, shrink_list/1, safe_union/1, safe_weighted_union/1]).
@@ -160,6 +160,7 @@
 	 native_type/2, distlist/3, with_parameter/3, with_parameters/2,
 	 parameter/1, parameter/2]).
 -export([le/2]).
+-export([default_atom/0]).
 
 %% Public API types
 -export_type([type/0, raw_type/0]).
@@ -674,6 +675,28 @@ atom() ->
 	{is_instance, fun atom_is_instance/1}
     ]).
 
+%% @doc All existing atoms. All atoms used internally by PropEr start with a
+%% '`$'', so such atoms will never be produced as instances of this type. You
+%% should also refrain from using such atoms in your code, to avoid a potential
+%% clash.
+%% Instances do not shrink.
+-spec existing_atom() -> proper_types:type().
+existing_atom() ->
+    ?BASIC([
+        {generator, fun proper_gen:existing_atom_gen/1},
+	{reverse_gen, fun proper_gen:atom_rev/1},
+	{is_instance, fun atom_is_instance/1},
+	{noshrink, true}
+    ]).
+
+%% @private
+-spec default_atom() -> proper_types:type().
+default_atom() ->
+    case get('$default_atom_generator') of
+	existing_atom -> existing_atom();
+	_ -> atom()
+    end.
+
 atom_is_instance(X) ->
     is_atom(X)
     %% We return false for atoms starting with '$', since these are
@@ -1127,7 +1150,7 @@ map(K, V) ->
 %% type if you are certain that you need it.
 -spec any() -> proper_types:type().
 any() ->
-    AllTypes = [integer(),float(),atom(),bitstring(),?LAZY(loose_tuple(any())),
+    AllTypes = [integer(),float(),default_atom(),bitstring(),?LAZY(loose_tuple(any())),
 		?LAZY(list(any())), ?LAZY(map(any(), any()))],
     subtype([{generator, fun proper_gen:any_gen/1}], union(AllTypes)).
 

@@ -46,6 +46,8 @@
 	 any_gen/1, native_type_gen/2, safe_weighted_union_gen/1,
 	 safe_union_gen/1]).
 
+-export([existing_atom_gen/1]).
+
 %% Public API types
 -export_type([instance/0, seed/0, size/0]).
 %% Internal types
@@ -419,6 +421,53 @@ atom_rev(Atom) ->
     {'$used', atom_to_list(Atom), Atom}.
 
 %% @private
+-spec existing_atom_gen(size()) -> atom().
+%% We make sure we never clash with internal atoms by ignoring atoms starting with
+%% the character '$'.
+existing_atom_gen(_Size) ->
+    case get('$existing_atoms') of
+        undefined ->
+            {NextIndex, Atoms} = get_existing_atoms(0, #{}),
+            Range = maps:size(Atoms),
+	    put('$existing_atoms', {NextIndex, Range, Atoms}),
+	    X = proper_arith:rand_int(1, Range),
+	    maps:get(X, Atoms);
+        {NextIndex, Range, Atoms} ->
+            case get_existing_atoms(NextIndex, Atoms) of
+                {NextIndex, _} ->
+		    X = proper_arith:rand_int(1, Range),
+		    maps:get(X, Atoms);
+                {NextIndex1, Atoms1} ->
+		    Range1 = maps:size(Atoms1),
+		    put('$existing_atoms', {NextIndex1, Range1, Atoms1}),
+		    X = proper_arith:rand_int(1, Range1),
+		    maps:get(X, Atoms1)
+            end
+    end.
+
+-spec get_existing_atoms(non_neg_integer(), #{pos_integer() => atom()}) -> {non_neg_integer(), #{pos_integer() => atom()}}.
+get_existing_atoms(StartIndex, AtomMap) ->
+    get_existing_atoms(StartIndex, maps:size(AtomMap) + 1, AtomMap).
+
+get_existing_atoms(Index, Key, AtomMap) ->
+    try
+        binary_to_term(<<131, 75, Index:24>>)
+    of
+        '' ->
+            get_existing_atoms(Index + 1, Key + 1, AtomMap#{Key => ''});
+        Atom ->
+            case hd(atom_to_list(Atom)) of
+                $$ ->
+                    get_existing_atoms(Index + 1, Key, AtomMap);
+                _ ->
+                    get_existing_atoms(Index + 1, Key + 1, AtomMap#{Key => Atom})
+            end
+    catch
+        error:badarg ->
+            {Index, AtomMap}
+    end.
+
+%% @private
 -spec binary_gen(size()) -> proper_types:type().
 binary_gen(Size) ->
     ?LET(Bytes,
@@ -594,7 +643,7 @@ any_gen(Size) ->
 -spec real_any_gen(size()) -> imm_instance().
 real_any_gen(0) ->
     SimpleTypes = [proper_types:integer(), proper_types:float(),
-		   proper_types:atom()],
+		   proper_types:default_atom()],
     union_gen(SimpleTypes);
 real_any_gen(Size) ->
     FreqChoices = [{?ANY_SIMPLE_PROB,simple}, {?ANY_BINARY_PROB,binary},

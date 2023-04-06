@@ -297,6 +297,10 @@
 %%% <dt>`{stop_nodes, boolean()}'</dt>
 %%% <dd> Specifies whether parallel PropEr should stop the nodes after running a property
 %%% or not. Defaults to true.</dd>
+%%% <dt>`{default_atom_generator, atom | existing_atom}'</dt>
+%%% <dd> Declares the type of atom generator to use in the {@link proper_types:any/0. `any()'}
+%%% to be either {@link proper_types:atom/0. `atom()'} or
+%%% {@link proper_types:existing_atom/0. `existing_atom()'}.</dd>
 %%% </dl>
 %%%
 %%% == Spec testing ==
@@ -539,6 +543,7 @@
 		  | 'quiet'
 		  | 'verbose'
 		  | pos_integer()
+		  | {'default_atom_generator', 'atom' | 'existing_atom'}
 		  | {'constraint_tries',pos_integer()}
 		  | {'false_positive_mfas',false_positive_mfas()}
 		  | {'max_shrinks',non_neg_integer()}
@@ -556,29 +561,30 @@
 		  | {'to_file',io:device()}.
 
 -type user_opts() :: [user_opt()] | user_opt().
--record(opts, {output_fun       = fun io:format/2 :: output_fun(),
-	       long_result      = false           :: boolean(),
-	       numtests         = 100             :: pos_integer(),
-	       search_steps     = 1000            :: pos_integer(),
-	       search_strategy  = proper_sa       :: proper_target:strategy(),
-	       start_size       = 1               :: proper_gen:size(),
-	       seed             = os:timestamp()  :: proper_gen:seed(),
-	       max_size         = 42              :: proper_gen:size(),
-	       max_shrinks      = 500             :: non_neg_integer(),
-	       noshrink         = false           :: boolean(),
-	       constraint_tries = 50              :: pos_integer(),
-	       expect_fail      = false           :: boolean(),
-	       any_type	        :: {'type', proper_types:type()} | 'undefined',
-	       spec_timeout     = infinity        :: timeout(),
-	       skip_mfas        = []              :: [mfa()],
-	       false_positive_mfas                :: false_positive_mfas(),
-	       setup_funs       = []              :: [setup_fun()],
-	       numworkers       = 0               :: non_neg_integer(),
-	       property_type    = pure            :: purity(),
-	       strategy_fun     = default_strategy_fun() :: strategy_fun(),
-	       stop_nodes       = true            :: boolean(),
-	       parent           = self()          :: pid(),
-	       nocolors         = false           :: boolean()}).
+-record(opts, {output_fun             = fun io:format/2        :: output_fun(),
+	       long_result            = false                  :: boolean(),
+	       numtests               = 100                    :: pos_integer(),
+	       search_steps           = 1000                   :: pos_integer(),
+	       search_strategy        = proper_sa              :: proper_target:strategy(),
+	       start_size             = 1                      :: proper_gen:size(),
+	       seed                   = os:timestamp()         :: proper_gen:seed(),
+	       max_size               = 42                     :: proper_gen:size(),
+	       max_shrinks            = 500                    :: non_neg_integer(),
+	       noshrink               = false                  :: boolean(),
+	       constraint_tries       = 50                     :: pos_integer(),
+	       expect_fail            = false                  :: boolean(),
+	       any_type                                        :: {'type', proper_types:type()} | 'undefined',
+	       default_atom_generator = atom                   :: 'atom' | 'existing_atom',
+	       spec_timeout           = infinity               :: timeout(),
+	       skip_mfas              = []                     :: [mfa()],
+	       false_positive_mfas                             :: false_positive_mfas(),
+	       setup_funs             = []                     :: [setup_fun()],
+	       numworkers             = 0                      :: non_neg_integer(),
+	       property_type          = pure                   :: purity(),
+	       strategy_fun           = default_strategy_fun() :: strategy_fun(),
+	       stop_nodes             = true                   :: boolean(),
+	       parent                 = self()                 :: pid(),
+	       nocolors               = false                  :: boolean()}).
 -type opts() :: #opts{}.
 -record(ctx, {mode     = new :: 'new' | 'try_shrunk' | 'try_cexm',
 	      bound    = []  :: imm_testcase() | counterexample(),
@@ -744,8 +750,10 @@ global_state_init_size_seed(Size, Seed) ->
 -spec global_state_init(opts()) -> 'ok'.
 global_state_init(#opts{start_size = StartSize, constraint_tries = CTries,
 			search_strategy = Strategy, search_steps = SearchSteps,
-			any_type = AnyType, seed = Seed, numworkers = NumWorkers} = Opts) ->
+			any_type = AnyType, seed = Seed, numworkers = NumWorkers,
+			default_atom_generator = DefaultAtomGen} = Opts) ->
     clean_garbage(),
+    put('$default_atom_generator', DefaultAtomGen),
     put('$size', StartSize - 1),
     put('$left', 0),
     put('$search_strategy', Strategy),
@@ -772,6 +780,8 @@ global_state_reset(#opts{start_size = StartSize} = Opts) ->
 global_state_erase() ->
     proper_typeserver:stop(),
     proper_arith:rand_stop(),
+    erase('$default_atom_generator'),
+    erase('$existing_atoms'),
     erase('$any_type'),
     erase('$constraint_tries'),
     erase('$left'),
@@ -1039,6 +1049,8 @@ parse_opt(UserOpt, Opts) ->
 	N when is_integer(N) ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{numtests = N});
 	%% tuple options, sorted on tag
+	{default_atom_generator,G} ->
+	    ?VALIDATE_OPT(G =:= atom orelse G =:= existing_atom, Opts#opts{default_atom_generator = G});
 	{constraint_tries,N} ->
 	    ?VALIDATE_OPT(?POS_INTEGER(N), Opts#opts{constraint_tries = N});
 	{false_positive_mfas,F} ->
