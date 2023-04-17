@@ -46,7 +46,7 @@
 	 any_gen/1, native_type_gen/2, safe_weighted_union_gen/1,
 	 safe_union_gen/1]).
 
--export([existing_atom_gen/1]).
+-export([existing_atom_gen/0]).
 
 %% Public API types
 -export_type([instance/0, seed/0, size/0]).
@@ -421,10 +421,10 @@ atom_rev(Atom) ->
     {'$used', atom_to_list(Atom), Atom}.
 
 %% @private
--spec existing_atom_gen(size()) -> atom().
+-spec existing_atom_gen() -> atom().
 %% We make sure we never clash with internal atoms by ignoring atoms starting with
 %% the character '$'.
-existing_atom_gen(_Size) ->
+existing_atom_gen() ->
     case get('$existing_atoms') of
         undefined ->
             {NextIndex, Atoms} = get_existing_atoms(0, #{}),

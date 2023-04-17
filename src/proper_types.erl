@@ -683,7 +683,7 @@ atom() ->
 -spec existing_atom() -> proper_types:type().
 existing_atom() ->
     ?BASIC([
-        {generator, fun proper_gen:existing_atom_gen/1},
+        {generator, fun proper_gen:existing_atom_gen/0},
 	{reverse_gen, fun proper_gen:atom_rev/1},
 	{is_instance, fun atom_is_instance/1},
 	{noshrink, true}
