@@ -299,7 +299,7 @@
 %%% or not. Defaults to true.</dd>
 %%% <dt>`{default_atom_generator, atom | existing_atom}'</dt>
 %%% <dd> Declares the type of atom generator to use in the {@link proper_types:any/0. `any()'}
-%%% to be either {@link proper_types:atom/0. `atom()'} or
+%%% generator to be either {@link proper_types:atom/0. `atom()'} or
 %%% {@link proper_types:existing_atom/0. `existing_atom()'}.</dd>
 %%% </dl>
 %%%
