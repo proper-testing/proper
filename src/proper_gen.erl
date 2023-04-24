@@ -425,47 +425,21 @@ atom_rev(Atom) ->
 %% We make sure we never clash with internal atoms by ignoring atoms starting with
 %% the character '$'.
 existing_atom_gen() ->
-    case get('$existing_atoms') of
-        undefined ->
-            {NextIndex, Atoms} = get_existing_atoms(0, #{}),
-            Range = maps:size(Atoms),
-	    put('$existing_atoms', {NextIndex, Range, Atoms}),
-	    X = proper_arith:rand_int(1, Range),
-	    maps:get(X, Atoms);
-        {NextIndex, Range, Atoms} ->
-            case get_existing_atoms(NextIndex, Atoms) of
-                {NextIndex, _} ->
-		    X = proper_arith:rand_int(1, Range),
-		    maps:get(X, Atoms);
-                {NextIndex1, Atoms1} ->
-		    Range1 = maps:size(Atoms1),
-		    put('$existing_atoms', {NextIndex1, Range1, Atoms1}),
-		    X = proper_arith:rand_int(1, Range1),
-		    maps:get(X, Atoms1)
-            end
+    existing_atom_gen(10).
+
+existing_atom_gen(0) ->
+    '';
+existing_atom_gen(N) ->
+    Index = proper_arith:rand_int(0, erlang:system_info(atom_count) - 1),
+    Atom = get_existing_atom(Index),
+    case Atom =:= '' orelse hd(atom_to_list(Atom)) =/= $$ of
+        true -> Atom;
+	false -> existing_atom_gen(N - 1)
     end.
 
--spec get_existing_atoms(non_neg_integer(), #{pos_integer() => atom()}) -> {non_neg_integer(), #{pos_integer() => atom()}}.
-get_existing_atoms(StartIndex, AtomMap) ->
-    get_existing_atoms(StartIndex, maps:size(AtomMap) + 1, AtomMap).
-
-get_existing_atoms(Index, Key, AtomMap) ->
-    try
-        binary_to_term(<<131, 75, Index:24>>)
-    of
-        '' ->
-            get_existing_atoms(Index + 1, Key + 1, AtomMap#{Key => ''});
-        Atom ->
-            case hd(atom_to_list(Atom)) of
-                $$ ->
-                    get_existing_atoms(Index + 1, Key, AtomMap);
-                _ ->
-                    get_existing_atoms(Index + 1, Key + 1, AtomMap#{Key => Atom})
-            end
-    catch
-        error:badarg ->
-            {Index, AtomMap}
-    end.
+-define(ATOM_TERM_BIN(Index), <<131, 75, Index:24>>).
+get_existing_atom(Index) ->
+    binary_to_term(?ATOM_TERM_BIN(Index)).
 
 %% @private
 -spec binary_gen(size()) -> proper_types:type().
