@@ -64,12 +64,12 @@ mark_used_imports(Dict, Forms) ->
     lists:foldl(fun scan_forms/2, Dict, Forms).
 
 -spec scan_forms(abs_form(), imp_dict()) -> imp_dict().
-scan_forms({function, _L, _F, _A, Clauses}, Dict) ->
-    lists:foldl(fun brutal_scan/2, Dict, Clauses);
+scan_forms({function, _L, _F, _A, ClauseSeq}, Dict) ->
+    lists:foldl(fun brutal_scan/2, Dict, ClauseSeq);
 scan_forms(_, Dict) ->
     Dict.
 
--spec brutal_scan(abs_form() | [abs_form()], imp_dict()) -> imp_dict().
+-spec brutal_scan(abs_expr() | [abs_clause()], imp_dict()) -> imp_dict().
 brutal_scan({'fun', _L, {function, Name, Arity}}, Dict) ->
     maybe_update_dict({Name, Arity}, Dict);
 brutal_scan({call, _L1, Call, Args}, Dict0) ->
@@ -102,20 +102,20 @@ to_dict(Imports) -> to_dict(Imports, dict:new()).
 -spec to_dict([abs_form()], imp_dict()) -> imp_dict().
 to_dict([], Dict) ->
     Dict;
-to_dict([{attribute, Line, import, {Mod, FunL}} | Rest], Dict0) ->
-    to_dict(Rest, lists:foldl(fun(Fun, Dict) ->
-                                  dict:store(Fun, {Line, Mod, false}, Dict)
-                              end, Dict0, FunL)).
+to_dict([{attribute, Line, import, {Mod, FALst}} | Rest], Dict0) ->
+    to_dict(Rest, lists:foldl(fun(FA, Dict) ->
+                                  dict:store(FA, {Line, Mod, false}, Dict)
+                              end, Dict0, FALst)).
 
 -spec new_import_attributes(imp_dict()) -> [abs_form()].
 new_import_attributes(Dict) ->
-    LMFs = [{Line, Mod, Fun} || {Fun, {Line, Mod, true}} <- dict:to_list(Dict)],
-    Imports = lists:keysort(1, LMFs),
+    LMFAs = [{Line, Mod, FA} || {FA, {Line, Mod, true}} <- dict:to_list(Dict)],
+    Imports = lists:keysort(1, LMFAs),
     lists:reverse(lists:foldl(fun add_new_attribute/2, [], Imports)).
 
--type lmf() :: {erl_anno:line(), mod_name(), fun_name()}.
--spec add_new_attribute(lmf(), [abs_form()]) -> [abs_form()].
-add_new_attribute({Line, Mod, Fun}, [{_, Line, _, {Mod, FunL}} | Attributes]) ->
-    [{attribute, Line, import, {Mod, [Fun | FunL]}} | Attributes];
-add_new_attribute({Line, Mod, Fun}, Attributes) ->
-    [{attribute, Line, import, {Mod, [Fun]}} | Attributes].
+-type lmfa() :: {erl_anno:line(), mod_name(), key()}.
+-spec add_new_attribute(lmfa(), [abs_form()]) -> [abs_form()].
+add_new_attribute({Line, Mod, FA}, [{_, Line, _, {Mod, FALst}} | Attributes]) ->
+    [{attribute, Line, import, {Mod, [FA | FALst]}} | Attributes];
+add_new_attribute({Line, Mod, FA}, Attributes) ->
+    [{attribute, Line, import, {Mod, [FA]}} | Attributes].
