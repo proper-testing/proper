@@ -20,6 +20,7 @@ jobs:
     strategy:
       matrix:
         otp:
+          - "26.0"
           - "25.3"
           - "25.0"
           - "24.3"
@@ -44,7 +45,7 @@ jobs:
   examples:
     name: Test examples
     runs-on: ubuntu-latest
-    container: erlang:25.3
+    container: erlang:26.0
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -54,7 +55,7 @@ jobs:
   parallel-examples:
     name: Test examples in parallel
     runs-on: ubuntu-latest
-    container: erlang:25.3
+    container: erlang:26.0
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -64,7 +65,7 @@ jobs:
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
-    container: erlang:25.3
+    container: erlang:26.0
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
