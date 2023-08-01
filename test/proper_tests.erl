@@ -410,6 +410,11 @@ simple_types_with_data() ->
      {[], [[]], [], [[a],[1,2,3]], "[]"},
      {fixed_list([neg_integer(),pos_integer()]), [[-12,32],[-1,1]], [-1,1],
       [[0,0]], none},
+     {map(#{key => value, pos_integer() => neg_integer()}),
+      [#{key => value, 1 => -1}], #{}, [not_a_map], none},
+     {fixed_map(#{key => value, some_number => neg_integer()}),
+      [#{key => value, some_number => -3}], #{key => value, some_number => -1},
+       [not_a_map], none},
      {[atom(),integer(),atom(),float()], [[forty_two,42,forty_two,42.0]],
       ['',0,'',0.0], [[proper,is,licensed],[under,the,gpl]], none},
      {[42 | list(integer())], [[42],[42,44,22]], [42], [[],[11,12]], none},
@@ -773,7 +778,7 @@ cant_generate_test_() ->
     [?_test(assert_cant_generate(Type)) || Type <- impossible_types()].
 
 proper_exported_types_test_() ->
-    [?_assertEqual({[],12}, proper_exported_types_test:not_handled())].
+    [?_assertEqual({[],0}, proper_exported_types_test:not_handled())].
 
 %%------------------------------------------------------------------------------
 %% Verify that failing constraints are correctly reported

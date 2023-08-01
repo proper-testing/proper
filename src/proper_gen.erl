@@ -42,8 +42,8 @@
 	 binary_rev/1, binary_len_gen/1, bitstring_gen/1, bitstring_rev/1,
 	 bitstring_len_gen/1, list_gen/2, distlist_gen/3, vector_gen/2,
 	 union_gen/1, weighted_union_gen/1, tuple_gen/1, loose_tuple_gen/2,
-	 loose_tuple_rev/2, exactly_gen/1, fixed_list_gen/1, function_gen/2,
-	 any_gen/1, native_type_gen/2, safe_weighted_union_gen/1,
+	 loose_tuple_rev/2, exactly_gen/1, fixed_list_gen/1, fixed_map_gen/1,
+	 function_gen/2, any_gen/1, native_type_gen/2, safe_weighted_union_gen/1,
 	 safe_union_gen/1]).
 
 %% Public API types
@@ -344,6 +344,9 @@ clean_instance({'$to_part',ImmInstance}) ->
     clean_instance(ImmInstance);
 clean_instance(ImmInstance) when is_list(ImmInstance) ->
     clean_instance_list(ImmInstance);
+clean_instance(ImmInstance) when is_map(ImmInstance) ->
+	%% maps:map only changes the values, this handles both keys and values
+	maps:from_list(clean_instance_list(maps:to_list(ImmInstance)));
 clean_instance(ImmInstance) when is_tuple(ImmInstance) ->
     list_to_tuple(clean_instance_list(tuple_to_list(ImmInstance)));
 clean_instance(ImmInstance) -> ImmInstance.
@@ -575,6 +578,15 @@ fixed_list_gen({ProperHead,ImproperTail}) ->
     [generate(F) || F <- ProperHead] ++ generate(ImproperTail);
 fixed_list_gen(ProperFields) ->
     [generate(F) || F <- ProperFields].
+
+%% @private
+-spec fixed_map_gen(map()) -> imm_instance().
+fixed_map_gen(Map) when is_map(Map) ->
+	maps:from_list([
+		{generate(KeyOrType), generate(ValueOrType)}
+	||
+		{KeyOrType, ValueOrType} <- maps:to_list(Map)
+	]).
 
 %% @private
 -spec function_gen(arity(), proper_types:type()) -> function().
