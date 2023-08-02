@@ -315,7 +315,7 @@ float_gen_sa({'$type', TypeProps}) ->
 
 %% List
 is_list_type(Type) ->
-  has_same_generator(Type, proper_types:list(proper_types:atom())).
+  has_same_generator(Type, proper_types:list(proper_types:default_atom())).
 
 list_choice(empty, Temp) ->
   C = ?RANDOM_MOD:uniform(),
@@ -426,7 +426,7 @@ vector_gen_sa(Type) ->
 
 %% atom
 is_atom_type(Type) ->
-  has_same_generator(Type, proper_types:atom()).
+  has_same_generator(Type, proper_types:default_atom()).
 
 atom_gen_sa(_AtomType) ->
   StringType = proper_types:list(proper_types:integer(0, 255)),
