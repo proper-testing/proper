@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2023 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2024 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2023 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
+%%% @copyright 2010-2024 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains PropEr's Unit tests. You need the EUnit
@@ -1054,7 +1054,7 @@ false_props_test_() ->
      ?_fails(?FORALL(_, float(0.0,0.0), false)),
      ?_fails(fails(?FORALL(_, integer(), false))),
      ?_failsWith([16], ?FORALL(X, ?LET(Y,integer(),Y*Y), X < 15)),
-     ?_failsWith([0.0],
+     ?_failsWith([+0.0],
 		 ?FORALL(_, ?LETSHRINK([A,B], [float(),atom()], {A,B}), false)),
      ?_failsWith([], conjunction([{some,true},{thing,false}])),
      ?_failsWith([{2,1},[{group,[[{sub_group,[1]}]]},{stupid,[1]}]],

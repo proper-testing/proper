@@ -364,7 +364,7 @@ module() ->
 %%%      <li>Catch clause exception types (<code>'catch'</code>):
 %%%        <code>no_eclass, any_eclass, lit_eclass, var_eclass,
 %%%         bad_eclass</code></li>
-%%%      <li>Receive timouts (<code>'receive'</code>): <code>
+%%%      <li>Receive timeouts (<code>'receive'</code>): <code>
 %%%         lit_timeout, inf_timeout, var_timeout</code></li>
 %%%      <li>Function expressions (<code>'fun'</code>): <code>
 %%%         lambda, rec_lambda, local_mfa, ext_mfa, any_mfa</code></li>

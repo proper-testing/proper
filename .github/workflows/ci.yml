@@ -20,6 +20,7 @@ jobs:
     strategy:
       matrix:
         otp:
+          - "26.2"
           - "26.0"
           - "25.3"
           - "25.0"
@@ -28,12 +29,10 @@ jobs:
           - "23.2"
           - "23.0"
           - "22.3"
-          - "22.1" # 22.0 seg faults
           - "21.3"
-          - "21.0"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Cache .plt directory
         uses: actions/cache@v3
         with:
@@ -45,30 +44,30 @@ jobs:
   examples:
     name: Test examples
     runs-on: ubuntu-latest
-    container: erlang:26.0
+    container: erlang:26.2
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Test examples
         run: make test-examples
 
   parallel-examples:
     name: Test examples in parallel
     runs-on: ubuntu-latest
-    container: erlang:26.0
+    container: erlang:26.2
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Test examples in parallel
         run: make test-parallel
 
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
-    container: erlang:26.0
+    container: erlang:26.2
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Measure coverage
