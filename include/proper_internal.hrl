@@ -69,6 +69,7 @@
 
 -define(PROPERTY_PREFIX, "prop_").
 
+-define(var(Value), io:format("~s = ~p\n", [??Value, Value])).
 
 %%------------------------------------------------------------------------------
 %% Constants
