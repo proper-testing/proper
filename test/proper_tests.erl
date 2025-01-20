@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2024 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2025 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2024 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
+%%% @copyright 2010-2025 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc This module contains PropEr's Unit tests. You need the EUnit
@@ -343,7 +343,8 @@ assert_is_pure_function(F) ->
 %%------------------------------------------------------------------------------
 
 simple_types_with_data() ->
-    [{integer(), [-1,0,1,42,-200], 0, [0.3,someatom,<<1>>], "integer()"},
+    [%% Integers
+     {integer(), [-1,0,1,42,-200], 0, [0.3,someatom,<<1>>], "integer()"},
      {integer(7,88), [7,8,87,88,23], 7, [1,90,a], "7..88"},
      {integer(0,42), [0,11,42], 0, [-1,43], "0..42"},
      {integer(-99,0), [-88,-99,0], 0, [1,-1112], "-99..0"},
@@ -353,6 +354,7 @@ simple_types_with_data() ->
      {pos_integer(), [12,1,444], 1, [-12,0], "pos_integer()"},
      {non_neg_integer(), [42,0], 0, [-9,rr], "non_neg_integer()"},
      {neg_integer(), [-222,-1], -1, [0,1111], "neg_integer()"},
+     %% Floats
      {float(), [17.65,-1.12], 0.0, [11,atomm,<<>>], "float()"},
      {float(7.4,88.0), [7.4,88.0], 7.4, [-1.0,3.2], none},
      {float(0.0,42.1), [0.1,42.1], 0.0, [-0.1], none},
@@ -361,27 +363,33 @@ simple_types_with_data() ->
      {float(-71.8,99.0), [-71.8,99.0,0.0,11.1], 0.0, [100.0,-71.9], none},
      {float(0.0,0.0), [0.0], 0.0, [0.1,-0.1], none},
      {non_neg_float(), [88.8,98.9,0.0], 0.0, [-12,1,-0.01], none},
+     %% Atoms
      {atom(), [elvis,'Another Atom',''], '', ["not_an_atom",12,12.2], "atom()"},
+     %% Binaries
      {binary(), [<<>>,<<12,21>>], <<>>, [<<1,2:3>>,binary_atom,42], "binary()"},
      {binary(), [], <<>>, [], "<<_:_*8>>"},
      {binary(3), [<<41,42,43>>], <<0,0,0>>, [<<1,2,3,4>>], "<<_:24>>"},
      {binary(0), [<<>>], <<>>, [<<1>>], "<<_:0>>"},
+     %% Bitstrings
      {bitstring(), [<<>>,<<87,76,65,5:4>>], <<>>, [{12,3},11], "bitstring()"},
      {bitstring(), [], <<>>, [], "<<_:_*1>>"},
      {bitstring(18), [<<0,1,2:2>>,<<1,32,123:2>>], <<0,0,0:2>>, [<<12,1,1:3>>],
       "<<_:18, _:_*0>>"},
      {bitstring(32), [<<120,120,120,120>>], <<0,0,0,0>>, [7,8], "<<_:32>>"},
      {bitstring(0), [<<>>], <<>>, [<<1>>], "<<>>"},
+     %% Lists
      {list(integer()), [[],[2,42],[0,1,1,2,3,5,8,13,21,34,55,89,144]], [],
       [[4,4.2],{12,1},<<12,113>>], "[integer()]"},
      {list(atom()), [[on,the,third,day,'of',christmas,my,true,love,sent,to,me]],
       [], [['not',1,list,'of',atoms],not_a_list], "[atom()]"},
      {list(union([integer(),atom()])), [[3,french,hens,2],[turtle,doves]], [],
       [{'and',1}], "[integer() | atom()]"},
+     %% Vectors
      {vector(5,atom()), [[partridge,in,a,pear,tree],[a,b,c,d,e]],
       ['','','','',''], [[a,b,c,d],[a,b,c,d,e,f]], none},
      {vector(2,float()), [[0.0,1.1],[4.4,-5.5]], [0.0,0.0], [[1,1]], none},
      {vector(0,integer()), [[]], [], [[1],[2]], none},
+     %% Unions
      {union([good,bad,ugly]), [good,bad,ugly], good, [clint,"eastwood"],
       "good | bad | ugly"},
      {union([integer(),atom()]), [twenty_one,21], 0, ["21",<<21>>],
@@ -391,6 +399,7 @@ simple_types_with_data() ->
       [skill,pain,pleasure], luck, [clear,20,50], none},
      {{integer(0,42),list(atom())}, [{42,[a,b]},{21,[c,de,f]},{0,[]}], {0,[]},
       [{-1,[a]},{12},{21,[b,c],12}], "{0..42,[atom()]}"},
+     %% Tuples
      {tuple(), [{a,42},{2.56,<<42>>,{a}},{},{a,{a,17},3.14,{{}}}], {},
       [#{a => 17},[{}],42], "tuple()"},
      {tuple([atom(),integer()]), [{the,1}], {'',0}, [{"a",0.0}],
@@ -407,17 +416,22 @@ simple_types_with_data() ->
      {exactly({[writing],unit,[tests,is],{2},boring}),
       [{[writing],unit,[tests,is],{2},boring}],
       {[writing],unit,[tests,is],{2},boring}, [no,its,'not','!'], none},
+     %% Maps
+     %% {map(), [], #{}, [], "map()"},
+     %%
      {[], [[]], [], [[a],[1,2,3]], "[]"},
      {fixed_list([neg_integer(),pos_integer()]), [[-12,32],[-1,1]], [-1,1],
       [[0,0]], none},
      {[atom(),integer(),atom(),float()], [[forty_two,42,forty_two,42.0]],
       ['',0,'',0.0], [[proper,is,licensed],[under,the,gpl]], none},
      {[42 | list(integer())], [[42],[42,44,22]], [42], [[],[11,12]], none},
+     %% Built-in Unions
      {number(), [12,32.3,-9,-77.7], 0, [manolis,papadakis], "number()"},
      {boolean(), [true,false], false, [unknown], "boolean()"},
      {string(), ["hello","","world"], "", ['hello'], "string()"},
      {arity(), [0,2,17,42,255], 0, [-1,256], "arity()"},
      {timeout(), [0,42,infinity,666], 0, [-1,infinite,3.14], "timeout()"},
+     %% -----
      {?LAZY(integer()), [0,2,99], 0, [1.1], "integer()"},
      {?LAZY(list(float())), [[0.0,1.2,1.99],[]], [], [1.1,[1,2]], "[float()]"},
      {zerostream(10), [[0,0,0],[],[0,0,0,0,0,0,0]], [], [[1,0,0],[0.1]], none},
@@ -548,7 +562,7 @@ impossible_types() ->
      ?SUCHTHAT(B, binary(), lists:member(256,binary_to_list(B))),
      ?SUCHTHAT(X, exactly('Lelouch'), X =:= 'vi Brittania'),
      ?SUCHTHAT(X, utf8(), unicode:characters_to_list(X) =:= [16#D800]),
-     ?SUCHTHAT(X, utf8(1, 1), size(X) > 1),
+     ?SUCHTHAT(X, utf8(1, 1), byte_size(X) > 1),
      %% Nested constraints, of which the inner one fails
      ?SUCHTHAT(X, ?SUCHTHAT(Y, pos_integer(), Y < 0), X > 0),
      %% Nested constraints, of which the outer one fails
@@ -919,11 +933,11 @@ native_type_props_test_() ->
 
      ?_passes(?FORALL(B, utf8(), unicode:characters_to_binary(B) =:= B)),
      ?_passes(?FORALL(B, utf8(1), length(unicode:characters_to_list(B)) =< 1)),
-     ?_passes(?FORALL(B, utf8(1, 1), size(B) =< 1)),
-     ?_passes(?FORALL(B, utf8(2, 1), size(B) =< 2)),
-     ?_passes(?FORALL(B, utf8(4), size(B) =< 16)),
+     ?_passes(?FORALL(B, utf8(1, 1), byte_size(B) =< 1)),
+     ?_passes(?FORALL(B, utf8(2, 1), byte_size(B) =< 2)),
+     ?_passes(?FORALL(B, utf8(4), byte_size(B) =< 16)),
      ?_passes(?FORALL(B, utf8(),
-                      length(unicode:characters_to_list(B)) =< size(B)))
+                      length(unicode:characters_to_list(B)) =< byte_size(B)))
     ].
 
 -type bin4()   :: <<_:32>>.
