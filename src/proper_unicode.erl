@@ -1,5 +1,4 @@
-%%% -*- coding: utf-8 -*-
-%%% -*- erlang-indent-level: 2 -*-
+%%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
 %%% Copyright 2014 Motiejus Jakstys <desired.mta@gmail.com>
 %%%
@@ -24,10 +23,10 @@
 
 %%% @doc Unicode generators for PropEr
 %%%
-%%% This module exposes utf8 binary generator.
+%%% This module exposes utf8 binary and string generators.
 %%%
-%%% Makes it easy to create custom-encoded unicode binaries. For example,
-%%% utf16 binary generator:
+%%% Makes it easy to create custom-encoded unicode binaries and strings.
+%%% For example, utf16 binary generator:
 %%%
 %%% ```
 %%% utf16() ->
@@ -40,18 +39,20 @@
 %%% ?FORALL(S, utf16(),
 %%%         size(S) >= 2*length(unicode:characters_to_list(S, utf16))).
 %%% '''
-%%% Only utf8 generation is supported: {@link utf8/0}, {@link utf8/1}, {@link
-%%% utf8/2}. Unicode codepoints and other encodings are trivial to get with
-%%% utf8 generators and {@link unicode} module in OTP.
+
+%%% Only utf8 generation is supported: see {@link utf8/0}, {@link utf8/1},
+%%% {@link utf8/2} which generate binaries and the corresponding functions
+%%% generating strings. Unicode codepoints and other encodings are trivial
+%%% to get with utf8 generators and the {@link unicode} module in OTP.
 -module(proper_unicode).
 
--export([utf8/0, utf8/1, utf8/2]).
+-export([utf8/0, utf8/1, utf8/2, utf8_string/0, utf8_string/1, utf8_string/2]).
 
 -include("proper_common.hrl").
 
 %% @private_type
 %% @alias
--type nonnegextint()  :: non_neg_integer() | 'inf'.
+-type nonnegextint() :: non_neg_integer() | 'inf'.
 
 
 %% @doc utf8-encoded unbounded size binary.
@@ -77,6 +78,21 @@ utf8(N, MaxCodePointSize) ->
          vector_upto(N, unicode_codepoint_upto(MaxCodePointSize)),
          unicode:characters_to_binary(Str)).
 
+
+%% @doc utf8-encoded unbounded size string.
+-spec utf8_string() -> proper_types:type().
+utf8_string() ->
+    utf8_string(inf, 4).
+
+%% @doc utf8-encoded bounded upper size string.
+-spec utf8_string(nonnegextint()) -> proper_types:type().
+utf8_string(N) ->
+    utf8_string(N, 4).
+
+%% @doc Bounded upper size utf8 string, `codepoint length =< MaxCodePointSize'.
+-spec utf8_string(nonnegextint(), 1..4) -> proper_types:type().
+utf8_string(N, MaxCodePointSize) ->
+    vector_upto(N, unicode_codepoint_upto(MaxCodePointSize)).
 
 %% =============================================================================
 %% Internal functions

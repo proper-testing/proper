@@ -1,6 +1,6 @@
 %%% -*- coding: utf-8; erlang-indent-level: 2 -*-
 %%% -------------------------------------------------------------------
-%%% Copyright 2010-2022 Manolis Papadakis <manopapad@gmail.com>,
+%%% Copyright 2010-2025 Manolis Papadakis <manopapad@gmail.com>,
 %%%                     Eirini Arvaniti <eirinibob@gmail.com>,
 %%%                 and Kostis Sagonas <kostis@cs.ntua.gr>
 %%%
@@ -19,7 +19,7 @@
 %%% You should have received a copy of the GNU General Public License
 %%% along with PropEr.  If not, see <http://www.gnu.org/licenses/>.
 
-%%% @copyright 2010-2022 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
+%%% @copyright 2010-2025 Manolis Papadakis, Eirini Arvaniti, and Kostis Sagonas
 %%% @version {@version}
 %%% @author Manolis Papadakis
 %%% @doc User header file: This file should be included in each file containing
@@ -70,7 +70,8 @@
 %% Unicode
 %%------------------------------------------------------------------------------
 
--import(proper_unicode, [utf8/0, utf8/1, utf8/2]).
+-import(proper_unicode, [utf8/0, utf8/1, utf8/2,
+                         utf8_string/0, utf8_string/1, utf8_string/2]).
 
 
 %%------------------------------------------------------------------------------

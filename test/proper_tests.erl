@@ -937,7 +937,10 @@ native_type_props_test_() ->
      ?_passes(?FORALL(B, utf8(2, 1), byte_size(B) =< 2)),
      ?_passes(?FORALL(B, utf8(4), byte_size(B) =< 16)),
      ?_passes(?FORALL(B, utf8(),
-                      length(unicode:characters_to_list(B)) =< byte_size(B)))
+                      length(unicode:characters_to_list(B)) =< byte_size(B))),
+     ?_passes(?FORALL(S, utf8_string(), unicode:characters_to_list(S) =:= S)),
+     ?_passes(?FORALL(S, utf8_string(4),
+		      byte_size(unicode:characters_to_binary(S)) =< 16))
     ].
 
 -type bin4()   :: <<_:32>>.
