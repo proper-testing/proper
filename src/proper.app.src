@@ -30,7 +30,7 @@
   {licenses, ["GPL 3.0"]},
   {links,  [{"GitHub", "https://github.com/proper-testing/proper"},
             {"Official Documentation", "https://proper-testing.github.io/"}]},
-  {vsn, "1.4.0"},
+  {vsn, "1.4.1"},
   {registered, []},
   {applications, [compiler, kernel, stdlib]},
   {env, []}]}.
