@@ -84,6 +84,26 @@ PropEr is also tightly integrated with Erlang's type language:
 Quickstart guide
 ----------------
 
+### Using PropEr as a dependency for your project
+
+*   Add PropEr to the list of dependencies of your project. This is done differently
+    depending on whether you are adding it to an Erlang or an Elixir project.
+    *   In Erlang, you have to add it in `rebar.config`:
+
+        ```erlang
+        {deps, [{proper, "1.3.0"}]}.
+        ```
+
+    *   In Elixir, you have to add it in `mix.exs`:
+
+        ```elixir
+        def deps do
+          [{:proper, "~> 1.3"}]
+        end
+        ```
+
+### Installing PropEr locally and adding it to the path
+
 *   Obtain a copy of PropEr's sources. You can either get a tagged version of
     the tool (look under `Tags` on github) or you can clone the current code
     base:
@@ -104,6 +124,8 @@ Quickstart guide
     brew install proper
     ```
     and continue following the instructions below.
+    > The path that you will need, in most cases, if you used `brew` is
+    > `/usr/local/Cellar/proper/1.3`
 *   Add PropEr's base directory to your Erlang library path, using one of the
     following methods:
     1.   `ERL_LIBS` environment variable: Add the following line to your shell
