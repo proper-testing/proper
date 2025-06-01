@@ -27,6 +27,8 @@
 -module(proper_exported_types_test).
 -export([not_handled/0]).
 
+-include("proper_internal.hrl").
+
 %%
 %% Checks that the automatic translation of types to generators can handle all
 %% types (structured + opaque) which are exported by some module of PropEr.
@@ -40,9 +42,6 @@
 %%
 %% Still, the test is currently not 100% there.
 %% TODOs:
-%%   - Eliminate the 12 errors that `proper_typeserver:demo_translate_type/2`
-%%     currently returns. (Three of these errors are due to the incomplete
-%%     handling of maps.)
 %%   - Handle symbolic instances (the {'$call', ...} case below).
 %%
 
@@ -63,8 +62,11 @@ pick_instance({M,T,A,{ok,Gen}}) ->
       %% catch _ -> io:format("~p~n", [{M,T,A}]), Inst end;
     _ ->
       case proper_typeserver:demo_is_instance(Inst, M, stringify(T, A)) of
-	true  -> ok;
-        false -> {M,T,A,Inst,Gen}
+        true  -> ok;
+        false -> {M,T,A,Inst,Gen};
+        {error, Reason} ->
+          ?var(Inst),
+          error(Reason, [{M,T,A,{ok,Gen}}])
       end
   end.
 
