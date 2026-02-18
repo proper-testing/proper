@@ -767,7 +767,8 @@ pmap(F, L) ->
 		 [command_list()]) -> [pid()].
 spawn_jobs(F, L) ->
     Parent = self(),
-    [spawn_link_cp(fun() -> Parent ! {self(),catch {ok,F(X)}} end) || X <- L].
+    [spawn_link_cp(fun() -> Parent ! {self(),try {ok,F(X)} catch _:R -> {error,R} end} end)
+     || X <- L].
 
 -spec await([pid()]) -> [parallel_history()].
 await([]) -> [];
@@ -775,7 +776,7 @@ await([H|T]) ->
     receive
 	{H, {ok, Res}} ->
 	    [Res|await(T)];
-	{H, {'EXIT',_} = Err} ->
+	{H, {error, Err}} ->
 	    _ = [exit(Pid, kill) || Pid <- T],
 	    _ = [receive {P,_} -> d_ after 0 -> i_ end || P <- T],
 	    erlang:error(Err)

@@ -52,7 +52,13 @@ not_handled() ->
   R = [{M,T,A,proper_typeserver:demo_translate_type(M, stringify(T, A))}
        || {M,T,A} <- MTs],
   {OKs,Errors} = lists:partition(fun type_translation_is_ok/1, R),
-  {[Inst || TGen <- OKs, (Inst = pick_instance(TGen)) =/= ok], length(Errors)}.
+  {lists:filtermap(fun filtermap_instance/1, OKs), length(Errors)}.
+
+filtermap_instance(TGen) ->
+  case pick_instance(TGen) of
+    ok -> false;
+    Inst -> {true, Inst}
+  end.
 
 pick_instance({M,T,A,{ok,Gen}}) ->
   {ok,Inst} = proper_gen:pick(Gen),
