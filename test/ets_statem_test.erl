@@ -228,7 +228,7 @@ prop_ets() ->
     ?FORALL(Type, noshrink(table_type()),
         ?FORALL(Cmds, commands(?MODULE, initial_state(Type)),
 	    begin
-		catch ets:delete(?TAB),
+		try ets:delete(?TAB) catch _:_ -> ok end,
 		?TAB = ets:new(?TAB, [Type, public, named_table]),
 		{H,S,Res} = run_commands(?MODULE, Cmds),
 		clean_up(),
@@ -241,7 +241,7 @@ prop_parallel_ets() ->
     ?FORALL(Type, noshrink(table_type()),
         ?FORALL(Cmds, parallel_commands(?MODULE, initial_state(Type)),
 	    begin
-		catch ets:delete(?TAB),
+		try ets:delete(?TAB) catch _:_ -> ok end,
 		?TAB = ets:new(?TAB, [Type, public, named_table]),
 		{Seq,P,Res} = run_parallel_commands(?MODULE, Cmds),
 		?WHENFAIL(
@@ -254,7 +254,7 @@ prop_parallel_ets() ->
 %%% Utility Functions
 
 set_up() ->
-    catch ets:delete(?TAB),
+    try ets:delete(?TAB) catch _:_ -> ok end,
     Type = lists:nth(proper_arith:rand_int(1, 4),
 		     [set, ordered_set, bag, duplicate_bag]),
     ?TAB = ets:new(?TAB, [Type, public, named_table]).

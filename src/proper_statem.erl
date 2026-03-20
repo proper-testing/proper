@@ -767,7 +767,18 @@ pmap(F, L) ->
 		 [command_list()]) -> [pid()].
 spawn_jobs(F, L) ->
     Parent = self(),
-    [spawn_link_cp(fun() -> Parent ! {self(),catch {ok,F(X)}} end) || X <- L].
+    [spawn_link_cp(fun() ->
+			    Msg = try {ok, F(X)} of
+				    V -> V
+				catch
+				    throw:T -> T;
+				    exit:Reason -> {'EXIT', Reason};
+				    error:Reason:Stacktrace ->
+					{'EXIT', {Reason, Stacktrace}}
+				end,
+			  Parent ! {self(), Msg}
+		  end)
+     || X <- L].
 
 -spec await([pid()]) -> [parallel_history()].
 await([]) -> [];

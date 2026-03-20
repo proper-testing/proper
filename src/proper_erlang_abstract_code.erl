@@ -67,6 +67,8 @@
 %%% '''
 -module(proper_erlang_abstract_code).
 
+-compile({no_auto_import, [is_record/1]}).
+
 -export([module/0, module/1, guard/0, guard/1, expr/0, expr/1]).
 
 -export([term/0, term/1]).
