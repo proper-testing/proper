@@ -81,7 +81,7 @@ set_up() ->
     ok.
 
 clean_up() ->
-    catch ets:delete(counter).
+    try ets:delete(counter) catch _:_ -> ok end.
 
 key() ->
     elements(?KEYS).

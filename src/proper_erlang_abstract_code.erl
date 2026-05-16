@@ -2135,7 +2135,7 @@ check_option(types, Term) ->
     end;
 check_option(records, Term) ->
     try
-        lists:all(fun(R) -> is_record(R) end, Term)
+        lists:all(fun(R) -> proper_is_record(R) end, Term)
     catch
         _:_ ->
             false
@@ -2171,7 +2171,7 @@ is_variable(T) ->
 
 is_fa({F, A}) when is_atom(F), is_integer(A), A >= 0, A < 256 -> true.
 
-is_record({R, Fs}) when is_atom(R) ->
+proper_is_record({R, Fs}) when is_atom(R) ->
     true = lists:all(fun erlang:is_atom/1, Fs).
 
 eval_options([], State) ->

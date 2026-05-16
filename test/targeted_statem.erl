@@ -86,7 +86,7 @@ postcondition(_S, _C, _R) -> true.
 prop_random() ->
   ?FORALL(Cmds, commands(?MODULE),
           begin
-            catch ets:delete(?TAB),
+            try ets:delete(?TAB) catch _:_ -> ok end,
             ?TAB = ets:new(?TAB, [set, public, named_table]),
             {_H, _S, Res} = run_commands(?MODULE, Cmds),
             ets:delete(?TAB),
@@ -96,7 +96,7 @@ prop_random() ->
 prop_targeted() ->
   ?FORALL_TARGETED(Cmds, commands(?MODULE),
                    begin
-                     catch ets:delete(?TAB),
+                     try ets:delete(?TAB) catch _:_ -> ok end,
                      ?TAB = ets:new(?TAB, [set, public, named_table]),
                      {_H, S, Res} = run_commands(?MODULE, Cmds),
                      ets:delete(?TAB),
@@ -107,7 +107,7 @@ prop_targeted() ->
 prop_targeted_init() ->
   ?FORALL_TARGETED(Cmds, commands(?MODULE, []),
                    begin
-                     catch ets:delete(?TAB),
+                     try ets:delete(?TAB) catch _:_ -> ok end,
                      ?TAB = ets:new(?TAB, [set, public, named_table]),
                      {_H, S, Res} = run_commands(?MODULE, Cmds),
                      ets:delete(?TAB),
