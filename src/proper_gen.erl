@@ -46,6 +46,8 @@
 	 any_gen/1, native_type_gen/2, safe_weighted_union_gen/1,
 	 safe_union_gen/1]).
 
+-export([existing_atom_gen/0]).
+
 %% Public API types
 -export_type([instance/0, seed/0, size/0]).
 %% Internal types
@@ -419,6 +421,27 @@ atom_rev(Atom) ->
     {'$used', atom_to_list(Atom), Atom}.
 
 %% @private
+-spec existing_atom_gen() -> atom().
+%% We make sure we never clash with internal atoms by ignoring atoms starting with
+%% the character '$'.
+existing_atom_gen() ->
+    existing_atom_gen(10).
+
+existing_atom_gen(0) ->
+    '';
+existing_atom_gen(N) ->
+    Index = proper_arith:rand_int(0, erlang:system_info(atom_count) - 1),
+    Atom = get_existing_atom(Index),
+    case Atom =:= '' orelse hd(atom_to_list(Atom)) =/= $$ of
+        true -> Atom;
+	false -> existing_atom_gen(N - 1)
+    end.
+
+-define(ATOM_TERM_BIN(Index), <<131, 75, Index:24>>).
+get_existing_atom(Index) ->
+    binary_to_term(?ATOM_TERM_BIN(Index)).
+
+%% @private
 -spec binary_gen(size()) -> proper_types:type().
 binary_gen(Size) ->
     ?LET(Bytes,
@@ -594,7 +617,7 @@ any_gen(Size) ->
 -spec real_any_gen(size()) -> imm_instance().
 real_any_gen(0) ->
     SimpleTypes = [proper_types:integer(), proper_types:float(),
-		   proper_types:atom()],
+		   proper_types:default_atom()],
     union_gen(SimpleTypes);
 real_any_gen(Size) ->
     FreqChoices = [{?ANY_SIMPLE_PROB,simple}, {?ANY_BINARY_PROB,binary},
