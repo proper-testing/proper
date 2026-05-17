@@ -851,7 +851,9 @@ parse_transform_test_() ->
      ?_assertError(undef, auto_export_test2:prop_1()),
      ?_assertError(undef, no_native_parse_test:prop_1()),
      ?_passes(let_tests:prop_1()),
-     ?_failsWith([3*42], let_tests:prop_2())].
+     ?_failsWith([3*42], let_tests:prop_2()),
+     ?_passes(no_transforms:prop_1()),
+     ?_passes(no_transforms:prop_2())].
 
 native_type_props_test_() ->
     [?_passes(?FORALL({X,Y}, {my_native_type(),my_proper_type()},
