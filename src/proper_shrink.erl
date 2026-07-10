@@ -33,6 +33,7 @@
 -export([number_shrinker/4, union_first_choice_shrinker/3,
 	 union_recursive_shrinker/3]).
 -export([split_shrinker/3, remove_shrinker/3]).
+-export([map_remove_shrinker/3, map_key_shrinker/3, map_value_shrinker/3]).
 
 -export_type([state/0, shrinker/0]).
 
@@ -397,6 +398,107 @@ elements_shrinker(Instance, Type,
     elements_shrinker(Instance, Type,
 		      {inner,Indices,GetElemType,{shrunk,N,InnerState}}).
 
+-spec map_remove_shrinker(
+	proper_gen:imm_instance(), proper_types:type(), state()
+) -> {[proper_gen:imm_instance()], state()}.
+map_remove_shrinker(Instance, Type, init) when is_map(Instance) ->
+	GetKeys = proper_types:get_prop(get_keys, Type),
+	Keys = GetKeys(Instance),
+	map_remove_shrinker(Instance, Type, {shrunk, 1, {keys, ordsets:new(), Keys}});
+map_remove_shrinker(Instance, _Type, {keys, _Checked, []}) when is_map(Instance) ->
+	{[], done};
+map_remove_shrinker(Instance, Type, {keys, Checked, [Key | Rest]}) when is_map(Instance) ->
+    Remove = proper_types:get_prop(remove, Type),
+	{[Remove(Key, Instance)], {keys, ordsets:add_element(Key, Checked), Rest}};
+map_remove_shrinker(Instance, Type, {shrunk, 1, {keys, Checked, ToCheck}}) when is_map(Instance) ->
+	%% GetKeys = proper_types:get_prop(get_keys, Type),
+	%% Keys = ordsets:from_list(GetKeys(Instance)),
+	%% NewToCheck = ordsets:subtract(Keys, Checked),
+	map_remove_shrinker(Instance, Type, {keys, Checked, ToCheck}).
+
+-spec map_value_shrinker(
+	proper_gen:imm_instance(), proper_types:type(), state()
+) -> {[proper_gen:imm_instance()], state()}.
+map_value_shrinker(Instance, _Type, init) when map_size(Instance) =:= 0 ->
+	{[], done};
+map_value_shrinker(Instance, Type, init) when is_map(Instance) ->
+	GetKeys = proper_types:get_prop(get_keys, Type),
+	TypeMap = proper_types:get_prop(internal_types, Type),
+	Keys = GetKeys(Instance),
+	ValueTypeMap = maps:map(fun(Key, Value) ->
+		{_KeyType, ValueType} = get_map_field_candidates(Key, Value, TypeMap),
+		ValueType
+	end, Instance),
+	map_value_shrinker(Instance, Type, {inner, Keys, ValueTypeMap, init});
+map_value_shrinker(Instance, _Type, {inner, [], _ValueTypeMap, init}) when is_map(Instance) ->
+	{[], done};
+map_value_shrinker(
+	Instance, Type, {inner, [_Key | Rest], ValueTypeMap, done}
+) when is_map(Instance) ->
+	map_value_shrinker(Instance, Type, {inner, Rest, ValueTypeMap, init});
+map_value_shrinker(
+	Instance, Type, {inner, Keys = [Key | _], ValueTypeMap, InnerState}
+) when is_map(Instance) ->
+	Retrieve = proper_types:get_prop(retrieve, Type),
+    Update = proper_types:get_prop(update, Type),
+	Value = Retrieve(Key, Instance),
+	ValueType = Retrieve(Key, ValueTypeMap),
+	{NewValues, NewInnerState} = shrink(Value, ValueType, InnerState),
+	NewInstances = [Update(Key, NewValue, Instance) || NewValue <- NewValues],
+	{NewInstances, {inner, Keys, ValueTypeMap, NewInnerState}};
+map_value_shrinker(
+	Instance, Type, {shrunk, N, {inner, ToCheck, ValueTypeMap, InnerState}}
+) when is_map(Instance) ->
+	map_value_shrinker(
+		Instance, Type, {inner, ToCheck, ValueTypeMap, {shrunk, N, InnerState}}
+	).
+
+-spec map_key_shrinker(
+	proper_gen:imm_instance(), proper_types:type(), state()
+) -> {[proper_gen:imm_instance()], state()}.
+map_key_shrinker(Instance, Type, init) when is_map(Instance) ->
+	GetKeys = proper_types:get_prop(get_keys, Type),
+	TypeMap = proper_types:get_prop(internal_types, Type),
+	Keys = GetKeys(Instance),
+	KeyTypeMap = maps:map(fun(Key, Value) ->
+		{KeyType, _ValueType} = get_map_field_candidates(Key, Value, TypeMap),
+		KeyType
+	end, Instance),
+	map_key_shrinker(Instance, Type, {inner, Keys, KeyTypeMap, init});
+map_key_shrinker(Instance, _Type, {inner, [], _ValueTypeMap, init}) when is_map(Instance) ->
+	{[], done};
+map_key_shrinker(
+	Instance, Type, {inner, [_Key | Rest], KeyTypeMap, done}
+) when is_map(Instance) ->
+	map_key_shrinker(Instance, Type, {inner, Rest, KeyTypeMap, init});
+map_key_shrinker(
+	Instance, Type, {inner, Keys = [Key | _], KeyTypeMap, InnerState}
+) when is_map(Instance) ->
+	Retrieve = proper_types:get_prop(retrieve, Type),
+    Update = proper_types:get_prop(update, Type),
+    Remove = proper_types:get_prop(remove, Type),
+	Value = Retrieve(Key, Instance),
+	KeyType = Retrieve(Key, KeyTypeMap),
+	{NewKeys, NewInnerState} = shrink(Key, KeyType, InnerState),
+	InstanceWithoutKey = Remove(Key, Instance),
+	NewInstances = [
+		Update(NewKey, Value, InstanceWithoutKey) || NewKey <- NewKeys
+	],
+	{NewInstances, {inner, Keys, KeyTypeMap, NewInnerState}};
+map_key_shrinker(
+	Instance, Type, {shrunk, N, {inner, ToCheck, KeyTypeMap, InnerState}}
+) when is_map(Instance) ->
+	map_key_shrinker(
+		Instance, Type, {inner, ToCheck, KeyTypeMap, {shrunk, N, InnerState}}
+	).
+
+get_map_field_candidates(Key, Value, TypeMap) ->
+	Candidates = maps:filter(fun(KeyType, ValueType) ->
+		proper_types:is_instance(Key, KeyType) andalso
+		proper_types:is_instance(Value, ValueType)
+	end, TypeMap),
+	{KeyType, ValueType, _} = maps:next(maps:iterator(Candidates)),
+	{KeyType, ValueType}.
 
 %%------------------------------------------------------------------------------
 %% Custom shrinkers

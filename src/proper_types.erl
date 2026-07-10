@@ -141,14 +141,14 @@
 
 -export([integer/2, float/2, atom/0, binary/0, binary/1, bitstring/0,
 	 bitstring/1, list/1, vector/2, union/1, weighted_union/1, tuple/1,
-	 loose_tuple/1, exactly/1, fixed_list/1, function/2, map/0, map/2,
-	 any/0, shrink_list/1, safe_union/1, safe_weighted_union/1]).
+	 loose_tuple/1, exactly/1, fixed_list/1, fixed_map/1, function/2, map/0,
+     map/1, map/2, any/0, shrink_list/1, safe_union/1, safe_weighted_union/1]).
 -export([integer/0, non_neg_integer/0, pos_integer/0, neg_integer/0, range/2,
 	 float/0, non_neg_float/0, number/0, boolean/0, byte/0, char/0, nil/0,
 	 list/0, tuple/0, string/0, wunion/1, term/0, timeout/0, arity/0]).
 -export([int/0, nat/0, largeint/0, real/0, bool/0, choose/2, elements/1,
 	 oneof/1, frequency/1, return/1, default/2, orderedlist/1, function0/1,
-	 function1/1, function2/1, function3/1, function4/1,
+	 function1/1, function2/1, function3/1, function4/1, merge_maps/1,
 	 weighted_default/2]).
 -export([resize/2, non_empty/1, noshrink/1]).
 
@@ -239,7 +239,7 @@
 			| 'combine' | 'alt_gens' | 'shrink_to_parts'
 			| 'size_transform' | 'is_instance' | 'shrinkers'
 			| 'noshrink' | 'internal_type' | 'internal_types'
-			| 'get_length' | 'split' | 'join' | 'get_indices'
+			| 'get_length' | 'split' | 'join' | 'get_indices' | 'get_keys'
 			| 'remove' | 'retrieve' | 'update' | 'constraints'
 			| 'parameters' | 'env' | 'subenv'
 			| 'user_nf' | 'is_user_nf' | 'matcher'.
@@ -258,7 +258,7 @@
     | {'shrinkers', [proper_shrink:shrinker()]}
     | {'noshrink', boolean()}
     | {'internal_type', raw_type()}
-    | {'internal_types', tuple() | maybe_improper_list(type(),type() | [])}
+    | {'internal_types', tuple() | map() | maybe_improper_list(type(),type() | [])}
       %% The items returned by 'remove' must be of this type.
     | {'get_length', fun((proper_gen:imm_instance()) -> length())}
       %% If this is a container type, this should return the number of elements
@@ -277,6 +277,10 @@
                            proper_gen:imm_instance()) -> [index()])}
       %% If this is a container type, this should return a list of indices we
       %% can use to remove or insert elements from the given instance.
+    | {'get_keys', fun((proper_types:type(),
+                           proper_gen:imm_instance()) -> [term()])}
+      %% Simliar to `get_indices' but for mapping types where the keys of the
+      %% type is not necessarily the same as the keys of the instance.
     | {'remove', fun((index(),proper_gen:imm_instance()) ->
 		     proper_gen:imm_instance())}
     | {'retrieve', fun((index(), proper_gen:imm_instance() | tuple()
@@ -312,6 +316,8 @@ cook_outer(RawType) when is_tuple(RawType) ->
     tuple(tuple_to_list(RawType));
 cook_outer(RawType) when is_list(RawType) ->
     fixed_list(RawType); %% CAUTION: this must handle improper lists
+cook_outer(RawType) when is_map(RawType) ->
+    fixed_map(RawType);
 cook_outer(RawType) -> %% default case (integers, floats, atoms, binaries, ...)
     exactly(RawType).
 
@@ -1113,12 +1119,93 @@ function_is_instance(Type, X) ->
     %% TODO: what if it's not a function we produced?
     andalso equal_types(RetType, proper_gen:get_ret_type(X)).
 
+%% @doc A map whose keys and values are defined by the given `Map'.
+%%
+%% Shrinks towards the empty map. That is, all keys are assumed to be optional.
+%%
+%% Also written simply as a {@link maps. map}.
+-spec map(#{Key::raw_type() => Value::raw_type()}) -> proper_types:type().
+map(Map) when is_map(Map) ->
+    MapType = fixed_map(Map),
+    Shrinkers = get_prop(shrinkers, MapType),
+    add_props([
+        {remove,fun maps:remove/2},
+        {shrinkers, [
+            fun proper_shrink:map_remove_shrinker/3,
+            fun proper_shrink:map_key_shrinker/3
+            | Shrinkers
+        ]}
+    ], MapType).
+
 %% @doc A map whose keys are defined by the generator `K' and values
 %% by the generator `V'.
 -spec map(K::raw_type(), V::raw_type()) -> proper_types:type().
 map(K, V) ->
     ?LET(L, list({K, V}), maps:from_list(L)).
 
+%% @doc A map merged from the given map generators.
+-spec merge_maps([Map::raw_type()]) -> proper_types:type().
+merge_maps(RawMaps) when is_list(RawMaps) ->
+    ?LET(Maps, RawMaps, lists:foldl(fun maps:merge/2, #{}, Maps)).
+
+%% @doc A map whose keys and values are defined by the given `Map'.
+%% Also written simply as a {@link maps. map}.
+-spec fixed_map(#{Key::raw_type() => Value::raw_type()}) -> proper_types:type().
+fixed_map(Map) when is_map(Map) ->
+	%% maps:map only changes the values, this handles both keys and values
+    WithValueTypes = maps:from_list([
+        {cook_outer(Key), cook_outer(Value)}
+        || {Key, Value} <- maps:to_list(Map)
+    ]),
+    ?CONTAINER([
+        {generator, {typed, fun map_gen/1}},
+        {is_instance, {typed, fun map_is_instance/2}},
+        {shrinkers, [fun proper_shrink:map_value_shrinker/3]},
+        {internal_types, WithValueTypes},
+        {get_length, fun maps:size/1},
+        {join, fun maps:merge/2},
+        {get_keys, fun maps:keys/1},
+        {retrieve, fun maps:get/2},
+        {update, fun maps:put/3}
+    ]).
+
+map_gen(Type) ->
+    Map = get_prop(internal_types, Type),
+    proper_gen:fixed_map_gen(Map).
+
+map_is_instance(Type, X) when is_map(X) ->
+    Map = get_prop(internal_types, Type),
+    map_all(
+        fun (Key, ValueType) when is_map_key(Key, X) ->
+                is_instance(maps:get(Key, X), ValueType);
+            (KeyOrType, ValueType) ->
+                case is_raw_type(KeyOrType) of
+                    true ->
+                        map_all(fun(Key, Value) ->
+                            case is_instance(Key, KeyOrType) of
+                                true -> is_instance(Value, ValueType);
+                                false -> true %% Ignore other keys
+                            end
+                        end, X);
+                    false ->
+                        %% The key not a type and not in `X'
+                        false
+                end
+        end,
+        Map
+    );
+map_is_instance(_Type, _X) ->
+    false.
+
+map_all(Fun, Map) when is_function(Fun, 2) andalso is_map(Map) ->
+    map_all_internal(Fun, maps:next(maps:iterator(Map)), true).
+
+map_all_internal(Fun, _, false) when is_function(Fun, 2) ->
+    false;
+map_all_internal(Fun, none, Result) when is_function(Fun, 2) andalso is_boolean(Result) ->
+    Result;
+map_all_internal(Fun, {Key, Value, NextIterator}, true) when is_function(Fun, 2) ->
+    map_all_internal(Fun, NextIterator, Fun(Key, Value)).
 
 %% @doc All Erlang terms (that PropEr can produce). For reasons of efficiency,
 %% functions are never produced as instances of this type.<br />
