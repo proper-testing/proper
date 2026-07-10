@@ -121,7 +121,7 @@
 %%% <li>For native types to be translated correctly, both the module that
 %%%   contains the `?FORALL' declaration as well as any module that contains
 %%%   the declaration of a type referenced (directly or indirectly) from inside
-%%%   a `?FORALL' must be present in the code path at runtime, either compiled
+%%%   a `?FORALL' must be present in the code path at compile-time, either compiled
 %%%   with `debug_info' enabled or in source form.</li>
 %%% <li>Local types with the same name as an auto-imported BIF are not accepted
 %%%   by PropEr, unless the BIF in question has been declared in a
