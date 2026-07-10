@@ -1415,6 +1415,20 @@ sampleshrink_test_() ->
         ?_shrinksTo([a], Gen)},
        ?_test(proper_gen:sampleshrink(Gen))]}].
 
+existing_atom_test() ->
+    _ = proper_gen:pick(proper_types:existing_atom()),
+    N = erlang:system_info(atom_count),
+    {ok, Atom} = proper_gen:pick(proper_types:existing_atom()),
+    ?assert(erlang:is_atom(Atom)),
+    ?assertEqual(N, erlang:system_info(atom_count)).
+
+default_atom_test() ->
+    _ = proper:quickcheck(?FORALL(_, any(), true),
+			  [1, {default_atom_generator, existing_atom}]),
+    N = erlang:system_info(atom_count),
+    ?assert(proper:quickcheck(?FORALL(_, any(), true),
+			      [{default_atom_generator, existing_atom}])),
+    ?assertEqual(N, erlang:system_info(atom_count)).
 
 %%------------------------------------------------------------------------------
 %% Performance tests
